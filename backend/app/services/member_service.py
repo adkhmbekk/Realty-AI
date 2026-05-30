@@ -1,7 +1,8 @@
 """
 Бизнес-логика управления командой агентства.
 
-Админ агентства видит своих сотрудников и может включать/отключать им доступ.
+Админ агентства видит своих сотрудников, может включать/отключать им доступ
+и менять роль (агент ↔ администратор агентства).
 Всё строго в пределах своего агентства (изоляция по agency_id).
 """
 from typing import List
@@ -12,6 +13,9 @@ from sqlalchemy.orm import Session
 from app.db.models.user import User
 from app.repositories import user_repo
 from app.schemas.team import MemberUpdate
+
+# Роли, которые сотруднику можно назначить внутри агентства.
+ASSIGNABLE_ROLES = ("agency_admin", "agent")
 
 
 def list_members(db: Session, agency_id: int) -> List[User]:
@@ -38,6 +42,22 @@ def update_member(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Нельзя отключить доступ самому себе.",
         )
+
+    if payload.role is not None:
+        new_role = payload.role
+        if new_role not in ASSIGNABLE_ROLES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Недопустимая роль. Доступно: администратор агентства или агент.",
+            )
+        # Защита: админ не может понизить сам себя — иначе агентство рискует
+        # остаться без администратора. Сменить свою роль может только другой админ.
+        if member.id == current_user.id and new_role != member.role:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нельзя менять роль самому себе. Попросите другого администратора.",
+            )
+        member.role = new_role
 
     if payload.is_active is not None:
         member.is_active = payload.is_active

@@ -350,6 +350,12 @@
         const statusBadge = m.is_active
           ? `<span class="badge green">активен</span>`
           : `<span class="badge gray">отключён</span>`;
+        // Кнопка смены роли: агент ↔ администратор агентства (себе менять нельзя).
+        const nextRole = m.role === "agency_admin" ? "agent" : "agency_admin";
+        const roleBtnLabel = m.role === "agency_admin" ? "Сделать агентом" : "Повысить до админа";
+        const roleBtn = isSelf
+          ? ""
+          : `<button class="small ghost" data-role-id="${m.id}" data-role="${nextRole}">${roleBtnLabel}</button>`;
         const action = isSelf
           ? `<span class="badge gray">это вы</span>`
           : `<button class="small ${m.is_active ? "danger" : "ghost"}" data-id="${m.id}" data-active="${m.is_active ? 1 : 0}">
@@ -357,11 +363,14 @@
         return `<div class="item">
           <div class="top"><span class="title">${esc(name)}</span>${statusBadge}</div>
           <div class="meta">${esc(roleLabel(m.role))}${m.username ? " · @" + esc(m.username) : ""}</div>
-          <div style="margin-top:8px">${action}</div>
+          <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">${action}${roleBtn}</div>
         </div>`;
       }).join("");
       box.querySelectorAll("button[data-id]").forEach(b => {
         b.addEventListener("click", () => toggleMember(parseInt(b.dataset.id, 10), b.dataset.active !== "1"));
+      });
+      box.querySelectorAll("button[data-role-id]").forEach(b => {
+        b.addEventListener("click", () => changeMemberRole(parseInt(b.dataset.roleId, 10), b.dataset.role));
       });
     }
     async function toggleMember(id, makeActive) {
@@ -369,6 +378,14 @@
       const r = await api("/api/v1/team/" + id, { method: "PATCH", body: { is_active: makeActive } });
       if (r.ok) { setStatus("Готово.", "ok"); loadTeam(); }
       else setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err");
+    }
+    async function changeMemberRole(id, newRole) {
+      const roleName = newRole === "agency_admin" ? "администратора агентства" : "агента";
+      if (!window.confirm("Назначить сотруднику роль «" + roleName + "»?")) return;
+      setStatus("Меняем роль…", "info");
+      const r = await api("/api/v1/team/" + id, { method: "PATCH", body: { role: newRole } });
+      if (r.ok) { setStatus("Роль изменена.", "ok"); loadTeam(); }
+      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
     }
 
     // --- Вкладка «Приглашения» ---

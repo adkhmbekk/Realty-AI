@@ -31,7 +31,7 @@ def update_member(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_admin),
 ):
-    """Изменить сотрудника (пока — включить/отключить доступ)."""
+    """Изменить сотрудника: включить/отключить доступ и/или сменить роль."""
     return member_service.update_member(
         db, current_user.agency_id, current_user, member_id, body
     )

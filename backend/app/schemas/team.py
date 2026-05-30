@@ -21,5 +21,8 @@ class MemberOut(BaseModel):
 
 
 class MemberUpdate(BaseModel):
-    # Пока разрешаем менять только активность (доступ) сотрудника.
+    # Активность (доступ) сотрудника.
     is_active: Optional[bool] = None
+    # Роль сотрудника внутри агентства: "agency_admin" или "agent".
+    # Менять на "superadmin" нельзя — это владелец платформы, не сотрудник.
+    role: Optional[str] = None
