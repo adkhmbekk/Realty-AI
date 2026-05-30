@@ -1,9 +1,8 @@
 # docker-compose описывает все части системы и как их запускать вместе.
 # Команда `docker compose up` поднимет всё, что здесь перечислено.
 #
-# Часть 1B: backend + база данных. Настройки входа (токен бота и т.п.)
-# берутся из файла .env, если он есть рядом. Если файла нет — подставляются
-# пустые значения, и проект всё равно запускается.
+# Часть 1C-1: добавился веб-сервер (web), который отдаёт страницу приложения
+# и соединяет её с backend. Теперь частей три: db, backend, web.
 
 services:
   # ─── База данных PostgreSQL ─────────────────────────────────────────────
@@ -25,18 +24,27 @@ services:
   # ─── Backend (FastAPI) ──────────────────────────────────────────────────
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
     environment:
       DATABASE_URL: postgresql+psycopg://realty:realty_local_dev@db:5432/realty
-      # Значения ниже берутся из файла .env (если он есть). Если переменная
-      # не задана — подставляется пустая строка, и backend это нормально учтёт.
       BOT_TOKEN: ${BOT_TOKEN:-}
       SUPERADMIN_TELEGRAM_ID: ${SUPERADMIN_TELEGRAM_ID:-}
       JWT_SECRET: ${JWT_SECRET:-}
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Веб-сервер (страница приложения + проксирование к API) ─────────────
+  web:
+    image: caddy:2
+    ports:
+      # Открой http://localhost:8080 в браузере, чтобы увидеть приложение.
+      - "8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend:/srv:ro
+    depends_on:
+      - backend
     restart: unless-stopped
 
 volumes:

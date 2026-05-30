@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Realty SaaS</title>
+  <!-- Официальный скрипт Telegram Mini App: даёт доступ к данным пользователя. -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+      background: #f3f4f6;
+      color: #111827;
+      display: flex;
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+      padding: 24px;
+      max-width: 460px;
+      width: 100%;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin: 0 0 20px; }
+    .status {
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 15px;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .status.info { background: #eff6ff; color: #1e40af; }
+    .status.ok { background: #ecfdf5; color: #065f46; }
+    .status.warn { background: #fffbeb; color: #92400e; }
+    .status.err { background: #fef2f2; color: #991b1b; }
+    .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-top: 1px solid #f0f0f0; }
+    .row span:first-child { color: #6b7280; }
+    .muted { color: #9ca3af; font-size: 12px; margin-top: 16px; word-break: break-all; }
+    pre { background: #f9fafb; border-radius: 8px; padding: 10px; font-size: 12px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Realty SaaS</h1>
+    <p class="sub">Приложение для риелторских агентств</p>
+
+    <div id="status" class="status info">Загрузка…</div>
+    <div id="details"></div>
+
+    <p class="muted" id="debug"></p>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const detailsEl = document.getElementById("details");
+    const debugEl = document.getElementById("debug");
+
+    function setStatus(text, kind) {
+      statusEl.textContent = text;
+      statusEl.className = "status " + (kind || "info");
+    }
+
+    function showRows(rows) {
+      detailsEl.innerHTML = rows
+        .map(r => `<div class="row"><span>${r[0]}</span><span><b>${r[1]}</b></span></div>`)
+        .join("");
+    }
+
+    async function checkBackend() {
+      // Проверяем, что страница может достучаться до backend через тот же адрес.
+      try {
+        const res = await fetch("/health");
+        const data = await res.json();
+        return data.database === "connected";
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function login(initData) {
+      const res = await fetch("/api/v1/auth/telegram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const data = await res.json();
+      return { ok: res.ok, status: res.status, data };
+    }
+
+    async function main() {
+      const tg = window.Telegram && window.Telegram.WebApp;
+      if (tg) { try { tg.ready(); tg.expand(); } catch (e) {} }
+
+      const initData = (tg && tg.initData) ? tg.initData : "";
+
+      if (!initData) {
+        // Страница открыта в обычном браузере (не в Telegram) — это нормально
+        // для локальной проверки. Проверим связь с backend.
+        const backendOk = await checkBackend();
+        if (backendOk) {
+          setStatus("✅ Страница работает и видит backend. Чтобы войти — открой приложение внутри Telegram (это настроим на следующем шаге).", "ok");
+        } else {
+          setStatus("⚠️ Страница загрузилась, но не может связаться с backend. Проверь, что все контейнеры запущены.", "warn");
+        }
+        showRows([
+          ["Открыто в Telegram", "Нет (обычный браузер)"],
+          ["Связь с backend", backendOk ? "Есть" : "Нет"],
+        ]);
+        return;
+      }
+
+      // Открыто внутри Telegram — пробуем войти.
+      setStatus("Выполняем вход через Telegram…", "info");
+      try {
+        const result = await login(initData);
+        if (result.ok) {
+          const u = result.data.user || {};
+          setStatus("Вы успешно вошли!", "ok");
+          showRows([
+            ["Имя", u.full_name || "—"],
+            ["Username", u.username ? "@" + u.username : "—"],
+            ["Роль", u.role || "—"],
+            ["Подписка активна", result.data.subscription_active ? "Да" : "Нет"],
+          ]);
+        } else {
+          setStatus("Войти не удалось: " + (result.data.detail || ("ошибка " + result.status)), "err");
+          debugEl.innerHTML = "<pre>" + JSON.stringify(result.data, null, 2) + "</pre>";
+        }
+      } catch (e) {
+        setStatus("Ошибка при входе: " + e.message, "err");
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
