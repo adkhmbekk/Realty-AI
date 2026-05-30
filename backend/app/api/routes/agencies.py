@@ -10,7 +10,7 @@ from app.core.dependencies import require_superadmin
 from app.db.models.user import User
 from app.db.session import get_db
 from app.repositories import agency_repo
-from app.schemas.agency import AgencyCreate, AgencyOut
+from app.schemas.agency import AgencyCreate, AgencyOut, AgencySubscriptionUpdate
 from app.services import agency_service
 
 router = APIRouter(prefix="/agencies", tags=["agencies"])
@@ -35,3 +35,14 @@ def list_agencies(
 ):
     """Список всех агентств платформы."""
     return agency_repo.get_all(db)
+
+
+@router.post("/{agency_id}/subscription", response_model=AgencyOut)
+def update_subscription(
+    agency_id: int,
+    body: AgencySubscriptionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Управление подпиской агентства: продлить / заморозить / активировать."""
+    return agency_service.update_subscription(db, agency_id, body.action, body.days)

@@ -62,9 +62,10 @@
     button.small { padding: 7px 10px; font-size: 13px; }
     button:disabled { opacity: .55; cursor: default; }
 
-    .tabs { display: flex; gap: 8px; margin: 8px 0 4px; }
+    .tabs { display: flex; gap: 8px; margin: 8px 0 4px; flex-wrap: wrap; }
     .tabs button {
-      flex: 1; background: #f3f4f6; color: #374151; font-weight: 600;
+      flex: 1; min-width: 88px; background: #f3f4f6; color: #374151; font-weight: 600;
+      padding: 9px 8px; font-size: 13px;
     }
     .tabs button.active { background: #2563eb; color: #fff; }
 
@@ -230,15 +231,33 @@
       if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
       if (!r.data.length) { box.innerHTML = `<div class="empty">Пока нет ни одного агентства.</div>`; return; }
       box.innerHTML = r.data.map(a => {
-        const st = a.status === "active" || a.status === "trial" ? "green" : "amber";
+        const st = (a.status === "active" || a.status === "trial") ? "green" : "amber";
+        const frozen = a.status === "frozen";
         return `<div class="item">
           <div class="top">
             <span class="title">${esc(a.name)}</span>
             <span class="badge ${st}">${esc(a.status)}</span>
           </div>
           <div class="meta">ID ${a.id} · подписка до: ${fmtDate(a.subscription_expires_at)}</div>
+          <div style="margin-top:8px">
+            <button class="small ghost" data-sub="extend" data-id="${a.id}">+30 дней</button>
+            ${frozen
+              ? `<button class="small ghost" data-sub="activate" data-id="${a.id}">Активировать</button>`
+              : `<button class="small danger" data-sub="freeze" data-id="${a.id}">Заморозить</button>`}
+          </div>
         </div>`;
       }).join("");
+      box.querySelectorAll("button[data-sub]").forEach(b =>
+        b.addEventListener("click", () => subAction(b.dataset.sub, parseInt(b.dataset.id, 10))));
+    }
+
+    async function subAction(action, id) {
+      setStatus("Обновляем подписку…", "info");
+      const body = { action };
+      if (action === "extend") body.days = 30;
+      const r = await api("/api/v1/agencies/" + id + "/subscription", { method: "POST", body });
+      if (r.ok) { setStatus("Готово.", "ok"); loadAgencies(); }
+      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
     }
 
     async function createAgency() {
@@ -274,11 +293,13 @@
           <button id="tab-objects" class="active">Объекты</button>
           <button id="tab-team">Команда</button>
           <button id="tab-invites">Приглашения</button>
+          <button id="tab-districts">Районы</button>
         </div>
         <div id="tab-body"></div>`;
       document.getElementById("tab-objects").addEventListener("click", () => switchTab("objects"));
       document.getElementById("tab-team").addEventListener("click", () => switchTab("team"));
       document.getElementById("tab-invites").addEventListener("click", () => switchTab("invites"));
+      document.getElementById("tab-districts").addEventListener("click", () => switchTab("districts"));
       switchTab("objects");
     }
 
@@ -286,10 +307,12 @@
       document.getElementById("tab-objects").classList.toggle("active", which === "objects");
       document.getElementById("tab-team").classList.toggle("active", which === "team");
       document.getElementById("tab-invites").classList.toggle("active", which === "invites");
+      document.getElementById("tab-districts").classList.toggle("active", which === "districts");
       const body = document.getElementById("tab-body");
       if (which === "objects") objectsScreen(body);
       else if (which === "team") renderTeamTab();
-      else renderInvitesTab();
+      else if (which === "invites") renderInvitesTab();
+      else renderDistrictsTab();
     }
 
     // --- Вкладка «Команда» ---
@@ -402,6 +425,50 @@
       const r = await api("/api/v1/invites/" + id, { method: "DELETE" });
       if (r.ok) { setStatus("Приглашение отозвано.", "ok"); loadInvites(); }
       else setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err");
+    }
+
+    // --- Вкладка «Районы» (справочник районов агентства) ---
+    function renderDistrictsTab() {
+      const body = document.getElementById("tab-body");
+      body.innerHTML = `
+        <h2>Районы агентства</h2>
+        <div class="hint">Эти районы используются в форме объекта и в фильтрах поиска. Тип объекта и состояние — фиксированные списки и не меняются здесь.</div>
+        <label>Новый район</label>
+        <input id="dist-name" placeholder="например, Центр" />
+        <button class="full" id="dist-add">Добавить район</button>
+        <div id="dist-list" style="margin-top:8px"><div class="empty">Загрузка…</div></div>`;
+      document.getElementById("dist-add").addEventListener("click", addDistrict);
+      loadDistricts();
+    }
+    async function loadDistricts() {
+      const box = document.getElementById("dist-list");
+      const r = await api("/api/v1/dictionaries?category=district");
+      if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">Районов пока нет.</div>`; return; }
+      box.innerHTML = r.data.map(d => `<div class="item">
+        <div class="top">
+          <span class="title">${esc(d.value)}</span>
+          <button class="small danger" data-del-dist="${d.id}">Удалить</button>
+        </div>
+      </div>`).join("");
+      box.querySelectorAll("button[data-del-dist]").forEach(b =>
+        b.addEventListener("click", () => deleteDistrict(parseInt(b.dataset.delDist, 10))));
+    }
+    async function addDistrict() {
+      const input = document.getElementById("dist-name");
+      const value = (input.value || "").trim();
+      if (!value) { setStatus("Введите название района.", "warn"); return; }
+      setStatus("Добавляем…", "info");
+      const r = await api("/api/v1/dictionaries", { method: "POST", body: { category: "district", value } });
+      if (r.ok) { setStatus("Район добавлен.", "ok"); input.value = ""; refs.loaded = false; loadDistricts(); }
+      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
+    }
+    async function deleteDistrict(id) {
+      if (!window.confirm("Удалить район?")) return;
+      setStatus("Удаляем…", "info");
+      const r = await api("/api/v1/dictionaries/" + id, { method: "DELETE" });
+      if (r.ok) { setStatus("Район удалён.", "ok"); refs.loaded = false; loadDistricts(); }
+      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
     }
 
     // ───────────────────── АГЕНT ─────────────────────
