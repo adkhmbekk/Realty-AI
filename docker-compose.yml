@@ -1,0 +1,40 @@
+# docker-compose описывает все части системы и как их запускать вместе.
+# Команда `docker compose up` поднимет всё, что здесь перечислено.
+#
+# Часть 1A: теперь у нас две части — база данных (db) и backend.
+# Позже сюда добавятся фронтенд, бот и reverse-proxy.
+
+services:
+  # ─── База данных PostgreSQL ─────────────────────────────────────────────
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: realty
+      POSTGRES_PASSWORD: realty_local_dev
+      POSTGRES_DB: realty
+    volumes:
+      # Данные базы сохраняются на диске, чтобы не пропадали между запусками.
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      # Backend дождётся, пока база реально будет готова принимать подключения.
+      test: ["CMD-SHELL", "pg_isready -U realty -d realty"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ─── Backend (FastAPI) ──────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Адрес базы внутри docker-сети: хост "db" = имя сервиса выше.
+      DATABASE_URL: postgresql+psycopg://realty:realty_local_dev@db:5432/realty
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db_data:
