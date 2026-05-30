@@ -16,7 +16,7 @@
       color: #111827;
       display: flex;
       min-height: 100vh;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       padding: 16px;
     }
@@ -24,200 +24,445 @@
       background: #fff;
       border-radius: 16px;
       box-shadow: 0 8px 30px rgba(0,0,0,0.08);
-      padding: 24px;
-      max-width: 460px;
+      padding: 20px;
+      max-width: 520px;
       width: 100%;
     }
-    h1 { font-size: 20px; margin: 0 0 4px; }
-    .sub { color: #6b7280; font-size: 14px; margin: 0 0 20px; }
+    h1 { font-size: 20px; margin: 0 0 2px; }
+    h2 { font-size: 17px; margin: 18px 0 10px; }
+    .sub { color: #6b7280; font-size: 13px; margin: 0 0 16px; }
     .status {
       border-radius: 12px;
-      padding: 14px 16px;
-      font-size: 15px;
+      padding: 12px 14px;
+      font-size: 14px;
       line-height: 1.5;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
     .status.info { background: #eff6ff; color: #1e40af; }
-    .status.ok { background: #ecfdf5; color: #065f46; }
+    .status.ok   { background: #ecfdf5; color: #065f46; }
     .status.warn { background: #fffbeb; color: #92400e; }
-    .status.err { background: #fef2f2; color: #991b1b; }
+    .status.err  { background: #fef2f2; color: #991b1b; }
+    .status.hidden { display: none; }
+
     .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-top: 1px solid #f0f0f0; }
     .row span:first-child { color: #6b7280; }
-    .muted { color: #9ca3af; font-size: 12px; margin-top: 16px; word-break: break-all; }
-    pre { background: #f9fafb; border-radius: 8px; padding: 10px; font-size: 12px; overflow-x: auto; }
+
+    label { display:block; font-size: 13px; color:#374151; margin: 10px 0 4px; }
+    input, select {
+      width: 100%; padding: 11px 12px; border: 1px solid #d1d5db;
+      border-radius: 10px; font-size: 15px; background: #fff; color: #111827;
+    }
+    button {
+      border: 0; border-radius: 10px; padding: 11px 14px; font-size: 15px;
+      font-weight: 600; cursor: pointer; background: #2563eb; color: #fff;
+    }
+    button.full { width: 100%; margin-top: 12px; }
+    button.ghost { background: #eef2ff; color: #3730a3; }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    button.small { padding: 7px 10px; font-size: 13px; }
+    button:disabled { opacity: .55; cursor: default; }
+
+    .tabs { display: flex; gap: 8px; margin: 8px 0 4px; }
+    .tabs button {
+      flex: 1; background: #f3f4f6; color: #374151; font-weight: 600;
+    }
+    .tabs button.active { background: #2563eb; color: #fff; }
+
+    .item {
+      border: 1px solid #eef0f3; border-radius: 12px; padding: 12px;
+      margin-top: 10px; background: #fcfcfd;
+    }
+    .item .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .item .title { font-weight: 600; font-size: 15px; }
+    .item .meta { color: #6b7280; font-size: 13px; margin-top: 3px; }
+    .badge { font-size: 12px; padding: 3px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+    .badge.green { background:#dcfce7; color:#166534; }
+    .badge.gray  { background:#e5e7eb; color:#374151; }
+    .badge.red   { background:#fee2e2; color:#991b1b; }
+    .badge.amber { background:#fef3c7; color:#92400e; }
+
+    .codebox {
+      background:#0f172a; color:#e2e8f0; border-radius:10px; padding:10px 12px;
+      font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px;
+      word-break: break-all; margin-top: 8px;
+    }
+    .muted { color: #9ca3af; font-size: 12px; margin-top: 14px; word-break: break-all; }
+    .empty { color:#9ca3af; font-size: 14px; padding: 14px 0; text-align:center; }
+    .hint { background:#f9fafb; border:1px solid #eef0f3; border-radius:10px; padding:10px 12px; font-size:13px; color:#4b5563; margin-top:10px; }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Realty SaaS</h1>
-    <p class="sub">Приложение для риелторских агентств</p>
+    <p class="sub" id="subtitle">Приложение для риелторских агентств</p>
 
     <div id="status" class="status info">Загрузка…</div>
-    <div id="details"></div>
+    <div id="content"></div>
 
     <p class="muted" id="debug"></p>
   </div>
 
   <script>
-    const statusEl = document.getElementById("status");
-    const detailsEl = document.getElementById("details");
-    const debugEl = document.getElementById("debug");
+    // ───────────────────────── Состояние ─────────────────────────
+    const state = { token: null, user: null, initData: "", startParam: "" };
+
+    const statusEl  = document.getElementById("status");
+    const contentEl = document.getElementById("content");
+    const subtitleEl = document.getElementById("subtitle");
+    const debugEl   = document.getElementById("debug");
 
     function setStatus(text, kind) {
+      if (!text) { statusEl.className = "status hidden"; return; }
       statusEl.textContent = text;
       statusEl.className = "status " + (kind || "info");
     }
-
-    function showRows(rows) {
-      detailsEl.innerHTML = rows
-        .map(r => `<div class="row"><span>${r[0]}</span><span><b>${r[1]}</b></span></div>`)
-        .join("");
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
-
-    // Показать профиль вошедшего пользователя.
-    function showProfile(data) {
-      const u = data.user || {};
-      setStatus("Вы успешно вошли!", "ok");
-      const rows = [
-        ["Имя", u.full_name || "—"],
-        ["Username", u.username ? "@" + u.username : "—"],
-        ["Роль", roleLabel(u.role)],
-      ];
-      // Владельцу платформы (суперадмину) НЕ показываем строку про доступ/подписку.
-      // Сотрудникам агентства показываем статус подписки агентства.
-      if (u.role !== "superadmin") {
-        rows.push(["Подписка активна", data.subscription_active ? "Да" : "Нет"]);
-      }
-      showRows(rows);
+    function fmtDate(iso) {
+      if (!iso) return "—";
+      try {
+        const d = new Date(iso);
+        return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU", {hour:"2-digit", minute:"2-digit"});
+      } catch (e) { return iso; }
     }
-
     function roleLabel(role) {
       switch (role) {
-        case "superadmin": return "Владелец платформы";
+        case "superadmin":   return "Владелец платформы";
         case "agency_admin": return "Администратор агентства";
-        case "agent": return "Агент";
+        case "agent":        return "Агент";
         default: return role || "—";
       }
     }
+    async function copyText(text) {
+      try { await navigator.clipboard.writeText(text); setStatus("Скопировано в буфер обмена.", "ok"); }
+      catch (e) { window.prompt("Скопируйте вручную:", text); }
+    }
 
-    async function checkBackend() {
-      // Проверяем, что страница может достучаться до backend через тот же адрес.
-      try {
-        const res = await fetch("/health");
-        const data = await res.json();
-        return data.database === "connected";
-      } catch (e) {
-        return false;
+    // ───────────────────────── Сеть ─────────────────────────
+    async function api(path, opts) {
+      opts = opts || {};
+      const headers = { "Content-Type": "application/json" };
+      if (state.token) headers["Authorization"] = "Bearer " + state.token;
+      const res = await fetch(path, {
+        method: opts.method || "GET",
+        headers,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      return { ok: res.ok, status: res.status, data };
+    }
+
+    // ───────────────────────── Вход ─────────────────────────
+    async function login(initData) {
+      return api("/api/v1/auth/telegram", { method: "POST", body: { init_data: initData } });
+    }
+    async function redeem(initData, code) {
+      return api("/api/v1/invites/redeem", { method: "POST", body: { init_data: initData, code } });
+    }
+
+    // ───────────────────── Экран: профиль (шапка) ─────────────────────
+    function profileRows() {
+      const u = state.user || {};
+      return `
+        <div class="row"><span>Имя</span><span><b>${esc(u.full_name || "—")}</b></span></div>
+        <div class="row"><span>Username</span><span><b>${u.username ? "@" + esc(u.username) : "—"}</b></span></div>
+        <div class="row"><span>Роль</span><span><b>${esc(roleLabel(u.role))}</b></span></div>`;
+    }
+
+    // ───────────────────── Маршрутизация по роли ─────────────────────
+    function renderApp() {
+      setStatus("", null);
+      const role = state.user && state.user.role;
+      if (role === "superadmin")        renderSuperadmin();
+      else if (role === "agency_admin") renderAgencyAdmin();
+      else if (role === "agent")        renderAgent();
+      else renderUnknown();
+    }
+
+    // ───────────────────── СУПЕРАДМИН: агентства ─────────────────────
+    function renderSuperadmin() {
+      subtitleEl.textContent = "Панель владельца платформы";
+      contentEl.innerHTML = `
+        ${profileRows()}
+        <h2>Создать агентство</h2>
+        <label>Название агентства</label>
+        <input id="ag-name" placeholder="например, Уютный Дом" />
+        <label>Telegram ID администратора</label>
+        <input id="ag-admin-id" inputmode="numeric" placeholder="например, 123456789" />
+        <label>Username администратора (необязательно)</label>
+        <input id="ag-admin-username" placeholder="без @" />
+        <label>Подписка на сколько дней</label>
+        <input id="ag-days" inputmode="numeric" value="30" />
+        <button class="full" id="ag-create">Создать агентство</button>
+        <div class="hint">Администратор агентства — это отдельный человек (его Telegram ID).
+          Войдя в приложение, он увидит разделы «Команда» и «Приглашения».</div>
+        <h2>Агентства</h2>
+        <div id="ag-list"><div class="empty">Загрузка…</div></div>`;
+
+      document.getElementById("ag-create").addEventListener("click", createAgency);
+      loadAgencies();
+    }
+
+    async function loadAgencies() {
+      const box = document.getElementById("ag-list");
+      const r = await api("/api/v1/agencies");
+      if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">Пока нет ни одного агентства.</div>`; return; }
+      box.innerHTML = r.data.map(a => {
+        const st = a.status === "active" || a.status === "trial" ? "green" : "amber";
+        return `<div class="item">
+          <div class="top">
+            <span class="title">${esc(a.name)}</span>
+            <span class="badge ${st}">${esc(a.status)}</span>
+          </div>
+          <div class="meta">ID ${a.id} · подписка до: ${fmtDate(a.subscription_expires_at)}</div>
+        </div>`;
+      }).join("");
+    }
+
+    async function createAgency() {
+      const btn = document.getElementById("ag-create");
+      const name = document.getElementById("ag-name").value.trim();
+      const adminId = document.getElementById("ag-admin-id").value.trim();
+      const username = document.getElementById("ag-admin-username").value.trim();
+      const days = parseInt(document.getElementById("ag-days").value, 10);
+      if (!name) { setStatus("Введите название агентства.", "warn"); return; }
+      if (!adminId || isNaN(parseInt(adminId, 10))) { setStatus("Введите корректный Telegram ID администратора.", "warn"); return; }
+      btn.disabled = true; setStatus("Создаём агентство…", "info");
+      const body = { name, admin_telegram_id: parseInt(adminId, 10), subscription_days: isNaN(days) ? 30 : days };
+      if (username) body.admin_username = username;
+      const r = await api("/api/v1/agencies", { method: "POST", body });
+      btn.disabled = false;
+      if (r.ok) {
+        setStatus("Агентство «" + name + "» создано.", "ok");
+        document.getElementById("ag-name").value = "";
+        document.getElementById("ag-admin-id").value = "";
+        document.getElementById("ag-admin-username").value = "";
+        loadAgencies();
+      } else {
+        setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err");
       }
     }
 
-    async function login(initData) {
-      const res = await fetch("/api/v1/auth/telegram", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData }),
-      });
-      const data = await res.json();
-      return { ok: res.ok, status: res.status, data };
+    // ───────────────────── АДМИН АГЕНТСТВА: команда + приглашения ─────────────────────
+    function renderAgencyAdmin() {
+      subtitleEl.textContent = "Панель администратора агентства";
+      contentEl.innerHTML = `
+        ${profileRows()}
+        <div class="tabs">
+          <button id="tab-team" class="active">Команда</button>
+          <button id="tab-invites">Приглашения</button>
+        </div>
+        <div id="tab-body"></div>`;
+      document.getElementById("tab-team").addEventListener("click", () => switchTab("team"));
+      document.getElementById("tab-invites").addEventListener("click", () => switchTab("invites"));
+      switchTab("team");
     }
 
-    // Вступление в агентство по коду приглашения.
-    async function redeem(initData, code) {
-      const res = await fetch("/api/v1/invites/redeem", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData, code: code }),
-      });
-      const data = await res.json();
-      return { ok: res.ok, status: res.status, data };
+    function switchTab(which) {
+      document.getElementById("tab-team").classList.toggle("active", which === "team");
+      document.getElementById("tab-invites").classList.toggle("active", which === "invites");
+      if (which === "team") renderTeamTab();
+      else renderInvitesTab();
     }
 
-    // Показать форму ввода кода приглашения и обработать вступление.
-    function showJoinForm(initData, prefillCode) {
-      detailsEl.innerHTML = `
-        <div style="margin-top:8px">
-          <label style="display:block;font-size:13px;color:#6b7280;margin-bottom:6px">
-            Код приглашения от вашего агентства
-          </label>
-          <input id="invite-code" type="text" value="${prefillCode || ""}"
-                 placeholder="например, AbC123xyz"
-                 style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;font-size:15px" />
-          <button id="invite-join"
-                  style="margin-top:10px;width:100%;padding:12px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-size:15px;font-weight:600;cursor:pointer">
-            Вступить в агентство
-          </button>
+    // --- Вкладка «Команда» ---
+    function renderTeamTab() {
+      const body = document.getElementById("tab-body");
+      body.innerHTML = `<h2>Сотрудники агентства</h2><div id="team-list"><div class="empty">Загрузка…</div></div>`;
+      loadTeam();
+    }
+    async function loadTeam() {
+      const box = document.getElementById("team-list");
+      const r = await api("/api/v1/team");
+      if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">Сотрудников пока нет.</div>`; return; }
+      box.innerHTML = r.data.map(m => {
+        const isSelf = state.user && m.id === state.user.id;
+        const name = m.full_name || (m.username ? "@" + m.username : ("ID " + m.telegram_id));
+        const statusBadge = m.is_active
+          ? `<span class="badge green">активен</span>`
+          : `<span class="badge gray">отключён</span>`;
+        const action = isSelf
+          ? `<span class="badge gray">это вы</span>`
+          : `<button class="small ${m.is_active ? "danger" : "ghost"}" data-id="${m.id}" data-active="${m.is_active ? 1 : 0}">
+               ${m.is_active ? "Отключить" : "Включить"}</button>`;
+        return `<div class="item">
+          <div class="top"><span class="title">${esc(name)}</span>${statusBadge}</div>
+          <div class="meta">${esc(roleLabel(m.role))}${m.username ? " · @" + esc(m.username) : ""}</div>
+          <div style="margin-top:8px">${action}</div>
         </div>`;
+      }).join("");
+      box.querySelectorAll("button[data-id]").forEach(b => {
+        b.addEventListener("click", () => toggleMember(parseInt(b.dataset.id, 10), b.dataset.active !== "1"));
+      });
+    }
+    async function toggleMember(id, makeActive) {
+      setStatus("Сохраняем…", "info");
+      const r = await api("/api/v1/team/" + id, { method: "PATCH", body: { is_active: makeActive } });
+      if (r.ok) { setStatus("Готово.", "ok"); loadTeam(); }
+      else setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err");
+    }
+
+    // --- Вкладка «Приглашения» ---
+    function renderInvitesTab() {
+      const body = document.getElementById("tab-body");
+      body.innerHTML = `
+        <h2>Создать приглашение</h2>
+        <label>Роль приглашаемого</label>
+        <select id="inv-role">
+          <option value="agent">Агент</option>
+          <option value="agency_admin">Администратор агентства</option>
+        </select>
+        <label>Срок действия, дней</label>
+        <input id="inv-days" inputmode="numeric" value="7" />
+        <button class="full" id="inv-create">Создать приглашение</button>
+        <div id="inv-created"></div>
+        <h2>Выданные приглашения</h2>
+        <div id="inv-list"><div class="empty">Загрузка…</div></div>`;
+      document.getElementById("inv-create").addEventListener("click", createInvite);
+      loadInvites();
+    }
+    async function createInvite() {
+      const btn = document.getElementById("inv-create");
+      const role = document.getElementById("inv-role").value;
+      const days = parseInt(document.getElementById("inv-days").value, 10);
+      btn.disabled = true; setStatus("Создаём приглашение…", "info");
+      const r = await api("/api/v1/invites", { method: "POST", body: { role, expires_in_days: isNaN(days) ? 7 : days } });
+      btn.disabled = false;
+      if (!r.ok) { setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err"); return; }
+      setStatus("Приглашение создано.", "ok");
+      const inv = r.data;
+      const link = inv.join_link;
+      document.getElementById("inv-created").innerHTML = `
+        <div class="item">
+          <div class="meta">Передайте это приглашаемому сотруднику:</div>
+          ${link ? `<div class="codebox">${esc(link)}</div>
+                    <button class="ghost small" id="copy-link" style="margin-top:8px">Копировать ссылку</button>` : ""}
+          <div class="meta" style="margin-top:8px">Код:</div>
+          <div class="codebox">${esc(inv.code)}</div>
+          <button class="ghost small" id="copy-code" style="margin-top:8px">Копировать код</button>
+        </div>`;
+      const cl = document.getElementById("copy-link");
+      if (cl) cl.addEventListener("click", () => copyText(link));
+      document.getElementById("copy-code").addEventListener("click", () => copyText(inv.code));
+      loadInvites();
+    }
+    async function loadInvites() {
+      const box = document.getElementById("inv-list");
+      const r = await api("/api/v1/invites");
+      if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">Приглашений пока нет.</div>`; return; }
+      const stMap = { active: ["green","активно"], used: ["gray","использовано"], expired: ["amber","просрочено"] };
+      box.innerHTML = r.data.map(inv => {
+        const s = stMap[inv.status] || ["gray", inv.status];
+        return `<div class="item">
+          <div class="top">
+            <span class="title">${esc(roleLabel(inv.role))}</span>
+            <span class="badge ${s[0]}">${s[1]}</span>
+          </div>
+          <div class="meta">код: ${esc(inv.code)} · до ${fmtDate(inv.expires_at)}</div>
+          <div style="margin-top:8px">
+            <button class="small danger" data-revoke="${inv.id}">Отозвать</button>
+          </div>
+        </div>`;
+      }).join("");
+      box.querySelectorAll("button[data-revoke]").forEach(b => {
+        b.addEventListener("click", () => revokeInvite(parseInt(b.dataset.revoke, 10)));
+      });
+    }
+    async function revokeInvite(id) {
+      setStatus("Отзываем приглашение…", "info");
+      const r = await api("/api/v1/invites/" + id, { method: "DELETE" });
+      if (r.ok) { setStatus("Приглашение отозвано.", "ok"); loadInvites(); }
+      else setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err");
+    }
+
+    // ───────────────────── АГЕНT ─────────────────────
+    function renderAgent() {
+      subtitleEl.textContent = "Панель агента";
+      contentEl.innerHTML = `
+        ${profileRows()}
+        <div class="hint">Здравствуйте! Раздел «Объекты недвижимости» появится здесь в ближайшем обновлении.</div>`;
+    }
+
+    function renderUnknown() {
+      contentEl.innerHTML = profileRows();
+    }
+
+    // ───────────────────── Форма вступления по коду ─────────────────────
+    function showJoinForm(prefillCode) {
+      subtitleEl.textContent = "Вступление в агентство";
+      contentEl.innerHTML = `
+        <label>Код приглашения от вашего агентства</label>
+        <input id="invite-code" type="text" value="${esc(prefillCode || "")}" placeholder="например, AbC123xyz" />
+        <button class="full" id="invite-join">Вступить в агентство</button>`;
       const input = document.getElementById("invite-code");
       const btn = document.getElementById("invite-join");
-
       async function doJoin() {
         const code = (input.value || "").trim();
         if (!code) { setStatus("Введите код приглашения.", "warn"); return; }
-        btn.disabled = true;
-        setStatus("Проверяем приглашение…", "info");
-        try {
-          const result = await redeem(initData, code);
-          if (result.ok) {
-            showProfile(result.data);
-          } else {
-            btn.disabled = false;
-            setStatus("Не удалось вступить: " + (result.data.detail || ("ошибка " + result.status)), "err");
-          }
-        } catch (e) {
+        btn.disabled = true; setStatus("Проверяем приглашение…", "info");
+        const r = await redeem(state.initData, code);
+        if (r.ok) {
+          state.token = r.data.access_token;
+          state.user = r.data.user;
+          renderApp();
+        } else {
           btn.disabled = false;
-          setStatus("Ошибка при вступлении: " + e.message, "err");
+          setStatus("Не удалось вступить: " + ((r.data && r.data.detail) || ("ошибка " + r.status)), "err");
         }
       }
-
       btn.addEventListener("click", doJoin);
       return doJoin;
+    }
+
+    // ───────────────────── Старт ─────────────────────
+    async function checkBackend() {
+      try { const res = await fetch("/health"); const d = await res.json(); return d.database === "connected"; }
+      catch (e) { return false; }
     }
 
     async function main() {
       const tg = window.Telegram && window.Telegram.WebApp;
       if (tg) { try { tg.ready(); tg.expand(); } catch (e) {} }
 
-      const initData = (tg && tg.initData) ? tg.initData : "";
-      // Код приглашения может прийти из ссылки-диплинка (?startapp=КОД).
-      const startParam = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
+      state.initData = (tg && tg.initData) ? tg.initData : "";
+      state.startParam = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
 
-      if (!initData) {
-        // Страница открыта в обычном браузере (не в Telegram) — это нормально
-        // для локальной проверки. Проверим связь с backend.
+      if (!state.initData) {
         const backendOk = await checkBackend();
-        if (backendOk) {
-          setStatus("✅ Страница работает и видит backend. Чтобы войти — открой приложение внутри Telegram.", "ok");
-        } else {
-          setStatus("⚠️ Страница загрузилась, но не может связаться с backend. Проверь, что все контейнеры запущены.", "warn");
-        }
-        showRows([
-          ["Открыто в Telegram", "Нет (обычный браузер)"],
-          ["Связь с backend", backendOk ? "Есть" : "Нет"],
-        ]);
+        setStatus(backendOk
+          ? "✅ Страница работает и видит backend. Чтобы войти — открой приложение внутри Telegram."
+          : "⚠️ Страница загрузилась, но не может связаться с backend. Проверь, что контейнеры запущены.",
+          backendOk ? "ok" : "warn");
+        contentEl.innerHTML = `
+          <div class="row"><span>Открыто в Telegram</span><span><b>Нет (обычный браузер)</b></span></div>
+          <div class="row"><span>Связь с backend</span><span><b>${backendOk ? "Есть" : "Нет"}</b></span></div>`;
         return;
       }
 
-      // Открыто внутри Telegram — пробуем войти.
       setStatus("Выполняем вход через Telegram…", "info");
       try {
-        const result = await login(initData);
-        if (result.ok) {
-          showProfile(result.data);
+        const r = await login(state.initData);
+        if (r.ok) {
+          state.token = r.data.access_token;
+          state.user = r.data.user;
+          renderApp();
           return;
         }
-
-        if (result.status === 403) {
-          // Пользователь ещё не привязан к агентству — предлагаем вступить
-          // по коду приглашения (если код пришёл по ссылке — подставим его
-          // и попробуем сразу).
+        if (r.status === 403) {
+          // Пользователь ещё не в агентстве — предлагаем вступить по коду.
           setStatus("Вы пока не в агентстве. Введите код приглашения, чтобы вступить.", "info");
-          const doJoin = showJoinForm(initData, startParam);
-          if (startParam) { doJoin(); }
+          const doJoin = showJoinForm(state.startParam);
+          if (state.startParam) doJoin();
           return;
         }
-
-        setStatus("Войти не удалось: " + (result.data.detail || ("ошибка " + result.status)), "err");
-        debugEl.innerHTML = "<pre>" + JSON.stringify(result.data, null, 2) + "</pre>";
+        setStatus("Войти не удалось: " + ((r.data && r.data.detail) || ("ошибка " + r.status)), "err");
+        debugEl.innerHTML = "<pre>" + esc(JSON.stringify(r.data, null, 2)) + "</pre>";
       } catch (e) {
         setStatus("Ошибка при входе: " + e.message, "err");
       }
