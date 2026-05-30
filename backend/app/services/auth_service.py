@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core import security
+from app.core.subscription import agency_is_active
 from app.repositories import agency_repo, user_repo
 
 
@@ -80,7 +81,7 @@ def build_auth_response(db: Session, user) -> dict:
     subscription_active = None
     if user.role != "superadmin":
         agency = agency_repo.get_by_id(db, user.agency_id) if user.agency_id else None
-        subscription_active = agency is not None and agency.status in ("trial", "active")
+        subscription_active = agency_is_active(agency)
 
     token = security.create_access_token(
         {

@@ -115,7 +115,7 @@
 
   <script>
     // ───────────────────────── Состояние ─────────────────────────
-    const state = { token: null, user: null, initData: "", startParam: "" };
+    const state = { token: null, user: null, initData: "", startParam: "", subscriptionActive: null };
 
     const statusEl  = document.getElementById("status");
     const contentEl = document.getElementById("content");
@@ -195,10 +195,28 @@
     function renderApp() {
       setStatus("", null);
       const role = state.user && state.user.role;
+      // Жёсткая блокировка по подписке: сотрудникам неактивного агентства
+      // показываем экран «доступ приостановлен» вместо рабочих разделов.
+      if ((role === "agency_admin" || role === "agent") && state.subscriptionActive === false) {
+        renderSuspended();
+        return;
+      }
       if (role === "superadmin")        renderSuperadmin();
       else if (role === "agency_admin") renderAgencyAdmin();
       else if (role === "agent")        renderAgent();
       else renderUnknown();
+    }
+
+    // ───────────────────── Экран: подписка неактивна ─────────────────────
+    function renderSuspended() {
+      subtitleEl.textContent = "Доступ приостановлен";
+      contentEl.innerHTML = `
+        ${profileRows()}
+        <div class="status err" style="margin-top:14px">
+          Подписка вашего агентства неактивна, поэтому доступ временно приостановлен.
+          Все данные сохранены и никуда не делись. Чтобы возобновить работу,
+          обратитесь к владельцу платформы для продления подписки.
+        </div>`;
     }
 
     // ───────────────────── СУПЕРАДМИН: агентства ─────────────────────
@@ -823,6 +841,7 @@
         if (r.ok) {
           state.token = r.data.access_token;
           state.user = r.data.user;
+          state.subscriptionActive = r.data.subscription_active;
           renderApp();
         } else {
           btn.disabled = false;
@@ -864,6 +883,7 @@
         if (r.ok) {
           state.token = r.data.access_token;
           state.user = r.data.user;
+          state.subscriptionActive = r.data.subscription_active;
           renderApp();
           return;
         }
