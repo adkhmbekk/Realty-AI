@@ -1,30 +1,55 @@
 """
 Конфигурация backend. Все настройки читаются из переменных окружения
-(или из файла .env). Это повторяет подход старого проекта: никаких секретов
-в коде.
+(или из файла .env). Никаких секретов в коде.
 
-Сейчас (Часть 1A) обязательна только строка подключения к базе данных.
-Поля bot_token и jwt_secret появятся на следующем шаге (Часть 1B) и пока
-необязательны, чтобы проект запускался без токена бота.
+Часть 1B: добавились настройки для входа через Telegram.
+Все они НЕОБЯЗАТЕЛЬНЫ, чтобы проект запускался даже без токена бота
+(тогда вход через Telegram просто вернёт понятную ошибку, а структуру
+API всё равно можно посмотреть в /docs).
 """
 from typing import Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Файл .env читается автоматически, если он есть рядом.
-    # extra="ignore" — лишние переменные окружения не ломают запуск.
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Подключение к PostgreSQL. По умолчанию — адрес базы внутри Docker,
-    # где имя хоста "db" совпадает с именем сервиса в docker-compose.yml.
+    # ─── База данных ────────────────────────────────────────────────────
     database_url: str = "postgresql+psycopg://realty:realty_local_dev@db:5432/realty"
 
-    # Понадобятся на следующем шаге (вход через Telegram). Пока необязательны.
+    # ─── Telegram / Безопасность ────────────────────────────────────────
+    # Токен бота от @BotFather. Нужен для проверки подлинности входа.
     bot_token: Optional[str] = None
+    # Секрет для подписи пропусков (JWT). Если не задан — сгенерируется
+    # случайный при старте (для локальной разработки этого достаточно).
     jwt_secret: Optional[str] = None
+    # Сколько минут действует выданный пропуск (по умолчанию 12 часов).
+    jwt_expire_minutes: int = 720
+    # Telegram ID владельца платформы. Этот человек станет суперадмином
+    # автоматически при запуске.
+    superadmin_telegram_id: Optional[int] = None
+    # Максимальный "возраст" данных входа от Telegram (защита от повторного
+    # использования), по умолчанию 24 часа.
+    init_data_max_age_seconds: int = 86400
+
+    @field_validator("bot_token", "jwt_secret", mode="before")
+    @classmethod
+    def _empty_string_to_none(cls, value):
+        # Пустая строка в .env (например BOT_TOKEN=) трактуется как "не задано".
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
+
+    @field_validator("superadmin_telegram_id", mode="before")
+    @classmethod
+    def _empty_int_to_none(cls, value):
+        # Пустую строку для числового поля тоже считаем "не задано",
+        # иначе запуск упал бы с ошибкой парсинга.
+        if value is None or (isinstance(value, str) and value.strip() == ""):
+            return None
+        return value
 
 
-# Единый экземпляр настроек, который импортируется по всему проекту.
 settings = Settings()
