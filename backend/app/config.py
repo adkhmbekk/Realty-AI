@@ -30,11 +30,15 @@ class Settings(BaseSettings):
     # Telegram ID владельца платформы. Этот человек станет суперадмином
     # автоматически при запуске.
     superadmin_telegram_id: Optional[int] = None
+    # Имя бота без @ (например "my_realty_bot"). Нужно только для красивой
+    # ссылки-приглашения вида https://t.me/<bot>?startapp=<код>. Если не задано —
+    # приглашение всё равно работает, просто сотрудник вводит код вручную.
+    bot_username: Optional[str] = None
     # Максимальный "возраст" данных входа от Telegram (защита от повторного
     # использования), по умолчанию 24 часа.
     init_data_max_age_seconds: int = 86400
 
-    @field_validator("bot_token", "jwt_secret", mode="before")
+    @field_validator("bot_token", "jwt_secret", "bot_username", mode="before")
     @classmethod
     def _empty_string_to_none(cls, value):
         # Пустая строка в .env (например BOT_TOKEN=) трактуется как "не задано".

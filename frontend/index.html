@@ -74,6 +74,32 @@
         .join("");
     }
 
+    // Показать профиль вошедшего пользователя.
+    function showProfile(data) {
+      const u = data.user || {};
+      setStatus("Вы успешно вошли!", "ok");
+      const rows = [
+        ["Имя", u.full_name || "—"],
+        ["Username", u.username ? "@" + u.username : "—"],
+        ["Роль", roleLabel(u.role)],
+      ];
+      // Владельцу платформы (суперадмину) НЕ показываем строку про доступ/подписку.
+      // Сотрудникам агентства показываем статус подписки агентства.
+      if (u.role !== "superadmin") {
+        rows.push(["Подписка активна", data.subscription_active ? "Да" : "Нет"]);
+      }
+      showRows(rows);
+    }
+
+    function roleLabel(role) {
+      switch (role) {
+        case "superadmin": return "Владелец платформы";
+        case "agency_admin": return "Администратор агентства";
+        case "agent": return "Агент";
+        default: return role || "—";
+      }
+    }
+
     async function checkBackend() {
       // Проверяем, что страница может достучаться до backend через тот же адрес.
       try {
@@ -95,18 +121,72 @@
       return { ok: res.ok, status: res.status, data };
     }
 
+    // Вступление в агентство по коду приглашения.
+    async function redeem(initData, code) {
+      const res = await fetch("/api/v1/invites/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData, code: code }),
+      });
+      const data = await res.json();
+      return { ok: res.ok, status: res.status, data };
+    }
+
+    // Показать форму ввода кода приглашения и обработать вступление.
+    function showJoinForm(initData, prefillCode) {
+      detailsEl.innerHTML = `
+        <div style="margin-top:8px">
+          <label style="display:block;font-size:13px;color:#6b7280;margin-bottom:6px">
+            Код приглашения от вашего агентства
+          </label>
+          <input id="invite-code" type="text" value="${prefillCode || ""}"
+                 placeholder="например, AbC123xyz"
+                 style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;font-size:15px" />
+          <button id="invite-join"
+                  style="margin-top:10px;width:100%;padding:12px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-size:15px;font-weight:600;cursor:pointer">
+            Вступить в агентство
+          </button>
+        </div>`;
+      const input = document.getElementById("invite-code");
+      const btn = document.getElementById("invite-join");
+
+      async function doJoin() {
+        const code = (input.value || "").trim();
+        if (!code) { setStatus("Введите код приглашения.", "warn"); return; }
+        btn.disabled = true;
+        setStatus("Проверяем приглашение…", "info");
+        try {
+          const result = await redeem(initData, code);
+          if (result.ok) {
+            showProfile(result.data);
+          } else {
+            btn.disabled = false;
+            setStatus("Не удалось вступить: " + (result.data.detail || ("ошибка " + result.status)), "err");
+          }
+        } catch (e) {
+          btn.disabled = false;
+          setStatus("Ошибка при вступлении: " + e.message, "err");
+        }
+      }
+
+      btn.addEventListener("click", doJoin);
+      return doJoin;
+    }
+
     async function main() {
       const tg = window.Telegram && window.Telegram.WebApp;
       if (tg) { try { tg.ready(); tg.expand(); } catch (e) {} }
 
       const initData = (tg && tg.initData) ? tg.initData : "";
+      // Код приглашения может прийти из ссылки-диплинка (?startapp=КОД).
+      const startParam = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
 
       if (!initData) {
         // Страница открыта в обычном браузере (не в Telegram) — это нормально
         // для локальной проверки. Проверим связь с backend.
         const backendOk = await checkBackend();
         if (backendOk) {
-          setStatus("✅ Страница работает и видит backend. Чтобы войти — открой приложение внутри Telegram (это настроим на следующем шаге).", "ok");
+          setStatus("✅ Страница работает и видит backend. Чтобы войти — открой приложение внутри Telegram.", "ok");
         } else {
           setStatus("⚠️ Страница загрузилась, но не может связаться с backend. Проверь, что все контейнеры запущены.", "warn");
         }
@@ -122,25 +202,22 @@
       try {
         const result = await login(initData);
         if (result.ok) {
-          const u = result.data.user || {};
-          setStatus("Вы успешно вошли!", "ok");
-          const rows = [
-            ["Имя", u.full_name || "—"],
-            ["Username", u.username ? "@" + u.username : "—"],
-            ["Роль", u.role || "—"],
-          ];
-          // Суперадмину (владельцу платформы) подписка не нужна — у него
-          // всегда полный доступ. Остальным показываем статус подписки.
-          if (u.role === "superadmin") {
-            rows.push(["Доступ", "Полный (владелец платформы)"]);
-          } else {
-            rows.push(["Подписка активна", result.data.subscription_active ? "Да" : "Нет"]);
-          }
-          showRows(rows);
-        } else {
-          setStatus("Войти не удалось: " + (result.data.detail || ("ошибка " + result.status)), "err");
-          debugEl.innerHTML = "<pre>" + JSON.stringify(result.data, null, 2) + "</pre>";
+          showProfile(result.data);
+          return;
         }
+
+        if (result.status === 403) {
+          // Пользователь ещё не привязан к агентству — предлагаем вступить
+          // по коду приглашения (если код пришёл по ссылке — подставим его
+          // и попробуем сразу).
+          setStatus("Вы пока не в агентстве. Введите код приглашения, чтобы вступить.", "info");
+          const doJoin = showJoinForm(initData, startParam);
+          if (startParam) { doJoin(); }
+          return;
+        }
+
+        setStatus("Войти не удалось: " + (result.data.detail || ("ошибка " + result.status)), "err");
+        debugEl.innerHTML = "<pre>" + JSON.stringify(result.data, null, 2) + "</pre>";
       } catch (e) {
         setStatus("Ошибка при входе: " + e.message, "err");
       }

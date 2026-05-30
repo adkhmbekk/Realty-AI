@@ -33,6 +33,7 @@ services:
       BOT_TOKEN: ${BOT_TOKEN:-}
       SUPERADMIN_TELEGRAM_ID: ${SUPERADMIN_TELEGRAM_ID:-}
       JWT_SECRET: ${JWT_SECRET:-}
+      BOT_USERNAME: ${BOT_USERNAME:-}
     depends_on:
       db:
         condition: service_healthy

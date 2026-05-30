@@ -2,7 +2,7 @@
 Доступ к данным пользователей (таблица users).
 Только этот слой обращается к БД напрямую — бизнес-логика ходит сюда.
 """
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,6 +17,26 @@ def get_by_id(db: Session, user_id: int) -> Optional[User]:
 def get_by_telegram_id(db: Session, telegram_id: int) -> Optional[User]:
     return db.execute(
         select(User).where(User.telegram_id == telegram_id)
+    ).scalar_one_or_none()
+
+
+def get_by_agency(db: Session, agency_id: int) -> List[User]:
+    """Все сотрудники агентства (для управления командой)."""
+    return list(
+        db.execute(
+            select(User)
+            .where(User.agency_id == agency_id)
+            .order_by(User.role, User.created_at)
+        )
+        .scalars()
+        .all()
+    )
+
+
+def get_member(db: Session, agency_id: int, user_id: int) -> Optional[User]:
+    """Сотрудник по id, но только в пределах своего агентства (изоляция)."""
+    return db.execute(
+        select(User).where(User.id == user_id, User.agency_id == agency_id)
     ).scalar_one_or_none()
 
 

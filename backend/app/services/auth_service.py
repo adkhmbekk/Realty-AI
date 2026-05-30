@@ -63,7 +63,18 @@ def login_with_init_data(db: Session, init_data: str) -> dict:
         user.full_name = full_name
     user.last_login_at = datetime.now(timezone.utc)
 
-    # 5. Проверяем подписку агентства.
+    db.commit()
+    db.refresh(user)
+
+    # 5. Выдаём пропуск (вместе со статусом подписки агентства).
+    return build_auth_response(db, user)
+
+
+def build_auth_response(db: Session, user) -> dict:
+    """
+    Собрать ответ авторизации: пропуск (JWT), статус подписки и профиль.
+    Используется и при обычном входе, и при вступлении по приглашению.
+    """
     # У суперадмина (владельца платформы) подписки нет — оставляем None,
     # чтобы фронтенд не показывал ему строку про подписку.
     subscription_active = None
@@ -71,10 +82,6 @@ def login_with_init_data(db: Session, init_data: str) -> dict:
         agency = agency_repo.get_by_id(db, user.agency_id) if user.agency_id else None
         subscription_active = agency is not None and agency.status in ("trial", "active")
 
-    db.commit()
-    db.refresh(user)
-
-    # 6. Выдаём пропуск.
     token = security.create_access_token(
         {
             "user_id": user.id,
