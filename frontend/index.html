@@ -416,19 +416,13 @@
     }
 
     // ───────────────────── ОБЪЕКТЫ (UI Этапа 3) ─────────────────────
-    // Справочники и агенты грузим один раз и кэшируем — они нужны для форм.
-    const refs = { district: [], property_type: [], agents: [], loaded: false };
+    // Справочник районов грузим один раз и кэшируем (нужен для формы и фильтров).
+    const refs = { district: [], loaded: false };
 
     async function loadRefs() {
       if (refs.loaded) return;
-      const [d, t, a] = await Promise.all([
-        api("/api/v1/dictionaries?category=district"),
-        api("/api/v1/dictionaries?category=property_type"),
-        api("/api/v1/agents"),
-      ]);
+      const d = await api("/api/v1/dictionaries?category=district");
       refs.district = d.ok && Array.isArray(d.data) ? d.data : [];
-      refs.property_type = t.ok && Array.isArray(t.data) ? t.data : [];
-      refs.agents = a.ok && Array.isArray(a.data) ? a.data : [];
       refs.loaded = true;
     }
 
@@ -514,65 +508,70 @@
       searchObjects(host);
     }
 
+    // Поля формы объекта (общие для создания и редактирования).
+    // o — объект для предзаполнения; includeStatus — показывать ли выбор статуса.
+    function objFormInner(o, includeStatus) {
+      o = o || {};
+      const opt = (v, cur) => `<option ${String(v) === String(cur || "") ? "selected" : ""}>${esc(v)}</option>`;
+      const typeOpts = `<option value="">—</option>` + OBJ_TYPES.map(v => opt(v, o.type)).join("");
+      const condOpts = `<option value="">—</option>` + OBJ_CONDITIONS.map(v => opt(v, o.condition)).join("");
+      const distOpts = `<option value="">—</option>` + refs.district.map(x => opt(x.value, o.district)).join("");
+      const statusOpts = [["active", "Активен"], ["deposit", "Задаток"], ["sold", "Продан"]]
+        .map(s => `<option value="${s[0]}" ${s[0] === (o.status || "active") ? "selected" : ""}>${s[1]}</option>`).join("");
+      const cur = o.currency || "USD";
+      const curOpts = ["USD", "UZS", "EUR"].map(c => `<option ${c === cur ? "selected" : ""}>${c}</option>`).join("");
+      const num = v => (v != null ? v : "");
+      return `
+        <label>Наименование</label><input id="n-name" value="${esc(o.name || "")}" placeholder="например, 2-комн. в центре" />
+        <label>Тип объекта</label><select id="n-type">${typeOpts}</select>
+        ${includeStatus ? `<label>Статус</label><select id="n-status">${statusOpts}</select>` : ""}
+        <label>Район</label><select id="n-district">${distOpts}</select>
+        <label>Адрес</label><input id="n-address" value="${esc(o.address || "")}" />
+        <div style="display:flex; gap:8px">
+          <div style="flex:1"><label>Комнат</label><input id="n-rooms" inputmode="numeric" value="${num(o.rooms)}" /></div>
+          <div style="flex:1"><label>Этаж</label><input id="n-floor" inputmode="numeric" value="${num(o.floor)}" /></div>
+          <div style="flex:1"><label>Этажей</label><input id="n-tfloors" inputmode="numeric" value="${num(o.total_floors)}" /></div>
+        </div>
+        <div style="display:flex; gap:8px">
+          <div style="flex:1"><label>Площадь, м²</label><input id="n-area" inputmode="decimal" value="${num(o.area)}" /></div>
+          <div style="flex:1"><label>Цена</label><input id="n-price" inputmode="numeric" value="${num(o.price)}" /></div>
+          <div style="flex:1"><label>Валюта</label><select id="n-currency">${curOpts}</select></div>
+        </div>
+        <label>Состояние объекта</label><select id="n-condition">${condOpts}</select>
+        <label>Телефон</label><input id="n-phone" value="${esc(o.phone || "")}" />
+        <label>Описание</label><input id="n-desc" value="${esc(o.description || "")}" />`;
+    }
+
     function toggleObjForm(host) {
       const box = host.querySelector("#obj-form");
       if (box.innerHTML.trim()) { box.innerHTML = ""; return; }
-      const typeOpts = `<option value="">—</option>` + OBJ_TYPES.map(v => `<option>${esc(v)}</option>`).join("");
-      const condOpts = `<option value="">—</option>` + OBJ_CONDITIONS.map(v => `<option>${esc(v)}</option>`).join("");
-      const distOpts = `<option value="">—</option>` + optList(refs.district, "value");
-      const statusOpts = [["active", "Активен"], ["deposit", "Задаток"], ["sold", "Продан"]]
-        .map(s => `<option value="${s[0]}">${s[1]}</option>`).join("");
-      const agentOpts = `<option value="">Авто — агент «Другое»</option>` +
-        refs.agents.map(a => `<option value="${a.id}">${esc(a.name)} (${esc(a.code)})</option>`).join("");
       box.innerHTML = `
         <div class="item" style="background:#fbfbfe">
-          <label>Наименование</label><input id="n-name" placeholder="например, 2-комн. в центре" />
-          <label>Тип объекта</label><select id="n-type">${typeOpts}</select>
-          <label>Статус</label><select id="n-status">${statusOpts}</select>
-          <label>Район</label><select id="n-district">${distOpts}</select>
-          <label>Адрес</label><input id="n-address" />
-          <div style="display:flex; gap:8px">
-            <div style="flex:1"><label>Комнат</label><input id="n-rooms" inputmode="numeric" /></div>
-            <div style="flex:1"><label>Этаж</label><input id="n-floor" inputmode="numeric" /></div>
-            <div style="flex:1"><label>Этажей</label><input id="n-tfloors" inputmode="numeric" /></div>
-          </div>
-          <div style="display:flex; gap:8px">
-            <div style="flex:1"><label>Площадь, м²</label><input id="n-area" inputmode="decimal" /></div>
-            <div style="flex:1"><label>Цена</label><input id="n-price" inputmode="numeric" /></div>
-            <div style="flex:1"><label>Валюта</label>
-              <select id="n-currency"><option>USD</option><option>UZS</option><option>EUR</option></select></div>
-          </div>
-          <label>Состояние объекта</label><select id="n-condition">${condOpts}</select>
-          <label>Телефон</label><input id="n-phone" />
-          <label>Описание</label><input id="n-desc" />
-          <label>Агент (от него образуется номер объекта)</label>
-          <select id="n-agent">${agentOpts}</select>
-          <div class="hint">Код агента становится началом номера объекта: например, у агента с кодом SAR объект получит ID «SAR-0001». Сейчас заведён только агент «Другое» (OTH) — добавление своих агентов сделаем отдельно.</div>
+          ${objFormInner(null, true)}
           <button class="full" id="n-save">Сохранить объект</button>
         </div>`;
       box.querySelector("#n-save").addEventListener("click", () => createObject(host));
     }
 
     function vNum(host, sel, isFloat) {
-      const v = (host.querySelector(sel).value || "").trim();
+      const el = host.querySelector(sel);
+      const v = ((el && el.value) || "").trim();
       if (!v) return null;
       const n = isFloat ? parseFloat(v) : parseInt(v, 10);
       return isNaN(n) ? null : n;
     }
     function vStr(host, sel) {
-      const v = (host.querySelector(sel).value || "").trim();
+      const el = host.querySelector(sel);
+      const v = ((el && el.value) || "").trim();
       return v || null;
     }
 
-    async function createObject(host) {
-      const btn = host.querySelector("#n-save");
+    // Собрать тело запроса из полей формы (общее для создания и редактирования).
+    function collectObjBody(host, includeStatus) {
       const body = {};
-      const agentId = vNum(host, "#n-agent", false);
-      if (agentId) body.agent_id = agentId;
       const fields = {
         name: vStr(host, "#n-name"),
         type: vStr(host, "#n-type"),
-        status: vStr(host, "#n-status"),
         district: vStr(host, "#n-district"),
         address: vStr(host, "#n-address"),
         rooms: vNum(host, "#n-rooms", false),
@@ -585,12 +584,19 @@
         phone: vStr(host, "#n-phone"),
         description: vStr(host, "#n-desc"),
       };
+      if (includeStatus) fields.status = vStr(host, "#n-status");
       Object.keys(fields).forEach(k => { if (fields[k] !== null) body[k] = fields[k]; });
+      return body;
+    }
+
+    async function createObject(host) {
+      const btn = host.querySelector("#n-save");
+      const body = collectObjBody(host, true);
       btn.disabled = true; setStatus("Сохраняем объект…", "info");
       const r = await api("/api/v1/apartments", { method: "POST", body });
       btn.disabled = false;
       if (r.ok) {
-        setStatus("Объект создан: " + r.data.display_id, "ok");
+        setStatus("Объект создан: №" + r.data.display_id, "ok");
         host.querySelector("#obj-form").innerHTML = "";
         searchObjects(host);
       } else {
@@ -598,32 +604,20 @@
       }
     }
 
+    // --- Список: карточка-сводка с кнопкой «Открыть» ---
     function objCardHtml(o) {
       const badge = STATUS_BADGE[o.status] || "gray";
       const label = STATUS_LABELS[o.status] || o.status;
       const price = (o.price != null) ? (o.price + " " + (o.currency || "")) : "—";
       const parts = [o.type, o.district, (o.rooms != null ? o.rooms + "-комн." : null)]
         .filter(Boolean).map(esc).join(" · ");
-      const transitions = {
-        active:   [["deposit", "Задаток"], ["sold", "Продан"], ["archived", "В архив"]],
-        deposit:  [["active", "Снять задаток"], ["sold", "Продан"], ["archived", "В архив"]],
-        sold:     [["active", "Вернуть в активные"], ["archived", "В архив"]],
-        archived: [["active", "Вернуть в активные"]],
-      };
-      let actions = (transitions[o.status] || [])
-        .map(t => `<button class="small ghost" data-status="${t[0]}" data-id="${o.id}">${t[1]}</button>`).join(" ");
-      if (state.user && state.user.role === "agency_admin") {
-        actions += ` <button class="small danger" data-del="${o.id}">Удалить</button>`;
-      }
       return `<div class="item">
-        <div class="top"><span class="title">${esc(o.display_id)}</span><span class="badge ${badge}">${esc(label)}</span></div>
+        <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(label)}</span></div>
         ${o.name ? `<div class="meta">${esc(o.name)}</div>` : ""}
         <div class="meta">${parts || "—"}</div>
         <div class="meta">Цена: ${esc(String(price))}</div>
-        ${o.condition ? `<div class="meta">Состояние: ${esc(o.condition)}</div>` : ""}
-        ${o.address ? `<div class="meta">Адрес: ${esc(o.address)}</div>` : ""}
-        ${o.phone ? `<div class="meta">Тел.: ${esc(o.phone)}</div>` : ""}
-        <div style="margin-top:8px">${actions}</div>
+        ${o.created_by_name ? `<div class="meta">Добавил: ${esc(o.created_by_name)}</div>` : ""}
+        <div style="margin-top:8px"><button class="small ghost" data-open="${o.id}">Открыть</button></div>
       </div>`;
     }
 
@@ -648,24 +642,100 @@
       if (!items.length) { box.innerHTML = `<div class="empty">Ничего не найдено.</div>`; return; }
       box.innerHTML = `<div class="meta" style="margin:10px 0 0">Найдено: ${r.data.total}</div>` +
         items.map(objCardHtml).join("");
-      box.querySelectorAll("button[data-status]").forEach(b =>
-        b.addEventListener("click", () => changeStatus(host, parseInt(b.dataset.id, 10), b.dataset.status)));
-      box.querySelectorAll("button[data-del]").forEach(b =>
-        b.addEventListener("click", () => deleteObject(host, parseInt(b.dataset.del, 10))));
+      box.querySelectorAll("button[data-open]").forEach(b =>
+        b.addEventListener("click", () => openObject(host, parseInt(b.dataset.open, 10))));
     }
 
-    async function changeStatus(host, id, newStatus) {
+    // --- Детальная карточка объекта ---
+    async function openObject(host, id) {
+      setStatus("Загрузка…", "info");
+      const r = await api("/api/v1/apartments/" + id);
+      if (!r.ok) { setStatus("Не удалось открыть объект (" + r.status + ").", "err"); return; }
+      setStatus("", null);
+      renderObjDetail(host, r.data);
+    }
+
+    function renderObjDetail(host, o) {
+      const badge = STATUS_BADGE[o.status] || "gray";
+      const label = STATUS_LABELS[o.status] || o.status;
+      const floorTxt = (o.floor != null && o.total_floors != null) ? (o.floor + " из " + o.total_floors)
+        : (o.floor != null ? String(o.floor) : null);
+      const rows = [
+        ["Наименование", o.name],
+        ["Тип", o.type],
+        ["Район", o.district],
+        ["Адрес", o.address],
+        ["Комнат", o.rooms],
+        ["Этаж", floorTxt],
+        ["Площадь, м²", o.area],
+        ["Цена", o.price != null ? (o.price + " " + (o.currency || "")) : null],
+        ["Состояние", o.condition],
+        ["Телефон", o.phone],
+        ["Описание", o.description],
+        ["Добавил", o.created_by_name],
+      ];
+      const rowsHtml = rows.filter(r => r[1] != null && r[1] !== "")
+        .map(r => `<div class="row"><span>${r[0]}</span><span><b>${esc(String(r[1]))}</b></span></div>`).join("");
+      const transitions = {
+        active:   [["deposit", "Задаток"], ["sold", "Продан"], ["archived", "В архив"]],
+        deposit:  [["active", "Снять задаток"], ["sold", "Продан"], ["archived", "В архив"]],
+        sold:     [["active", "Вернуть в активные"], ["archived", "В архив"]],
+        archived: [["active", "Вернуть в активные"]],
+      };
+      const statusBtns = (transitions[o.status] || [])
+        .map(t => `<button class="small ghost" data-status="${t[0]}">${t[1]}</button>`).join(" ");
+      const adminBtn = (state.user && state.user.role === "agency_admin")
+        ? `<button class="small danger" id="d-del">Удалить</button>` : "";
+      host.innerHTML = `
+        <button class="ghost full" id="d-back">← Назад к списку</button>
+        <div class="item">
+          <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(label)}</span></div>
+          ${rowsHtml}
+          <div style="margin-top:10px">${statusBtns}</div>
+          <div style="margin-top:10px"><button class="ghost small" id="d-edit">Редактировать</button> ${adminBtn}</div>
+        </div>`;
+      host.querySelector("#d-back").addEventListener("click", () => objectsScreen(host));
+      host.querySelector("#d-edit").addEventListener("click", () => renderObjEdit(host, o));
+      host.querySelectorAll("button[data-status]").forEach(b =>
+        b.addEventListener("click", () => changeStatusDetail(host, o.id, b.dataset.status)));
+      const del = host.querySelector("#d-del");
+      if (del) del.addEventListener("click", () => deleteObjectDetail(host, o.id));
+    }
+
+    async function changeStatusDetail(host, id, newStatus) {
       setStatus("Меняем статус…", "info");
       const r = await api("/api/v1/apartments/" + id + "/status", { method: "POST", body: { status: newStatus } });
-      if (r.ok) { setStatus("Готово.", "ok"); searchObjects(host); }
+      if (r.ok) { setStatus("Готово.", "ok"); openObject(host, id); }
       else setStatus("Ошибка: " + errText(r.data, r.status), "err");
     }
 
-    async function deleteObject(host, id) {
+    async function deleteObjectDetail(host, id) {
       if (!window.confirm("Удалить объект безвозвратно?")) return;
       setStatus("Удаляем…", "info");
       const r = await api("/api/v1/apartments/" + id, { method: "DELETE" });
-      if (r.ok) { setStatus("Удалено.", "ok"); searchObjects(host); }
+      if (r.ok) { setStatus("Объект удалён.", "ok"); objectsScreen(host); }
+      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
+    }
+
+    function renderObjEdit(host, o) {
+      host.innerHTML = `
+        <button class="ghost full" id="e-cancel">← Отмена</button>
+        <h2>Редактирование №${esc(o.display_id)}</h2>
+        <div class="item" style="background:#fbfbfe">
+          ${objFormInner(o, false)}
+          <button class="full" id="e-save">Сохранить изменения</button>
+        </div>`;
+      host.querySelector("#e-cancel").addEventListener("click", () => openObject(host, o.id));
+      host.querySelector("#e-save").addEventListener("click", () => saveObjEdit(host, o.id));
+    }
+
+    async function saveObjEdit(host, id) {
+      const btn = host.querySelector("#e-save");
+      const body = collectObjBody(host, false);
+      btn.disabled = true; setStatus("Сохраняем…", "info");
+      const r = await api("/api/v1/apartments/" + id, { method: "PATCH", body });
+      btn.disabled = false;
+      if (r.ok) { setStatus("Изменения сохранены.", "ok"); openObject(host, id); }
       else setStatus("Ошибка: " + errText(r.data, r.status), "err");
     }
 

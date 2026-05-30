@@ -40,6 +40,16 @@ def get_member(db: Session, agency_id: int, user_id: int) -> Optional[User]:
     ).scalar_one_or_none()
 
 
+def get_by_ids(db: Session, ids) -> List[User]:
+    """Несколько пользователей по их id (для отображения имён создателей)."""
+    ids = list(ids)
+    if not ids:
+        return []
+    return list(
+        db.execute(select(User).where(User.id.in_(ids))).scalars().all()
+    )
+
+
 def create(
     db: Session,
     telegram_id: int,

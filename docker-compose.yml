@@ -12,6 +12,10 @@ services:
       POSTGRES_USER: realty
       POSTGRES_PASSWORD: realty_local_dev
       POSTGRES_DB: realty
+    ports:
+      # Доступ к базе с компьютера (для pgAdmin4 / DBeaver): localhost:5432.
+      # Только для локальной разработки. На сервере этот порт открывать не нужно.
+      - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:

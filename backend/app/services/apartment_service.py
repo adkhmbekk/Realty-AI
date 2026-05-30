@@ -17,10 +17,9 @@ from typing import Optional, Sequence, Tuple
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.defaults import DEFAULT_AGENT_CODE
-from app.db.models.agent import Agent
+from app.core.defaults import DEFAULT_AGENT_CODE, DEFAULT_AGENT_NAME
 from app.db.models.apartment import Apartment
-from app.repositories import agent_repo, apartment_repo
+from app.repositories import agent_repo, apartment_repo, user_repo
 from app.schemas.apartment import ApartmentCreate, ApartmentUpdate
 
 # Допустимые статусы объекта.
@@ -33,56 +32,62 @@ VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD, STATUS_ARCHIVED)
 _CLOSED_STATUSES = (STATUS_SOLD, STATUS_ARCHIVED)
 
 
-def _resolve_agent(db: Session, agency_id: int, agent_id: Optional[int]) -> Agent:
+def _next_display_id(db: Session, agency_id: int) -> str:
     """
-    Определить агента, от кода которого образуется ID объекта.
-    Если агент явно указан — берём его (проверив принадлежность агентству).
-    Если нет — пробуем запасного агента «Другое» (код OTH), созданного по
-    умолчанию при регистрации агентства.
-    """
-    if agent_id is not None:
-        agent = agent_repo.get_by_id(db, agency_id, agent_id)
-        if agent is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Указанный агент не найден в этом агентстве.",
-            )
-        return agent
+    Сгенерировать сквозной номер объекта агентства, например «0001».
 
-    fallback = agent_repo.get_by_code(db, agency_id, DEFAULT_AGENT_CODE)
-    if fallback is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не указан агент, и нет запасного агента. Сначала добавьте агента.",
+    Агент пользователем НЕ выбирается — объект всегда привязывается к тому,
+    кто его создал (поле created_by). Номер берётся из атомарного служебного
+    счётчика агентства (используем для этого служебную запись-счётчик).
+    """
+    counter = agent_repo.get_by_code(db, agency_id, DEFAULT_AGENT_CODE)
+    if counter is None:
+        # Подстраховка для агентств без служебного счётчика.
+        counter = agent_repo.create(
+            db, agency_id, name=DEFAULT_AGENT_NAME, code=DEFAULT_AGENT_CODE
         )
-    return fallback
-
-
-def _generate_display_id(db: Session, agency_id: int, agent: Agent) -> str:
-    """Сгенерировать ID вида «SAR-0001» (атомарный счётчик агента)."""
-    number = agent_repo.next_number(db, agency_id, agent.id)
+    number = agent_repo.next_number(db, agency_id, counter.id)
     if number is None:
-        # Теоретически недостижимо (агента мы только что проверили), но
-        # перестраховываемся: лучше понятная ошибка, чем кривой ID.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не удалось сгенерировать ID объекта.",
+            detail="Не удалось сгенерировать номер объекта.",
         )
-    return f"{agent.code}-{number:04d}"
+    return f"{number:04d}"
+
+
+def _display_name(u) -> Optional[str]:
+    """Человекочитаемое имя сотрудника для отметки «кто добавил»."""
+    if u is None:
+        return None
+    if u.full_name:
+        return u.full_name
+    if u.username:
+        return "@" + u.username
+    return f"ID {u.telegram_id}"
+
+
+def _attach_creators(db: Session, apartments) -> None:
+    """Проставить объектам имя создателя (created_by_name) для отображения."""
+    ids = {a.created_by for a in apartments if a.created_by is not None}
+    names = {}
+    if ids:
+        for u in user_repo.get_by_ids(db, ids):
+            names[u.id] = _display_name(u)
+    for a in apartments:
+        a.created_by_name = names.get(a.created_by)
 
 
 def create_apartment(
     db: Session, agency_id: int, created_by: Optional[int], payload: ApartmentCreate
 ) -> Apartment:
-    agent = _resolve_agent(db, agency_id, payload.agent_id)
-    display_id = _generate_display_id(db, agency_id, agent)
+    display_id = _next_display_id(db, agency_id)
 
     new_status = payload.status or STATUS_ACTIVE
     apartment = Apartment(
         agency_id=agency_id,
         display_id=display_id,
         status=new_status,
-        agent_id=agent.id,
+        agent_id=None,
         created_by=created_by,
         name=payload.name,
         phone=payload.phone,
@@ -104,6 +109,7 @@ def create_apartment(
     apartment_repo.create(db, apartment)
     db.commit()
     db.refresh(apartment)
+    _attach_creators(db, [apartment])
     return apartment
 
 
@@ -113,6 +119,7 @@ def get_apartment(db: Session, agency_id: int, apartment_id: int) -> Apartment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Объект не найден."
         )
+    _attach_creators(db, [apartment])
     return apartment
 
 
@@ -132,7 +139,7 @@ def search_apartments(
     limit: int = 50,
     offset: int = 0,
 ) -> Tuple[list, int]:
-    return apartment_repo.search(
+    items, total = apartment_repo.search(
         db,
         agency_id,
         status=status_filter,
@@ -147,6 +154,8 @@ def search_apartments(
         limit=limit,
         offset=offset,
     )
+    _attach_creators(db, items)
+    return items, total
 
 
 def update_apartment(
@@ -159,14 +168,8 @@ def update_apartment(
     # display_id поменять через этот метод нельзя.
     changes = payload.model_dump(exclude_unset=True)
 
-    # Если меняют агента — проверяем, что он принадлежит этому агентству.
-    if "agent_id" in changes and changes["agent_id"] is not None:
-        agent = agent_repo.get_by_id(db, agency_id, changes["agent_id"])
-        if agent is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Указанный агент не найден в этом агентстве.",
-            )
+    # Агент объекта не редактируется: объект привязан к своему создателю.
+    changes.pop("agent_id", None)
 
     # Нормализация валюты уже сделана в схеме; пустую валюту не затираем.
     if "currency" in changes and not changes["currency"]:
@@ -177,6 +180,7 @@ def update_apartment(
 
     db.commit()
     db.refresh(apartment)
+    _attach_creators(db, [apartment])
     return apartment
 
 
