@@ -24,6 +24,10 @@ services:
   # ─── Backend (FastAPI) ──────────────────────────────────────────────────
   backend:
     build: ./backend
+    ports:
+      # Прямой доступ к API для разработки: http://localhost:8000/docs
+      # (в обычной работе фронтенд ходит к API через веб-сервер на порту 8080).
+      - "8000:8000"
     environment:
       DATABASE_URL: postgresql+psycopg://realty:realty_local_dev@db:5432/realty
       BOT_TOKEN: ${BOT_TOKEN:-}
