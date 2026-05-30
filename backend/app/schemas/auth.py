@@ -26,6 +26,7 @@ class UserProfile(BaseModel):
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    # Активна ли подписка агентства (для суперадмина всегда True).
-    subscription_active: bool
+    # Активна ли подписка агентства.
+    # Для суперадмина — None (у владельца платформы подписки нет, доступ всегда полный).
+    subscription_active: Optional[bool] = None
     user: UserProfile

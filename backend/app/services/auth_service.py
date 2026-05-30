@@ -63,8 +63,10 @@ def login_with_init_data(db: Session, init_data: str) -> dict:
         user.full_name = full_name
     user.last_login_at = datetime.now(timezone.utc)
 
-    # 5. Проверяем подписку агентства (для суперадмина — не требуется).
-    subscription_active = True
+    # 5. Проверяем подписку агентства.
+    # У суперадмина (владельца платформы) подписки нет — оставляем None,
+    # чтобы фронтенд не показывал ему строку про подписку.
+    subscription_active = None
     if user.role != "superadmin":
         agency = agency_repo.get_by_id(db, user.agency_id) if user.agency_id else None
         subscription_active = agency is not None and agency.status in ("trial", "active")

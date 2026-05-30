@@ -124,12 +124,19 @@
         if (result.ok) {
           const u = result.data.user || {};
           setStatus("Вы успешно вошли!", "ok");
-          showRows([
+          const rows = [
             ["Имя", u.full_name || "—"],
             ["Username", u.username ? "@" + u.username : "—"],
             ["Роль", u.role || "—"],
-            ["Подписка активна", result.data.subscription_active ? "Да" : "Нет"],
-          ]);
+          ];
+          // Суперадмину (владельцу платформы) подписка не нужна — у него
+          // всегда полный доступ. Остальным показываем статус подписки.
+          if (u.role === "superadmin") {
+            rows.push(["Доступ", "Полный (владелец платформы)"]);
+          } else {
+            rows.push(["Подписка активна", result.data.subscription_active ? "Да" : "Нет"]);
+          }
+          showRows(rows);
         } else {
           setStatus("Войти не удалось: " + (result.data.detail || ("ошибка " + result.status)), "err");
           debugEl.innerHTML = "<pre>" + JSON.stringify(result.data, null, 2) + "</pre>";
