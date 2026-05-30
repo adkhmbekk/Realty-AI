@@ -50,7 +50,9 @@ def validate_init_data(
         raise InitDataError("Пустые данные входа")
 
     try:
-        parsed = dict(parse_qsl(init_data, strict_parsing=True))
+        parsed = dict(
+            parse_qsl(init_data, strict_parsing=True, keep_blank_values=True)
+        )
     except ValueError as exc:
         raise InitDataError("Некорректный формат данных входа") from exc
 
@@ -58,17 +60,28 @@ def validate_init_data(
     if not received_hash:
         raise InitDataError("В данных входа отсутствует подпись")
 
-    # Строка для проверки: все поля, отсортированные по имени, через перевод строки.
-    data_check_string = "\n".join(f"{key}={parsed[key]}" for key in sorted(parsed))
-
     # Секретный ключ выводится из токена бота.
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
-    computed_hash = hmac.new(
-        secret_key, data_check_string.encode(), hashlib.sha256
-    ).hexdigest()
 
-    # Сравнение, устойчивое к атакам по времени.
-    if not hmac.compare_digest(computed_hash, received_hash):
+    def _calc(check_string: str) -> str:
+        return hmac.new(
+            secret_key, check_string.encode(), hashlib.sha256
+        ).hexdigest()
+
+    # Строка проверки: все поля (кроме hash), отсортированные по имени.
+    keys_all = sorted(parsed)
+    dcs_full = "\n".join(f"{key}={parsed[key]}" for key in keys_all)
+    # Запасной вариант — без поля signature (некоторые клиенты Telegram не
+    # включают его в HMAC). Принимаем вход, если совпал любой из вариантов;
+    # на безопасность это не влияет — оба варианта подписаны секретом бота.
+    dcs_no_sig = "\n".join(
+        f"{key}={parsed[key]}" for key in keys_all if key != "signature"
+    )
+
+    is_valid = hmac.compare_digest(_calc(dcs_full), received_hash) or hmac.compare_digest(
+        _calc(dcs_no_sig), received_hash
+    )
+    if not is_valid:
         raise InitDataError("Подпись данных входа недействительна")
 
     # Проверка свежести (защита от повторного использования старых данных).
