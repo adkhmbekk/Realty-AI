@@ -52,3 +52,27 @@ def require_superadmin(user: User = Depends(get_current_user)) -> User:
             detail="Доступ только для суперадмина.",
         )
     return user
+
+
+def require_agency_member(user: User = Depends(get_current_user)) -> User:
+    """
+    Пропускает только сотрудника агентства (админа или агента), привязанного
+    к какому-то агентству. Суперадмин (без агентства) сюда не проходит — у него
+    нет объектов недвижимости (см. матрицу прав в ТЗ, раздел 5).
+    """
+    if user.role not in ("agency_admin", "agent") or user.agency_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ только для сотрудников агентства.",
+        )
+    return user
+
+
+def require_agency_admin(user: User = Depends(get_current_user)) -> User:
+    """Пропускает только администратора агентства."""
+    if user.role != "agency_admin" or user.agency_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ только для администратора агентства.",
+        )
+    return user

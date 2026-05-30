@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.models.agency import Agency
 from app.repositories import agency_repo, user_repo
 from app.schemas.agency import AgencyCreate
+from app.services import seeding_service
 
 
 def create_agency_with_admin(
@@ -20,6 +21,10 @@ def create_agency_with_admin(
         created_by=creator_telegram_id,
         subscription_days=payload.subscription_days,
     )
+
+    # 1.1. Сразу наполняем агентство значениями по умолчанию (районы, типы,
+    # запасной агент) — чтобы оно было готово к работе сразу после создания.
+    seeding_service.seed_agency_defaults(db, agency.id)
 
     # 2. Назначаем администратора агентства.
     existing = user_repo.get_by_telegram_id(db, payload.admin_telegram_id)
