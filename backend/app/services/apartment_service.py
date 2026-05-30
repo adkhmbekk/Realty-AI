@@ -25,8 +25,12 @@ from app.schemas.apartment import ApartmentCreate, ApartmentUpdate
 
 # Допустимые статусы объекта.
 STATUS_ACTIVE = "active"
-STATUS_ARCHIVED = "archived"
+STATUS_DEPOSIT = "deposit"     # задаток внесён — объект «придержан»
 STATUS_SOLD = "sold"
+STATUS_ARCHIVED = "archived"
+VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD, STATUS_ARCHIVED)
+# Статусы, при которых объект считается снятым с продажи (фиксируем дату).
+_CLOSED_STATUSES = (STATUS_SOLD, STATUS_ARCHIVED)
 
 
 def _resolve_agent(db: Session, agency_id: int, agent_id: Optional[int]) -> Agent:
@@ -73,10 +77,11 @@ def create_apartment(
     agent = _resolve_agent(db, agency_id, payload.agent_id)
     display_id = _generate_display_id(db, agency_id, agent)
 
+    new_status = payload.status or STATUS_ACTIVE
     apartment = Apartment(
         agency_id=agency_id,
         display_id=display_id,
-        status=STATUS_ACTIVE,
+        status=new_status,
         agent_id=agent.id,
         created_by=created_by,
         name=payload.name,
@@ -94,6 +99,7 @@ def create_apartment(
         price=payload.price,
         currency=payload.currency or "USD",
         description=payload.description,
+        archived_at=datetime.now(timezone.utc) if new_status in _CLOSED_STATUSES else None,
     )
     apartment_repo.create(db, apartment)
     db.commit()
@@ -174,30 +180,24 @@ def update_apartment(
     return apartment
 
 
-def _set_status(
+def set_status(
     db: Session, agency_id: int, apartment_id: int, new_status: str
 ) -> Apartment:
+    """Сменить статус объекта (active / deposit / sold / archived)."""
+    if new_status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Недопустимый статус объекта.",
+        )
     apartment = get_apartment(db, agency_id, apartment_id)
     apartment.status = new_status
-    if new_status == STATUS_ACTIVE:
-        apartment.archived_at = None
-    else:
-        apartment.archived_at = datetime.now(timezone.utc)
+    # Фиксируем дату снятия с продажи для архива/продажи; иначе сбрасываем.
+    apartment.archived_at = (
+        datetime.now(timezone.utc) if new_status in _CLOSED_STATUSES else None
+    )
     db.commit()
     db.refresh(apartment)
     return apartment
-
-
-def archive_apartment(db: Session, agency_id: int, apartment_id: int) -> Apartment:
-    return _set_status(db, agency_id, apartment_id, STATUS_ARCHIVED)
-
-
-def restore_apartment(db: Session, agency_id: int, apartment_id: int) -> Apartment:
-    return _set_status(db, agency_id, apartment_id, STATUS_ACTIVE)
-
-
-def mark_sold(db: Session, agency_id: int, apartment_id: int) -> Apartment:
-    return _set_status(db, agency_id, apartment_id, STATUS_SOLD)
 
 
 def delete_apartment(db: Session, agency_id: int, apartment_id: int) -> None:

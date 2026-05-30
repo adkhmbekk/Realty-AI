@@ -8,9 +8,12 @@
 - ApartmentListOut — страница списка с общим количеством (пагинация).
 """
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
+
+# Допустимые статусы объекта (единый список для валидации).
+ApartmentStatus = Literal["active", "deposit", "sold", "archived"]
 
 
 # Поля, общие для создания и редактирования объекта.
@@ -57,15 +60,22 @@ class _ApartmentBase(BaseModel):
 
 
 class ApartmentCreate(_ApartmentBase):
-    """При создании все поля необязательны; ID и статус назначаются системой."""
+    """При создании все поля необязательны; display_id генерируется системой."""
+    # Начальный статус объекта. По умолчанию — активный.
+    status: Optional[ApartmentStatus] = None
 
 
 class ApartmentUpdate(_ApartmentBase):
     """
     При редактировании меняем только переданные поля.
-    Набор полей тот же, что и при создании (белый список) — статус,
-    display_id и принадлежность агентству менять через этот метод нельзя.
+    Набор полей тот же, что и при создании (белый список) — статус и
+    display_id менять через этот метод нельзя (для статуса есть отдельный метод).
     """
+
+
+class ApartmentStatusUpdate(BaseModel):
+    # Новый статус объекта: active / deposit (задаток) / sold / archived.
+    status: ApartmentStatus
 
 
 class ApartmentOut(BaseModel):

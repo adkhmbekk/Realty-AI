@@ -68,6 +68,16 @@
     }
     .tabs button.active { background: #2563eb; color: #fff; }
 
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .chip {
+      background:#f3f4f6; color:#374151; border:1px solid #e5e7eb;
+      border-radius:999px; padding:6px 12px; font-size:13px; font-weight:600;
+    }
+    .chip.active { background:#2563eb; color:#fff; border-color:#2563eb; }
+    .views { display:flex; gap:6px; margin:14px 0 6px; flex-wrap:wrap; }
+    .views button { flex:1; min-width:80px; background:#f3f4f6; color:#374151; font-weight:600; padding:9px 8px; font-size:13px; }
+    .views button.active { background:#111827; color:#fff; }
+
     .item {
       border: 1px solid #eef0f3; border-radius: 12px; padding: 12px;
       margin-top: 10px; background: #fcfcfd;
@@ -426,23 +436,54 @@
       return arr.map(x => `<option value="${esc(x[valueKey])}">${esc(x[valueKey])}</option>`).join("");
     }
 
+    // Фиксированные списки (единые для всех агентств).
+    const OBJ_TYPES = ["Квартира", "Дом", "Коммерция", "Земля"];
+    const OBJ_CONDITIONS = ["Без ремонта", "Черновая", "White box", "Средний ремонт", "Новый ремонт", "Дизайнерский ремонт"];
+    const STATUS_LABELS = { active: "Активен", deposit: "Задаток", sold: "Продан", archived: "Архив" };
+    const STATUS_BADGE  = { active: "green", deposit: "amber", sold: "gray", archived: "gray" };
+
+    // Текущий «вид» списка объектов (какой статус показываем).
+    let objView = "active";
+
+    // --- Мультивыбор «чипами» ---
+    function chips(id, values) {
+      return `<div class="chips" id="${id}">` +
+        values.map(v => `<button type="button" class="chip" data-val="${esc(v)}">${esc(v)}</button>`).join("") +
+        `</div>`;
+    }
+    function wireChips(host, id) {
+      host.querySelectorAll("#" + id + " .chip").forEach(b =>
+        b.addEventListener("click", () => b.classList.toggle("active")));
+    }
+    function pickedChips(host, id) {
+      return Array.from(host.querySelectorAll("#" + id + " .chip.active")).map(b => b.dataset.val);
+    }
+
     async function objectsScreen(host) {
       host.innerHTML = `
         <h2>Объекты недвижимости</h2>
         <button class="ghost full" id="obj-new-toggle">+ Создать объект</button>
         <div id="obj-form"></div>
+
+        <div class="views" id="obj-views">
+          <button data-view="active">Активные</button>
+          <button data-view="deposit">Задаток</button>
+          <button data-view="sold">Проданные</button>
+          <button data-view="archived">Архив</button>
+        </div>
+
         <div class="item" style="background:#fff">
-          <label>Статус</label>
-          <select id="f-status">
-            <option value="active">Активные</option>
-            <option value="archived">Архив</option>
-            <option value="sold">Проданные</option>
-            <option value="all">Все</option>
-          </select>
+          <label>Тип объекта</label>
+          ${chips("f-types", OBJ_TYPES)}
           <label>Район</label>
-          <select id="f-district"><option value="">Любой</option></select>
+          <div class="chips" id="f-districts"></div>
+          <label>Комнат</label>
+          ${chips("f-rooms", ["1", "2", "3", "4", "5"])}
           <div style="display:flex; gap:8px">
-            <div style="flex:1"><label>Комнат</label><input id="f-rooms" inputmode="numeric" /></div>
+            <div style="flex:1"><label>Этаж от</label><input id="f-fmin" inputmode="numeric" /></div>
+            <div style="flex:1"><label>до</label><input id="f-fmax" inputmode="numeric" /></div>
+          </div>
+          <div style="display:flex; gap:8px">
             <div style="flex:1"><label>Цена от</label><input id="f-pmin" inputmode="numeric" /></div>
             <div style="flex:1"><label>до</label><input id="f-pmax" inputmode="numeric" /></div>
           </div>
@@ -451,8 +492,23 @@
         <div id="obj-results"><div class="empty">Загрузка…</div></div>`;
 
       await loadRefs();
-      host.querySelector("#f-district").innerHTML =
-        `<option value="">Любой</option>` + optList(refs.district, "value");
+      const dbox = host.querySelector("#f-districts");
+      dbox.innerHTML = refs.district.length
+        ? refs.district.map(x => `<button type="button" class="chip" data-val="${esc(x.value)}">${esc(x.value)}</button>`).join("")
+        : `<span class="muted">Районы не заданы</span>`;
+      wireChips(host, "f-types");
+      wireChips(host, "f-districts");
+      wireChips(host, "f-rooms");
+
+      const views = host.querySelector("#obj-views");
+      function paintViews() {
+        views.querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === objView));
+      }
+      views.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+        objView = b.dataset.view; paintViews(); searchObjects(host);
+      }));
+      paintViews();
+
       host.querySelector("#obj-new-toggle").addEventListener("click", () => toggleObjForm(host));
       host.querySelector("#obj-search").addEventListener("click", () => searchObjects(host));
       searchObjects(host);
@@ -461,16 +517,20 @@
     function toggleObjForm(host) {
       const box = host.querySelector("#obj-form");
       if (box.innerHTML.trim()) { box.innerHTML = ""; return; }
-      const agentOpts = `<option value="">Авто (агент «Другое»)</option>` +
-        refs.agents.map(a => `<option value="${a.id}">${esc(a.name)} (${esc(a.code)})</option>`).join("");
+      const typeOpts = `<option value="">—</option>` + OBJ_TYPES.map(v => `<option>${esc(v)}</option>`).join("");
+      const condOpts = `<option value="">—</option>` + OBJ_CONDITIONS.map(v => `<option>${esc(v)}</option>`).join("");
       const distOpts = `<option value="">—</option>` + optList(refs.district, "value");
-      const typeOpts = `<option value="">—</option>` + optList(refs.property_type, "value");
+      const statusOpts = [["active", "Активен"], ["deposit", "Задаток"], ["sold", "Продан"]]
+        .map(s => `<option value="${s[0]}">${s[1]}</option>`).join("");
+      const agentOpts = `<option value="">Авто — агент «Другое»</option>` +
+        refs.agents.map(a => `<option value="${a.id}">${esc(a.name)} (${esc(a.code)})</option>`).join("");
       box.innerHTML = `
         <div class="item" style="background:#fbfbfe">
-          <label>Агент (от него образуется номер объекта)</label>
-          <select id="n-agent">${agentOpts}</select>
-          <label>Тип</label><select id="n-type">${typeOpts}</select>
+          <label>Наименование</label><input id="n-name" placeholder="например, 2-комн. в центре" />
+          <label>Тип объекта</label><select id="n-type">${typeOpts}</select>
+          <label>Статус</label><select id="n-status">${statusOpts}</select>
           <label>Район</label><select id="n-district">${distOpts}</select>
+          <label>Адрес</label><input id="n-address" />
           <div style="display:flex; gap:8px">
             <div style="flex:1"><label>Комнат</label><input id="n-rooms" inputmode="numeric" /></div>
             <div style="flex:1"><label>Этаж</label><input id="n-floor" inputmode="numeric" /></div>
@@ -482,10 +542,12 @@
             <div style="flex:1"><label>Валюта</label>
               <select id="n-currency"><option>USD</option><option>UZS</option><option>EUR</option></select></div>
           </div>
-          <label>Адрес</label><input id="n-address" />
+          <label>Состояние объекта</label><select id="n-condition">${condOpts}</select>
           <label>Телефон</label><input id="n-phone" />
-          <label>Заголовок</label><input id="n-name" />
           <label>Описание</label><input id="n-desc" />
+          <label>Агент (от него образуется номер объекта)</label>
+          <select id="n-agent">${agentOpts}</select>
+          <div class="hint">Код агента становится началом номера объекта: например, у агента с кодом SAR объект получит ID «SAR-0001». Сейчас заведён только агент «Другое» (OTH) — добавление своих агентов сделаем отдельно.</div>
           <button class="full" id="n-save">Сохранить объект</button>
         </div>`;
       box.querySelector("#n-save").addEventListener("click", () => createObject(host));
@@ -508,17 +570,19 @@
       const agentId = vNum(host, "#n-agent", false);
       if (agentId) body.agent_id = agentId;
       const fields = {
+        name: vStr(host, "#n-name"),
         type: vStr(host, "#n-type"),
+        status: vStr(host, "#n-status"),
         district: vStr(host, "#n-district"),
+        address: vStr(host, "#n-address"),
         rooms: vNum(host, "#n-rooms", false),
         floor: vNum(host, "#n-floor", false),
         total_floors: vNum(host, "#n-tfloors", false),
         area: vNum(host, "#n-area", true),
         price: vNum(host, "#n-price", true),
         currency: host.querySelector("#n-currency").value,
-        address: vStr(host, "#n-address"),
+        condition: vStr(host, "#n-condition"),
         phone: vStr(host, "#n-phone"),
-        name: vStr(host, "#n-name"),
         description: vStr(host, "#n-desc"),
       };
       Object.keys(fields).forEach(k => { if (fields[k] !== null) body[k] = fields[k]; });
@@ -535,25 +599,28 @@
     }
 
     function objCardHtml(o) {
-      const stMap = { active:["green","активен"], archived:["amber","архив"], sold:["gray","продан"] };
-      const s = stMap[o.status] || ["gray", o.status];
+      const badge = STATUS_BADGE[o.status] || "gray";
+      const label = STATUS_LABELS[o.status] || o.status;
       const price = (o.price != null) ? (o.price + " " + (o.currency || "")) : "—";
       const parts = [o.type, o.district, (o.rooms != null ? o.rooms + "-комн." : null)]
         .filter(Boolean).map(esc).join(" · ");
-      let actions = "";
-      if (o.status === "active") {
-        actions += `<button class="small ghost" data-act="archive" data-id="${o.id}">В архив</button> `;
-        actions += `<button class="small ghost" data-act="sold" data-id="${o.id}">Продан</button> `;
-      } else {
-        actions += `<button class="small ghost" data-act="restore" data-id="${o.id}">Вернуть в активные</button> `;
-      }
+      const transitions = {
+        active:   [["deposit", "Задаток"], ["sold", "Продан"], ["archived", "В архив"]],
+        deposit:  [["active", "Снять задаток"], ["sold", "Продан"], ["archived", "В архив"]],
+        sold:     [["active", "Вернуть в активные"], ["archived", "В архив"]],
+        archived: [["active", "Вернуть в активные"]],
+      };
+      let actions = (transitions[o.status] || [])
+        .map(t => `<button class="small ghost" data-status="${t[0]}" data-id="${o.id}">${t[1]}</button>`).join(" ");
       if (state.user && state.user.role === "agency_admin") {
-        actions += `<button class="small danger" data-act="delete" data-id="${o.id}">Удалить</button>`;
+        actions += ` <button class="small danger" data-del="${o.id}">Удалить</button>`;
       }
       return `<div class="item">
-        <div class="top"><span class="title">${esc(o.display_id)}</span><span class="badge ${s[0]}">${s[1]}</span></div>
+        <div class="top"><span class="title">${esc(o.display_id)}</span><span class="badge ${badge}">${esc(label)}</span></div>
+        ${o.name ? `<div class="meta">${esc(o.name)}</div>` : ""}
         <div class="meta">${parts || "—"}</div>
         <div class="meta">Цена: ${esc(String(price))}</div>
+        ${o.condition ? `<div class="meta">Состояние: ${esc(o.condition)}</div>` : ""}
         ${o.address ? `<div class="meta">Адрес: ${esc(o.address)}</div>` : ""}
         ${o.phone ? `<div class="meta">Тел.: ${esc(o.phone)}</div>` : ""}
         <div style="margin-top:8px">${actions}</div>
@@ -564,35 +631,41 @@
       const box = host.querySelector("#obj-results");
       box.innerHTML = `<div class="empty">Загрузка…</div>`;
       const p = new URLSearchParams();
-      const status = host.querySelector("#f-status").value;
-      const district = host.querySelector("#f-district").value;
-      const rooms = (host.querySelector("#f-rooms").value || "").trim();
-      const pmin = (host.querySelector("#f-pmin").value || "").trim();
-      const pmax = (host.querySelector("#f-pmax").value || "").trim();
-      if (status) p.set("status", status);
-      if (district) p.append("districts", district);
-      if (rooms) p.append("rooms", rooms);
+      p.set("status", objView);
+      pickedChips(host, "f-types").forEach(v => p.append("types", v));
+      pickedChips(host, "f-districts").forEach(v => p.append("districts", v));
+      pickedChips(host, "f-rooms").forEach(v => p.append("rooms", v));
+      const fmin = vStr(host, "#f-fmin"), fmax = vStr(host, "#f-fmax");
+      const pmin = vStr(host, "#f-pmin"), pmax = vStr(host, "#f-pmax");
+      if (fmin) p.set("floor_min", fmin);
+      if (fmax) p.set("floor_max", fmax);
       if (pmin) p.set("price_min", pmin);
       if (pmax) p.set("price_max", pmax);
-      p.set("limit", "50");
+      p.set("limit", "100");
       const r = await api("/api/v1/apartments?" + p.toString());
       if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
       const items = (r.data && r.data.items) || [];
       if (!items.length) { box.innerHTML = `<div class="empty">Ничего не найдено.</div>`; return; }
       box.innerHTML = `<div class="meta" style="margin:10px 0 0">Найдено: ${r.data.total}</div>` +
         items.map(objCardHtml).join("");
-      box.querySelectorAll("button[data-act]").forEach(b => {
-        b.addEventListener("click", () => objAction(host, b.dataset.act, parseInt(b.dataset.id, 10)));
-      });
+      box.querySelectorAll("button[data-status]").forEach(b =>
+        b.addEventListener("click", () => changeStatus(host, parseInt(b.dataset.id, 10), b.dataset.status)));
+      box.querySelectorAll("button[data-del]").forEach(b =>
+        b.addEventListener("click", () => deleteObject(host, parseInt(b.dataset.del, 10))));
     }
 
-    async function objAction(host, act, id) {
-      if (act === "delete" && !window.confirm("Удалить объект безвозвратно?")) return;
-      setStatus("Выполняем…", "info");
-      const r = (act === "delete")
-        ? await api("/api/v1/apartments/" + id, { method: "DELETE" })
-        : await api("/api/v1/apartments/" + id + "/" + act, { method: "POST" });
+    async function changeStatus(host, id, newStatus) {
+      setStatus("Меняем статус…", "info");
+      const r = await api("/api/v1/apartments/" + id + "/status", { method: "POST", body: { status: newStatus } });
       if (r.ok) { setStatus("Готово.", "ok"); searchObjects(host); }
+      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
+    }
+
+    async function deleteObject(host, id) {
+      if (!window.confirm("Удалить объект безвозвратно?")) return;
+      setStatus("Удаляем…", "info");
+      const r = await api("/api/v1/apartments/" + id, { method: "DELETE" });
+      if (r.ok) { setStatus("Удалено.", "ok"); searchObjects(host); }
       else setStatus("Ошибка: " + errText(r.data, r.status), "err");
     }
 

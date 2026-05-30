@@ -20,6 +20,7 @@ from app.schemas.apartment import (
     ApartmentCreate,
     ApartmentListOut,
     ApartmentOut,
+    ApartmentStatusUpdate,
     ApartmentUpdate,
 )
 from app.services import apartment_service
@@ -43,7 +44,7 @@ def create_apartment(
 def search_apartments(
     status: Optional[str] = Query(
         "active",
-        description="Статус: active / archived / sold. Передайте 'all' для всех статусов.",
+        description="Статус: active / deposit / sold / archived. Передайте 'all' для всех статусов.",
     ),
     districts: Optional[List[str]] = Query(None, description="Районы (можно несколько)."),
     types: Optional[List[str]] = Query(None, description="Типы (можно несколько)."),
@@ -102,34 +103,17 @@ def update_apartment(
     )
 
 
-@router.post("/{apartment_id}/archive", response_model=ApartmentOut)
-def archive_apartment(
+@router.post("/{apartment_id}/status", response_model=ApartmentOut)
+def change_status(
     apartment_id: int,
+    body: ApartmentStatusUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
-    """Перевести объект в архив."""
-    return apartment_service.archive_apartment(db, current_user.agency_id, apartment_id)
-
-
-@router.post("/{apartment_id}/restore", response_model=ApartmentOut)
-def restore_apartment(
-    apartment_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_member),
-):
-    """Вернуть объект из архива в активные."""
-    return apartment_service.restore_apartment(db, current_user.agency_id, apartment_id)
-
-
-@router.post("/{apartment_id}/sold", response_model=ApartmentOut)
-def mark_sold(
-    apartment_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_member),
-):
-    """Пометить объект как проданный."""
-    return apartment_service.mark_sold(db, current_user.agency_id, apartment_id)
+    """Сменить статус объекта: active / deposit (задаток) / sold / archived."""
+    return apartment_service.set_status(
+        db, current_user.agency_id, apartment_id, body.status
+    )
 
 
 @router.delete("/{apartment_id}", status_code=204)
