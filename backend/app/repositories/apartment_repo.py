@@ -48,7 +48,10 @@ def _build_conditions(
     # Первое и главное условие — принадлежность агентству.
     conditions = [Apartment.agency_id == agency_id]
 
-    if status:
+    if status == "unsold":
+        # Всё, кроме проданных (для раздела «Моя база»).
+        conditions.append(Apartment.status != "sold")
+    elif status:
         conditions.append(Apartment.status == status)
     if districts:
         conditions.append(Apartment.district.in_(list(districts)))

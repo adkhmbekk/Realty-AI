@@ -209,7 +209,7 @@
         greeting:"Здравствуйте", typeMultiHint:"Можно выбрать несколько типов",
         activatedAt:"Дата активации", extendPrompt:"На сколько дней продлить подписку?",
         setDatePrompt:"Новая дата окончания (ГГГГ-ММ-ДД):", badDate:"Неверный формат даты. Пример: 2026-12-31",
-        changeDateBtn:"Изменить дату",
+        changeDateBtn:"Изменить дату", notSold:"Не проданные",
       },
       uz: {
         back:"Orqaga", save:"Saqlash", saveChanges:"Oʻzgarishlarni saqlash", cancel:"Bekor qilish",
@@ -270,7 +270,7 @@
         greeting:"Assalomu alaykum", typeMultiHint:"Bir nechta turni tanlash mumkin",
         activatedAt:"Faollashtirilgan sana", extendPrompt:"Obunani necha kunga uzaytirilsin?",
         setDatePrompt:"Yangi tugash sanasi (YYYY-MM-DD):", badDate:"Sana formati notoʻgʻri. Masalan: 2026-12-31",
-        changeDateBtn:"Sanani oʻzgartirish",
+        changeDateBtn:"Sanani oʻzgartirish", notSold:"Sotilmagan",
       },
       en: {
         back:"Back", save:"Save", saveChanges:"Save changes", cancel:"Cancel",
@@ -331,7 +331,7 @@
         greeting:"Hello", typeMultiHint:"You can select several types",
         activatedAt:"Activation date", extendPrompt:"Extend subscription by how many days?",
         setDatePrompt:"New end date (YYYY-MM-DD):", badDate:"Invalid date format. Example: 2026-12-31",
-        changeDateBtn:"Change date",
+        changeDateBtn:"Change date", notSold:"Not sold",
       },
     };
     function t(key) {
@@ -621,18 +621,16 @@
           menu.appendChild(menuButton("🏢", "myAgencies", () => navigate(agenciesScreen())));
           menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
         } else if (role === "agency_admin") {
-          menu.appendChild(menuButton("👤", "profile", () => navigate(profileScreen())));
           menu.appendChild(menuButton("➕", "addObject", () => navigate(addObjectScreen())));
           menu.appendChild(menuButton("🔎", "findObject", () => navigate(searchFormScreen())));
-          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(objectListScreen({}, "myDatabase"))));
+          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(databaseScreen())));
           menu.appendChild(menuButton("👥", "team", () => navigate(teamScreen())));
           menu.appendChild(menuButton("✉️", "invites", () => navigate(invitesScreen())));
           menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
         } else if (role === "agent") {
-          menu.appendChild(menuButton("👤", "profile", () => navigate(profileScreen())));
           menu.appendChild(menuButton("➕", "addObject", () => navigate(addObjectScreen())));
           menu.appendChild(menuButton("🔎", "findObject", () => navigate(searchFormScreen())));
-          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(objectListScreen({}, "myDatabase"))));
+          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(databaseScreen())));
           menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
         } else {
           menu.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
@@ -879,36 +877,57 @@
       return c;
     }
 
+    function renderObjectListInto(host, params) {
+      const page = { offset: 0, total: 0 };
+      const countEl = el(`<div class="meta" style="margin:6px 0"></div>`);
+      const cards = el(`<div></div>`);
+      const moreWrap = el(`<div></div>`);
+      host.appendChild(countEl); host.appendChild(cards); host.appendChild(moreWrap);
+      async function loadPage(append) {
+        moreWrap.innerHTML = `<div class="empty">${esc(t("loading"))}</div>`;
+        const p = new URLSearchParams();
+        Object.keys(params).forEach(k => {
+          const v = params[k];
+          if (v == null || v === "") return;
+          if (Array.isArray(v)) v.forEach(x => { if (x != null && x !== "") p.append(k, x); });
+          else p.set(k, v);
+        });
+        if (!p.has("status")) p.set("status", "all");
+        p.set("limit", "20"); p.set("offset", String(page.offset));
+        const r = await api("/api/v1/apartments?" + p.toString());
+        if (!r.ok) { moreWrap.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+        const items = (r.data && r.data.items) || [];
+        page.total = r.data.total || 0; page.offset += items.length;
+        if (!append && !items.length) { countEl.textContent = ""; cards.innerHTML = `<div class="empty">${esc(t("notFound"))}</div>`; moreWrap.innerHTML = ""; return; }
+        countEl.textContent = t("found") + ": " + page.total;
+        items.forEach(o => cards.appendChild(objCard(o)));
+        const left = page.total - page.offset;
+        if (left > 0) { const mb = el(`<button class="ghost full">${esc(t("showMore"))} (${left})</button>`); mb.addEventListener("click", () => loadPage(true)); moreWrap.innerHTML = ""; moreWrap.appendChild(mb); }
+        else moreWrap.innerHTML = "";
+      }
+      loadPage(false);
+    }
     function objectListScreen(params, titleKey) {
-      return { titleKey, render(host) {
-        const page = { offset: 0, total: 0 };
-        const countEl = el(`<div class="meta" style="margin:6px 0"></div>`);
-        const cards = el(`<div></div>`);
-        const moreWrap = el(`<div></div>`);
-        host.appendChild(countEl); host.appendChild(cards); host.appendChild(moreWrap);
-        async function loadPage(append) {
-          moreWrap.innerHTML = `<div class="empty">${esc(t("loading"))}</div>`;
-          const p = new URLSearchParams();
-          Object.keys(params).forEach(k => {
-            const v = params[k];
-            if (v == null || v === "") return;
-            if (Array.isArray(v)) v.forEach(x => { if (x != null && x !== "") p.append(k, x); });
-            else p.set(k, v);
-          });
-          if (!p.has("status")) p.set("status", "all");
-          p.set("limit", "20"); p.set("offset", String(page.offset));
-          const r = await api("/api/v1/apartments?" + p.toString());
-          if (!r.ok) { moreWrap.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
-          const items = (r.data && r.data.items) || [];
-          page.total = r.data.total || 0; page.offset += items.length;
-          if (!append && !items.length) { countEl.textContent = ""; cards.innerHTML = `<div class="empty">${esc(t("notFound"))}</div>`; moreWrap.innerHTML = ""; return; }
-          countEl.textContent = t("found") + ": " + page.total;
-          items.forEach(o => cards.appendChild(objCard(o)));
-          const left = page.total - page.offset;
-          if (left > 0) { const mb = el(`<button class="ghost full">${esc(t("showMore"))} (${left})</button>`); mb.addEventListener("click", () => loadPage(true)); moreWrap.innerHTML = ""; moreWrap.appendChild(mb); }
-          else moreWrap.innerHTML = "";
-        }
-        loadPage(false);
+      return { titleKey, render(host) { renderObjectListInto(host, params); } };
+    }
+
+    // «Моя база» с разделением: не проданные / проданные (не смешиваются).
+    function databaseScreen() {
+      return { titleKey: "myDatabase", render(host) {
+        let view = "unsold";
+        const seg = el(`<div class="seg">
+          <button data-v="unsold" class="active">${esc(t("notSold"))}</button>
+          <button data-v="sold">${esc(t("statusSold"))}</button>
+        </div>`);
+        const listWrap = el(`<div></div>`);
+        host.appendChild(seg); host.appendChild(listWrap);
+        function load() { listWrap.innerHTML = ""; renderObjectListInto(listWrap, { status: view }); }
+        seg.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+          view = b.dataset.v;
+          seg.querySelectorAll("button").forEach(x => x.classList.toggle("active", x.dataset.v === view));
+          load();
+        }));
+        load();
       }};
     }
 
@@ -942,16 +961,19 @@
           // Статус: «—» (все) / Активные / Задаток / Проданные. Без архива.
           const statusOpts = [["all","notSet"],["active","statusActive"],["deposit","statusDeposit"],["sold","statusSold"]]
             .map(s => `<option value="${s[0]}">${esc(t(s[1]))}</option>`).join("");
-          const distOpts = `<option value="">${esc(t("notSet"))}</option>` + refs.district.map(x => `<option value="${esc(x.value)}">${esc(x.value)}</option>`).join("");
-          // Тип — мультивыбор чипами.
+          // Тип и район — мультивыбор чипами.
           const typeChips = OBJ_TYPE_VALUES.map(v => `<div class="chip" data-val="${esc(v)}">${esc(typeLabel(v))}</div>`).join("");
+          const distChips = refs.district.length
+            ? refs.district.map(x => `<div class="chip" data-val="${esc(x.value)}">${esc(x.value)}</div>`).join("")
+            : `<span class="muted">${esc(t("notSet"))}</span>`;
           box.appendChild(el(`<div class="item">
             <label>${esc(t("searchText"))}</label><input id="f-q" />
             <label>${esc(t("f_status"))}</label><select id="f-status">${statusOpts}</select>
             <label>${esc(t("f_type"))}</label>
             <div class="chips" id="f-types">${typeChips}</div>
             <div class="hint">${esc(t("typeMultiHint"))}</div>
-            <label>${esc(t("f_district"))}</label><select id="f-district">${distOpts}</select>
+            <label>${esc(t("f_district"))}</label>
+            <div class="chips" id="f-districts">${distChips}</div>
             <div style="display:flex; gap:8px">
               <div style="flex:1"><label>${esc(t("roomsFrom"))}</label><input id="f-rmin" inputmode="numeric" /></div>
               <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-rmax" inputmode="numeric" /></div>
@@ -965,7 +987,7 @@
               <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-pmax" inputmode="numeric" /></div>
             </div>
           </div>`));
-          box.querySelectorAll("#f-types .chip").forEach(c => c.addEventListener("click", () => c.classList.toggle("active")));
+          box.querySelectorAll("#f-types .chip, #f-districts .chip").forEach(c => c.addEventListener("click", () => c.classList.toggle("active")));
           const btn = el(`<button class="full">${esc(t("searchBtn"))}</button>`);
           btn.addEventListener("click", () => {
             const params = {};
@@ -973,7 +995,8 @@
             params.status = gv("#f-status") || "all";
             const types = Array.from(box.querySelectorAll("#f-types .chip.active")).map(c => c.dataset.val);
             if (types.length) params.types = types;
-            const dist = gv("#f-district"); if (dist) params.districts = dist;
+            const districts = Array.from(box.querySelectorAll("#f-districts .chip.active")).map(c => c.dataset.val);
+            if (districts.length) params.districts = districts;
             const rmin = gv("#f-rmin"); if (rmin) params.rooms_min = rmin;
             const rmax = gv("#f-rmax"); if (rmax) params.rooms_max = rmax;
             const q = gv("#f-q"); if (q) params.q = q;
