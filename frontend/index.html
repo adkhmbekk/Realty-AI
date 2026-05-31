@@ -712,6 +712,28 @@
       });
       return body;
     }
+    // Карточка для отправки клиенту: с эмодзи перед каждой строкой и локализацией.
+    // ВАЖНО: номер собственника (owner_phone) и комментарий (comment) сюда НЕ попадают.
+    // Вместо номера собственника — контактный номер агентства (state.contactPhone).
+    function buildShareCard(o) {
+      const lines = [];
+      lines.push("🏠 " + t("apartment") + " №" + (o.display_id || ""));
+      if (o.name) lines.push("📋 " + o.name);
+      if (o.type) lines.push("🏗 " + t("f_type") + ": " + typeLabel(o.type));
+      if (o.district) lines.push("📍 " + t("f_district") + ": " + o.district);
+      if (o.address) lines.push("🗺 " + t("f_address") + ": " + o.address);
+      if (o.rooms != null) lines.push("🚪 " + t("f_rooms") + ": " + o.rooms);
+      const fl = (o.floor != null && o.total_floors != null) ? (o.floor + "/" + o.total_floors) : (o.floor != null ? String(o.floor) : null);
+      if (fl) lines.push("🏢 " + t("f_floor") + ": " + fl);
+      if (o.area != null) lines.push("📐 " + o.area + " m²");
+      if (o.condition) lines.push("🔧 " + condLabel(o.condition));
+      if (o.furniture_appliances) lines.push("🛋 " + faLabel(o.furniture_appliances));
+      if (o.price != null) lines.push("💵 " + o.price + " " + (o.currency || ""));
+      if (o.source_link) lines.push("🔗 " + o.source_link);
+      if (o.description) lines.push("📝 " + o.description);
+      if (state.contactPhone) lines.push("📞 " + state.contactPhone);
+      return lines.join("\n");
+    }
     function shareToTelegram(text) {
       const link = "https://t.me/share/url?url=&text=" + encodeURIComponent(text);
       if (tg && tg.openTelegramLink) tg.openTelegramLink(link); else window.open(link, "_blank");
@@ -775,7 +797,8 @@
           menu.appendChild(menuButton("🔎", "findObject", () => navigate(searchFormScreen())));
           menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(databaseScreen())));
           menu.appendChild(menuButton("👥", "team", () => navigate(teamScreen())));
-          menu.appendChild(menuButton("✉️", "invites", () => navigate(invitesScreen())));
+          // Приглашать сотрудников может только главный администратор агентства.
+          if (state.user.is_owner) menu.appendChild(menuButton("✉️", "invites", () => navigate(invitesScreen())));
           menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
         } else if (role === "agent") {
           menu.appendChild(menuButton("➕", "addObject", () => navigate(addObjectScreen())));
@@ -1275,19 +1298,12 @@
         stWrap.appendChild(b);
       });
       box.appendChild(stWrap);
+      const card = buildShareCard(o);
       const shWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
-      // Текст для отправки берём с бэкенда: там номер собственника и комментарий
-      // исключены, а вместо номера собственника подставлен контакт агентства.
-      async function getShareText() {
-        const rs = await api("/api/v1/apartments/" + o.id + "/share");
-        if (rs.ok && rs.data) return rs.data.share_text;
-        setStatus(t("loginFail") + errText(rs.data, rs.status), "err");
-        return null;
-      }
       const cpy = el(`<button class="small ghost">${esc(t("shareCard"))}</button>`);
-      cpy.addEventListener("click", async () => { const txt = await getShareText(); if (txt) copyText(txt); });
+      cpy.addEventListener("click", () => copyText(card));
       const stgb = el(`<button class="small ghost">${esc(t("shareTg"))}</button>`);
-      stgb.addEventListener("click", async () => { const txt = await getShareText(); if (txt) shareToTelegram(txt); });
+      stgb.addEventListener("click", () => shareToTelegram(card));
       shWrap.appendChild(cpy); shWrap.appendChild(stgb); box.appendChild(shWrap);
       const eWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
       const edit = el(`<button class="small ghost">${esc(t("edit"))}</button>`); edit.addEventListener("click", () => navigate(objectEditScreen(o)));
@@ -1387,16 +1403,17 @@
             if (rr.ok) { setStatus(t("done"), "ok"); loadTeamInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
           });
           acts.appendChild(tglBtn);
-          const nextRole = m.role === "agency_admin" ? "agent" : "agency_admin";
-          const rb = el(`<button class="small ghost">${esc(m.role === "agency_admin" ? t("demote") : t("promote"))}</button>`);
-          rb.addEventListener("click", async () => {
-            const roleName = nextRole === "agency_admin" ? t("role_agency_admin") : t("role_agent");
-            if (!window.confirm(t("roleQ") + roleName + "»?")) return;
-            const rr = await api("/api/v1/team/" + m.id, { method: "PATCH", body: { role: nextRole } });
-            if (rr.ok) { setStatus(t("roleChanged"), "ok"); loadTeamInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
-          });
-          acts.appendChild(rb);
+          // Менять роли (повышать/понижать) может только главный администратор.
           if (meOwner) {
+            const nextRole = m.role === "agency_admin" ? "agent" : "agency_admin";
+            const rb = el(`<button class="small ghost">${esc(m.role === "agency_admin" ? t("demote") : t("promote"))}</button>`);
+            rb.addEventListener("click", async () => {
+              const roleName = nextRole === "agency_admin" ? t("role_agency_admin") : t("role_agent");
+              if (!window.confirm(t("roleQ") + roleName + "»?")) return;
+              const rr = await api("/api/v1/team/" + m.id, { method: "PATCH", body: { role: nextRole } });
+              if (rr.ok) { setStatus(t("roleChanged"), "ok"); loadTeamInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+            });
+            acts.appendChild(rb);
             const ob = el(`<button class="small ghost">${esc(t("makeOwner"))}</button>`);
             ob.addEventListener("click", async () => {
               if (!window.confirm(t("makeOwnerQ"))) return;

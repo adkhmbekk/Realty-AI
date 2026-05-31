@@ -10,7 +10,7 @@ from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_agency_admin
+from app.core.dependencies import require_agency_owner
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.auth import AuthResponse
@@ -24,9 +24,9 @@ router = APIRouter(prefix="/invites", tags=["invites"])
 def create_invite(
     body: InviteCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_admin),
+    current_user: User = Depends(require_agency_owner),
 ):
-    """Создать приглашение сотрудника (роль + срок). Вернёт код и ссылку."""
+    """Создать приглашение сотрудника (роль + срок). Вернёт код и ссылку. Только главный админ."""
     return invite_service.create_invite(
         db, current_user.agency_id, created_by=current_user.id, payload=body
     )
@@ -35,9 +35,9 @@ def create_invite(
 @router.get("", response_model=List[InviteOut])
 def list_invites(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_admin),
+    current_user: User = Depends(require_agency_owner),
 ):
-    """Список приглашений своего агентства (с их статусом)."""
+    """Список приглашений своего агентства (с их статусом). Только главный админ."""
     return invite_service.list_invites(db, current_user.agency_id)
 
 
@@ -45,9 +45,9 @@ def list_invites(
 def revoke_invite(
     invite_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_admin),
+    current_user: User = Depends(require_agency_owner),
 ):
-    """Отозвать (удалить) приглашение."""
+    """Отозвать (удалить) приглашение. Только главный админ."""
     invite_service.revoke_invite(db, current_user.agency_id, invite_id)
 
 
