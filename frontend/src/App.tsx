@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Building2, Database, Home, Plus, Search, User } from "lucide-react";
+import { ArrowLeft, Building2, Database, Home, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
 import { NavProvider, Route, useNav } from "./nav";
 import { api, errText } from "./api";
@@ -124,6 +124,7 @@ function BottomTabs() {
   if (role === "superadmin") {
     const tabs: { route: Route; icon: JSX.Element; label: string; key: string }[] = [
       { route: { name: "agencies" }, icon: <Building2 size={22} />, label: t("myAgencies"), key: "agencies" },
+      { route: { name: "settings" }, icon: <SettingsIcon size={22} />, label: t("settings"), key: "settings" },
       { route: { name: "profile" }, icon: <User size={22} />, label: t("profile"), key: "profile" },
     ];
     return (
