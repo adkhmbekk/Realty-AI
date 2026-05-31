@@ -3,127 +3,350 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Realty SaaS</title>
-  <!-- Официальный скрипт Telegram Mini App: даёт доступ к данным пользователя. -->
+  <title>Realty</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    :root { color-scheme: light dark; }
+    :root {
+      --bg: #f3f4f6; --card: #ffffff; --text: #111827; --muted: #6b7280;
+      --border: #e5e7eb; --soft: #f3f4f6; --input-bg: #ffffff; --input-border: #d1d5db;
+      --primary: #2563eb; --primary-text: #ffffff;
+      --ghost-bg: #eef2ff; --ghost-text: #3730a3;
+      --danger-bg: #fee2e2; --danger-text: #991b1b;
+      --row-line: #f0f0f0;
+      --info-bg:#eff6ff; --info-text:#1e40af; --ok-bg:#ecfdf5; --ok-text:#065f46;
+      --warn-bg:#fffbeb; --warn-text:#92400e; --err-bg:#fef2f2; --err-text:#991b1b;
+      --badge-green-bg:#dcfce7; --badge-green-tx:#166534;
+      --badge-gray-bg:#e5e7eb; --badge-gray-tx:#374151;
+      --badge-red-bg:#fee2e2; --badge-red-tx:#991b1b;
+      --badge-amber-bg:#fef3c7; --badge-amber-tx:#92400e;
+    }
+    [data-theme="dark"] {
+      --bg: #0b1220; --card: #111827; --text: #e5e7eb; --muted: #94a3b8;
+      --border: #1f2937; --soft: #0f172a; --input-bg: #0f172a; --input-border: #334155;
+      --primary: #3b82f6; --primary-text: #ffffff;
+      --ghost-bg: #1e293b; --ghost-text: #c7d2fe;
+      --danger-bg: #3f1d1d; --danger-text: #fecaca;
+      --row-line: #1f2937;
+      --info-bg:#0e2440; --info-text:#bfdbfe; --ok-bg:#0c2a22; --ok-text:#a7f3d0;
+      --warn-bg:#3a2a06; --warn-text:#fde68a; --err-bg:#3f1d1d; --err-text:#fecaca;
+      --badge-green-bg:#0c2a22; --badge-green-tx:#6ee7b7;
+      --badge-gray-bg:#1f2937; --badge-gray-tx:#cbd5e1;
+      --badge-red-bg:#3f1d1d; --badge-red-tx:#fecaca;
+      --badge-amber-bg:#3a2a06; --badge-amber-tx:#fde68a;
+    }
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
-      background: #f3f4f6;
-      color: #111827;
-      display: flex;
-      min-height: 100vh;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 16px;
+      margin: 0; font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      display: flex; min-height: 100vh; align-items: flex-start; justify-content: center; padding: 14px;
+      transition: background .15s, color .15s;
     }
-    .card {
-      background: #fff;
-      border-radius: 16px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
-      padding: 20px;
-      max-width: 520px;
-      width: 100%;
-    }
-    h1 { font-size: 20px; margin: 0 0 2px; }
-    h2 { font-size: 17px; margin: 18px 0 10px; }
-    .sub { color: #6b7280; font-size: 13px; margin: 0 0 16px; }
-    .status {
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 14px;
-      line-height: 1.5;
-      margin-bottom: 14px;
-    }
-    .status.info { background: #eff6ff; color: #1e40af; }
-    .status.ok   { background: #ecfdf5; color: #065f46; }
-    .status.warn { background: #fffbeb; color: #92400e; }
-    .status.err  { background: #fef2f2; color: #991b1b; }
+    .card { background: var(--card); border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.10); padding: 16px; max-width: 540px; width: 100%; }
+    .hdr { display:flex; align-items:center; gap:10px; min-height: 30px; margin-bottom: 8px; }
+    .hdr .back { background: var(--ghost-bg); color: var(--ghost-text); border:0; border-radius: 9px; padding: 7px 11px; font-size: 14px; font-weight: 600; cursor:pointer; }
+    .hdr .ttl { font-size: 18px; font-weight: 700; }
+    h2 { font-size: 16px; margin: 16px 0 8px; }
+    .sub { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+    .status { border-radius: 12px; padding: 11px 13px; font-size: 14px; line-height: 1.5; margin-bottom: 12px; }
+    .status.info { background: var(--info-bg); color: var(--info-text); }
+    .status.ok   { background: var(--ok-bg); color: var(--ok-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+    .status.err  { background: var(--err-bg); color: var(--err-text); }
     .status.hidden { display: none; }
-
-    .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-top: 1px solid #f0f0f0; }
-    .row span:first-child { color: #6b7280; }
-
-    label { display:block; font-size: 13px; color:#374151; margin: 10px 0 4px; }
+    .row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 14px; border-top: 1px solid var(--row-line); }
+    .row span:first-child { color: var(--muted); }
+    .row span:last-child { text-align: right; word-break: break-word; }
+    label { display:block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
     input, select {
-      width: 100%; padding: 11px 12px; border: 1px solid #d1d5db;
-      border-radius: 10px; font-size: 15px; background: #fff; color: #111827;
+      width: 100%; padding: 11px 12px; border: 1px solid var(--input-border);
+      border-radius: 10px; font-size: 15px; background: var(--input-bg); color: var(--text);
     }
-    button {
-      border: 0; border-radius: 10px; padding: 11px 14px; font-size: 15px;
-      font-weight: 600; cursor: pointer; background: #2563eb; color: #fff;
-    }
+    button { border: 0; border-radius: 10px; padding: 11px 14px; font-size: 15px; font-weight: 600; cursor: pointer; background: var(--primary); color: var(--primary-text); }
     button.full { width: 100%; margin-top: 12px; }
-    button.ghost { background: #eef2ff; color: #3730a3; }
-    button.danger { background: #fee2e2; color: #991b1b; }
-    button.small { padding: 7px 10px; font-size: 13px; }
+    button.ghost { background: var(--ghost-bg); color: var(--ghost-text); }
+    button.danger { background: var(--danger-bg); color: var(--danger-text); }
+    button.small { padding: 8px 11px; font-size: 13px; }
     button:disabled { opacity: .55; cursor: default; }
-
-    .tabs { display: flex; gap: 8px; margin: 8px 0 4px; flex-wrap: wrap; }
-    .tabs button {
-      flex: 1; min-width: 88px; background: #f3f4f6; color: #374151; font-weight: 600;
-      padding: 9px 8px; font-size: 13px;
+    .menu { display:flex; flex-direction:column; gap:10px; margin-top: 6px; }
+    .menu-btn {
+      display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+      background: var(--card); color: var(--text); border: 1px solid var(--border);
+      border-radius: 14px; padding: 15px 14px; font-size: 16px; font-weight: 600;
     }
-    .tabs button.active { background: #2563eb; color: #fff; }
-
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-    .chip {
-      background:#f3f4f6; color:#374151; border:1px solid #e5e7eb;
-      border-radius:999px; padding:6px 12px; font-size:13px; font-weight:600;
-    }
-    .chip.active { background:#2563eb; color:#fff; border-color:#2563eb; }
-    .views { display:flex; gap:6px; margin:14px 0 6px; flex-wrap:wrap; }
-    .views button { flex:1; min-width:80px; background:#f3f4f6; color:#374151; font-weight:600; padding:9px 8px; font-size:13px; }
-    .views button.active { background:#111827; color:#fff; }
-
-    .item {
-      border: 1px solid #eef0f3; border-radius: 12px; padding: 12px;
-      margin-top: 10px; background: #fcfcfd;
-    }
+    .menu-btn .ic { font-size: 20px; width: 26px; text-align:center; }
+    .menu-btn .lbl { flex: 1; }
+    .menu-btn .chev { color: var(--muted); font-size: 20px; font-weight: 400; }
+    .item { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 10px; background: var(--card); }
+    .item.tap { cursor: pointer; }
     .item .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .item .title { font-weight: 600; font-size: 15px; }
-    .item .meta { color: #6b7280; font-size: 13px; margin-top: 3px; }
+    .item .meta { color: var(--muted); font-size: 13px; margin-top: 3px; }
     .badge { font-size: 12px; padding: 3px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
-    .badge.green { background:#dcfce7; color:#166534; }
-    .badge.gray  { background:#e5e7eb; color:#374151; }
-    .badge.red   { background:#fee2e2; color:#991b1b; }
-    .badge.amber { background:#fef3c7; color:#92400e; }
-
-    .codebox {
-      background:#0f172a; color:#e2e8f0; border-radius:10px; padding:10px 12px;
-      font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px;
-      word-break: break-all; margin-top: 8px;
-    }
-    .muted { color: #9ca3af; font-size: 12px; margin-top: 14px; word-break: break-all; }
-    .empty { color:#9ca3af; font-size: 14px; padding: 14px 0; text-align:center; }
-    .hint { background:#f9fafb; border:1px solid #eef0f3; border-radius:10px; padding:10px 12px; font-size:13px; color:#4b5563; margin-top:10px; }
+    .badge.green { background: var(--badge-green-bg); color: var(--badge-green-tx); }
+    .badge.gray  { background: var(--badge-gray-bg); color: var(--badge-gray-tx); }
+    .badge.red   { background: var(--badge-red-bg); color: var(--badge-red-tx); }
+    .badge.amber { background: var(--badge-amber-bg); color: var(--badge-amber-tx); }
+    .codebox { background:#0f172a; color:#e2e8f0; border-radius:10px; padding:10px 12px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; margin-top: 8px; }
+    .muted { color: var(--muted); font-size: 12px; margin-top: 14px; word-break: break-all; }
+    .empty { color: var(--muted); font-size: 14px; padding: 14px 0; text-align:center; }
+    .hint { background: var(--soft); border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:13px; color: var(--muted); margin-top:10px; }
+    .seg { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+    .seg button { flex:1; min-width: 90px; background: var(--soft); color: var(--text); border:1px solid var(--border); }
+    .seg button.active { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>Realty SaaS</h1>
-    <p class="sub" id="subtitle">Приложение для риелторских агентств</p>
-
-    <div id="status" class="status info">Загрузка…</div>
+    <div class="hdr">
+      <button class="back" id="back-btn" style="display:none">←</button>
+      <div class="ttl" id="hdr-title"></div>
+    </div>
+    <div id="status" class="status hidden"></div>
     <div id="content"></div>
-
     <p class="muted" id="debug"></p>
   </div>
 
   <script>
-    // ───────────────────────── Состояние ─────────────────────────
-    const state = { token: null, user: null, initData: "", startParam: "", subscriptionActive: null };
+    // ════════════════════════ Состояние ════════════════════════
+    const state = {
+      token: null, user: null, initData: "", startParam: "",
+      subscriptionActive: null,
+      lang: localStorage.getItem("pa_lang") || "ru",
+      theme: localStorage.getItem("pa_theme") || "",
+    };
+
+    const tg = window.Telegram && window.Telegram.WebApp;
 
     const statusEl  = document.getElementById("status");
     const contentEl = document.getElementById("content");
-    const subtitleEl = document.getElementById("subtitle");
+    const titleEl   = document.getElementById("hdr-title");
+    const backBtn   = document.getElementById("back-btn");
     const debugEl   = document.getElementById("debug");
 
+    // ════════════════════════ Переводы ════════════════════════
+    const I18N = {
+      ru: {
+        back:"Назад", save:"Сохранить", saveChanges:"Сохранить изменения", cancel:"Отмена",
+        del:"Удалить", edit:"Редактировать", loading:"Загрузка…", done:"Готово.", saved:"Сохранено.",
+        notFound:"Ничего не найдено.", empty:"Пусто.", copy:"Копировать", copied:"Скопировано.",
+        myProfile:"Мой профиль", profile:"Профиль", myAgencies:"Мои агентства", settings:"Настройки",
+        addObject:"Добавить объект", findObject:"Найти объект", myDatabase:"Моя база", team:"Команда", invites:"Приглашения",
+        name:"Имя", username:"Username", roleLbl:"Роль", tgId:"Telegram ID", agencyLbl:"Агентство",
+        role_superadmin:"Владелец платформы", role_agency_admin:"Администратор агентства", role_agent:"Агент",
+        language:"Язык", theme:"Тема", themeLight:"Светлая", themeDark:"Тёмная",
+        lang_ru:"Русский", lang_uz:"Oʻzbekcha", lang_en:"English",
+        defaultCurrency:"Валюта по умолчанию", timezone:"Часовой пояс", districts:"Районы",
+        addDistrict:"Добавить район", newDistrict:"Новый район", districtAdded:"Район добавлен.", delDistrictQ:"Удалить район?",
+        saveSettings:"Сохранить настройки", settingsHint:"Язык и тема сохраняются на этом устройстве.",
+        addAgency:"+ Добавить агентство", createAgency:"Создать агентство", agencyName:"Название агентства",
+        adminTgId:"Telegram ID администратора", adminUsername:"Username администратора (необязательно)",
+        subDays:"Подписка на сколько дней", noAgencies:"Пока нет ни одного агентства.",
+        admin:"Админ", notAssigned:"не назначен", subUntil:"подписка до", manageAgency:"Управление агентством",
+        rename:"Переименовать", changeAdmin:"Сменить админа", freeze:"Заморозить", activate:"Активировать",
+        extendDays:"На сколько дней продлить", extendBtn:"Продлить подписку", deleteAgency:"Удалить агентство",
+        newName:"Новое название агентства:", emptyName:"Название не может быть пустым.",
+        promptAdminId:"Telegram ID нового администратора:", promptAdminUser:"Username администратора (необязательно, без @):",
+        badId:"Введите корректный Telegram ID (число).", adminAssigned:"Администратор назначен.",
+        delAgQ1:"Удалить агентство со ВСЕМИ данными (объекты, команда, приглашения, районы)? Это необратимо.",
+        delAgQ2:"Точно удалить? Данные восстановить будет нельзя.", agDeleted:"Агентство удалено.",
+        agencyCreated:"Агентство создано.", renamed:"Переименовано.", subUpdated:"Подписка обновлена.",
+        st_active:"Активна", st_trial:"Пробная", st_frozen:"Заморожена", st_expired:"Просрочена",
+        f_name:"Наименование", f_type:"Тип объекта", f_status:"Статус", f_district:"Район", f_address:"Адрес",
+        f_rooms:"Комнат", f_floor:"Этаж", f_tfloors:"Этажей", f_area:"Площадь, м²", f_price:"Цена",
+        f_currency:"Валюта", f_condition:"Состояние объекта", f_phone:"Телефон", f_desc:"Описание",
+        any:"Любой", floorFrom:"Этаж от", to:"до", priceFrom:"Цена от",
+        searchText:"Поиск (наименование, адрес, № объекта)", searchBtn:"Найти", showMore:"Показать ещё",
+        found:"Найдено", addedBy:"Добавил", shareCard:"Скопировать карточку", shareTg:"Отправить в Telegram",
+        saveObject:"Сохранить объект", objCreated:"Объект создан: №", clearHint:"Чтобы очистить поле — сотрите его содержимое и сохраните.",
+        editTitle:"Редактирование №", delObjQ:"Удалить объект безвозвратно?", objDeleted:"Объект удалён.",
+        statusActive:"Активен", statusDeposit:"Задаток", statusSold:"Продан", statusArchived:"Архив",
+        toDeposit:"Задаток", toSold:"Продан", toArchive:"В архив", removeDeposit:"Снять задаток",
+        backToActive:"Вернуть в активные", changingStatus:"Меняем статус…",
+        members:"Сотрудники агентства", noMembers:"Сотрудников пока нет.", enable:"Включить", disable:"Отключить",
+        mActive:"активен", mDisabled:"отключён", itsYou:"это вы", promote:"Повысить до админа", demote:"Сделать агентом",
+        roleQ:"Назначить сотруднику роль «", roleChanged:"Роль изменена.",
+        createInvite:"Создать приглашение", inviteRole:"Роль приглашаемого", inviteDays:"Срок действия, дней",
+        inviteCreated:"Приглашение создано.", giveToEmployee:"Передайте это приглашаемому сотруднику:",
+        codeLbl:"Код", copyLink:"Копировать ссылку", copyCode:"Копировать код", issuedInvites:"Выданные приглашения",
+        noInvites:"Приглашений пока нет.", revoke:"Отозвать", revoked:"Приглашение отозвано.",
+        inv_active:"активно", inv_used:"использовано", inv_expired:"просрочено",
+        joinTitle:"Вступление в агентство", joinCodeLabel:"Код приглашения от вашего агентства",
+        joinBtn:"Вступить в агентство", joinChecking:"Проверяем приглашение…",
+        notInAgency:"Вы пока не в агентстве. Введите код приглашения, чтобы вступить.",
+        suspendedTitle:"Доступ приостановлен",
+        suspendedMsg:"Подписка вашего агентства неактивна, доступ временно приостановлен. Все данные сохранены. Обратитесь к владельцу платформы для продления подписки.",
+        loginIn:"Выполняем вход через Telegram…", loginFail:"Войти не удалось: ",
+        openInTg:"Откройте приложение внутри Telegram, чтобы войти.", backendOk:"Связь с backend есть.",
+        backendErr:"Не удаётся связаться с backend. Проверьте, что контейнеры запущены.",
+        notSet:"—", apartment:"Объект", saving:"Сохраняем…",
+      },
+      uz: {
+        back:"Orqaga", save:"Saqlash", saveChanges:"Oʻzgarishlarni saqlash", cancel:"Bekor qilish",
+        del:"Oʻchirish", edit:"Tahrirlash", loading:"Yuklanmoqda…", done:"Bajarildi.", saved:"Saqlandi.",
+        notFound:"Hech narsa topilmadi.", empty:"Boʻsh.", copy:"Nusxa olish", copied:"Nusxa olindi.",
+        myProfile:"Mening profilim", profile:"Profil", myAgencies:"Mening agentliklarim", settings:"Sozlamalar",
+        addObject:"Obyekt qoʻshish", findObject:"Obyekt qidirish", myDatabase:"Mening bazam", team:"Jamoa", invites:"Takliflar",
+        name:"Ism", username:"Username", roleLbl:"Rol", tgId:"Telegram ID", agencyLbl:"Agentlik",
+        role_superadmin:"Platforma egasi", role_agency_admin:"Agentlik administratori", role_agent:"Agent",
+        language:"Til", theme:"Mavzu", themeLight:"Yorugʻ", themeDark:"Tungi",
+        lang_ru:"Русский", lang_uz:"Oʻzbekcha", lang_en:"English",
+        defaultCurrency:"Standart valyuta", timezone:"Vaqt mintaqasi", districts:"Tumanlar",
+        addDistrict:"Tuman qoʻshish", newDistrict:"Yangi tuman", districtAdded:"Tuman qoʻshildi.", delDistrictQ:"Tuman oʻchirilsinmi?",
+        saveSettings:"Sozlamalarni saqlash", settingsHint:"Til va mavzu shu qurilmada saqlanadi.",
+        addAgency:"+ Agentlik qoʻshish", createAgency:"Agentlik yaratish", agencyName:"Agentlik nomi",
+        adminTgId:"Administrator Telegram ID", adminUsername:"Administrator username (ixtiyoriy)",
+        subDays:"Obuna necha kunga", noAgencies:"Hozircha agentliklar yoʻq.",
+        admin:"Admin", notAssigned:"tayinlanmagan", subUntil:"obuna muddati", manageAgency:"Agentlikni boshqarish",
+        rename:"Nomini oʻzgartirish", changeAdmin:"Adminni almashtirish", freeze:"Muzlatish", activate:"Faollashtirish",
+        extendDays:"Necha kunga uzaytirish", extendBtn:"Obunani uzaytirish", deleteAgency:"Agentlikni oʻchirish",
+        newName:"Agentlikning yangi nomi:", emptyName:"Nom boʻsh boʻlishi mumkin emas.",
+        promptAdminId:"Yangi administrator Telegram ID:", promptAdminUser:"Administrator username (ixtiyoriy, @ siz):",
+        badId:"Toʻgʻri Telegram ID kiriting (raqam).", adminAssigned:"Administrator tayinlandi.",
+        delAgQ1:"Agentlikni BARCHA maʼlumotlari bilan oʻchirasizmi (obyektlar, jamoa, takliflar, tumanlar)? Qaytarib boʻlmaydi.",
+        delAgQ2:"Aniq oʻchirilsinmi? Maʼlumotlarni tiklab boʻlmaydi.", agDeleted:"Agentlik oʻchirildi.",
+        agencyCreated:"Agentlik yaratildi.", renamed:"Nomi oʻzgartirildi.", subUpdated:"Obuna yangilandi.",
+        st_active:"Faol", st_trial:"Sinov", st_frozen:"Muzlatilgan", st_expired:"Muddati oʻtgan",
+        f_name:"Nomi", f_type:"Obyekt turi", f_status:"Holat", f_district:"Tuman", f_address:"Manzil",
+        f_rooms:"Xonalar", f_floor:"Qavat", f_tfloors:"Qavatlar soni", f_area:"Maydon, m²", f_price:"Narx",
+        f_currency:"Valyuta", f_condition:"Holati", f_phone:"Telefon", f_desc:"Tavsif",
+        any:"Istalgan", floorFrom:"Qavat (dan)", to:"gacha", priceFrom:"Narx (dan)",
+        searchText:"Qidiruv (nomi, manzil, obyekt №)", searchBtn:"Qidirish", showMore:"Yana koʻrsatish",
+        found:"Topildi", addedBy:"Qoʻshdi", shareCard:"Kartochkani nusxalash", shareTg:"Telegramga yuborish",
+        saveObject:"Obyektni saqlash", objCreated:"Obyekt yaratildi: №", clearHint:"Maydonni tozalash uchun — matnini oʻchirib saqlang.",
+        editTitle:"Tahrirlash №", delObjQ:"Obyekt butunlay oʻchirilsinmi?", objDeleted:"Obyekt oʻchirildi.",
+        statusActive:"Faol", statusDeposit:"Zakalat", statusSold:"Sotilgan", statusArchived:"Arxiv",
+        toDeposit:"Zakalat", toSold:"Sotilgan", toArchive:"Arxivga", removeDeposit:"Zakalatni olib tashlash",
+        backToActive:"Faolga qaytarish", changingStatus:"Holat oʻzgartirilmoqda…",
+        members:"Agentlik xodimlari", noMembers:"Hozircha xodimlar yoʻq.", enable:"Yoqish", disable:"Oʻchirish",
+        mActive:"faol", mDisabled:"oʻchirilgan", itsYou:"bu siz", promote:"Adminlikka koʻtarish", demote:"Agent qilish",
+        roleQ:"Xodimga «", roleChanged:"Rol oʻzgartirildi.",
+        createInvite:"Taklif yaratish", inviteRole:"Taklif etiluvchi roli", inviteDays:"Amal qilish muddati, kun",
+        inviteCreated:"Taklif yaratildi.", giveToEmployee:"Buni taklif etilayotgan xodimga bering:",
+        codeLbl:"Kod", copyLink:"Havolani nusxalash", copyCode:"Kodni nusxalash", issuedInvites:"Berilgan takliflar",
+        noInvites:"Hozircha takliflar yoʻq.", revoke:"Bekor qilish", revoked:"Taklif bekor qilindi.",
+        inv_active:"faol", inv_used:"ishlatilgan", inv_expired:"muddati oʻtgan",
+        joinTitle:"Agentlikka qoʻshilish", joinCodeLabel:"Agentligingizdan taklif kodi",
+        joinBtn:"Agentlikka qoʻshilish", joinChecking:"Taklif tekshirilmoqda…",
+        notInAgency:"Siz hali agentlikda emassiz. Qoʻshilish uchun taklif kodini kiriting.",
+        suspendedTitle:"Kirish toʻxtatilgan",
+        suspendedMsg:"Agentligingiz obunasi faol emas, kirish vaqtincha toʻxtatilgan. Barcha maʼlumotlar saqlangan. Obunani uzaytirish uchun platforma egasiga murojaat qiling.",
+        loginIn:"Telegram orqali kirish…", loginFail:"Kirib boʻlmadi: ",
+        openInTg:"Kirish uchun ilovani Telegram ichida oching.", backendOk:"Backend bilan aloqa bor.",
+        backendErr:"Backend bilan bogʻlanib boʻlmadi. Konteynerlar ishlayotganini tekshiring.",
+        notSet:"—", apartment:"Obyekt", saving:"Saqlanmoqda…",
+      },
+      en: {
+        back:"Back", save:"Save", saveChanges:"Save changes", cancel:"Cancel",
+        del:"Delete", edit:"Edit", loading:"Loading…", done:"Done.", saved:"Saved.",
+        notFound:"Nothing found.", empty:"Empty.", copy:"Copy", copied:"Copied.",
+        myProfile:"My profile", profile:"Profile", myAgencies:"My agencies", settings:"Settings",
+        addObject:"Add property", findObject:"Find property", myDatabase:"My database", team:"Team", invites:"Invites",
+        name:"Name", username:"Username", roleLbl:"Role", tgId:"Telegram ID", agencyLbl:"Agency",
+        role_superadmin:"Platform owner", role_agency_admin:"Agency admin", role_agent:"Agent",
+        language:"Language", theme:"Theme", themeLight:"Light", themeDark:"Dark",
+        lang_ru:"Русский", lang_uz:"Oʻzbekcha", lang_en:"English",
+        defaultCurrency:"Default currency", timezone:"Timezone", districts:"Districts",
+        addDistrict:"Add district", newDistrict:"New district", districtAdded:"District added.", delDistrictQ:"Delete district?",
+        saveSettings:"Save settings", settingsHint:"Language and theme are stored on this device.",
+        addAgency:"+ Add agency", createAgency:"Create agency", agencyName:"Agency name",
+        adminTgId:"Admin Telegram ID", adminUsername:"Admin username (optional)",
+        subDays:"Subscription days", noAgencies:"No agencies yet.",
+        admin:"Admin", notAssigned:"not assigned", subUntil:"subscription until", manageAgency:"Manage agency",
+        rename:"Rename", changeAdmin:"Change admin", freeze:"Freeze", activate:"Activate",
+        extendDays:"Extend by how many days", extendBtn:"Extend subscription", deleteAgency:"Delete agency",
+        newName:"New agency name:", emptyName:"Name cannot be empty.",
+        promptAdminId:"New admin Telegram ID:", promptAdminUser:"Admin username (optional, no @):",
+        badId:"Enter a valid Telegram ID (number).", adminAssigned:"Admin assigned.",
+        delAgQ1:"Delete agency with ALL data (properties, team, invites, districts)? This is irreversible.",
+        delAgQ2:"Really delete? Data cannot be restored.", agDeleted:"Agency deleted.",
+        agencyCreated:"Agency created.", renamed:"Renamed.", subUpdated:"Subscription updated.",
+        st_active:"Active", st_trial:"Trial", st_frozen:"Frozen", st_expired:"Expired",
+        f_name:"Title", f_type:"Property type", f_status:"Status", f_district:"District", f_address:"Address",
+        f_rooms:"Rooms", f_floor:"Floor", f_tfloors:"Total floors", f_area:"Area, m²", f_price:"Price",
+        f_currency:"Currency", f_condition:"Condition", f_phone:"Phone", f_desc:"Description",
+        any:"Any", floorFrom:"Floor from", to:"to", priceFrom:"Price from",
+        searchText:"Search (title, address, property №)", searchBtn:"Search", showMore:"Show more",
+        found:"Found", addedBy:"Added by", shareCard:"Copy card", shareTg:"Send to Telegram",
+        saveObject:"Save property", objCreated:"Property created: №", clearHint:"To clear a field — erase its content and save.",
+        editTitle:"Editing №", delObjQ:"Delete property permanently?", objDeleted:"Property deleted.",
+        statusActive:"Active", statusDeposit:"Deposit", statusSold:"Sold", statusArchived:"Archived",
+        toDeposit:"Deposit", toSold:"Sold", toArchive:"To archive", removeDeposit:"Remove deposit",
+        backToActive:"Back to active", changingStatus:"Changing status…",
+        members:"Agency members", noMembers:"No members yet.", enable:"Enable", disable:"Disable",
+        mActive:"active", mDisabled:"disabled", itsYou:"it's you", promote:"Promote to admin", demote:"Make agent",
+        roleQ:"Assign the role «", roleChanged:"Role changed.",
+        createInvite:"Create invite", inviteRole:"Invitee role", inviteDays:"Valid for, days",
+        inviteCreated:"Invite created.", giveToEmployee:"Give this to the invited employee:",
+        codeLbl:"Code", copyLink:"Copy link", copyCode:"Copy code", issuedInvites:"Issued invites",
+        noInvites:"No invites yet.", revoke:"Revoke", revoked:"Invite revoked.",
+        inv_active:"active", inv_used:"used", inv_expired:"expired",
+        joinTitle:"Join an agency", joinCodeLabel:"Invite code from your agency",
+        joinBtn:"Join agency", joinChecking:"Checking invite…",
+        notInAgency:"You are not in an agency yet. Enter an invite code to join.",
+        suspendedTitle:"Access suspended",
+        suspendedMsg:"Your agency subscription is inactive, access is temporarily suspended. All data is preserved. Contact the platform owner to renew the subscription.",
+        loginIn:"Signing in via Telegram…", loginFail:"Sign-in failed: ",
+        openInTg:"Open the app inside Telegram to sign in.", backendOk:"Backend connection OK.",
+        backendErr:"Cannot reach backend. Make sure the containers are running.",
+        notSet:"—", apartment:"Property", saving:"Saving…",
+      },
+    };
+    function t(key) {
+      const l = I18N[state.lang] || I18N.ru;
+      return (key in l) ? l[key] : (I18N.ru[key] != null ? I18N.ru[key] : key);
+    }
+
+    // Фиксированные значения данных (хранятся в БД как есть) + переводимые подписи.
+    const OBJ_TYPE_VALUES = ["Квартира", "Дом", "Коммерция", "Земля"];
+    const OBJ_TYPE_LABELS = {
+      ru: ["Квартира", "Дом", "Коммерция", "Земля"],
+      uz: ["Kvartira", "Uy", "Tijorat", "Yer"],
+      en: ["Apartment", "House", "Commercial", "Land"],
+    };
+    const OBJ_COND_VALUES = ["Без ремонта", "Черновая", "White box", "Средний ремонт", "Новый ремонт", "Дизайнерский ремонт"];
+    const OBJ_COND_LABELS = {
+      ru: ["Без ремонта", "Черновая", "White box", "Средний ремонт", "Новый ремонт", "Дизайнерский ремонт"],
+      uz: ["Taʼmirsiz", "Qoʻpol", "White box", "Oʻrtacha taʼmir", "Yangi taʼmir", "Dizaynerlik taʼmir"],
+      en: ["No renovation", "Rough finish", "White box", "Average renovation", "New renovation", "Designer renovation"],
+    };
+    const STATUS_BADGE = { active: "green", deposit: "amber", sold: "gray", archived: "gray" };
+    function statusLabel(s) {
+      const map = { active: t("statusActive"), deposit: t("statusDeposit"), sold: t("statusSold"), archived: t("statusArchived") };
+      return map[s] || s;
+    }
+    function typeLabel(v) {
+      const i = OBJ_TYPE_VALUES.indexOf(v);
+      return i >= 0 ? (OBJ_TYPE_LABELS[state.lang] || OBJ_TYPE_LABELS.ru)[i] : v;
+    }
+    function condLabel(v) {
+      const i = OBJ_COND_VALUES.indexOf(v);
+      return i >= 0 ? (OBJ_COND_LABELS[state.lang] || OBJ_COND_LABELS.ru)[i] : v;
+    }
+    function roleLabel(role) {
+      const k = "role_" + role;
+      return (I18N[state.lang] && I18N[state.lang][k]) ? I18N[state.lang][k] : (role || t("notSet"));
+    }
+    // ════════════════════════ Тема и язык ════════════════════════
+    function applyTheme() {
+      let theme = state.theme;
+      if (!theme) theme = (tg && tg.colorScheme === "dark") ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
+    }
+    function setTheme(theme) {
+      state.theme = theme;
+      localStorage.setItem("pa_theme", theme);
+      applyTheme();
+    }
+    function setLang(lang) {
+      state.lang = lang;
+      localStorage.setItem("pa_lang", lang);
+      document.documentElement.setAttribute("lang", lang === "uz" ? "uz" : (lang === "en" ? "en" : "ru"));
+      renderCurrent();
+    }
+
+    // ════════════════════════ Утилиты ════════════════════════
     function setStatus(text, kind) {
-      if (!text) { statusEl.className = "status hidden"; return; }
+      if (!text) { statusEl.className = "status hidden"; statusEl.textContent = ""; return; }
       statusEl.textContent = text;
       statusEl.className = "status " + (kind || "info");
     }
@@ -132,37 +355,29 @@
         .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
     function fmtDate(iso) {
-      if (!iso) return "—";
+      if (!iso) return t("notSet");
       try {
         const d = new Date(iso);
-        const tz = (typeof agencySettings !== "undefined" && agencySettings.timezone) ? agencySettings.timezone : null;
+        const tz = state.timezone || null;
         const dOpts = tz ? { timeZone: tz } : {};
-        const tOpts = tz ? { hour: "2-digit", minute: "2-digit", timeZone: tz } : { hour: "2-digit", minute: "2-digit" };
-        return d.toLocaleDateString("ru-RU", dOpts) + " " + d.toLocaleTimeString("ru-RU", tOpts);
+        const tOpts = tz ? { hour:"2-digit", minute:"2-digit", timeZone: tz } : { hour:"2-digit", minute:"2-digit" };
+        const loc = state.lang === "en" ? "en-GB" : (state.lang === "uz" ? "uz-UZ" : "ru-RU");
+        return d.toLocaleDateString(loc, dOpts) + " " + d.toLocaleTimeString(loc, tOpts);
       } catch (e) { return iso; }
     }
-    function roleLabel(role) {
-      switch (role) {
-        case "superadmin":   return "Владелец платформы";
-        case "agency_admin": return "Администратор агентства";
-        case "agent":        return "Агент";
-        default: return role || "—";
-      }
-    }
-    async function copyText(text) {
-      try { await navigator.clipboard.writeText(text); setStatus("Скопировано в буфер обмена.", "ok"); }
-      catch (e) { window.prompt("Скопируйте вручную:", text); }
-    }
-    // Превращает поле detail из ответа (строка ИЛИ массив ошибок валидации) в текст.
     function errText(data, status) {
-      if (!data) return "ошибка " + status;
+      if (!data) return t("notSet") + " " + status;
       const d = data.detail;
       if (typeof d === "string") return d;
       if (Array.isArray(d) && d.length) return d.map(e => e.msg || JSON.stringify(e)).join("; ");
-      return "ошибка " + status;
+      return "" + status;
+    }
+    async function copyText(text) {
+      try { await navigator.clipboard.writeText(text); setStatus(t("copied"), "ok"); }
+      catch (e) { window.prompt(t("copy") + ":", text); }
     }
 
-    // ───────────────────────── Сеть ─────────────────────────
+    // ════════════════════════ Сеть ════════════════════════
     async function api(path, opts) {
       opts = opts || {};
       const headers = { "Content-Type": "application/json" };
@@ -176,8 +391,6 @@
       try { data = await res.json(); } catch (e) { data = null; }
       return { ok: res.ok, status: res.status, data };
     }
-
-    // ───────────────────────── Вход ─────────────────────────
     async function login(initData) {
       return api("/api/v1/auth/telegram", { method: "POST", body: { init_data: initData } });
     }
@@ -185,952 +398,757 @@
       return api("/api/v1/invites/redeem", { method: "POST", body: { init_data: initData, code } });
     }
 
-    // ───────────────────── Экран: профиль (шапка) ─────────────────────
-    function profileRows() {
-      const u = state.user || {};
-      return `
-        <div class="row"><span>Имя</span><span><b>${esc(u.full_name || "—")}</b></span></div>
-        <div class="row"><span>Username</span><span><b>${u.username ? "@" + esc(u.username) : "—"}</b></span></div>
-        <div class="row"><span>Роль</span><span><b>${esc(roleLabel(u.role))}</b></span></div>`;
-    }
-
-    // ───────────────────── Маршрутизация по роли ─────────────────────
-    function renderApp() {
+    // ════════════════════════ Навигация ════════════════════════
+    // Каждый экран — { titleKey, render }. Стек хранит экраны для кнопки «Назад».
+    const nav = { stack: [] };
+    function renderCurrent() {
+      const screen = nav.stack[nav.stack.length - 1];
+      if (!screen) return;
+      titleEl.textContent = screen.titleKey ? t(screen.titleKey) : "";
+      const hasBack = nav.stack.length > 1;
+      backBtn.style.display = hasBack ? "" : "none";
+      backBtn.textContent = "← " + t("back");
+      if (tg && tg.BackButton) { try { hasBack ? tg.BackButton.show() : tg.BackButton.hide(); } catch (e) {} }
       setStatus("", null);
-      const role = state.user && state.user.role;
-      // Жёсткая блокировка по подписке: сотрудникам неактивного агентства
-      // показываем экран «доступ приостановлен» вместо рабочих разделов.
-      if ((role === "agency_admin" || role === "agent") && state.subscriptionActive === false) {
-        renderSuspended();
-        return;
-      }
-      if (role === "superadmin")        renderSuperadmin();
-      else if (role === "agency_admin") renderAgencyAdmin();
-      else if (role === "agent")        renderAgent();
-      else renderUnknown();
+      contentEl.innerHTML = "";
+      screen.render(contentEl);
+    }
+    function navigate(screen) { nav.stack.push(screen); renderCurrent(); }
+    function back() { if (nav.stack.length > 1) { nav.stack.pop(); renderCurrent(); } }
+    function resetTo(screen) { nav.stack = [screen]; renderCurrent(); }
+    backBtn.addEventListener("click", back);
+    if (tg && tg.BackButton && tg.BackButton.onClick) { try { tg.BackButton.onClick(back); } catch (e) {} }
+
+    // ════════════════════════ Общие UI-помощники ════════════════════════
+    function el(html) { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; }
+    function menuButton(icon, labelKey, onClick) {
+      const b = el(`<button class="menu-btn"><span class="ic">${icon}</span><span class="lbl">${esc(t(labelKey))}</span><span class="chev">›</span></button>`);
+      b.addEventListener("click", onClick);
+      return b;
+    }
+    function profileRowsHtml() {
+      const u = state.user || {};
+      let rows = `
+        <div class="row"><span>${esc(t("name"))}</span><span><b>${esc(u.full_name || t("notSet"))}</b></span></div>
+        <div class="row"><span>${esc(t("username"))}</span><span><b>${u.username ? "@" + esc(u.username) : t("notSet")}</b></span></div>
+        <div class="row"><span>${esc(t("roleLbl"))}</span><span><b>${esc(roleLabel(u.role))}</b></span></div>`;
+      if (u.telegram_id) rows += `<div class="row"><span>${esc(t("tgId"))}</span><span><b>${esc(u.telegram_id)}</b></span></div>`;
+      return rows;
+    }
+    function optionTag(value, label, current) {
+      return `<option value="${esc(value)}" ${String(value) === String(current == null ? "" : current) ? "selected" : ""}>${esc(label)}</option>`;
     }
 
-    // ───────────────────── Экран: подписка неактивна ─────────────────────
-    function renderSuspended() {
-      subtitleEl.textContent = "Доступ приостановлен";
-      contentEl.innerHTML = `
-        ${profileRows()}
-        <div class="status err" style="margin-top:14px">
-          Подписка вашего агентства неактивна, поэтому доступ временно приостановлен.
-          Все данные сохранены и никуда не делись. Чтобы возобновить работу,
-          обратитесь к владельцу платформы для продления подписки.
-        </div>`;
-    }
-
-    // ───────────────────── СУПЕРАДМИН: агентства ─────────────────────
-    function renderSuperadmin() {
-      subtitleEl.textContent = "Панель владельца платформы";
-      contentEl.innerHTML = `
-        ${profileRows()}
-        <h2>Создать агентство</h2>
-        <label>Название агентства</label>
-        <input id="ag-name" placeholder="например, Уютный Дом" />
-        <label>Telegram ID администратора</label>
-        <input id="ag-admin-id" inputmode="numeric" placeholder="например, 123456789" />
-        <label>Username администратора (необязательно)</label>
-        <input id="ag-admin-username" placeholder="без @" />
-        <label>Подписка на сколько дней</label>
-        <input id="ag-days" inputmode="numeric" value="30" />
-        <button class="full" id="ag-create">Создать агентство</button>
-        <div class="hint">Администратор агентства — это отдельный человек (его Telegram ID).
-          Войдя в приложение, он увидит разделы «Команда» и «Приглашения».</div>
-        <h2>Агентства</h2>
-        <div id="ag-list"><div class="empty">Загрузка…</div></div>`;
-
-      document.getElementById("ag-create").addEventListener("click", createAgency);
-      loadAgencies();
-    }
-
-    async function loadAgencies() {
-      const box = document.getElementById("ag-list");
-      const r = await api("/api/v1/agencies");
-      if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
-      if (!r.data.length) { box.innerHTML = `<div class="empty">Пока нет ни одного агентства.</div>`; return; }
-      box.innerHTML = r.data.map(a => {
-        const st = (a.status === "active" || a.status === "trial") ? "green" : "amber";
-        const frozen = a.status === "frozen";
-        const adminTxt = a.admin_name
-          ? esc(a.admin_name) + (a.admin_telegram_id ? " (ID " + a.admin_telegram_id + ")" : "")
-          : "— не назначен —";
-        return `<div class="item">
-          <div class="top">
-            <span class="title">${esc(a.name)}</span>
-            <span class="badge ${st}">${esc(a.status)}</span>
-          </div>
-          <div class="meta">ID ${a.id} · подписка до: ${fmtDate(a.subscription_expires_at)}</div>
-          <div class="meta">Админ: ${adminTxt}</div>
-          <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
-            <button class="small ghost" data-sub="extend" data-id="${a.id}">+30 дней</button>
-            ${frozen
-              ? `<button class="small ghost" data-sub="activate" data-id="${a.id}">Активировать</button>`
-              : `<button class="small danger" data-sub="freeze" data-id="${a.id}">Заморозить</button>`}
-          </div>
-          <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap">
-            <button class="small ghost" data-rename="${a.id}" data-name="${esc(a.name)}">Переименовать</button>
-            <button class="small ghost" data-admin="${a.id}">Сменить админа</button>
-            <button class="small danger" data-del-ag="${a.id}" data-name="${esc(a.name)}">Удалить</button>
-          </div>
-        </div>`;
-      }).join("");
-      box.querySelectorAll("button[data-sub]").forEach(b =>
-        b.addEventListener("click", () => subAction(b.dataset.sub, parseInt(b.dataset.id, 10))));
-      box.querySelectorAll("button[data-rename]").forEach(b =>
-        b.addEventListener("click", () => renameAgency(parseInt(b.dataset.rename, 10), b.dataset.name)));
-      box.querySelectorAll("button[data-admin]").forEach(b =>
-        b.addEventListener("click", () => changeAgencyAdmin(parseInt(b.dataset.admin, 10))));
-      box.querySelectorAll("button[data-del-ag]").forEach(b =>
-        b.addEventListener("click", () => deleteAgency(parseInt(b.dataset.delAg, 10), b.dataset.name)));
-    }
-
-    async function subAction(action, id) {
-      setStatus("Обновляем подписку…", "info");
-      const body = { action };
-      if (action === "extend") body.days = 30;
-      const r = await api("/api/v1/agencies/" + id + "/subscription", { method: "POST", body });
-      if (r.ok) { setStatus("Готово.", "ok"); loadAgencies(); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-
-    async function renameAgency(id, currentName) {
-      const name = window.prompt("Новое название агентства:", currentName || "");
-      if (name === null) return;
-      const trimmed = name.trim();
-      if (!trimmed) { setStatus("Название не может быть пустым.", "warn"); return; }
-      setStatus("Переименовываем…", "info");
-      const r = await api("/api/v1/agencies/" + id, { method: "PATCH", body: { name: trimmed } });
-      if (r.ok) { setStatus("Готово.", "ok"); loadAgencies(); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-
-    async function changeAgencyAdmin(id) {
-      const idStr = window.prompt("Telegram ID нового администратора агентства:", "");
-      if (idStr === null) return;
-      const tgId = parseInt((idStr || "").trim(), 10);
-      if (isNaN(tgId)) { setStatus("Введите корректный Telegram ID (число).", "warn"); return; }
-      const username = window.prompt("Username администратора (необязательно, без @):", "");
-      if (username === null) return;
-      const body = { admin_telegram_id: tgId };
-      const u = (username || "").trim();
-      if (u) body.admin_username = u;
-      setStatus("Назначаем администратора…", "info");
-      const r = await api("/api/v1/agencies/" + id + "/admin", { method: "POST", body });
-      if (r.ok) { setStatus("Администратор назначен.", "ok"); loadAgencies(); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-
-    async function deleteAgency(id, name) {
-      if (!window.confirm("Удалить агентство «" + (name || id) + "» со ВСЕМИ его данными (объекты, команда, приглашения, районы)? Это необратимо.")) return;
-      if (!window.confirm("Точно удалить? Данные восстановить будет нельзя.")) return;
-      setStatus("Удаляем агентство…", "info");
-      const r = await api("/api/v1/agencies/" + id, { method: "DELETE" });
-      if (r.ok) { setStatus("Агентство удалено.", "ok"); loadAgencies(); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-
-    async function createAgency() {
-      const btn = document.getElementById("ag-create");
-      const name = document.getElementById("ag-name").value.trim();
-      const adminId = document.getElementById("ag-admin-id").value.trim();
-      const username = document.getElementById("ag-admin-username").value.trim();
-      const days = parseInt(document.getElementById("ag-days").value, 10);
-      if (!name) { setStatus("Введите название агентства.", "warn"); return; }
-      if (!adminId || isNaN(parseInt(adminId, 10))) { setStatus("Введите корректный Telegram ID администратора.", "warn"); return; }
-      btn.disabled = true; setStatus("Создаём агентство…", "info");
-      const body = { name, admin_telegram_id: parseInt(adminId, 10), subscription_days: isNaN(days) ? 30 : days };
-      if (username) body.admin_username = username;
-      const r = await api("/api/v1/agencies", { method: "POST", body });
-      btn.disabled = false;
-      if (r.ok) {
-        setStatus("Агентство «" + name + "» создано.", "ok");
-        document.getElementById("ag-name").value = "";
-        document.getElementById("ag-admin-id").value = "";
-        document.getElementById("ag-admin-username").value = "";
-        loadAgencies();
-      } else {
-        setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err");
-      }
-    }
-
-    // ───────────────────── АДМИН АГЕНТСТВА: команда + приглашения ─────────────────────
-    function renderAgencyAdmin() {
-      subtitleEl.textContent = "Панель администратора агентства";
-      contentEl.innerHTML = `
-        ${profileRows()}
-        <div class="tabs">
-          <button id="tab-objects" class="active">Объекты</button>
-          <button id="tab-team">Команда</button>
-          <button id="tab-invites">Приглашения</button>
-          <button id="tab-districts">Районы</button>
-          <button id="tab-settings">Настройки</button>
-        </div>
-        <div id="tab-body"></div>`;
-      document.getElementById("tab-objects").addEventListener("click", () => switchTab("objects"));
-      document.getElementById("tab-team").addEventListener("click", () => switchTab("team"));
-      document.getElementById("tab-invites").addEventListener("click", () => switchTab("invites"));
-      document.getElementById("tab-districts").addEventListener("click", () => switchTab("districts"));
-      document.getElementById("tab-settings").addEventListener("click", () => switchTab("settings"));
-      switchTab("objects");
-    }
-
-    function switchTab(which) {
-      document.getElementById("tab-objects").classList.toggle("active", which === "objects");
-      document.getElementById("tab-team").classList.toggle("active", which === "team");
-      document.getElementById("tab-invites").classList.toggle("active", which === "invites");
-      document.getElementById("tab-districts").classList.toggle("active", which === "districts");
-      document.getElementById("tab-settings").classList.toggle("active", which === "settings");
-      const body = document.getElementById("tab-body");
-      if (which === "objects") objectsScreen(body);
-      else if (which === "team") renderTeamTab();
-      else if (which === "invites") renderInvitesTab();
-      else if (which === "districts") renderDistrictsTab();
-      else renderSettingsTab();
-    }
-
-    // --- Вкладка «Команда» ---
-    function renderTeamTab() {
-      const body = document.getElementById("tab-body");
-      body.innerHTML = `<h2>Сотрудники агентства</h2><div id="team-list"><div class="empty">Загрузка…</div></div>`;
-      loadTeam();
-    }
-    async function loadTeam() {
-      const box = document.getElementById("team-list");
-      const r = await api("/api/v1/team");
-      if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
-      if (!r.data.length) { box.innerHTML = `<div class="empty">Сотрудников пока нет.</div>`; return; }
-      box.innerHTML = r.data.map(m => {
-        const isSelf = state.user && m.id === state.user.id;
-        const name = m.full_name || (m.username ? "@" + m.username : ("ID " + m.telegram_id));
-        const statusBadge = m.is_active
-          ? `<span class="badge green">активен</span>`
-          : `<span class="badge gray">отключён</span>`;
-        // Кнопка смены роли: агент ↔ администратор агентства (себе менять нельзя).
-        const nextRole = m.role === "agency_admin" ? "agent" : "agency_admin";
-        const roleBtnLabel = m.role === "agency_admin" ? "Сделать агентом" : "Повысить до админа";
-        const roleBtn = isSelf
-          ? ""
-          : `<button class="small ghost" data-role-id="${m.id}" data-role="${nextRole}">${roleBtnLabel}</button>`;
-        const action = isSelf
-          ? `<span class="badge gray">это вы</span>`
-          : `<button class="small ${m.is_active ? "danger" : "ghost"}" data-id="${m.id}" data-active="${m.is_active ? 1 : 0}">
-               ${m.is_active ? "Отключить" : "Включить"}</button>`;
-        return `<div class="item">
-          <div class="top"><span class="title">${esc(name)}</span>${statusBadge}</div>
-          <div class="meta">${esc(roleLabel(m.role))}${m.username ? " · @" + esc(m.username) : ""}</div>
-          <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">${action}${roleBtn}</div>
-        </div>`;
-      }).join("");
-      box.querySelectorAll("button[data-id]").forEach(b => {
-        b.addEventListener("click", () => toggleMember(parseInt(b.dataset.id, 10), b.dataset.active !== "1"));
-      });
-      box.querySelectorAll("button[data-role-id]").forEach(b => {
-        b.addEventListener("click", () => changeMemberRole(parseInt(b.dataset.roleId, 10), b.dataset.role));
-      });
-    }
-    async function toggleMember(id, makeActive) {
-      setStatus("Сохраняем…", "info");
-      const r = await api("/api/v1/team/" + id, { method: "PATCH", body: { is_active: makeActive } });
-      if (r.ok) { setStatus("Готово.", "ok"); loadTeam(); }
-      else setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err");
-    }
-    async function changeMemberRole(id, newRole) {
-      const roleName = newRole === "agency_admin" ? "администратора агентства" : "агента";
-      if (!window.confirm("Назначить сотруднику роль «" + roleName + "»?")) return;
-      setStatus("Меняем роль…", "info");
-      const r = await api("/api/v1/team/" + id, { method: "PATCH", body: { role: newRole } });
-      if (r.ok) { setStatus("Роль изменена.", "ok"); loadTeam(); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-
-    // --- Вкладка «Приглашения» ---
-    function renderInvitesTab() {
-      const body = document.getElementById("tab-body");
-      body.innerHTML = `
-        <h2>Создать приглашение</h2>
-        <label>Роль приглашаемого</label>
-        <select id="inv-role">
-          <option value="agent">Агент</option>
-          <option value="agency_admin">Администратор агентства</option>
-        </select>
-        <label>Срок действия, дней</label>
-        <input id="inv-days" inputmode="numeric" value="7" />
-        <button class="full" id="inv-create">Создать приглашение</button>
-        <div id="inv-created"></div>
-        <h2>Выданные приглашения</h2>
-        <div id="inv-list"><div class="empty">Загрузка…</div></div>`;
-      document.getElementById("inv-create").addEventListener("click", createInvite);
-      loadInvites();
-    }
-    async function createInvite() {
-      const btn = document.getElementById("inv-create");
-      const role = document.getElementById("inv-role").value;
-      const days = parseInt(document.getElementById("inv-days").value, 10);
-      btn.disabled = true; setStatus("Создаём приглашение…", "info");
-      const r = await api("/api/v1/invites", { method: "POST", body: { role, expires_in_days: isNaN(days) ? 7 : days } });
-      btn.disabled = false;
-      if (!r.ok) { setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err"); return; }
-      setStatus("Приглашение создано.", "ok");
-      const inv = r.data;
-      const link = inv.join_link;
-      document.getElementById("inv-created").innerHTML = `
-        <div class="item">
-          <div class="meta">Передайте это приглашаемому сотруднику:</div>
-          ${link ? `<div class="codebox">${esc(link)}</div>
-                    <button class="ghost small" id="copy-link" style="margin-top:8px">Копировать ссылку</button>` : ""}
-          <div class="meta" style="margin-top:8px">Код:</div>
-          <div class="codebox">${esc(inv.code)}</div>
-          <button class="ghost small" id="copy-code" style="margin-top:8px">Копировать код</button>
-        </div>`;
-      const cl = document.getElementById("copy-link");
-      if (cl) cl.addEventListener("click", () => copyText(link));
-      document.getElementById("copy-code").addEventListener("click", () => copyText(inv.code));
-      loadInvites();
-    }
-    async function loadInvites() {
-      const box = document.getElementById("inv-list");
-      const r = await api("/api/v1/invites");
-      if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
-      if (!r.data.length) { box.innerHTML = `<div class="empty">Приглашений пока нет.</div>`; return; }
-      const stMap = { active: ["green","активно"], used: ["gray","использовано"], expired: ["amber","просрочено"] };
-      box.innerHTML = r.data.map(inv => {
-        const s = stMap[inv.status] || ["gray", inv.status];
-        return `<div class="item">
-          <div class="top">
-            <span class="title">${esc(roleLabel(inv.role))}</span>
-            <span class="badge ${s[0]}">${s[1]}</span>
-          </div>
-          <div class="meta">код: ${esc(inv.code)} · до ${fmtDate(inv.expires_at)}</div>
-          <div style="margin-top:8px">
-            <button class="small danger" data-revoke="${inv.id}">Отозвать</button>
-          </div>
-        </div>`;
-      }).join("");
-      box.querySelectorAll("button[data-revoke]").forEach(b => {
-        b.addEventListener("click", () => revokeInvite(parseInt(b.dataset.revoke, 10)));
-      });
-    }
-    async function revokeInvite(id) {
-      setStatus("Отзываем приглашение…", "info");
-      const r = await api("/api/v1/invites/" + id, { method: "DELETE" });
-      if (r.ok) { setStatus("Приглашение отозвано.", "ok"); loadInvites(); }
-      else setStatus("Ошибка: " + ((r.data && r.data.detail) || r.status), "err");
-    }
-
-    // --- Вкладка «Районы» (справочник районов агентства) ---
-    function renderDistrictsTab() {
-      const body = document.getElementById("tab-body");
-      body.innerHTML = `
-        <h2>Районы агентства</h2>
-        <div class="hint">Эти районы используются в форме объекта и в фильтрах поиска. Тип объекта и состояние — фиксированные списки и не меняются здесь.</div>
-        <label>Новый район</label>
-        <input id="dist-name" placeholder="например, Центр" />
-        <button class="full" id="dist-add">Добавить район</button>
-        <div id="dist-list" style="margin-top:8px"><div class="empty">Загрузка…</div></div>`;
-      document.getElementById("dist-add").addEventListener("click", addDistrict);
-      loadDistricts();
-    }
-    async function loadDistricts() {
-      const box = document.getElementById("dist-list");
-      const r = await api("/api/v1/dictionaries?category=district");
-      if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
-      if (!r.data.length) { box.innerHTML = `<div class="empty">Районов пока нет.</div>`; return; }
-      box.innerHTML = r.data.map(d => `<div class="item">
-        <div class="top">
-          <span class="title">${esc(d.value)}</span>
-          <button class="small danger" data-del-dist="${d.id}">Удалить</button>
-        </div>
-      </div>`).join("");
-      box.querySelectorAll("button[data-del-dist]").forEach(b =>
-        b.addEventListener("click", () => deleteDistrict(parseInt(b.dataset.delDist, 10))));
-    }
-    async function addDistrict() {
-      const input = document.getElementById("dist-name");
-      const value = (input.value || "").trim();
-      if (!value) { setStatus("Введите название района.", "warn"); return; }
-      setStatus("Добавляем…", "info");
-      const r = await api("/api/v1/dictionaries", { method: "POST", body: { category: "district", value } });
-      if (r.ok) { setStatus("Район добавлен.", "ok"); input.value = ""; refs.loaded = false; loadDistricts(); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-    async function deleteDistrict(id) {
-      if (!window.confirm("Удалить район?")) return;
-      setStatus("Удаляем…", "info");
-      const r = await api("/api/v1/dictionaries/" + id, { method: "DELETE" });
-      if (r.ok) { setStatus("Район удалён.", "ok"); refs.loaded = false; loadDistricts(); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-
-    // --- Вкладка «Настройки» (валюта по умолчанию и часовой пояс агентства) ---
-    function renderSettingsTab() {
-      const body = document.getElementById("tab-body");
-      body.innerHTML = `
-        <h2>Настройки агентства</h2>
-        <div class="hint">Валюта по умолчанию подставляется в форму нового объекта. Часовой пояс влияет на отображение дат.</div>
-        <label>Валюта по умолчанию</label>
-        <select id="set-currency">
-          <option value="USD">USD</option>
-          <option value="UZS">UZS</option>
-          <option value="EUR">EUR</option>
-        </select>
-        <label>Часовой пояс</label>
-        <input id="set-tz" placeholder="например, Asia/Tashkent" />
-        <button class="full" id="set-save">Сохранить настройки</button>`;
-      loadSettingsForm();
-      document.getElementById("set-save").addEventListener("click", saveSettings);
-    }
-    async function loadSettingsForm() {
-      await loadAgencySettings(true);
-      const cur = document.getElementById("set-currency");
-      const tz = document.getElementById("set-tz");
-      if (cur && agencySettings.default_currency) cur.value = agencySettings.default_currency;
-      if (tz) tz.value = agencySettings.timezone || "";
-    }
-    async function saveSettings() {
-      const currency = document.getElementById("set-currency").value;
-      const timezone = (document.getElementById("set-tz").value || "").trim();
-      setStatus("Сохраняем настройки…", "info");
-      const r = await api("/api/v1/agency/settings", {
-        method: "PATCH",
-        body: { default_currency: currency, timezone: timezone || null },
-      });
-      if (r.ok) {
-        setStatus("Настройки сохранены.", "ok");
-        agencySettings.default_currency = r.data.default_currency || null;
-        agencySettings.timezone = r.data.timezone || null;
-        agencySettings.loaded = true;
-      } else {
-        setStatus("Ошибка: " + errText(r.data, r.status), "err");
-      }
-    }
-
-    // ───────────────────── АГЕНT ─────────────────────
-    function renderAgent() {
-      subtitleEl.textContent = "Панель агента";
-      contentEl.innerHTML = `${profileRows()}<div id="agent-objects"></div>`;
-      objectsScreen(document.getElementById("agent-objects"));
-    }
-
-    function renderUnknown() {
-      contentEl.innerHTML = profileRows();
-    }
-
-    // ───────────────────── ОБЪЕКТЫ (UI Этапа 3) ─────────────────────
-    // Справочник районов грузим один раз и кэшируем (нужен для формы и фильтров).
+    // ════════════════════════ Справочники (районы) и настройки ════════════════════════
     const refs = { district: [], loaded: false };
-
-    // Настройки агентства кэшируем (валюта по умолчанию для формы, часовой пояс для дат).
-    const agencySettings = { default_currency: null, timezone: null, loaded: false };
-
-    async function loadAgencySettings(force) {
-      if (agencySettings.loaded && !force) return;
-      const r = await api("/api/v1/agency/settings");
-      if (r.ok && r.data) {
-        agencySettings.default_currency = r.data.default_currency || null;
-        agencySettings.timezone = r.data.timezone || null;
-        agencySettings.loaded = true;
-      }
-    }
-
-    async function loadRefs() {
-      if (refs.loaded) return;
+    async function loadRefs(force) {
+      if (refs.loaded && !force) return;
       const d = await api("/api/v1/dictionaries?category=district");
       refs.district = d.ok && Array.isArray(d.data) ? d.data : [];
       refs.loaded = true;
     }
-
-    function optList(arr, valueKey) {
-      return arr.map(x => `<option value="${esc(x[valueKey])}">${esc(x[valueKey])}</option>`).join("");
-    }
-
-    // Фиксированные списки (единые для всех агентств).
-    const OBJ_TYPES = ["Квартира", "Дом", "Коммерция", "Земля"];
-    const OBJ_CONDITIONS = ["Без ремонта", "Черновая", "White box", "Средний ремонт", "Новый ремонт", "Дизайнерский ремонт"];
-    const STATUS_LABELS = { active: "Активен", deposit: "Задаток", sold: "Продан", archived: "Архив" };
-    const STATUS_BADGE  = { active: "green", deposit: "amber", sold: "gray", archived: "gray" };
-
-    // Текущий «вид» списка объектов (какой статус показываем).
-    let objView = "active";
-
-    // Пагинация списка объектов: грузим порциями и докручиваем «Показать ещё».
-    const OBJ_PAGE_SIZE = 20;
-    let objPage = { offset: 0, total: 0 };
-
-    // --- Мультивыбор «чипами» ---
-    function chips(id, values) {
-      return `<div class="chips" id="${id}">` +
-        values.map(v => `<button type="button" class="chip" data-val="${esc(v)}">${esc(v)}</button>`).join("") +
-        `</div>`;
-    }
-    function wireChips(host, id) {
-      host.querySelectorAll("#" + id + " .chip").forEach(b =>
-        b.addEventListener("click", () => b.classList.toggle("active")));
-    }
-    function pickedChips(host, id) {
-      return Array.from(host.querySelectorAll("#" + id + " .chip.active")).map(b => b.dataset.val);
-    }
-
-    async function objectsScreen(host) {
-      host.innerHTML = `
-        <h2>Объекты недвижимости</h2>
-        <button class="ghost full" id="obj-new-toggle">+ Создать объект</button>
-        <div id="obj-form"></div>
-
-        <div class="views" id="obj-views">
-          <button data-view="active">Активные</button>
-          <button data-view="deposit">Задаток</button>
-          <button data-view="sold">Проданные</button>
-          <button data-view="archived">Архив</button>
-        </div>
-
-        <div class="item" style="background:#fff">
-          <label>Поиск (наименование, адрес, № объекта)</label>
-          <input id="f-q" placeholder="например: центр, Навои, 0001" />
-          <label>Тип объекта</label>
-          ${chips("f-types", OBJ_TYPES)}
-          <label>Район</label>
-          <div class="chips" id="f-districts"></div>
-          <label>Комнат</label>
-          ${chips("f-rooms", ["1", "2", "3", "4", "5"])}
-          <div style="display:flex; gap:8px">
-            <div style="flex:1"><label>Этаж от</label><input id="f-fmin" inputmode="numeric" /></div>
-            <div style="flex:1"><label>до</label><input id="f-fmax" inputmode="numeric" /></div>
-          </div>
-          <div style="display:flex; gap:8px">
-            <div style="flex:1"><label>Цена от</label><input id="f-pmin" inputmode="numeric" /></div>
-            <div style="flex:1"><label>до</label><input id="f-pmax" inputmode="numeric" /></div>
-          </div>
-          <button class="full" id="obj-search">Найти</button>
-        </div>
-        <div id="obj-results"><div class="empty">Загрузка…</div></div>`;
-
-      await loadRefs();
-      await loadAgencySettings();
-      const dbox = host.querySelector("#f-districts");
-      dbox.innerHTML = refs.district.length
-        ? refs.district.map(x => `<button type="button" class="chip" data-val="${esc(x.value)}">${esc(x.value)}</button>`).join("")
-        : `<span class="muted">Районы не заданы</span>`;
-      wireChips(host, "f-types");
-      wireChips(host, "f-districts");
-      wireChips(host, "f-rooms");
-
-      const views = host.querySelector("#obj-views");
-      function paintViews() {
-        views.querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === objView));
+    async function loadAgencySettings(force) {
+      if (state.settingsLoaded && !force) return;
+      const r = await api("/api/v1/agency/settings");
+      if (r.ok && r.data) {
+        state.defaultCurrency = r.data.default_currency || null;
+        state.timezone = r.data.timezone || null;
+        state.agencyName = r.data.name || null;
+        state.settingsLoaded = true;
       }
-      views.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
-        objView = b.dataset.view; paintViews(); searchObjects(host);
-      }));
-      paintViews();
-
-      host.querySelector("#obj-new-toggle").addEventListener("click", () => toggleObjForm(host));
-      host.querySelector("#obj-search").addEventListener("click", () => searchObjects(host));
-      searchObjects(host);
     }
 
-    // Поля формы объекта (общие для создания и редактирования).
-    // o — объект для предзаполнения; includeStatus — показывать ли выбор статуса.
-    function objFormInner(o, includeStatus) {
+    // ════════════════════════ Форма объекта ════════════════════════
+    function objFormInner(o) {
       o = o || {};
-      const opt = (v, cur) => `<option ${String(v) === String(cur || "") ? "selected" : ""}>${esc(v)}</option>`;
-      const typeOpts = `<option value="">—</option>` + OBJ_TYPES.map(v => opt(v, o.type)).join("");
-      const condOpts = `<option value="">—</option>` + OBJ_CONDITIONS.map(v => opt(v, o.condition)).join("");
-      const distOpts = `<option value="">—</option>` + refs.district.map(x => opt(x.value, o.district)).join("");
-      const statusOpts = [["active", "Активен"], ["deposit", "Задаток"], ["sold", "Продан"]]
-        .map(s => `<option value="${s[0]}" ${s[0] === (o.status || "active") ? "selected" : ""}>${s[1]}</option>`).join("");
-      const cur = o.currency || agencySettings.default_currency || "USD";
-      const curOpts = ["USD", "UZS", "EUR"].map(c => `<option ${c === cur ? "selected" : ""}>${c}</option>`).join("");
+      const typeOpts = `<option value="">${esc(t("any"))}</option>` + OBJ_TYPE_VALUES.map(v => optionTag(v, typeLabel(v), o.type)).join("");
+      const condOpts = `<option value="">${esc(t("notSet"))}</option>` + OBJ_COND_VALUES.map(v => optionTag(v, condLabel(v), o.condition)).join("");
+      const distOpts = `<option value="">${esc(t("any"))}</option>` + refs.district.map(x => optionTag(x.value, x.value, o.district)).join("");
+      const defCur = o.currency || state.defaultCurrency || "USD";
+      const curOpts = ["USD","UZS","EUR"].map(c => optionTag(c, c, defCur)).join("");
       const num = v => (v != null ? v : "");
       return `
-        <label>Наименование</label><input id="n-name" value="${esc(o.name || "")}" placeholder="например, 2-комн. в центре" />
-        <label>Тип объекта</label><select id="n-type">${typeOpts}</select>
-        ${includeStatus ? `<label>Статус</label><select id="n-status">${statusOpts}</select>` : ""}
-        <label>Район</label><select id="n-district">${distOpts}</select>
-        <label>Адрес</label><input id="n-address" value="${esc(o.address || "")}" />
+        <label>${esc(t("f_name"))}</label><input id="n-name" value="${esc(o.name || "")}" />
+        <label>${esc(t("f_type"))}</label><select id="n-type">${typeOpts}</select>
+        <label>${esc(t("f_district"))}</label><select id="n-district">${distOpts}</select>
+        <label>${esc(t("f_address"))}</label><input id="n-address" value="${esc(o.address || "")}" />
         <div style="display:flex; gap:8px">
-          <div style="flex:1"><label>Комнат</label><input id="n-rooms" inputmode="numeric" value="${num(o.rooms)}" /></div>
-          <div style="flex:1"><label>Этаж</label><input id="n-floor" inputmode="numeric" value="${num(o.floor)}" /></div>
-          <div style="flex:1"><label>Этажей</label><input id="n-tfloors" inputmode="numeric" value="${num(o.total_floors)}" /></div>
+          <div style="flex:1"><label>${esc(t("f_rooms"))}</label><input id="n-rooms" inputmode="numeric" value="${num(o.rooms)}" /></div>
+          <div style="flex:1"><label>${esc(t("f_floor"))}</label><input id="n-floor" inputmode="numeric" value="${num(o.floor)}" /></div>
+          <div style="flex:1"><label>${esc(t("f_tfloors"))}</label><input id="n-tfloors" inputmode="numeric" value="${num(o.total_floors)}" /></div>
         </div>
         <div style="display:flex; gap:8px">
-          <div style="flex:1"><label>Площадь, м²</label><input id="n-area" inputmode="decimal" value="${num(o.area)}" /></div>
-          <div style="flex:1"><label>Цена</label><input id="n-price" inputmode="numeric" value="${num(o.price)}" /></div>
-          <div style="flex:1"><label>Валюта</label><select id="n-currency">${curOpts}</select></div>
+          <div style="flex:1"><label>${esc(t("f_area"))}</label><input id="n-area" inputmode="decimal" value="${num(o.area)}" /></div>
+          <div style="flex:1"><label>${esc(t("f_price"))}</label><input id="n-price" inputmode="numeric" value="${num(o.price)}" /></div>
+          <div style="flex:1"><label>${esc(t("f_currency"))}</label><select id="n-currency">${curOpts}</select></div>
         </div>
-        <label>Состояние объекта</label><select id="n-condition">${condOpts}</select>
-        <label>Телефон</label><input id="n-phone" value="${esc(o.phone || "")}" />
-        <label>Описание</label><input id="n-desc" value="${esc(o.description || "")}" />`;
+        <label>${esc(t("f_condition"))}</label><select id="n-condition">${condOpts}</select>
+        <label>${esc(t("f_phone"))}</label><input id="n-phone" value="${esc(o.phone || "")}" />
+        <label>${esc(t("f_desc"))}</label><input id="n-desc" value="${esc(o.description || "")}" />`;
     }
-
-    function toggleObjForm(host) {
-      const box = host.querySelector("#obj-form");
-      if (box.innerHTML.trim()) { box.innerHTML = ""; return; }
-      box.innerHTML = `
-        <div class="item" style="background:#fbfbfe">
-          ${objFormInner(null, true)}
-          <button class="full" id="n-save">Сохранить объект</button>
-        </div>`;
-      box.querySelector("#n-save").addEventListener("click", () => createObject(host));
-    }
-
     function vNum(host, sel, isFloat) {
-      const el = host.querySelector(sel);
-      const v = ((el && el.value) || "").trim();
-      if (!v) return null;
-      const n = isFloat ? parseFloat(v) : parseInt(v, 10);
+      const e2 = host.querySelector(sel); const v = ((e2 && e2.value) || "").trim();
+      if (!v) return null; const n = isFloat ? parseFloat(v) : parseInt(v, 10);
       return isNaN(n) ? null : n;
     }
     function vStr(host, sel) {
-      const el = host.querySelector(sel);
-      const v = ((el && el.value) || "").trim();
+      const e2 = host.querySelector(sel); const v = ((e2 && e2.value) || "").trim();
       return v || null;
     }
-
-    // Собрать тело запроса из полей формы (общее для создания и редактирования).
-    // full=true (редактирование): включаем ВСЕ поля, даже пустые (как null),
-    // чтобы можно было очистить ранее заполненное поле. full=false (создание):
-    // пустые поля не отправляем.
-    function collectObjBody(host, includeStatus, full) {
+    // full=true (редактирование) — включаем все поля (пустые как null, чтобы очищать).
+    function collectObjBody(host, full) {
       const body = {};
       const fields = {
-        name: vStr(host, "#n-name"),
-        type: vStr(host, "#n-type"),
-        district: vStr(host, "#n-district"),
-        address: vStr(host, "#n-address"),
-        rooms: vNum(host, "#n-rooms", false),
-        floor: vNum(host, "#n-floor", false),
-        total_floors: vNum(host, "#n-tfloors", false),
-        area: vNum(host, "#n-area", true),
-        price: vNum(host, "#n-price", true),
-        currency: host.querySelector("#n-currency").value,
-        condition: vStr(host, "#n-condition"),
-        phone: vStr(host, "#n-phone"),
-        description: vStr(host, "#n-desc"),
+        name: vStr(host, "#n-name"), type: vStr(host, "#n-type"), district: vStr(host, "#n-district"),
+        address: vStr(host, "#n-address"), rooms: vNum(host, "#n-rooms", false), floor: vNum(host, "#n-floor", false),
+        total_floors: vNum(host, "#n-tfloors", false), area: vNum(host, "#n-area", true), price: vNum(host, "#n-price", true),
+        currency: host.querySelector("#n-currency").value, condition: vStr(host, "#n-condition"),
+        phone: vStr(host, "#n-phone"), description: vStr(host, "#n-desc"),
       };
-      if (includeStatus) fields.status = vStr(host, "#n-status");
       Object.keys(fields).forEach(k => {
-        // Валюту никогда не обнуляем (она обязательна), остальное — по режиму.
         if (full && k === "currency" && !fields[k]) return;
         if (full || fields[k] !== null) body[k] = fields[k];
       });
       return body;
     }
-
-    async function createObject(host) {
-      const btn = host.querySelector("#n-save");
-      const body = collectObjBody(host, true);
-      btn.disabled = true; setStatus("Сохраняем объект…", "info");
-      const r = await api("/api/v1/apartments", { method: "POST", body });
-      btn.disabled = false;
-      if (r.ok) {
-        setStatus("Объект создан: №" + r.data.display_id, "ok");
-        host.querySelector("#obj-form").innerHTML = "";
-        searchObjects(host);
-      } else {
-        setStatus("Ошибка: " + errText(r.data, r.status), "err");
-      }
-    }
-
-    // --- Список: карточка-сводка с кнопкой «Открыть» ---
-    function objCardHtml(o) {
-      const badge = STATUS_BADGE[o.status] || "gray";
-      const label = STATUS_LABELS[o.status] || o.status;
-      const price = (o.price != null) ? (o.price + " " + (o.currency || "")) : "—";
-      const parts = [o.type, o.district, (o.rooms != null ? o.rooms + "-комн." : null)]
-        .filter(Boolean).map(esc).join(" · ");
-      return `<div class="item">
-        <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(label)}</span></div>
-        ${o.name ? `<div class="meta">${esc(o.name)}</div>` : ""}
-        <div class="meta">${parts || "—"}</div>
-        <div class="meta">Цена: ${esc(String(price))}</div>
-        ${o.created_by_name ? `<div class="meta">Добавил: ${esc(o.created_by_name)}</div>` : ""}
-        <div style="margin-top:8px"><button class="small ghost" data-open="${o.id}">Открыть</button></div>
-      </div>`;
-    }
-
-    // Собирает параметры фильтра/поиска (без пагинации).
-    function buildObjQuery(host) {
-      const p = new URLSearchParams();
-      p.set("status", objView);
-      pickedChips(host, "f-types").forEach(v => p.append("types", v));
-      pickedChips(host, "f-districts").forEach(v => p.append("districts", v));
-      pickedChips(host, "f-rooms").forEach(v => p.append("rooms", v));
-      const fmin = vStr(host, "#f-fmin"), fmax = vStr(host, "#f-fmax");
-      const pmin = vStr(host, "#f-pmin"), pmax = vStr(host, "#f-pmax");
-      const q = vStr(host, "#f-q");
-      if (fmin) p.set("floor_min", fmin);
-      if (fmax) p.set("floor_max", fmax);
-      if (pmin) p.set("price_min", pmin);
-      if (pmax) p.set("price_max", pmax);
-      if (q) p.set("q", q);
-      return p;
-    }
-
-    // Привязывает обработчик «Открыть» к новым карточкам (без двойной привязки).
-    function wireOpenButtons(host, container) {
-      container.querySelectorAll("button[data-open]").forEach(b => {
-        if (b.dataset.wired) return;
-        b.dataset.wired = "1";
-        b.addEventListener("click", () => openObject(host, parseInt(b.dataset.open, 10)));
-      });
-    }
-
-    // append=false — новый поиск (сброс и перерисовка); append=true — догрузка.
-    async function searchObjects(host, append) {
-      const box = host.querySelector("#obj-results");
-      if (!append) {
-        objPage = { offset: 0, total: 0 };
-        box.innerHTML = `
-          <div class="meta" id="obj-count" style="margin:10px 0 0"></div>
-          <div id="obj-cards"></div>
-          <div id="obj-more"></div>`;
-      }
-      const moreBox = host.querySelector("#obj-more");
-      if (moreBox) moreBox.innerHTML = `<div class="empty">Загрузка…</div>`;
-
-      const p = buildObjQuery(host);
-      p.set("limit", String(OBJ_PAGE_SIZE));
-      p.set("offset", String(objPage.offset));
-      const r = await api("/api/v1/apartments?" + p.toString());
-      if (!r.ok) {
-        if (moreBox) moreBox.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`;
-        return;
-      }
-      const items = (r.data && r.data.items) || [];
-      objPage.total = r.data.total || 0;
-      objPage.offset += items.length;
-
-      const cards = host.querySelector("#obj-cards");
-      const countEl = host.querySelector("#obj-count");
-      if (!append && !items.length) {
-        if (countEl) countEl.textContent = "";
-        cards.innerHTML = `<div class="empty">Ничего не найдено.</div>`;
-        if (moreBox) moreBox.innerHTML = "";
-        return;
-      }
-      if (countEl) countEl.textContent = "Найдено: " + objPage.total;
-      const tmp = document.createElement("div");
-      tmp.innerHTML = items.map(objCardHtml).join("");
-      while (tmp.firstChild) cards.appendChild(tmp.firstChild);
-      wireOpenButtons(host, cards);
-
-      // Кнопка «Показать ещё», если показаны не все найденные объекты.
-      const left = objPage.total - objPage.offset;
-      if (left > 0) {
-        moreBox.innerHTML = `<button class="ghost full" id="obj-more-btn">Показать ещё (${left})</button>`;
-        moreBox.querySelector("#obj-more-btn").addEventListener("click", () => searchObjects(host, true));
-      } else {
-        moreBox.innerHTML = "";
-      }
-    }
-
-    // --- Детальная карточка объекта ---
-    async function openObject(host, id) {
-      setStatus("Загрузка…", "info");
-      const r = await api("/api/v1/apartments/" + id);
-      if (!r.ok) { setStatus("Не удалось открыть объект (" + r.status + ").", "err"); return; }
-      setStatus("", null);
-      renderObjDetail(host, r.data);
-    }
-
-    // --- Готовая карточка объекта для пересылки клиенту (как в старом боте) ---
     function buildShareCard(o) {
       const lines = [];
-      lines.push("🏠 Объект №" + (o.display_id || ""));
+      lines.push("🏠 " + t("apartment") + " №" + (o.display_id || ""));
       if (o.name) lines.push("📋 " + o.name);
-      if (o.type) lines.push("🏗 Тип: " + o.type);
-      if (o.district) lines.push("📍 Район: " + o.district);
-      if (o.address) lines.push("🗺 Адрес: " + o.address);
-      if (o.rooms != null) lines.push("🚪 Комнат: " + o.rooms);
-      const floorTxt = (o.floor != null && o.total_floors != null) ? (o.floor + "/" + o.total_floors)
-        : (o.floor != null ? String(o.floor) : null);
-      if (floorTxt) lines.push("🏢 Этаж: " + floorTxt);
-      if (o.area != null) lines.push("📐 Площадь: " + o.area + " м²");
-      if (o.condition) lines.push("🔧 Состояние: " + o.condition);
-      if (o.price != null) lines.push("💵 Цена: " + o.price + " " + (o.currency || ""));
-      if (o.phone) lines.push("📞 Телефон: " + o.phone);
+      if (o.type) lines.push("🏗 " + t("f_type") + ": " + typeLabel(o.type));
+      if (o.district) lines.push("📍 " + t("f_district") + ": " + o.district);
+      if (o.address) lines.push("🗺 " + t("f_address") + ": " + o.address);
+      if (o.rooms != null) lines.push("🚪 " + t("f_rooms") + ": " + o.rooms);
+      const fl = (o.floor != null && o.total_floors != null) ? (o.floor + "/" + o.total_floors) : (o.floor != null ? String(o.floor) : null);
+      if (fl) lines.push("🏢 " + t("f_floor") + ": " + fl);
+      if (o.area != null) lines.push("📐 " + o.area + " m²");
+      if (o.condition) lines.push("🔧 " + condLabel(o.condition));
+      if (o.price != null) lines.push("💵 " + o.price + " " + (o.currency || ""));
+      if (o.phone) lines.push("📞 " + o.phone);
       if (o.description) lines.push("📝 " + o.description);
       return lines.join("\n");
     }
-
-    // Открыть диалог пересылки Telegram с готовым текстом карточки.
     function shareToTelegram(text) {
       const link = "https://t.me/share/url?url=&text=" + encodeURIComponent(text);
-      const tg = window.Telegram && window.Telegram.WebApp;
-      if (tg && tg.openTelegramLink) tg.openTelegramLink(link);
-      else window.open(link, "_blank");
+      if (tg && tg.openTelegramLink) tg.openTelegramLink(link); else window.open(link, "_blank");
     }
 
-    function renderObjDetail(host, o) {
-      const badge = STATUS_BADGE[o.status] || "gray";
-      const label = STATUS_LABELS[o.status] || o.status;
-      const floorTxt = (o.floor != null && o.total_floors != null) ? (o.floor + " из " + o.total_floors)
-        : (o.floor != null ? String(o.floor) : null);
-      const rows = [
-        ["Наименование", o.name],
-        ["Тип", o.type],
-        ["Район", o.district],
-        ["Адрес", o.address],
-        ["Комнат", o.rooms],
-        ["Этаж", floorTxt],
-        ["Площадь, м²", o.area],
-        ["Цена", o.price != null ? (o.price + " " + (o.currency || "")) : null],
-        ["Состояние", o.condition],
-        ["Телефон", o.phone],
-        ["Описание", o.description],
-        ["Добавил", o.created_by_name],
-      ];
-      const rowsHtml = rows.filter(r => r[1] != null && r[1] !== "")
-        .map(r => `<div class="row"><span>${r[0]}</span><span><b>${esc(String(r[1]))}</b></span></div>`).join("");
-      const transitions = {
-        active:   [["deposit", "Задаток"], ["sold", "Продан"], ["archived", "В архив"]],
-        deposit:  [["active", "Снять задаток"], ["sold", "Продан"], ["archived", "В архив"]],
-        sold:     [["active", "Вернуть в активные"], ["archived", "В архив"]],
-        archived: [["active", "Вернуть в активные"]],
-      };
-      const statusBtns = (transitions[o.status] || [])
-        .map(t => `<button class="small ghost" data-status="${t[0]}">${t[1]}</button>`).join(" ");
-      const adminBtn = (state.user && state.user.role === "agency_admin")
-        ? `<button class="small danger" id="d-del">Удалить</button>` : "";
-      host.innerHTML = `
-        <button class="ghost full" id="d-back">← Назад к списку</button>
-        <div class="item">
-          <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(label)}</span></div>
-          ${rowsHtml}
-          <div style="margin-top:10px">${statusBtns}</div>
-          <div style="margin-top:10px"><button class="ghost small" id="d-share">Скопировать карточку</button> <button class="ghost small" id="d-share-tg">Отправить в Telegram</button></div>
-          <div style="margin-top:10px"><button class="ghost small" id="d-edit">Редактировать</button> ${adminBtn}</div>
-        </div>`;
-      host.querySelector("#d-back").addEventListener("click", () => objectsScreen(host));
-      host.querySelector("#d-edit").addEventListener("click", () => renderObjEdit(host, o));
-      const card = buildShareCard(o);
-      host.querySelector("#d-share").addEventListener("click", () => copyText(card));
-      host.querySelector("#d-share-tg").addEventListener("click", () => shareToTelegram(card));
-      host.querySelectorAll("button[data-status]").forEach(b =>
-        b.addEventListener("click", () => changeStatusDetail(host, o.id, b.dataset.status)));
-      const del = host.querySelector("#d-del");
-      if (del) del.addEventListener("click", () => deleteObjectDetail(host, o.id));
-    }
-
-    async function changeStatusDetail(host, id, newStatus) {
-      setStatus("Меняем статус…", "info");
-      const r = await api("/api/v1/apartments/" + id + "/status", { method: "POST", body: { status: newStatus } });
-      if (r.ok) { setStatus("Готово.", "ok"); openObject(host, id); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-
-    async function deleteObjectDetail(host, id) {
-      if (!window.confirm("Удалить объект безвозвратно?")) return;
-      setStatus("Удаляем…", "info");
-      const r = await api("/api/v1/apartments/" + id, { method: "DELETE" });
-      if (r.ok) { setStatus("Объект удалён.", "ok"); objectsScreen(host); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-
-    function renderObjEdit(host, o) {
-      host.innerHTML = `
-        <button class="ghost full" id="e-cancel">← Отмена</button>
-        <h2>Редактирование №${esc(o.display_id)}</h2>
-        <div class="item" style="background:#fbfbfe">
-          ${objFormInner(o, false)}
-          <div class="hint">Чтобы очистить поле — сотрите его содержимое и нажмите «Сохранить изменения».</div>
-          <button class="full" id="e-save">Сохранить изменения</button>
-        </div>`;
-      host.querySelector("#e-cancel").addEventListener("click", () => openObject(host, o.id));
-      host.querySelector("#e-save").addEventListener("click", () => saveObjEdit(host, o.id));
-    }
-
-    async function saveObjEdit(host, id) {
-      const btn = host.querySelector("#e-save");
-      const body = collectObjBody(host, false, true);
-      btn.disabled = true; setStatus("Сохраняем…", "info");
-      const r = await api("/api/v1/apartments/" + id, { method: "PATCH", body });
-      btn.disabled = false;
-      if (r.ok) { setStatus("Изменения сохранены.", "ok"); openObject(host, id); }
-      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
-    }
-
-    // ───────────────────── Форма вступления по коду ─────────────────────
-    function showJoinForm(prefillCode) {
-      subtitleEl.textContent = "Вступление в агентство";
-      contentEl.innerHTML = `
-        <label>Код приглашения от вашего агентства</label>
-        <input id="invite-code" type="text" value="${esc(prefillCode || "")}" placeholder="например, AbC123xyz" />
-        <button class="full" id="invite-join">Вступить в агентство</button>`;
-      const input = document.getElementById("invite-code");
-      const btn = document.getElementById("invite-join");
-      async function doJoin() {
-        const code = (input.value || "").trim();
-        if (!code) { setStatus("Введите код приглашения.", "warn"); return; }
-        btn.disabled = true; setStatus("Проверяем приглашение…", "info");
-        const r = await redeem(state.initData, code);
-        if (r.ok) {
-          state.token = r.data.access_token;
-          state.user = r.data.user;
-          state.subscriptionActive = r.data.subscription_active;
-          renderApp();
+    // ════════════════════════ Экран: Главное меню ════════════════════════
+    function homeScreen() {
+      return { titleKey: null, render(host) {
+        const role = state.user && state.user.role;
+        const menu = el(`<div class="menu"></div>`);
+        if (role === "superadmin") {
+          menu.appendChild(menuButton("👤", "myProfile", () => navigate(profileScreen())));
+          menu.appendChild(menuButton("🏢", "myAgencies", () => navigate(agenciesScreen())));
+          menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
+        } else if (role === "agency_admin") {
+          menu.appendChild(menuButton("👤", "profile", () => navigate(profileScreen())));
+          menu.appendChild(menuButton("➕", "addObject", () => navigate(addObjectScreen())));
+          menu.appendChild(menuButton("🔎", "findObject", () => navigate(searchFormScreen())));
+          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(objectListScreen({}, "myDatabase"))));
+          menu.appendChild(menuButton("👥", "team", () => navigate(teamScreen())));
+          menu.appendChild(menuButton("✉️", "invites", () => navigate(invitesScreen())));
+          menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
+        } else if (role === "agent") {
+          menu.appendChild(menuButton("👤", "profile", () => navigate(profileScreen())));
+          menu.appendChild(menuButton("➕", "addObject", () => navigate(addObjectScreen())));
+          menu.appendChild(menuButton("🔎", "findObject", () => navigate(searchFormScreen())));
+          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(objectListScreen({}, "myDatabase"))));
+          menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
         } else {
-          btn.disabled = false;
-          setStatus("Не удалось вступить: " + ((r.data && r.data.detail) || ("ошибка " + r.status)), "err");
+          menu.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
         }
-      }
-      btn.addEventListener("click", doJoin);
-      return doJoin;
+        host.appendChild(menu);
+      }};
     }
 
-    // ───────────────────── Старт ─────────────────────
-    async function checkBackend() {
-      try { const res = await fetch("/health"); const d = await res.json(); return d.database === "connected"; }
-      catch (e) { return false; }
+    function profileScreen() {
+      return { titleKey: "profile", render(host) {
+        host.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
+        if (state.agencyName) host.appendChild(el(`<div class="hint">${esc(t("agencyLbl"))}: ${esc(state.agencyName)}</div>`));
+      }};
+    }
+
+    function suspendedScreen() {
+      return { titleKey: "suspendedTitle", render(host) {
+        host.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
+        host.appendChild(el(`<div class="status err" style="margin-top:14px">${esc(t("suspendedMsg"))}</div>`));
+      }};
+    }
+
+    // ════════════════════════ Экран: Настройки ════════════════════════
+    function settingsScreen() {
+      return { titleKey: "settings", render(host) {
+        const role = state.user && state.user.role;
+        // Язык
+        host.appendChild(el(`<label>${esc(t("language"))}</label>`));
+        const langSeg = el(`<div class="seg" id="lang-seg">
+          <button data-l="ru" class="${state.lang === "ru" ? "active" : ""}">${esc(t("lang_ru"))}</button>
+          <button data-l="uz" class="${state.lang === "uz" ? "active" : ""}">${esc(t("lang_uz"))}</button>
+          <button data-l="en" class="${state.lang === "en" ? "active" : ""}">${esc(t("lang_en"))}</button>
+        </div>`);
+        langSeg.querySelectorAll("button").forEach(b => b.addEventListener("click", () => setLang(b.dataset.l)));
+        host.appendChild(langSeg);
+        // Тема
+        const curTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        host.appendChild(el(`<label>${esc(t("theme"))}</label>`));
+        const themeSeg = el(`<div class="seg" id="theme-seg">
+          <button data-th="light" class="${curTheme === "light" ? "active" : ""}">☀️ ${esc(t("themeLight"))}</button>
+          <button data-th="dark" class="${curTheme === "dark" ? "active" : ""}">🌙 ${esc(t("themeDark"))}</button>
+        </div>`);
+        themeSeg.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { setTheme(b.dataset.th); renderCurrent(); }));
+        host.appendChild(themeSeg);
+        host.appendChild(el(`<div class="hint">${esc(t("settingsHint"))}</div>`));
+
+        // Доп. настройки только для админа агентства: валюта, часовой пояс, районы.
+        if (role === "agency_admin") {
+          host.appendChild(el(`<h2>${esc(t("defaultCurrency"))} / ${esc(t("timezone"))}</h2>`));
+          const curSel = el(`<select id="set-currency">
+            ${["USD","UZS","EUR"].map(c => optionTag(c, c, state.defaultCurrency || "USD")).join("")}
+          </select>`);
+          host.appendChild(el(`<label>${esc(t("defaultCurrency"))}</label>`));
+          host.appendChild(curSel);
+          host.appendChild(el(`<label>${esc(t("timezone"))}</label>`));
+          const tzInput = el(`<input id="set-tz" placeholder="Asia/Tashkent" value="${esc(state.timezone || "")}" />`);
+          host.appendChild(tzInput);
+          const saveBtn = el(`<button class="full">${esc(t("saveSettings"))}</button>`);
+          saveBtn.addEventListener("click", async () => {
+            setStatus(t("saving"), "info");
+            const r = await api("/api/v1/agency/settings", { method: "PATCH", body: { default_currency: curSel.value, timezone: (tzInput.value || "").trim() || null } });
+            if (r.ok) { state.defaultCurrency = r.data.default_currency || null; state.timezone = r.data.timezone || null; setStatus(t("saved"), "ok"); }
+            else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+          });
+          host.appendChild(saveBtn);
+
+          // Районы
+          host.appendChild(el(`<h2>${esc(t("districts"))}</h2>`));
+          host.appendChild(el(`<label>${esc(t("newDistrict"))}</label>`));
+          const dInput = el(`<input id="dist-name" placeholder="${esc(t("newDistrict"))}" />`);
+          host.appendChild(dInput);
+          const dAdd = el(`<button class="full">${esc(t("addDistrict"))}</button>`);
+          const dList = el(`<div id="dist-list" style="margin-top:8px"><div class="empty">${esc(t("loading"))}</div></div>`);
+          dAdd.addEventListener("click", async () => {
+            const value = (dInput.value || "").trim();
+            if (!value) return;
+            setStatus(t("saving"), "info");
+            const r = await api("/api/v1/dictionaries", { method: "POST", body: { category: "district", value } });
+            if (r.ok) { setStatus(t("districtAdded"), "ok"); dInput.value = ""; await loadRefs(true); paintDistricts(dList); }
+            else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+          });
+          host.appendChild(dAdd);
+          host.appendChild(dList);
+          loadRefs(true).then(() => paintDistricts(dList));
+        }
+      }};
+    }
+    function paintDistricts(box) {
+      if (!refs.district.length) { box.innerHTML = `<div class="empty">${esc(t("empty"))}</div>`; return; }
+      box.innerHTML = refs.district.map(d => `<div class="item"><div class="top"><span class="title">${esc(d.value)}</span><button class="small danger" data-del="${d.id}">${esc(t("del"))}</button></div></div>`).join("");
+      box.querySelectorAll("button[data-del]").forEach(b => b.addEventListener("click", async () => {
+        if (!window.confirm(t("delDistrictQ"))) return;
+        const r = await api("/api/v1/dictionaries/" + b.dataset.del, { method: "DELETE" });
+        if (r.ok) { await loadRefs(true); paintDistricts(box); setStatus(t("done"), "ok"); }
+        else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+      }));
+    }
+
+    // ════════════════════════ СУПЕРАДМИН: агентства ════════════════════════
+    function agenciesScreen() {
+      return { titleKey: "myAgencies", render(host) {
+        const addBtn = el(`<button class="full">${esc(t("addAgency"))}</button>`);
+        addBtn.addEventListener("click", () => navigate(createAgencyScreen()));
+        host.appendChild(addBtn);
+        const box = el(`<div id="ag-list"><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        loadAgenciesInto(box);
+      }};
+    }
+    function agencyStatusBadge(status) {
+      const map = { active: ["green","st_active"], trial: ["green","st_trial"], frozen: ["amber","st_frozen"], expired: ["amber","st_expired"] };
+      const m = map[status] || ["gray", null];
+      return `<span class="badge ${m[0]}">${esc(m[1] ? t(m[1]) : status)}</span>`;
+    }
+    async function loadAgenciesInto(box) {
+      const r = await api("/api/v1/agencies");
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">${esc(t("noAgencies"))}</div>`; return; }
+      box.innerHTML = "";
+      r.data.forEach(a => {
+        const adminTxt = a.admin_name ? (esc(a.admin_name) + (a.admin_telegram_id ? " (ID " + a.admin_telegram_id + ")" : "")) : t("notAssigned");
+        const item = el(`<div class="item tap">
+          <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a.status)}</div>
+          <div class="meta">ID ${a.id} · ${esc(t("subUntil"))}: ${fmtDate(a.subscription_expires_at)}</div>
+          <div class="meta">${esc(t("admin"))}: ${adminTxt}</div>
+          <div class="meta" style="margin-top:6px">›</div>
+        </div>`);
+        item.addEventListener("click", () => navigate(agencyManageScreen(a.id)));
+        box.appendChild(item);
+      });
+    }
+
+    function agencyManageScreen(agencyId) {
+      return { titleKey: "manageAgency", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        renderAgencyManage(box, agencyId);
+      }};
+    }
+    async function renderAgencyManage(box, agencyId) {
+      const r = await api("/api/v1/agencies");
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      const a = (r.data || []).find(x => x.id === agencyId);
+      if (!a) { box.innerHTML = `<div class="empty">${esc(t("notFound"))}</div>`; return; }
+      const frozen = a.status === "frozen" || a.status === "expired";
+      const adminTxt = a.admin_name ? (esc(a.admin_name) + (a.admin_telegram_id ? " (ID " + a.admin_telegram_id + ")" : "")) : t("notAssigned");
+      box.innerHTML = "";
+      box.appendChild(el(`<div class="item">
+        <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a.status)}</div>
+        <div class="meta">ID ${a.id} · ${esc(t("subUntil"))}: ${fmtDate(a.subscription_expires_at)}</div>
+        <div class="meta">${esc(t("admin"))}: ${adminTxt}</div>
+      </div>`));
+
+      // Продление на любой срок
+      box.appendChild(el(`<label>${esc(t("extendDays"))}</label>`));
+      const daysInput = el(`<input id="ext-days" inputmode="numeric" value="30" />`);
+      box.appendChild(daysInput);
+      const extBtn = el(`<button class="full">${esc(t("extendBtn"))}</button>`);
+      extBtn.addEventListener("click", async () => {
+        const days = parseInt((daysInput.value || "").trim(), 10);
+        await agencySub(agencyId, "extend", isNaN(days) ? 30 : days); renderCurrent();
+      });
+      box.appendChild(extBtn);
+
+      const actions = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
+      const freezeBtn = el(`<button class="small ${frozen ? "ghost" : "danger"}">${esc(frozen ? t("activate") : t("freeze"))}</button>`);
+      freezeBtn.addEventListener("click", async () => { await agencySub(agencyId, frozen ? "activate" : "freeze", null); renderCurrent(); });
+      const renameBtn = el(`<button class="small ghost">${esc(t("rename"))}</button>`);
+      renameBtn.addEventListener("click", () => doRenameAgency(agencyId, a.name));
+      const adminBtn = el(`<button class="small ghost">${esc(t("changeAdmin"))}</button>`);
+      adminBtn.addEventListener("click", () => doChangeAdmin(agencyId));
+      const delBtn = el(`<button class="small danger">${esc(t("deleteAgency"))}</button>`);
+      delBtn.addEventListener("click", () => doDeleteAgency(agencyId, a.name));
+      actions.appendChild(freezeBtn); actions.appendChild(renameBtn); actions.appendChild(adminBtn); actions.appendChild(delBtn);
+      box.appendChild(actions);
+    }
+    async function agencySub(id, action, days) {
+      setStatus(t("saving"), "info");
+      const body = { action }; if (days != null) body.days = days;
+      const r = await api("/api/v1/agencies/" + id + "/subscription", { method: "POST", body });
+      if (r.ok) setStatus(t("subUpdated"), "ok"); else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+    }
+    async function doRenameAgency(id, currentName) {
+      const name = window.prompt(t("newName"), currentName || "");
+      if (name === null) return;
+      const trimmed = name.trim();
+      if (!trimmed) { setStatus(t("emptyName"), "warn"); return; }
+      setStatus(t("saving"), "info");
+      const r = await api("/api/v1/agencies/" + id, { method: "PATCH", body: { name: trimmed } });
+      if (r.ok) { setStatus(t("renamed"), "ok"); renderCurrent(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+    }
+    async function doChangeAdmin(id) {
+      const idStr = window.prompt(t("promptAdminId"), "");
+      if (idStr === null) return;
+      const tgId = parseInt((idStr || "").trim(), 10);
+      if (isNaN(tgId)) { setStatus(t("badId"), "warn"); return; }
+      const username = window.prompt(t("promptAdminUser"), "");
+      if (username === null) return;
+      const body = { admin_telegram_id: tgId };
+      const u = (username || "").trim(); if (u) body.admin_username = u;
+      setStatus(t("saving"), "info");
+      const r = await api("/api/v1/agencies/" + id + "/admin", { method: "POST", body });
+      if (r.ok) { setStatus(t("adminAssigned"), "ok"); renderCurrent(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+    }
+    async function doDeleteAgency(id, name) {
+      if (!window.confirm(t("delAgQ1"))) return;
+      if (!window.confirm(t("delAgQ2"))) return;
+      setStatus(t("saving"), "info");
+      const r = await api("/api/v1/agencies/" + id, { method: "DELETE" });
+      if (r.ok) { setStatus(t("agDeleted"), "ok"); back(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+    }
+
+    function createAgencyScreen() {
+      return { titleKey: "createAgency", render(host) {
+        host.appendChild(el(`<label>${esc(t("agencyName"))}</label>`));
+        const nName = el(`<input id="ag-name" />`); host.appendChild(nName);
+        host.appendChild(el(`<label>${esc(t("adminTgId"))}</label>`));
+        const nId = el(`<input id="ag-admin-id" inputmode="numeric" />`); host.appendChild(nId);
+        host.appendChild(el(`<label>${esc(t("adminUsername"))}</label>`));
+        const nUser = el(`<input id="ag-admin-username" />`); host.appendChild(nUser);
+        host.appendChild(el(`<label>${esc(t("subDays"))}</label>`));
+        const nDays = el(`<input id="ag-days" inputmode="numeric" value="30" />`); host.appendChild(nDays);
+        const btn = el(`<button class="full">${esc(t("createAgency"))}</button>`);
+        btn.addEventListener("click", async () => {
+          const name = (nName.value || "").trim();
+          const adminId = parseInt((nId.value || "").trim(), 10);
+          const days = parseInt((nDays.value || "").trim(), 10);
+          if (!name) { setStatus(t("emptyName"), "warn"); return; }
+          if (isNaN(adminId)) { setStatus(t("badId"), "warn"); return; }
+          btn.disabled = true; setStatus(t("saving"), "info");
+          const body = { name, admin_telegram_id: adminId, subscription_days: isNaN(days) ? 30 : days };
+          const u = (nUser.value || "").trim(); if (u) body.admin_username = u;
+          const r = await api("/api/v1/agencies", { method: "POST", body });
+          btn.disabled = false;
+          if (r.ok) { setStatus(t("agencyCreated"), "ok"); back(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+        });
+        host.appendChild(btn);
+      }};
+    }
+
+    // ════════════════════════ Объекты ════════════════════════
+    function objCard(o) {
+      const badge = STATUS_BADGE[o.status] || "gray";
+      const price = (o.price != null) ? (o.price + " " + (o.currency || "")) : t("notSet");
+      const parts = [typeLabel(o.type), o.district, (o.rooms != null ? (o.rooms + " " + t("f_rooms").toLowerCase()) : null)]
+        .filter(Boolean).map(esc).join(" · ");
+      const c = el(`<div class="item tap">
+        <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(statusLabel(o.status))}</span></div>
+        ${o.name ? `<div class="meta">${esc(o.name)}</div>` : ""}
+        <div class="meta">${parts || t("notSet")}</div>
+        <div class="meta">${esc(t("f_price"))}: ${esc(String(price))}</div>
+        ${o.created_by_name ? `<div class="meta">${esc(t("addedBy"))}: ${esc(o.created_by_name)}</div>` : ""}
+      </div>`);
+      c.addEventListener("click", () => navigate(objectDetailScreen(o.id)));
+      return c;
+    }
+
+    function objectListScreen(params, titleKey) {
+      return { titleKey, render(host) {
+        const page = { offset: 0, total: 0 };
+        const countEl = el(`<div class="meta" style="margin:6px 0"></div>`);
+        const cards = el(`<div></div>`);
+        const moreWrap = el(`<div></div>`);
+        host.appendChild(countEl); host.appendChild(cards); host.appendChild(moreWrap);
+        async function loadPage(append) {
+          moreWrap.innerHTML = `<div class="empty">${esc(t("loading"))}</div>`;
+          const p = new URLSearchParams();
+          Object.keys(params).forEach(k => { if (params[k] != null && params[k] !== "") p.set(k, params[k]); });
+          if (!p.has("status")) p.set("status", "all");
+          p.set("limit", "20"); p.set("offset", String(page.offset));
+          const r = await api("/api/v1/apartments?" + p.toString());
+          if (!r.ok) { moreWrap.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+          const items = (r.data && r.data.items) || [];
+          page.total = r.data.total || 0; page.offset += items.length;
+          if (!append && !items.length) { countEl.textContent = ""; cards.innerHTML = `<div class="empty">${esc(t("notFound"))}</div>`; moreWrap.innerHTML = ""; return; }
+          countEl.textContent = t("found") + ": " + page.total;
+          items.forEach(o => cards.appendChild(objCard(o)));
+          const left = page.total - page.offset;
+          if (left > 0) { const mb = el(`<button class="ghost full">${esc(t("showMore"))} (${left})</button>`); mb.addEventListener("click", () => loadPage(true)); moreWrap.innerHTML = ""; moreWrap.appendChild(mb); }
+          else moreWrap.innerHTML = "";
+        }
+        loadPage(false);
+      }};
+    }
+
+    function addObjectScreen() {
+      return { titleKey: "addObject", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        Promise.all([loadRefs(), loadAgencySettings()]).then(() => {
+          box.innerHTML = "";
+          box.appendChild(el(`<div class="item">${objFormInner(null)}</div>`));
+          const saveBtn = el(`<button class="full">${esc(t("saveObject"))}</button>`);
+          saveBtn.addEventListener("click", async () => {
+            const body = collectObjBody(box, false);
+            saveBtn.disabled = true; setStatus(t("saving"), "info");
+            const r = await api("/api/v1/apartments", { method: "POST", body });
+            saveBtn.disabled = false;
+            if (r.ok) { setStatus(t("objCreated") + r.data.display_id, "ok"); back(); }
+            else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+          });
+          box.appendChild(saveBtn);
+        });
+      }};
+    }
+
+    function searchFormScreen() {
+      return { titleKey: "findObject", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        loadRefs().then(() => {
+          box.innerHTML = "";
+          const statusOpts = [["active","statusActive"],["deposit","statusDeposit"],["sold","statusSold"],["archived","statusArchived"],["all","any"]]
+            .map(s => `<option value="${s[0]}">${esc(t(s[1]))}</option>`).join("");
+          const typeOpts = `<option value="">${esc(t("any"))}</option>` + OBJ_TYPE_VALUES.map(v => `<option value="${esc(v)}">${esc(typeLabel(v))}</option>`).join("");
+          const distOpts = `<option value="">${esc(t("any"))}</option>` + refs.district.map(x => `<option value="${esc(x.value)}">${esc(x.value)}</option>`).join("");
+          const roomsOpts = `<option value="">${esc(t("any"))}</option>` + [1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join("");
+          box.appendChild(el(`<div class="item">
+            <label>${esc(t("searchText"))}</label><input id="f-q" />
+            <label>${esc(t("f_status"))}</label><select id="f-status">${statusOpts}</select>
+            <label>${esc(t("f_type"))}</label><select id="f-type">${typeOpts}</select>
+            <label>${esc(t("f_district"))}</label><select id="f-district">${distOpts}</select>
+            <label>${esc(t("f_rooms"))}</label><select id="f-rooms">${roomsOpts}</select>
+            <div style="display:flex; gap:8px">
+              <div style="flex:1"><label>${esc(t("floorFrom"))}</label><input id="f-fmin" inputmode="numeric" /></div>
+              <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-fmax" inputmode="numeric" /></div>
+            </div>
+            <div style="display:flex; gap:8px">
+              <div style="flex:1"><label>${esc(t("priceFrom"))}</label><input id="f-pmin" inputmode="numeric" /></div>
+              <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-pmax" inputmode="numeric" /></div>
+            </div>
+          </div>`));
+          const btn = el(`<button class="full">${esc(t("searchBtn"))}</button>`);
+          btn.addEventListener("click", () => {
+            const params = {};
+            const gv = sel => (box.querySelector(sel).value || "").trim();
+            const status = gv("#f-status"); if (status) params.status = status;
+            const type = gv("#f-type"); if (type) params.types = type;
+            const dist = gv("#f-district"); if (dist) params.districts = dist;
+            const rooms = gv("#f-rooms"); if (rooms) params.rooms = rooms;
+            const q = gv("#f-q"); if (q) params.q = q;
+            const fmin = gv("#f-fmin"); if (fmin) params.floor_min = fmin;
+            const fmax = gv("#f-fmax"); if (fmax) params.floor_max = fmax;
+            const pmin = gv("#f-pmin"); if (pmin) params.price_min = pmin;
+            const pmax = gv("#f-pmax"); if (pmax) params.price_max = pmax;
+            navigate(objectListScreen(params, "findObject"));
+          });
+          box.appendChild(btn);
+        });
+      }};
+    }
+
+    function objectDetailScreen(id) {
+      return { titleKey: "apartment", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        renderObjDetail(box, id);
+      }};
+    }
+    async function renderObjDetail(box, id) {
+      const r = await api("/api/v1/apartments/" + id);
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      const o = r.data;
+      const badge = STATUS_BADGE[o.status] || "gray";
+      const floorTxt = (o.floor != null && o.total_floors != null) ? (o.floor + " / " + o.total_floors) : (o.floor != null ? String(o.floor) : null);
+      const rows = [
+        [t("f_name"), o.name], [t("f_type"), o.type ? typeLabel(o.type) : null], [t("f_district"), o.district], [t("f_address"), o.address],
+        [t("f_rooms"), o.rooms], [t("f_floor"), floorTxt], [t("f_area"), o.area],
+        [t("f_price"), o.price != null ? (o.price + " " + (o.currency || "")) : null], [t("f_condition"), o.condition ? condLabel(o.condition) : null],
+        [t("f_phone"), o.phone], [t("f_desc"), o.description], [t("addedBy"), o.created_by_name],
+      ];
+      const rowsHtml = rows.filter(x => x[1] != null && x[1] !== "").map(x => `<div class="row"><span>${esc(x[0])}</span><span><b>${esc(String(x[1]))}</b></span></div>`).join("");
+      const transitions = {
+        active: [["deposit","toDeposit"],["sold","toSold"],["archived","toArchive"]],
+        deposit: [["active","removeDeposit"],["sold","toSold"],["archived","toArchive"]],
+        sold: [["active","backToActive"],["archived","toArchive"]],
+        archived: [["active","backToActive"]],
+      };
+      box.innerHTML = "";
+      box.appendChild(el(`<div class="item">
+        <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(statusLabel(o.status))}</span></div>
+        ${rowsHtml}
+      </div>`));
+      const stWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
+      (transitions[o.status] || []).forEach(tr => {
+        const b = el(`<button class="small ghost">${esc(t(tr[1]))}</button>`);
+        b.addEventListener("click", async () => {
+          setStatus(t("changingStatus"), "info");
+          const rr = await api("/api/v1/apartments/" + o.id + "/status", { method: "POST", body: { status: tr[0] } });
+          if (rr.ok) { setStatus(t("done"), "ok"); renderObjDetail(box, id); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+        });
+        stWrap.appendChild(b);
+      });
+      box.appendChild(stWrap);
+      const card = buildShareCard(o);
+      const shWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
+      const cpy = el(`<button class="small ghost">${esc(t("shareCard"))}</button>`); cpy.addEventListener("click", () => copyText(card));
+      const stgb = el(`<button class="small ghost">${esc(t("shareTg"))}</button>`); stgb.addEventListener("click", () => shareToTelegram(card));
+      shWrap.appendChild(cpy); shWrap.appendChild(stgb); box.appendChild(shWrap);
+      const eWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
+      const edit = el(`<button class="small ghost">${esc(t("edit"))}</button>`); edit.addEventListener("click", () => navigate(objectEditScreen(o)));
+      eWrap.appendChild(edit);
+      if (state.user && state.user.role === "agency_admin") {
+        const del = el(`<button class="small danger">${esc(t("del"))}</button>`);
+        del.addEventListener("click", async () => {
+          if (!window.confirm(t("delObjQ"))) return;
+          const rr = await api("/api/v1/apartments/" + o.id, { method: "DELETE" });
+          if (rr.ok) { setStatus(t("objDeleted"), "ok"); back(); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+        });
+        eWrap.appendChild(del);
+      }
+      box.appendChild(eWrap);
+    }
+
+    function objectEditScreen(o) {
+      return { titleKey: "edit", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        Promise.all([loadRefs(), loadAgencySettings()]).then(() => {
+          box.innerHTML = "";
+          box.appendChild(el(`<div class="item">${objFormInner(o)}<div class="hint">${esc(t("clearHint"))}</div></div>`));
+          const saveBtn = el(`<button class="full">${esc(t("saveChanges"))}</button>`);
+          saveBtn.addEventListener("click", async () => {
+            const body = collectObjBody(box, true);
+            saveBtn.disabled = true; setStatus(t("saving"), "info");
+            const r = await api("/api/v1/apartments/" + o.id, { method: "PATCH", body });
+            saveBtn.disabled = false;
+            if (r.ok) { setStatus(t("saved"), "ok"); back(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+          });
+          box.appendChild(saveBtn);
+        });
+      }};
+    }
+
+    // ════════════════════════ Команда ════════════════════════
+    function teamScreen() {
+      return { titleKey: "team", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`); host.appendChild(box);
+        loadTeamInto(box);
+      }};
+    }
+    async function loadTeamInto(box) {
+      const r = await api("/api/v1/team");
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">${esc(t("noMembers"))}</div>`; return; }
+      box.innerHTML = "";
+      r.data.forEach(m => {
+        const isSelf = state.user && m.id === state.user.id;
+        const name = m.full_name || (m.username ? "@" + m.username : ("ID " + m.telegram_id));
+        const badge = m.is_active ? `<span class="badge green">${esc(t("mActive"))}</span>` : `<span class="badge gray">${esc(t("mDisabled"))}</span>`;
+        const item = el(`<div class="item">
+          <div class="top"><span class="title">${esc(name)}</span>${badge}</div>
+          <div class="meta">${esc(roleLabel(m.role))}${m.username ? " · @" + esc(m.username) : ""}</div>
+          <div class="acts" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap"></div>
+        </div>`);
+        const acts = item.querySelector(".acts");
+        if (isSelf) { acts.appendChild(el(`<span class="badge gray">${esc(t("itsYou"))}</span>`)); }
+        else {
+          const tglBtn = el(`<button class="small ${m.is_active ? "danger" : "ghost"}">${esc(m.is_active ? t("disable") : t("enable"))}</button>`);
+          tglBtn.addEventListener("click", async () => {
+            const rr = await api("/api/v1/team/" + m.id, { method: "PATCH", body: { is_active: !m.is_active } });
+            if (rr.ok) { setStatus(t("done"), "ok"); loadTeamInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+          });
+          acts.appendChild(tglBtn);
+          const nextRole = m.role === "agency_admin" ? "agent" : "agency_admin";
+          const rb = el(`<button class="small ghost">${esc(m.role === "agency_admin" ? t("demote") : t("promote"))}</button>`);
+          rb.addEventListener("click", async () => {
+            const roleName = nextRole === "agency_admin" ? t("role_agency_admin") : t("role_agent");
+            if (!window.confirm(t("roleQ") + roleName + "»?")) return;
+            const rr = await api("/api/v1/team/" + m.id, { method: "PATCH", body: { role: nextRole } });
+            if (rr.ok) { setStatus(t("roleChanged"), "ok"); loadTeamInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+          });
+          acts.appendChild(rb);
+        }
+        box.appendChild(item);
+      });
+    }
+
+    // ════════════════════════ Приглашения ════════════════════════
+    function invitesScreen() {
+      return { titleKey: "invites", render(host) {
+        host.appendChild(el(`<label>${esc(t("inviteRole"))}</label>`));
+        const roleSel = el(`<select><option value="agent">${esc(t("role_agent"))}</option><option value="agency_admin">${esc(t("role_agency_admin"))}</option></select>`);
+        host.appendChild(roleSel);
+        host.appendChild(el(`<label>${esc(t("inviteDays"))}</label>`));
+        const daysInput = el(`<input inputmode="numeric" value="7" />`); host.appendChild(daysInput);
+        const createBtn = el(`<button class="full">${esc(t("createInvite"))}</button>`); host.appendChild(createBtn);
+        const created = el(`<div></div>`); host.appendChild(created);
+        host.appendChild(el(`<h2>${esc(t("issuedInvites"))}</h2>`));
+        const list = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`); host.appendChild(list);
+        createBtn.addEventListener("click", async () => {
+          const days = parseInt((daysInput.value || "").trim(), 10);
+          createBtn.disabled = true; setStatus(t("saving"), "info");
+          const r = await api("/api/v1/invites", { method: "POST", body: { role: roleSel.value, expires_in_days: isNaN(days) ? 7 : days } });
+          createBtn.disabled = false;
+          if (!r.ok) { setStatus(t("error") + ": " + errText(r.data, r.status), "err"); return; }
+          setStatus(t("inviteCreated"), "ok");
+          const inv = r.data; const link = inv.join_link;
+          created.innerHTML = "";
+          const c = el(`<div class="item">
+            <div class="meta">${esc(t("giveToEmployee"))}</div>
+            ${link ? `<div class="codebox">${esc(link)}</div>` : ""}
+            <div class="meta" style="margin-top:8px">${esc(t("codeLbl"))}:</div>
+            <div class="codebox">${esc(inv.code)}</div>
+            <div class="acts" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap"></div>
+          </div>`);
+          const acts = c.querySelector(".acts");
+          if (link) { const lb = el(`<button class="ghost small">${esc(t("copyLink"))}</button>`); lb.addEventListener("click", () => copyText(link)); acts.appendChild(lb); }
+          const cb = el(`<button class="ghost small">${esc(t("copyCode"))}</button>`); cb.addEventListener("click", () => copyText(inv.code)); acts.appendChild(cb);
+          created.appendChild(c);
+          loadInvitesInto(list);
+        });
+        loadInvitesInto(list);
+      }};
+    }
+    async function loadInvitesInto(box) {
+      const r = await api("/api/v1/invites");
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">${esc(t("noInvites"))}</div>`; return; }
+      const stMap = { active: ["green","inv_active"], used: ["gray","inv_used"], expired: ["amber","inv_expired"] };
+      box.innerHTML = "";
+      r.data.forEach(inv => {
+        const s = stMap[inv.status] || ["gray", null];
+        const item = el(`<div class="item">
+          <div class="top"><span class="title">${esc(roleLabel(inv.role))}</span><span class="badge ${s[0]}">${esc(s[1] ? t(s[1]) : inv.status)}</span></div>
+          <div class="meta">${esc(t("codeLbl"))}: ${esc(inv.code)} · ${fmtDate(inv.expires_at)}</div>
+          <div class="acts" style="margin-top:8px"></div>
+        </div>`);
+        const rev = el(`<button class="small danger">${esc(t("revoke"))}</button>`);
+        rev.addEventListener("click", async () => {
+          const rr = await api("/api/v1/invites/" + inv.id, { method: "DELETE" });
+          if (rr.ok) { setStatus(t("revoked"), "ok"); loadInvitesInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+        });
+        item.querySelector(".acts").appendChild(rev);
+        box.appendChild(item);
+      });
+    }
+
+    // ════════════════════════ Вступление по коду ════════════════════════
+    function joinScreen(prefill) {
+      return { titleKey: "joinTitle", render(host) {
+        host.appendChild(el(`<div class="status info">${esc(t("notInAgency"))}</div>`));
+        host.appendChild(el(`<label>${esc(t("joinCodeLabel"))}</label>`));
+        const input = el(`<input value="${esc(prefill || "")}" />`); host.appendChild(input);
+        const btn = el(`<button class="full">${esc(t("joinBtn"))}</button>`); host.appendChild(btn);
+        async function doJoin() {
+          const code = (input.value || "").trim();
+          if (!code) return;
+          btn.disabled = true; setStatus(t("joinChecking"), "info");
+          const r = await redeem(state.initData, code);
+          if (r.ok) { state.token = r.data.access_token; state.user = r.data.user; state.subscriptionActive = r.data.subscription_active; afterLogin(); }
+          else { btn.disabled = false; setStatus(t("loginFail") + errText(r.data, r.status), "err"); }
+        }
+        btn.addEventListener("click", doJoin);
+        if (prefill) doJoin();
+      }};
+    }
+
+    // ════════════════════════ Старт ════════════════════════
+    function afterLogin() {
+      setStatus("", null);
+      const role = state.user && state.user.role;
+      if (role === "agency_admin" || role === "agent") loadAgencySettings(true);
+      if ((role === "agency_admin" || role === "agent") && state.subscriptionActive === false) { resetTo(suspendedScreen()); return; }
+      resetTo(homeScreen());
     }
 
     async function main() {
-      const tg = window.Telegram && window.Telegram.WebApp;
+      applyTheme();
+      document.documentElement.setAttribute("lang", state.lang === "uz" ? "uz" : (state.lang === "en" ? "en" : "ru"));
       if (tg) { try { tg.ready(); tg.expand(); } catch (e) {} }
-
       state.initData = (tg && tg.initData) ? tg.initData : "";
       state.startParam = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
 
       if (!state.initData) {
-        const backendOk = await checkBackend();
-        setStatus(backendOk
-          ? "✅ Страница работает и видит backend. Чтобы войти — открой приложение внутри Telegram."
-          : "⚠️ Страница загрузилась, но не может связаться с backend. Проверь, что контейнеры запущены.",
-          backendOk ? "ok" : "warn");
-        contentEl.innerHTML = `
-          <div class="row"><span>Открыто в Telegram</span><span><b>Нет (обычный браузер)</b></span></div>
-          <div class="row"><span>Связь с backend</span><span><b>${backendOk ? "Есть" : "Нет"}</b></span></div>`;
+        let backendOk = false;
+        try { const res = await fetch("/health"); const d = await res.json(); backendOk = d.database === "connected"; } catch (e) {}
+        resetTo({ titleKey: null, render(host) {
+          host.appendChild(el(`<div class="status ${backendOk ? "ok" : "warn"}">${esc(backendOk ? t("backendOk") : t("backendErr"))}</div>`));
+          host.appendChild(el(`<div class="hint">${esc(t("openInTg"))}</div>`));
+        }});
         return;
       }
 
-      setStatus("Выполняем вход через Telegram…", "info");
+      setStatus(t("loginIn"), "info");
       try {
         const r = await login(state.initData);
-        if (r.ok) {
-          state.token = r.data.access_token;
-          state.user = r.data.user;
-          state.subscriptionActive = r.data.subscription_active;
-          renderApp();
-          return;
-        }
-        if (r.status === 403) {
-          // Пользователь ещё не в агентстве — предлагаем вступить по коду.
-          setStatus("Вы пока не в агентстве. Введите код приглашения, чтобы вступить.", "info");
-          const doJoin = showJoinForm(state.startParam);
-          if (state.startParam) doJoin();
-          return;
-        }
-        setStatus("Войти не удалось: " + ((r.data && r.data.detail) || ("ошибка " + r.status)), "err");
-        debugEl.innerHTML = "<pre>" + esc(JSON.stringify(r.data, null, 2)) + "</pre>";
-      } catch (e) {
-        setStatus("Ошибка при входе: " + e.message, "err");
-      }
+        if (r.ok) { state.token = r.data.access_token; state.user = r.data.user; state.subscriptionActive = r.data.subscription_active; afterLogin(); return; }
+        if (r.status === 403) { resetTo(joinScreen(state.startParam)); return; }
+        setStatus(t("loginFail") + errText(r.data, r.status), "err");
+      } catch (e) { setStatus(t("loginFail") + e.message, "err"); }
     }
-
     main();
+
   </script>
 </body>
 </html>
