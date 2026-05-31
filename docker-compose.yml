@@ -1,8 +1,8 @@
 # docker-compose описывает все части системы и как их запускать вместе.
 # Команда `docker compose up` поднимет всё, что здесь перечислено.
 #
-# Часть 1A: теперь у нас две части — база данных (db) и backend.
-# Позже сюда добавятся фронтенд, бот и reverse-proxy.
+# Часть 1C-1: добавился веб-сервер (web), который отдаёт страницу приложения
+# и соединяет её с backend. Теперь частей три: db, backend, web.
 
 services:
   # ─── База данных PostgreSQL ─────────────────────────────────────────────
@@ -12,11 +12,13 @@ services:
       POSTGRES_USER: realty
       POSTGRES_PASSWORD: realty_local_dev
       POSTGRES_DB: realty
+    ports:
+      # Доступ к базе с компьютера (для pgAdmin4 / DBeaver): localhost:5432.
+      # Только для локальной разработки. На сервере этот порт открывать не нужно.
+      - "5432:5432"
     volumes:
-      # Данные базы сохраняются на диске, чтобы не пропадали между запусками.
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      # Backend дождётся, пока база реально будет готова принимать подключения.
       test: ["CMD-SHELL", "pg_isready -U realty -d realty"]
       interval: 5s
       timeout: 5s
@@ -27,13 +29,43 @@ services:
   backend:
     build: ./backend
     ports:
+      # Прямой доступ к API для разработки: http://localhost:8000/docs
+      # (в обычной работе фронтенд ходит к API через веб-сервер на порту 8080).
       - "8000:8000"
     environment:
-      # Адрес базы внутри docker-сети: хост "db" = имя сервиса выше.
       DATABASE_URL: postgresql+psycopg://realty:realty_local_dev@db:5432/realty
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      SUPERADMIN_TELEGRAM_ID: ${SUPERADMIN_TELEGRAM_ID:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      BOT_USERNAME: ${BOT_USERNAME:-}
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Веб-сервер (страница приложения + проксирование к API) ─────────────
+  web:
+    image: caddy:2
+    ports:
+      # Открой http://localhost:8080 в браузере, чтобы увидеть приложение.
+      - "8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend:/srv:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ─── Туннель (публичный HTTPS-адрес для Telegram) ───────────────────────
+  # Создаёт временный публичный адрес вида https://xxx.trycloudflare.com,
+  # который ведёт на наш веб-сервер. Telegram умеет открывать только HTTPS,
+  # а наш компьютер из интернета не виден — туннель решает обе проблемы.
+  # Адрес меняется при каждом перезапуске (для разработки это нормально).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://web:80
+    depends_on:
+      - web
     restart: unless-stopped
 
 volumes:

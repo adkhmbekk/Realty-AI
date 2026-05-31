@@ -1,0 +1,22 @@
+# Caddy — лёгкий веб-сервер. Он делает две вещи:
+#   1) отдаёт страницу приложения (frontend) из папки /srv;
+#   2) перенаправляет запросы к API на backend.
+# Так и страница, и её запросы к API живут на одном адресе — без лишних
+# сложностей с CORS и смешанным содержимым.
+
+:80 {
+	encode gzip
+
+	# Всё, что начинается с /api/, а также /health и документация — на backend.
+	@backend path /api/* /health /docs /docs/* /openapi.json
+	handle @backend {
+		reverse_proxy backend:8000
+	}
+
+	# Остальное — статические файлы страницы приложения.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
