@@ -1,0 +1,756 @@
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  Camera,
+  Copy,
+  ExternalLink,
+  Home as HomeIcon,
+  Pencil,
+  Search as SearchIcon,
+  Send,
+  Trash2,
+} from "lucide-react";
+import { useApp } from "../store";
+import { useNav } from "../nav";
+import { api, buildQuery, errText } from "../api";
+import {
+  Button,
+  Card,
+  Chips,
+  Empty,
+  Field,
+  Hint,
+  Input,
+  Row,
+  Select,
+  Segmented,
+  Spinner,
+  Textarea,
+} from "../components/ui";
+import {
+  CURRENCIES,
+  FA_VALUES,
+  OBJ_COND_VALUES,
+  OBJ_TYPE_VALUES,
+  STATUS_BADGE,
+} from "../i18n";
+import { Badge } from "../components/ui";
+import type { Apartment, ApartmentEvent, ApartmentList, DictItem, SearchParams } from "../types";
+import { copyText, fmtDate, fmtPrice } from "../utils";
+import { haptic, openLink, shareToTelegram } from "../telegram";
+
+// Загрузка справочника районов (один раз на жизнь экрана).
+function useDistricts(): DictItem[] {
+  const [districts, setDistricts] = useState<DictItem[]>([]);
+  useEffect(() => {
+    let alive = true;
+    api<DictItem[]>("/api/v1/dictionaries?category=district").then((r) => {
+      if (alive && r.ok && Array.isArray(r.data)) setDistricts(r.data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return districts;
+}
+
+const numOrNull = (v: string): number | null => {
+  const s = v.trim();
+  if (!s) return null;
+  const n = Number(s.replace(",", "."));
+  return Number.isNaN(n) ? null : n;
+};
+const intOrNull = (v: string): number | null => {
+  const s = v.trim();
+  if (!s) return null;
+  const n = parseInt(s, 10);
+  return Number.isNaN(n) ? null : n;
+};
+
+// Форма объекта (создание и редактирование). При full=true пустые поля
+// отправляются как null (очистка).
+function ObjectForm({
+  initial,
+  onSubmit,
+  submitLabel,
+  saving,
+}: {
+  initial?: Partial<Apartment> | null;
+  onSubmit: (body: Record<string, unknown>, full: boolean) => void;
+  submitLabel: string;
+  saving: boolean;
+}) {
+  const { t, L, settings } = useApp();
+  const districts = useDistricts();
+  const o = initial || {};
+  const full = !!initial?.id;
+
+  const [f, setF] = useState({
+    name: o.name ?? "",
+    type: o.type ?? "",
+    district: o.district ?? "",
+    address: o.address ?? "",
+    rooms: o.rooms != null ? String(o.rooms) : "",
+    floor: o.floor != null ? String(o.floor) : "",
+    total_floors: o.total_floors != null ? String(o.total_floors) : "",
+    area: o.area != null ? String(o.area) : "",
+    price: o.price != null ? String(o.price) : "",
+    currency: o.currency || settings?.default_currency || "USD",
+    condition: o.condition ?? "",
+    furniture_appliances: o.furniture_appliances ?? "",
+    owner_phone: o.owner_phone ?? "",
+    photo_url: o.photo_url ?? "",
+    source_link: o.source_link ?? "",
+    description: o.description ?? "",
+    comment: o.comment ?? "",
+  });
+  const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  function submit() {
+    const fields: Record<string, unknown> = {
+      name: f.name.trim() || null,
+      type: f.type || null,
+      district: f.district || null,
+      address: f.address.trim() || null,
+      rooms: intOrNull(f.rooms),
+      floor: intOrNull(f.floor),
+      total_floors: intOrNull(f.total_floors),
+      area: numOrNull(f.area),
+      price: numOrNull(f.price),
+      currency: f.currency,
+      condition: f.condition || null,
+      furniture_appliances: f.furniture_appliances || null,
+      owner_phone: f.owner_phone.trim() || null,
+      photo_url: f.photo_url.trim() || null,
+      source_link: f.source_link.trim() || null,
+      description: f.description.trim() || null,
+      comment: f.comment.trim() || null,
+    };
+    const body: Record<string, unknown> = {};
+    Object.keys(fields).forEach((k) => {
+      if (full && k === "currency" && !fields[k]) return;
+      if (full || fields[k] !== null) body[k] = fields[k];
+    });
+    onSubmit(body, full);
+  }
+
+  const Sec = ({ children }: { children: React.ReactNode }) => (
+    <div className="text-[12px] font-extrabold uppercase tracking-wider text-primary mt-5 mb-1 pt-3 border-t border-[var(--border)] first:border-0 first:pt-0 first:mt-1">
+      {children}
+    </div>
+  );
+
+  return (
+    <Card>
+      <Sec>{t("sectionMain")}</Sec>
+      <Field label={t("f_name")}>
+        <Input value={f.name} onChange={(e) => set("name", e.target.value)} />
+      </Field>
+      <Field label={t("f_type")}>
+        <Select value={f.type} onChange={(e) => set("type", e.target.value)}>
+          <option value="">{t("notSet")}</option>
+          {OBJ_TYPE_VALUES.map((v) => (
+            <option key={v} value={v}>
+              {L.typeLabel(v)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t("f_district")}>
+        <Select value={f.district} onChange={(e) => set("district", e.target.value)}>
+          <option value="">{t("notSet")}</option>
+          {districts.map((d) => (
+            <option key={d.id} value={d.value}>
+              {d.value}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t("f_address")}>
+        <Input value={f.address} onChange={(e) => set("address", e.target.value)} />
+      </Field>
+
+      <Sec>{t("sectionDetails")}</Sec>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Field label={t("f_rooms")}>
+            <Input inputMode="numeric" value={f.rooms} onChange={(e) => set("rooms", e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label={t("f_floor")}>
+            <Input inputMode="numeric" value={f.floor} onChange={(e) => set("floor", e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label={t("f_tfloors")}>
+            <Input inputMode="numeric" value={f.total_floors} onChange={(e) => set("total_floors", e.target.value)} />
+          </Field>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Field label={t("f_area")}>
+            <Input inputMode="decimal" value={f.area} onChange={(e) => set("area", e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label={t("f_price")}>
+            <Input inputMode="numeric" value={f.price} onChange={(e) => set("price", e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label={t("f_currency")}>
+            <Select value={f.currency} onChange={(e) => set("currency", e.target.value)}>
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+      </div>
+      <Field label={t("f_condition")}>
+        <Select value={f.condition} onChange={(e) => set("condition", e.target.value)}>
+          <option value="">{t("notSet")}</option>
+          {OBJ_COND_VALUES.map((v) => (
+            <option key={v} value={v}>
+              {L.condLabel(v)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t("f_furniture")}>
+        <Select value={f.furniture_appliances} onChange={(e) => set("furniture_appliances", e.target.value)}>
+          <option value="">{t("notSet")}</option>
+          {FA_VALUES.map((v) => (
+            <option key={v} value={v}>
+              {L.faLabel(v)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <Sec>{t("sectionContacts")}</Sec>
+      <Field label={t("f_owner_phone")}>
+        <Input value={f.owner_phone} onChange={(e) => set("owner_phone", e.target.value)} />
+      </Field>
+      <Hint>{t("ownerPhoneHint")}</Hint>
+      <Field label={t("f_photo")}>
+        <Input inputMode="url" placeholder="https://…" value={f.photo_url} onChange={(e) => set("photo_url", e.target.value)} />
+      </Field>
+      <Field label={t("f_source")}>
+        <Input inputMode="url" placeholder="https://…" value={f.source_link} onChange={(e) => set("source_link", e.target.value)} />
+      </Field>
+      <Field label={t("f_desc")}>
+        <Textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} />
+      </Field>
+
+      <Sec>{t("sectionInternal")}</Sec>
+      <Field label={t("f_comment")}>
+        <Textarea rows={3} value={f.comment} onChange={(e) => set("comment", e.target.value)} />
+      </Field>
+      <Hint>{t("commentHint")}</Hint>
+
+      <Button full className="mt-4" disabled={saving} onClick={submit}>
+        {submitLabel}
+      </Button>
+    </Card>
+  );
+}
+
+// Текст карточки для отправки клиенту (эмодзи, без номера собственника и
+// комментария; вместо номера — контактный телефон агентства).
+function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: string) => string, contactPhone?: string | null): string {
+  const lines: string[] = [];
+  lines.push("🏠 " + t("apartment") + " №" + (o.display_id || ""));
+  if (o.name) lines.push("📋 " + o.name);
+  if (o.type) lines.push("🏗 " + t("f_type") + ": " + L.typeLabel(o.type));
+  if (o.district) lines.push("📍 " + t("f_district") + ": " + o.district);
+  if (o.address) lines.push("🗺 " + t("f_address") + ": " + o.address);
+  if (o.rooms != null) lines.push("🚪 " + t("f_rooms") + ": " + o.rooms);
+  const fl = o.floor != null && o.total_floors != null ? `${o.floor}/${o.total_floors}` : o.floor != null ? String(o.floor) : null;
+  if (fl) lines.push("🏢 " + t("f_floor") + ": " + fl);
+  if (o.area != null) lines.push("📐 " + o.area + " m²");
+  if (o.condition) lines.push("🔧 " + L.condLabel(o.condition));
+  const fa = L.faLabel(o.furniture_appliances);
+  if (fa) lines.push("🛋 " + fa);
+  if (o.price != null) lines.push("💵 " + o.price + " " + (o.currency || ""));
+  if (o.source_link) lines.push("🔗 " + o.source_link);
+  if (o.description) lines.push("📝 " + o.description);
+  if (contactPhone) lines.push("📞 " + contactPhone);
+  return lines.join("\n");
+}
+
+// ── Карточка в списке ───────────────────────────────────────────────
+export function ApartmentCard({ o }: { o: Apartment }) {
+  const { t, L } = useApp();
+  const nav = useNav();
+  const parts = [L.typeLabel(o.type), o.district, o.rooms != null ? `${o.rooms} ${t("f_rooms").toLowerCase()}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  const accent: Record<string, string> = {
+    active: "border-l-emerald-500",
+    deposit: "border-l-amber-500",
+    sold: "border-l-slate-400",
+    archived: "border-l-slate-400",
+  };
+  return (
+    <button
+      onClick={() => {
+        haptic();
+        nav.push({ name: "objectDetail", id: o.id });
+      }}
+      className={cx2(
+        "w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 transition active:scale-[.99] hover:shadow-lg2 border-l-[3px]",
+        accent[o.status] || "border-l-slate-400"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 shrink-0 rounded-[13px] bg-primary-soft text-primary flex items-center justify-center">
+          <HomeIcon size={22} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-extrabold">
+              №{o.display_id}
+              {o.photo_url ? " 📷" : ""}
+            </span>
+            <Badge color={STATUS_BADGE[o.status] || "gray"}>{L.statusLabel(o.status)}</Badge>
+          </div>
+          {o.name && <div className="text-[13px] text-muted truncate">{o.name}</div>}
+          <div className="text-[13px] text-muted">{parts || t("notSet")}</div>
+          <div className="text-[13px] text-muted">
+            {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency) || t("notSet")}</span>
+          </div>
+          {o.created_by_name && (
+            <div className="text-[13px] text-muted">
+              {t("addedBy")}: {o.created_by_name}
+            </div>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function cx2(...a: Array<string | false | null | undefined>) {
+  return a.filter(Boolean).join(" ");
+}
+
+// ── Список/поиск с пагинацией ───────────────────────────────────────
+export function ObjectList({ params }: { params: SearchParams }) {
+  const { t } = useApp();
+  const [items, setItems] = useState<Apartment[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function load(reset: boolean) {
+    setLoading(true);
+    const off = reset ? 0 : offset;
+    const q = buildQuery({ ...params, status: params.status || "all", limit: 20, offset: off });
+    const r = await api<ApartmentList>("/api/v1/apartments?" + q);
+    setLoading(false);
+    if (!r.ok || !r.data) {
+      setErr(`${t("notFound")} (${r.status})`);
+      return;
+    }
+    setErr(null);
+    const newItems = r.data.items || [];
+    setTotal(r.data.total || 0);
+    setItems((prev) => (reset ? newItems : [...prev, ...newItems]));
+    setOffset(off + newItems.length);
+  }
+
+  useEffect(() => {
+    load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(params)]);
+
+  if (loading && !items.length) return <Spinner />;
+  if (err) return <Empty>{err}</Empty>;
+  if (!items.length) return <Empty>{t("notFound")}</Empty>;
+  const left = total - items.length;
+  return (
+    <div>
+      <div className="text-[13px] text-muted my-1.5">
+        {t("found")}: {total}
+      </div>
+      {items.map((o) => (
+        <ApartmentCard key={o.id} o={o} />
+      ))}
+      {left > 0 && (
+        <Button variant="ghost" full className="mt-3" onClick={() => load(false)}>
+          {t("showMore")} ({left})
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ── Экран: добавить объект ──────────────────────────────────────────
+export function AddObjectScreen() {
+  const { t, toast } = useApp();
+  const nav = useNav();
+  const [saving, setSaving] = useState(false);
+  async function submit(body: Record<string, unknown>) {
+    setSaving(true);
+    const r = await api<Apartment>("/api/v1/apartments", { method: "POST", body });
+    setSaving(false);
+    if (r.ok && r.data) {
+      toast(t("objCreated") + r.data.display_id, "ok");
+      nav.pop();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  return <ObjectForm onSubmit={submit} submitLabel={t("saveObject")} saving={saving} />;
+}
+
+// ── Экран: редактирование ───────────────────────────────────────────
+export function ObjectEditScreen({ obj }: { obj: Apartment }) {
+  const { t, toast } = useApp();
+  const nav = useNav();
+  const [saving, setSaving] = useState(false);
+  async function submit(body: Record<string, unknown>) {
+    setSaving(true);
+    const r = await api<Apartment>("/api/v1/apartments/" + obj.id, { method: "PATCH", body });
+    setSaving(false);
+    if (r.ok) {
+      toast(t("saved"), "ok");
+      nav.pop();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  return (
+    <>
+      <ObjectForm initial={obj} onSubmit={submit} submitLabel={t("saveChanges")} saving={saving} />
+      <Hint>{t("clearHint")}</Hint>
+    </>
+  );
+}
+
+// ── Экран: поиск (форма фильтров) ───────────────────────────────────
+export function SearchScreen() {
+  const { t, L } = useApp();
+  const nav = useNav();
+  const districts = useDistricts();
+  const [status, setStatus] = useState("all");
+  const [types, setTypes] = useState<string[]>([]);
+  const [dist, setDist] = useState<string[]>([]);
+  const [q, setQ] = useState("");
+  const [rmin, setRmin] = useState("");
+  const [rmax, setRmax] = useState("");
+  const [fmin, setFmin] = useState("");
+  const [fmax, setFmax] = useState("");
+  const [pmin, setPmin] = useState("");
+  const [pmax, setPmax] = useState("");
+
+  const toggle = (arr: string[], set: (v: string[]) => void, v: string) =>
+    set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+
+  function run() {
+    const params: SearchParams = { status };
+    if (types.length) params.types = types;
+    if (dist.length) params.districts = dist;
+    if (q.trim()) params.q = q.trim();
+    if (rmin) params.rooms_min = rmin;
+    if (rmax) params.rooms_max = rmax;
+    if (fmin) params.floor_min = fmin;
+    if (fmax) params.floor_max = fmax;
+    if (pmin) params.price_min = pmin;
+    if (pmax) params.price_max = pmax;
+    nav.push({ name: "objectList", params, titleKey: "findObject" });
+  }
+
+  const statusOpts: { value: string; label: string }[] = [
+    { value: "all", label: t("notSet") },
+    { value: "active", label: t("statusActive") },
+    { value: "deposit", label: t("statusDeposit") },
+    { value: "sold", label: t("statusSold") },
+  ];
+
+  return (
+    <Card>
+      <Field label={t("searchText")}>
+        <Input value={q} onChange={(e) => setQ(e.target.value)} />
+      </Field>
+      <Field label={t("f_status")}>
+        <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+          {statusOpts.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <div className="mt-3">
+        <div className="text-[12px] font-bold text-muted mb-1.5">{t("f_type")}</div>
+        <Chips
+          options={OBJ_TYPE_VALUES.map((v) => ({ value: v, label: L.typeLabel(v) }))}
+          selected={types}
+          onToggle={(v) => toggle(types, setTypes, v)}
+        />
+        <Hint>{t("typeMultiHint")}</Hint>
+      </div>
+      {districts.length > 0 && (
+        <div className="mt-3">
+          <div className="text-[12px] font-bold text-muted mb-1.5">{t("f_district")}</div>
+          <Chips
+            options={districts.map((d) => ({ value: d.value, label: d.value }))}
+            selected={dist}
+            onToggle={(v) => toggle(dist, setDist, v)}
+          />
+        </div>
+      )}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Field label={t("roomsFrom")}>
+            <Input inputMode="numeric" value={rmin} onChange={(e) => setRmin(e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label={t("to")}>
+            <Input inputMode="numeric" value={rmax} onChange={(e) => setRmax(e.target.value)} />
+          </Field>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Field label={t("floorFrom")}>
+            <Input inputMode="numeric" value={fmin} onChange={(e) => setFmin(e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label={t("to")}>
+            <Input inputMode="numeric" value={fmax} onChange={(e) => setFmax(e.target.value)} />
+          </Field>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Field label={t("priceFrom")}>
+            <Input inputMode="numeric" value={pmin} onChange={(e) => setPmin(e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label={t("to")}>
+            <Input inputMode="numeric" value={pmax} onChange={(e) => setPmax(e.target.value)} />
+          </Field>
+        </div>
+      </div>
+      <Button full className="mt-4" onClick={run}>
+        <SearchIcon size={18} /> {t("searchBtn")}
+      </Button>
+    </Card>
+  );
+}
+
+// ── Экран: «Моя база» (не проданные / проданные) ────────────────────
+export function DatabaseScreen() {
+  const { t } = useApp();
+  const [view, setView] = useState<"unsold" | "sold">("unsold");
+  return (
+    <div>
+      <Segmented
+        value={view}
+        onChange={(v) => setView(v)}
+        options={[
+          { value: "unsold", label: t("notSold") },
+          { value: "sold", label: t("statusSold") },
+        ]}
+      />
+      <ObjectList params={{ status: view }} />
+    </div>
+  );
+}
+
+// ── Экран: карточка объекта ─────────────────────────────────────────
+const STATUS_TRANSITIONS: Record<string, { to: string; key: string }[]> = {
+  active: [
+    { to: "deposit", key: "toDeposit" },
+    { to: "sold", key: "toSold" },
+  ],
+  deposit: [
+    { to: "active", key: "removeDeposit" },
+    { to: "sold", key: "toSold" },
+  ],
+  sold: [{ to: "active", key: "backToActive" }],
+  archived: [{ to: "active", key: "backToActive" }],
+};
+
+const EV_FIELD_KEYS: Record<string, string> = {
+  name: "f_name", type: "f_type", district: "f_district", address: "f_address", rooms: "f_rooms",
+  floor: "f_floor", total_floors: "f_tfloors", area: "f_area", price: "f_price", currency: "f_currency",
+  condition: "f_condition", furniture_appliances: "f_furniture", owner_phone: "f_owner_phone",
+  description: "f_desc", comment: "f_comment", photo_url: "f_photo", source_link: "f_source",
+};
+
+export function ObjectDetailScreen({ id }: { id: number }) {
+  const { t, L, lang, settings, toast } = useApp();
+  const nav = useNav();
+  const [o, setO] = useState<Apartment | null>(null);
+  const [events, setEvents] = useState<ApartmentEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    const r = await api<Apartment>("/api/v1/apartments/" + id);
+    setLoading(false);
+    if (r.ok && r.data) {
+      setO(r.data);
+      api<ApartmentEvent[]>("/api/v1/apartments/" + id + "/events").then((e) => {
+        if (e.ok && Array.isArray(e.data)) setEvents(e.data);
+      });
+    } else toast(errText(r.data, r.status), "err");
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  if (loading || !o) return <Spinner />;
+
+  const floorTxt =
+    o.floor != null && o.total_floors != null ? `${o.floor} / ${o.total_floors}` : o.floor != null ? String(o.floor) : null;
+  const rows: [string | null, React.ReactNode][] = [
+    [t("f_name"), o.name],
+    [t("f_type"), o.type ? L.typeLabel(o.type) : null],
+    [t("f_district"), o.district],
+    [t("f_address"), o.address],
+    [t("f_rooms"), o.rooms],
+    [t("f_floor"), floorTxt],
+    [t("f_area"), o.area],
+    [t("f_price"), fmtPrice(o.price, o.currency)],
+    [t("f_condition"), o.condition ? L.condLabel(o.condition) : null],
+    [t("f_furniture"), L.faLabel(o.furniture_appliances)],
+    [t("f_owner_phone"), o.owner_phone],
+    [t("f_desc"), o.description],
+    [t("addedBy"), o.created_by_name],
+    o.status === "sold" && o.archived_at ? [t("soldDate"), fmtDate(o.archived_at, lang, settings?.timezone)] : [null, null],
+  ];
+
+  async function setStatus(to: string) {
+    setBusy(true);
+    const r = await api<Apartment>("/api/v1/apartments/" + id + "/status", { method: "POST", body: { status: to } });
+    setBusy(false);
+    if (r.ok && r.data) {
+      setO(r.data);
+      toast(t("done"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  async function del() {
+    if (!window.confirm(t("delObjQ"))) return;
+    const r = await api("/api/v1/apartments/" + id, { method: "DELETE" });
+    if (r.ok) {
+      toast(t("objDeleted"), "ok");
+      nav.pop();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  function share() {
+    const text = buildShareCard(o!, L, t, settings?.contact_phone);
+    shareToTelegram(text);
+  }
+  async function copyCard() {
+    const text = buildShareCard(o!, L, t, settings?.contact_phone);
+    const ok = await copyText(text);
+    toast(ok ? t("copied") : t("copy"), ok ? "ok" : "info");
+  }
+
+  const badgeColor = STATUS_BADGE[o.status] || "gray";
+
+  return (
+    <div>
+      <Card>
+        {o.photo_url && (
+          <a href={o.photo_url} target="_blank" rel="noopener noreferrer" className="block rounded-[14px] overflow-hidden mb-3 bg-[var(--soft)]">
+            <img
+              src={o.photo_url}
+              alt=""
+              loading="lazy"
+              className="w-full max-h-56 object-cover"
+              onError={(e) => ((e.target as HTMLImageElement).parentElement!.style.display = "none")}
+            />
+          </a>
+        )}
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-[16px] font-extrabold">№{o.display_id}</span>
+          <Badge color={badgeColor}>{L.statusLabel(o.status)}</Badge>
+        </div>
+        {rows
+          .filter(([k, v]) => k != null && v != null && v !== "")
+          .map(([k, v], i) => (
+            <Row key={i} label={String(k)} value={String(v)} />
+          ))}
+      </Card>
+
+      {o.source_link && (
+        <Button variant="ghost" className="mt-2.5" onClick={() => openLink(o.source_link!)}>
+          <ExternalLink size={16} /> {t("openSource")}
+        </Button>
+      )}
+
+      {o.comment && (
+        <div className="mt-2.5 rounded-[14px] px-3.5 py-3 text-sm leading-relaxed border border-dashed border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-300 whitespace-pre-wrap">
+          <div className="font-bold text-[12px] mb-1 opacity-90">🔒 {t("f_comment")}</div>
+          {o.comment}
+        </div>
+      )}
+
+      <div className="mt-3 flex gap-2 flex-wrap">
+        {(STATUS_TRANSITIONS[o.status] || []).map((tr) => (
+          <Button key={tr.to} size="sm" variant="ghost" disabled={busy} onClick={() => setStatus(tr.to)}>
+            {t(tr.key)}
+          </Button>
+        ))}
+      </div>
+
+      <div className="mt-2.5 flex gap-2 flex-wrap">
+        <Button size="sm" variant="ghost" onClick={copyCard}>
+          <Copy size={15} /> {t("shareCard")}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={share}>
+          <Send size={15} /> {t("shareTg")}
+        </Button>
+      </div>
+
+      <div className="mt-2.5 flex gap-2 flex-wrap">
+        <Button size="sm" variant="ghost" onClick={() => nav.push({ name: "objectEdit", obj: o })}>
+          <Pencil size={15} /> {t("edit")}
+        </Button>
+        <Button size="sm" variant="danger" onClick={del}>
+          <Trash2 size={15} /> {t("del")}
+        </Button>
+      </div>
+
+      {events.length > 0 && (
+        <div className="mt-4">
+          <div className="text-[13px] font-extrabold uppercase tracking-wider text-muted mx-0.5 mb-2">{t("history")}</div>
+          {events.map((e, i) => (
+            <Card key={i} className="mt-2 py-3">
+              <div className="text-[13px] text-muted">
+                <b className="text-text">{e.user_name || t("notSet")}</b> · {eventText(e, t, L)}
+              </div>
+              <div className="text-[12px] text-muted">{fmtDate(e.created_at, lang, settings?.timezone)}</div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function eventText(e: ApartmentEvent, t: (k: string) => string, L: ReturnType<typeof useApp>["L"]): string {
+  if (e.action === "created") return t("ev_created");
+  if (e.action === "status") return t("ev_status") + ": " + L.statusLabel(e.note || "");
+  if (e.action === "updated") {
+    const fields = (e.note || "")
+      .split(",")
+      .filter(Boolean)
+      .map((k) => t(EV_FIELD_KEYS[k] || k));
+    return t("ev_updated") + (fields.length ? ": " + fields.join(", ") : "");
+  }
+  return e.action;
+}

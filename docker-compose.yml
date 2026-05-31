@@ -43,15 +43,15 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ─── Веб-сервер (страница приложения + проксирование к API) ─────────────
+  # ─── Веб-сервер (React-приложение + проксирование к API) ────────────────
+  # Теперь это сборка из ./frontend: внутри Docker сначала собирается React
+  # (Vite), затем готовая статика отдаётся Caddy. Тебе по-прежнему достаточно
+  # одной команды `docker compose up --build` — никакой ручной сборки.
   web:
-    image: caddy:2
+    build: ./frontend
     ports:
       # Открой http://localhost:8080 в браузере, чтобы увидеть приложение.
       - "8080:80"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./frontend:/srv:ro
     depends_on:
       - backend
     restart: unless-stopped

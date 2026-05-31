@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────────────────────── Дизайн-токены ─────────────────────────
+   Realty AI — деловой финтех-минимализм. Светлая и тёмная темы
+   через класс .dark на <html>. */
+:root {
+  --bg: #f4f7fc;
+  --card: #ffffff;
+  --soft: #eef2fa;
+  --text: #0c1424;
+  --muted: #5c6b85;
+  --border: #e7edf6;
+  --input-bg: #ffffff;
+  --input-border: #d9e1ef;
+  --primary: #2563eb;
+  --primary-2: #1d4ed8;
+  --primary-soft: #e7efff;
+  --ring: rgba(37, 99, 235, 0.2);
+  --danger: #dc2626;
+  --danger-soft: #fdecea;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --shadow: 0 8px 30px rgba(13, 30, 66, 0.08);
+  --shadow-lg: 0 20px 52px rgba(13, 30, 66, 0.16);
+  --grad: linear-gradient(135deg, #2563eb 0%, #3b82f6 48%, #1d4ed8 100%);
+}
+
+.dark {
+  --bg: #060b16;
+  --card: #101826;
+  --soft: #16202f;
+  --text: #eaf0fb;
+  --muted: #8c9bb6;
+  --border: #1e2940;
+  --input-bg: #0c1422;
+  --input-border: #263349;
+  --primary: #3b82f6;
+  --primary-2: #2563eb;
+  --primary-soft: #16243f;
+  --ring: rgba(59, 130, 246, 0.32);
+  --danger: #f87171;
+  --danger-soft: #3a1d1d;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.62);
+  --grad: linear-gradient(135deg, #1d4ed8 0%, #2563eb 48%, #3b82f6 100%);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background:
+    radial-gradient(1100px 420px at 12% -12%, rgba(37, 99, 235, 0.16), transparent 60%),
+    radial-gradient(900px 360px at 112% -4%, rgba(56, 189, 248, 0.12), transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+  min-height: 100vh;
+}
+
+/* Точечная сетка на фоне (как в финтех-мокапах). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 22px 22px;
+  color: rgba(37, 99, 235, 0.05);
+}
+.dark body::before {
+  color: rgba(120, 160, 255, 0.06);
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Тонкий скроллбар. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+@layer components {
+  .glass {
+    background: color-mix(in srgb, var(--card) 86%, transparent);
+    backdrop-filter: blur(10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
