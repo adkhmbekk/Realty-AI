@@ -5,6 +5,7 @@
 - ApartmentUpdate — что разрешено менять (белый список полей; статус и
   display_id здесь НЕ меняются — для статуса есть отдельные действия);
 - ApartmentOut    — что отдаём в ответе (полная карточка);
+- ApartmentShareOut — что отдаём при «поделиться» (без номера собственника и комментария);
 - ApartmentListOut — страница списка с общим количеством (пагинация);
 - ApartmentStatsOut — мини-статистика по статусам;
 - ApartmentEventOut — запись журнала действий.
@@ -17,13 +18,19 @@ from pydantic import BaseModel, ConfigDict, field_validator
 # Допустимые статусы объекта (единый список для валидации).
 ApartmentStatus = Literal["active", "deposit", "sold", "archived"]
 
+# Допустимые значения поля «мебель и техника».
+FurnitureAppliances = Literal[
+    "furniture_and_appliances", "furniture_only", "appliances_only", "none"
+]
+
 
 # Поля, общие для создания и редактирования объекта.
 class _ApartmentBase(BaseModel):
     name: Optional[str] = None
     # Агент-источник (id из справочника agents этого агентства).
     agent_id: Optional[int] = None
-    phone: Optional[str] = None
+    # Номер собственника (конфиденциально — виден только команде).
+    owner_phone: Optional[str] = None
     district: Optional[str] = None
     address: Optional[str] = None
     type: Optional[str] = None
@@ -32,11 +39,17 @@ class _ApartmentBase(BaseModel):
     total_floors: Optional[int] = None
     area: Optional[float] = None
     condition: Optional[str] = None
-    furniture: Optional[str] = None
-    appliances: Optional[str] = None
+    # Мебель и техника (один параметр с вариантами).
+    furniture_appliances: Optional[FurnitureAppliances] = None
     price: Optional[float] = None
     currency: Optional[str] = None
     description: Optional[str] = None
+    # Внутренний комментарий (не виден при шаринге).
+    comment: Optional[str] = None
+    # Ссылка на фото объекта.
+    photo_url: Optional[str] = None
+    # Ссылка на источник (OLX, Telegram и т.д.).
+    source_link: Optional[str] = None
 
     @field_validator("rooms", "floor", "total_floors")
     @classmethod
@@ -88,7 +101,7 @@ class ApartmentOut(BaseModel):
     status: str
     name: Optional[str] = None
     agent_id: Optional[int] = None
-    phone: Optional[str] = None
+    owner_phone: Optional[str] = None
     district: Optional[str] = None
     address: Optional[str] = None
     type: Optional[str] = None
@@ -97,16 +110,47 @@ class ApartmentOut(BaseModel):
     total_floors: Optional[int] = None
     area: Optional[float] = None
     condition: Optional[str] = None
-    furniture: Optional[str] = None
-    appliances: Optional[str] = None
+    furniture_appliances: Optional[str] = None
     price: Optional[float] = None
     currency: str
     description: Optional[str] = None
+    comment: Optional[str] = None
+    photo_url: Optional[str] = None
+    source_link: Optional[str] = None
     created_by: Optional[int] = None
     created_by_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     archived_at: Optional[datetime] = None
+
+
+class ApartmentShareOut(BaseModel):
+    """
+    Карточка объекта для отправки третьим лицам.
+    Без номера собственника (owner_phone) и без комментария (comment).
+    Вместо номера собственника — контактный телефон главного админа агентства.
+    """
+    display_id: str
+    status: str
+    name: Optional[str] = None
+    district: Optional[str] = None
+    address: Optional[str] = None
+    type: Optional[str] = None
+    rooms: Optional[int] = None
+    floor: Optional[int] = None
+    total_floors: Optional[int] = None
+    area: Optional[float] = None
+    condition: Optional[str] = None
+    furniture_appliances: Optional[str] = None
+    price: Optional[float] = None
+    currency: str
+    description: Optional[str] = None
+    photo_url: Optional[str] = None
+    source_link: Optional[str] = None
+    # Контактный телефон агентства (номер главного админа).
+    contact_phone: Optional[str] = None
+    # Текстовое представление карточки для копирования/отправки.
+    share_text: str
 
 
 class ApartmentListOut(BaseModel):

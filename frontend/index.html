@@ -154,6 +154,48 @@
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     .fade-in { animation: fadeIn .22s ease; }
     @media (prefers-reduced-motion: reduce) { .fade-in { animation: none; } button:active, .item.tap:active, .hero:active, .chip:active { transform: none; } }
+
+    /* ─── Улучшения дизайна (v0.4) ─────────────────────────────────── */
+    body { padding-bottom: 28px; }
+    textarea {
+      width: 100%; padding: 12px 13px; border: 1px solid var(--input-border);
+      border-radius: 12px; font-size: 15px; background: var(--input-bg); color: var(--text);
+      font-family: inherit; line-height: 1.45; resize: vertical; min-height: 44px;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px var(--ring); }
+    /* Заголовок секции внутри формы — делит длинную форму на смысловые блоки. */
+    .form-sec {
+      font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      color: var(--primary); margin: 18px 2px 4px; padding-top: 12px; border-top: 1px solid var(--row-line);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .form-sec:first-child { border-top: 0; padding-top: 0; margin-top: 2px; }
+    /* Миниатюра фото объекта. */
+    .thumb { display:block; width:100%; border-radius: 14px; overflow:hidden; margin-bottom: 10px; background: var(--soft); }
+    .thumb img { display:block; width:100%; max-height: 220px; object-fit: cover; }
+    /* Внутренний комментарий — заметный, но визуально «секретный». */
+    .note-internal {
+      margin-top: 10px; border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.5;
+      background: var(--warn-bg); color: var(--warn-text); border: 1px dashed var(--warn-text);
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .note-internal-ttl { font-weight: 700; font-size: 12px; margin-bottom: 4px; opacity: .9; }
+    /* Цветной акцент слева у карточки объекта по статусу. */
+    .item.st-active   { border-left: 3px solid #16a34a; }
+    .item.st-deposit  { border-left: 3px solid #d99100; }
+    .item.st-sold     { border-left: 3px solid #64748b; }
+    .item.st-archived { border-left: 3px solid #94a3b8; }
+    .price-tag { font-weight: 800; color: var(--primary); }
+    /* Бейдж с точкой-индикатором. */
+    .badge { display: inline-flex; align-items: center; gap: 5px; }
+    .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .85; }
+    /* Чуть выразительнее тапаемые карточки. */
+    .item.tap { position: relative; }
+    .item.tap:active { box-shadow: 0 2px 10px rgba(15,23,42,.10); }
+    /* Главная кнопка — мягкое свечение. */
+    button.full { box-shadow: 0 8px 20px rgba(37,99,235,.28); }
+    button.full.danger { box-shadow: 0 8px 20px rgba(192,39,31,.18); }
   </style>
 </head>
 <body>
@@ -249,6 +291,15 @@
         changeDateBtn:"Изменить дату", notSold:"Не проданные", mainAdmin:"Главный",
         makeOwner:"Сделать главным", makeOwnerQ:"Передать роль главного администратора этому сотруднику? Вы станете обычным админом.", ownerTransferred:"Роль главного передана.",
         soldDate:"Дата продажи", archivedDate:"Дата архива", history:"История", ev_created:"создал объект", ev_updated:"изменил", ev_status:"статус", daysLeft:"осталось дней", stats:"Статистика",
+        f_owner_phone:"Номер собственника", ownerPhoneHint:"Виден только вашей команде. Клиентам не отправляется.",
+        f_furniture:"Мебель и техника", fa_both:"Мебель и техника", fa_furniture:"Только мебель", fa_appliances:"Только техника", fa_none:"Без мебели и техники",
+        f_photo:"Ссылка на фото", f_source:"Ссылка на источник", openPhoto:"Открыть фото", openSource:"Открыть источник",
+        f_comment:"Комментарий (для своих)", commentHint:"Комментарий виден только сотрудникам и НЕ отправляется при «Поделиться».",
+        contactPhone:"Контактный номер (для клиентов)", contactPhoneHint:"Этот номер увидят клиенты вместо номера собственника, когда вы делитесь объектом.",
+        sectionMain:"Основное", sectionDetails:"Характеристики", sectionContacts:"Контакты и источник", sectionInternal:"Только для своих",
+        transferOwnership:"Передать платформу", transferPrompt:"Telegram ID нового владельца платформы:", transferUserPrompt:"Username нового владельца (необязательно, без @):",
+        transferConfirm:"Передать права владельца платформы этому человеку? Вы потеряете доступ ко всей платформе.", transferConfirm2:"Точно передать? Это действие необратимо.", transferred:"Права владельца переданы.",
+        platformSection:"Платформа",
       },
       uz: {
         back:"Orqaga", save:"Saqlash", saveChanges:"Oʻzgarishlarni saqlash", cancel:"Bekor qilish",
@@ -312,6 +363,15 @@
         changeDateBtn:"Sanani oʻzgartirish", notSold:"Sotilmagan", mainAdmin:"Bosh admin",
         makeOwner:"Bosh admin qilish", makeOwnerQ:"Bosh administrator rolini shu xodimga berasizmi? Siz oddiy admin boʻlasiz.", ownerTransferred:"Bosh admin roli berildi.",
         soldDate:"Sotilgan sana", archivedDate:"Arxiv sanasi", history:"Tarix", ev_created:"obyekt yaratdi", ev_updated:"oʻzgartirdi", ev_status:"holat", daysLeft:"kun qoldi", stats:"Statistika",
+        f_owner_phone:"Egasining raqami", ownerPhoneHint:"Faqat sizning jamoangizga koʻrinadi. Mijozlarga yuborilmaydi.",
+        f_furniture:"Mebel va texnika", fa_both:"Mebel va texnika", fa_furniture:"Faqat mebel", fa_appliances:"Faqat texnika", fa_none:"Mebelsiz va texnikasiz",
+        f_photo:"Foto havolasi", f_source:"Manba havolasi", openPhoto:"Fotoni ochish", openSource:"Manbani ochish",
+        f_comment:"Izoh (faqat oʻzimiz uchun)", commentHint:"Izoh faqat xodimlarga koʻrinadi va «Ulashish»da yuborilmaydi.",
+        contactPhone:"Aloqa raqami (mijozlar uchun)", contactPhoneHint:"Obyektni ulashganda mijozlar egasining raqami oʻrniga shu raqamni koʻradi.",
+        sectionMain:"Asosiy", sectionDetails:"Xususiyatlari", sectionContacts:"Aloqa va manba", sectionInternal:"Faqat oʻzimiz uchun",
+        transferOwnership:"Platformani topshirish", transferPrompt:"Yangi platforma egasining Telegram ID:", transferUserPrompt:"Yangi egasining username (ixtiyoriy, @ siz):",
+        transferConfirm:"Platforma egaligini shu odamga topshirasizmi? Siz butun platformaga kirish huquqini yoʻqotasiz.", transferConfirm2:"Aniq topshirilsinmi? Bu amalni qaytarib boʻlmaydi.", transferred:"Egalik huquqi topshirildi.",
+        platformSection:"Platforma",
       },
       en: {
         back:"Back", save:"Save", saveChanges:"Save changes", cancel:"Cancel",
@@ -375,6 +435,15 @@
         changeDateBtn:"Change date", notSold:"Not sold", mainAdmin:"Main",
         makeOwner:"Make main", makeOwnerQ:"Transfer the main admin role to this member? You will become a regular admin.", ownerTransferred:"Main admin role transferred.",
         soldDate:"Sold date", archivedDate:"Archived date", history:"History", ev_created:"created the property", ev_updated:"edited", ev_status:"status", daysLeft:"days left", stats:"Statistics",
+        f_owner_phone:"Owner's phone", ownerPhoneHint:"Visible only to your team. Not sent to clients.",
+        f_furniture:"Furniture & appliances", fa_both:"Furniture & appliances", fa_furniture:"Furniture only", fa_appliances:"Appliances only", fa_none:"No furniture or appliances",
+        f_photo:"Photo link", f_source:"Source link", openPhoto:"Open photo", openSource:"Open source",
+        f_comment:"Comment (internal)", commentHint:"The comment is visible only to staff and is NOT sent when sharing.",
+        contactPhone:"Contact phone (for clients)", contactPhoneHint:"Clients will see this number instead of the owner's phone when you share a property.",
+        sectionMain:"Main", sectionDetails:"Details", sectionContacts:"Contacts & source", sectionInternal:"Internal only",
+        transferOwnership:"Transfer platform", transferPrompt:"New platform owner's Telegram ID:", transferUserPrompt:"New owner's username (optional, no @):",
+        transferConfirm:"Transfer platform ownership to this person? You will lose access to the whole platform.", transferConfirm2:"Really transfer? This action is irreversible.", transferred:"Ownership transferred.",
+        platformSection:"Platform",
       },
     };
     function t(key) {
@@ -396,6 +465,17 @@
       en: ["No renovation", "Rough finish", "White box", "Average renovation", "New renovation", "Designer renovation"],
     };
     const STATUS_BADGE = { active: "green", deposit: "amber", sold: "gray", archived: "gray" };
+    // Значения поля «мебель и техника» (хранятся в БД как ключи) + переводимые подписи.
+    const FA_VALUES = ["furniture_and_appliances", "furniture_only", "appliances_only", "none"];
+    const FA_LABEL_KEYS = {
+      furniture_and_appliances: "fa_both",
+      furniture_only: "fa_furniture",
+      appliances_only: "fa_appliances",
+      none: "fa_none",
+    };
+    function faLabel(v) {
+      return v && FA_LABEL_KEYS[v] ? t(FA_LABEL_KEYS[v]) : null;
+    }
     function statusLabel(s) {
       const map = { active: t("statusActive"), deposit: t("statusDeposit"), sold: t("statusSold"), archived: t("statusArchived") };
       return map[s] || s;
@@ -556,6 +636,7 @@
         state.timezone = r.data.timezone || null;
         state.agencyName = r.data.name || null;
         state.projectName = r.data.project_name || null;
+        state.contactPhone = r.data.contact_phone || null;
         state.subscriptionExpiresAt = r.data.subscription_expires_at || null;
         state.agencyStatus = r.data.status || null;
         state.settingsLoaded = true;
@@ -568,14 +649,18 @@
       const typeOpts = `<option value="">${esc(t("notSet"))}</option>` + OBJ_TYPE_VALUES.map(v => optionTag(v, typeLabel(v), o.type)).join("");
       const condOpts = `<option value="">${esc(t("notSet"))}</option>` + OBJ_COND_VALUES.map(v => optionTag(v, condLabel(v), o.condition)).join("");
       const distOpts = `<option value="">${esc(t("notSet"))}</option>` + refs.district.map(x => optionTag(x.value, x.value, o.district)).join("");
+      const faOpts = `<option value="">${esc(t("notSet"))}</option>` + FA_VALUES.map(v => optionTag(v, faLabel(v), o.furniture_appliances)).join("");
       const defCur = o.currency || state.defaultCurrency || "USD";
       const curOpts = ["USD","UZS","EUR"].map(c => optionTag(c, c, defCur)).join("");
       const num = v => (v != null ? v : "");
       return `
+        <div class="form-sec">${esc(t("sectionMain"))}</div>
         <label>${esc(t("f_name"))}</label><input id="n-name" value="${esc(o.name || "")}" />
         <label>${esc(t("f_type"))}</label><select id="n-type">${typeOpts}</select>
         <label>${esc(t("f_district"))}</label><select id="n-district">${distOpts}</select>
         <label>${esc(t("f_address"))}</label><input id="n-address" value="${esc(o.address || "")}" />
+
+        <div class="form-sec">${esc(t("sectionDetails"))}</div>
         <div style="display:flex; gap:8px">
           <div style="flex:1"><label>${esc(t("f_rooms"))}</label><input id="n-rooms" inputmode="numeric" value="${num(o.rooms)}" /></div>
           <div style="flex:1"><label>${esc(t("f_floor"))}</label><input id="n-floor" inputmode="numeric" value="${num(o.floor)}" /></div>
@@ -587,8 +672,18 @@
           <div style="flex:1"><label>${esc(t("f_currency"))}</label><select id="n-currency">${curOpts}</select></div>
         </div>
         <label>${esc(t("f_condition"))}</label><select id="n-condition">${condOpts}</select>
-        <label>${esc(t("f_phone"))}</label><input id="n-phone" value="${esc(o.phone || "")}" />
-        <label>${esc(t("f_desc"))}</label><input id="n-desc" value="${esc(o.description || "")}" />`;
+        <label>${esc(t("f_furniture"))}</label><select id="n-furniture">${faOpts}</select>
+
+        <div class="form-sec">${esc(t("sectionContacts"))}</div>
+        <label>${esc(t("f_owner_phone"))}</label><input id="n-owner-phone" value="${esc(o.owner_phone || "")}" />
+        <div class="hint">${esc(t("ownerPhoneHint"))}</div>
+        <label>${esc(t("f_photo"))}</label><input id="n-photo" inputmode="url" placeholder="https://…" value="${esc(o.photo_url || "")}" />
+        <label>${esc(t("f_source"))}</label><input id="n-source" inputmode="url" placeholder="https://…" value="${esc(o.source_link || "")}" />
+        <label>${esc(t("f_desc"))}</label><textarea id="n-desc" rows="3">${esc(o.description || "")}</textarea>
+
+        <div class="form-sec">${esc(t("sectionInternal"))}</div>
+        <label>${esc(t("f_comment"))}</label><textarea id="n-comment" rows="3">${esc(o.comment || "")}</textarea>
+        <div class="hint">${esc(t("commentHint"))}</div>`;
     }
     function vNum(host, sel, isFloat) {
       const e2 = host.querySelector(sel); const v = ((e2 && e2.value) || "").trim();
@@ -607,30 +702,15 @@
         address: vStr(host, "#n-address"), rooms: vNum(host, "#n-rooms", false), floor: vNum(host, "#n-floor", false),
         total_floors: vNum(host, "#n-tfloors", false), area: vNum(host, "#n-area", true), price: vNum(host, "#n-price", true),
         currency: host.querySelector("#n-currency").value, condition: vStr(host, "#n-condition"),
-        phone: vStr(host, "#n-phone"), description: vStr(host, "#n-desc"),
+        furniture_appliances: vStr(host, "#n-furniture"),
+        owner_phone: vStr(host, "#n-owner-phone"), photo_url: vStr(host, "#n-photo"), source_link: vStr(host, "#n-source"),
+        description: vStr(host, "#n-desc"), comment: vStr(host, "#n-comment"),
       };
       Object.keys(fields).forEach(k => {
         if (full && k === "currency" && !fields[k]) return;
         if (full || fields[k] !== null) body[k] = fields[k];
       });
       return body;
-    }
-    function buildShareCard(o) {
-      const lines = [];
-      lines.push("🏠 " + t("apartment") + " №" + (o.display_id || ""));
-      if (o.name) lines.push("📋 " + o.name);
-      if (o.type) lines.push("🏗 " + t("f_type") + ": " + typeLabel(o.type));
-      if (o.district) lines.push("📍 " + t("f_district") + ": " + o.district);
-      if (o.address) lines.push("🗺 " + t("f_address") + ": " + o.address);
-      if (o.rooms != null) lines.push("🚪 " + t("f_rooms") + ": " + o.rooms);
-      const fl = (o.floor != null && o.total_floors != null) ? (o.floor + "/" + o.total_floors) : (o.floor != null ? String(o.floor) : null);
-      if (fl) lines.push("🏢 " + t("f_floor") + ": " + fl);
-      if (o.area != null) lines.push("📐 " + o.area + " m²");
-      if (o.condition) lines.push("🔧 " + condLabel(o.condition));
-      if (o.price != null) lines.push("💵 " + o.price + " " + (o.currency || ""));
-      if (o.phone) lines.push("📞 " + o.phone);
-      if (o.description) lines.push("📝 " + o.description);
-      return lines.join("\n");
     }
     function shareToTelegram(text) {
       const link = "https://t.me/share/url?url=&text=" + encodeURIComponent(text);
@@ -756,27 +836,65 @@
         host.appendChild(themeSeg);
         host.appendChild(el(`<div class="hint">${esc(t("settingsHint"))}</div>`));
 
-        // Доп. настройки только для админа агентства: название проекта и валюта.
+        // Доп. настройки только для админа агентства: название проекта, валюта, контакт.
         if (role === "agency_admin") {
           host.appendChild(el(`<h2>${esc(t("agencyLbl"))}</h2>`));
           host.appendChild(el(`<label>${esc(t("projectName"))}</label>`));
           const pnInput = el(`<input id="set-project" value="${esc(state.projectName || "")}" />`);
           host.appendChild(pnInput);
           host.appendChild(el(`<div class="hint">${esc(t("projectNameHint"))}</div>`));
+          host.appendChild(el(`<label>${esc(t("contactPhone"))}</label>`));
+          const cpInput = el(`<input id="set-contact" value="${esc(state.contactPhone || "")}" />`);
+          host.appendChild(cpInput);
+          host.appendChild(el(`<div class="hint">${esc(t("contactPhoneHint"))}</div>`));
           host.appendChild(el(`<label>${esc(t("defaultCurrency"))}</label>`));
           const curSel = el(`<select id="set-currency">${["USD","UZS","EUR"].map(c => optionTag(c, c, state.defaultCurrency || "USD")).join("")}</select>`);
           host.appendChild(curSel);
           const saveBtn = el(`<button class="full">${esc(t("saveSettings"))}</button>`);
           saveBtn.addEventListener("click", async () => {
             setStatus(t("saving"), "info");
-            const r = await api("/api/v1/agency/settings", { method: "PATCH", body: { project_name: (pnInput.value || "").trim(), default_currency: curSel.value } });
+            const r = await api("/api/v1/agency/settings", { method: "PATCH", body: {
+              project_name: (pnInput.value || "").trim(),
+              contact_phone: (cpInput.value || "").trim(),
+              default_currency: curSel.value,
+            } });
             if (r.ok) {
               state.defaultCurrency = r.data.default_currency || null;
               state.projectName = r.data.project_name || null;
+              state.contactPhone = r.data.contact_phone || null;
               setStatus(t("saved"), "ok");
             } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
           });
           host.appendChild(saveBtn);
+        }
+
+        // Суперадмин: передача прав владельца платформы другому человеку.
+        if (role === "superadmin") {
+          host.appendChild(el(`<h2>${esc(t("platformSection"))}</h2>`));
+          const transferBtn = el(`<button class="full danger">${esc(t("transferOwnership"))}</button>`);
+          transferBtn.addEventListener("click", async () => {
+            const idStr = window.prompt(t("transferPrompt"), "");
+            if (idStr === null) return;
+            const tgId = parseInt((idStr || "").trim(), 10);
+            if (isNaN(tgId)) { setStatus(t("badId"), "warn"); return; }
+            const username = window.prompt(t("transferUserPrompt"), "");
+            if (username === null) return;
+            if (!window.confirm(t("transferConfirm"))) return;
+            if (!window.confirm(t("transferConfirm2"))) return;
+            const body = { new_telegram_id: tgId };
+            const u = (username || "").trim(); if (u) body.new_username = u;
+            setStatus(t("saving"), "info");
+            const r = await api("/api/v1/platform/transfer-ownership", { method: "POST", body });
+            if (r.ok) {
+              setStatus(t("transferred"), "ok");
+              // Текущий владелец теряет доступ — показываем финальный экран.
+              state.token = null; state.user = null;
+              resetTo({ titleKey: null, render(h2) {
+                h2.appendChild(el(`<div class="status ok">${esc(t("transferred"))}</div>`));
+              }});
+            } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+          });
+          host.appendChild(transferBtn);
         }
       }};
     }
@@ -951,11 +1069,12 @@
       const price = (o.price != null) ? (o.price + " " + (o.currency || "")) : t("notSet");
       const parts = [typeLabel(o.type), o.district, (o.rooms != null ? (o.rooms + " " + t("f_rooms").toLowerCase()) : null)]
         .filter(Boolean).map(esc).join(" · ");
-      const c = el(`<div class="item tap">
-        <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(statusLabel(o.status))}</span></div>
+      const photoIc = o.photo_url ? " 📷" : "";
+      const c = el(`<div class="item tap st-${esc(o.status)}">
+        <div class="top"><span class="title">№${esc(o.display_id)}${photoIc}</span><span class="badge ${badge}">${esc(statusLabel(o.status))}</span></div>
         ${o.name ? `<div class="meta">${esc(o.name)}</div>` : ""}
         <div class="meta">${parts || t("notSet")}</div>
-        <div class="meta">${esc(t("f_price"))}: ${esc(String(price))}</div>
+        <div class="meta">${esc(t("f_price"))}: <span class="price-tag">${esc(String(price))}</span></div>
         ${o.created_by_name ? `<div class="meta">${esc(t("addedBy"))}: ${esc(o.created_by_name)}</div>` : ""}
       </div>`);
       c.addEventListener("click", () => navigate(objectDetailScreen(o.id)));
@@ -1113,7 +1232,8 @@
         [t("f_name"), o.name], [t("f_type"), o.type ? typeLabel(o.type) : null], [t("f_district"), o.district], [t("f_address"), o.address],
         [t("f_rooms"), o.rooms], [t("f_floor"), floorTxt], [t("f_area"), o.area],
         [t("f_price"), o.price != null ? (o.price + " " + (o.currency || "")) : null], [t("f_condition"), o.condition ? condLabel(o.condition) : null],
-        [t("f_phone"), o.phone], [t("f_desc"), o.description], [t("addedBy"), o.created_by_name],
+        [t("f_furniture"), faLabel(o.furniture_appliances)],
+        [t("f_owner_phone"), o.owner_phone], [t("f_desc"), o.description], [t("addedBy"), o.created_by_name],
         (o.status === "sold" && o.archived_at) ? [t("soldDate"), fmtDate(o.archived_at)] : [null, null],
       ];
       const rowsHtml = rows.filter(x => x[1] != null && x[1] !== "").map(x => `<div class="row"><span>${esc(x[0])}</span><span><b>${esc(String(x[1]))}</b></span></div>`).join("");
@@ -1124,10 +1244,26 @@
         archived: [["active","backToActive"]],
       };
       box.innerHTML = "";
+      const photoHtml = o.photo_url
+        ? `<a href="${esc(o.photo_url)}" target="_blank" rel="noopener" class="thumb"><img src="${esc(o.photo_url)}" alt="" loading="lazy" onerror="this.parentNode.style.display='none'" /></a>`
+        : "";
       box.appendChild(el(`<div class="item">
+        ${photoHtml}
         <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(statusLabel(o.status))}</span></div>
         ${rowsHtml}
       </div>`));
+      // Ссылка на источник (открывается в новой вкладке/Telegram).
+      if (o.source_link) {
+        const srcBtn = el(`<button class="small ghost" style="margin-top:8px">🔗 ${esc(t("openSource"))}</button>`);
+        srcBtn.addEventListener("click", () => {
+          if (tg && tg.openLink) tg.openLink(o.source_link); else window.open(o.source_link, "_blank");
+        });
+        box.appendChild(srcBtn);
+      }
+      // Внутренний комментарий — только для своих, выделен отдельным блоком.
+      if (o.comment) {
+        box.appendChild(el(`<div class="note-internal"><div class="note-internal-ttl">🔒 ${esc(t("f_comment"))}</div>${esc(o.comment)}</div>`));
+      }
       const stWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
       (transitions[o.status] || []).forEach(tr => {
         const b = el(`<button class="small ghost">${esc(t(tr[1]))}</button>`);
@@ -1139,10 +1275,19 @@
         stWrap.appendChild(b);
       });
       box.appendChild(stWrap);
-      const card = buildShareCard(o);
       const shWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
-      const cpy = el(`<button class="small ghost">${esc(t("shareCard"))}</button>`); cpy.addEventListener("click", () => copyText(card));
-      const stgb = el(`<button class="small ghost">${esc(t("shareTg"))}</button>`); stgb.addEventListener("click", () => shareToTelegram(card));
+      // Текст для отправки берём с бэкенда: там номер собственника и комментарий
+      // исключены, а вместо номера собственника подставлен контакт агентства.
+      async function getShareText() {
+        const rs = await api("/api/v1/apartments/" + o.id + "/share");
+        if (rs.ok && rs.data) return rs.data.share_text;
+        setStatus(t("loginFail") + errText(rs.data, rs.status), "err");
+        return null;
+      }
+      const cpy = el(`<button class="small ghost">${esc(t("shareCard"))}</button>`);
+      cpy.addEventListener("click", async () => { const txt = await getShareText(); if (txt) copyText(txt); });
+      const stgb = el(`<button class="small ghost">${esc(t("shareTg"))}</button>`);
+      stgb.addEventListener("click", async () => { const txt = await getShareText(); if (txt) shareToTelegram(txt); });
       shWrap.appendChild(cpy); shWrap.appendChild(stgb); box.appendChild(shWrap);
       const eWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
       const edit = el(`<button class="small ghost">${esc(t("edit"))}</button>`); edit.addEventListener("click", () => navigate(objectEditScreen(o)));
@@ -1165,7 +1310,8 @@
     const EV_FIELD_KEYS = {
       name:"f_name", type:"f_type", district:"f_district", address:"f_address", rooms:"f_rooms",
       floor:"f_floor", total_floors:"f_tfloors", area:"f_area", price:"f_price", currency:"f_currency",
-      condition:"f_condition", phone:"f_phone", description:"f_desc",
+      condition:"f_condition", furniture_appliances:"f_furniture", owner_phone:"f_owner_phone",
+      description:"f_desc", comment:"f_comment", photo_url:"f_photo", source_link:"f_source",
     };
     function eventText(e) {
       if (e.action === "created") return t("ev_created");

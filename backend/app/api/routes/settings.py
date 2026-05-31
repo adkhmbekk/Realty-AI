@@ -40,4 +40,5 @@ def update_settings(
         project_name=body.project_name,
         timezone_value=body.timezone,
         default_currency=body.default_currency,
+        contact_phone=body.contact_phone,
     )

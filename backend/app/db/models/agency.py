@@ -32,6 +32,9 @@ class Agency(Base):
     )
     timezone: Mapped[str] = mapped_column(String, nullable=False, default="Asia/Tashkent")
     default_currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
+    # Контактный телефон агентства (номер главного админа). Подставляется
+    # вместо номера собственника, когда сотрудник делится объектом с клиентом.
+    contact_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # telegram_id суперадмина, который создал агентство.
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

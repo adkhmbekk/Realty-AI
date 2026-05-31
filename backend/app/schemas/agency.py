@@ -48,6 +48,9 @@ class AgencySettingsOut(BaseModel):
     subscription_expires_at: Optional[datetime] = None
     timezone: str
     default_currency: str
+    # Контактный номер агентства (подставляется при «поделиться» вместо
+    # номера собственника). Виден сотрудникам, чтобы понимать, что уйдёт клиенту.
+    contact_phone: Optional[str] = None
 
 
 class AgencySettingsUpdate(BaseModel):
@@ -55,6 +58,8 @@ class AgencySettingsUpdate(BaseModel):
     project_name: Optional[str] = None
     timezone: Optional[str] = None
     default_currency: Optional[str] = None
+    # Контактный номер агентства (номер главного админа для клиентов).
+    contact_phone: Optional[str] = None
 
 
 class AgencyOut(BaseModel):

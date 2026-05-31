@@ -83,12 +83,61 @@ def ensure_schema_upgrades() -> None:
     statements = [
         "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS project_name VARCHAR",
         "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ",
+        # Контактный номер агентства (подставляется при «поделиться»).
+        "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS contact_phone VARCHAR",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT FALSE",
+        # Новые поля объекта недвижимости.
+        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS owner_phone TEXT",
+        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS furniture_appliances VARCHAR",
+        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS comment TEXT",
+        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS photo_url TEXT",
+        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS source_link TEXT",
     ]
+
+    # Перенос данных из старой колонки phone в owner_phone (если phone ещё есть).
+    migrate_phone = """
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'apartments' AND column_name = 'phone'
+        ) THEN
+            UPDATE apartments SET owner_phone = phone
+            WHERE owner_phone IS NULL AND phone IS NOT NULL;
+        END IF;
+    END $$;
+    """
+
+    # Лучшее усилие: из старых текстовых полей furniture/appliances вывести
+    # значение нового поля furniture_appliances (только для старых записей).
+    migrate_furniture = """
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'apartments' AND column_name = 'furniture'
+        ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'apartments' AND column_name = 'appliances'
+        ) THEN
+            UPDATE apartments SET furniture_appliances = CASE
+                WHEN COALESCE(furniture, '') <> '' AND COALESCE(appliances, '') <> ''
+                    THEN 'furniture_and_appliances'
+                WHEN COALESCE(furniture, '') <> '' THEN 'furniture_only'
+                WHEN COALESCE(appliances, '') <> '' THEN 'appliances_only'
+                ELSE NULL
+            END
+            WHERE furniture_appliances IS NULL;
+        END IF;
+    END $$;
+    """
+
     try:
         with engine.begin() as conn:
             for stmt in statements:
                 conn.execute(text(stmt))
+            conn.execute(text(migrate_phone))
+            conn.execute(text(migrate_furniture))
         logger.info("Схема БД проверена (недостающие колонки добавлены при необходимости).")
     except Exception as exc:  # noqa: BLE001
         logger.warning("Не удалось выполнить до-миграции схемы: %s", exc)

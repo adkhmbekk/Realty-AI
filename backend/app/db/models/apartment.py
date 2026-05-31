@@ -51,7 +51,7 @@ class Apartment(Base):
     agency_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("agencies.id"), nullable=False, index=True
     )
-    # Человекочитаемый ID, например "SAR-0001".
+    # Человекочитаемый ID, например "0001".
     display_id: Mapped[str] = mapped_column(String, nullable=False)
     # Статус объекта: active (в продаже) / archived (в архиве) / sold (продан).
     status: Mapped[str] = mapped_column(String, nullable=False, default="active")
@@ -61,7 +61,8 @@ class Apartment(Base):
     agent_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("agents.id"), nullable=True
     )
-    phone: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Номер собственника (конфиденциально — не показывается при шаринге).
+    owner_phone: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     district: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -70,11 +71,17 @@ class Apartment(Base):
     total_floors: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     area: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
     condition: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    furniture: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    appliances: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Мебель и техника: furniture_and_appliances / furniture_only / appliances_only / none
+    furniture_appliances: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
     currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Внутренний комментарий (виден только команде, не отправляется при шаринге).
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Ссылка на фото объекта.
+    photo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Ссылка на источник (OLX, Telegram и т.д.).
+    source_link: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # telegram_id/id того, кто создал (для аудита). Храним id пользователя.
     created_by: Mapped[Optional[int]] = mapped_column(
