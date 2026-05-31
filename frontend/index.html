@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Realty</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #f4f5f7; --card: #ffffff; --text: #0f172a; --muted: #6b7280;
+      --border: #eceff3; --soft: #f3f5f9;
+      --input-bg: #ffffff; --input-border: #dfe3ea;
+      --primary: #2563eb; --primary-text: #ffffff; --primary-soft: #e8eefe;
+      --ghost-bg: #eef1fb; --ghost-text: #3538cd;
+      --danger-bg: #fdebec; --danger-text: #c0271f;
+      --row-line: #f1f3f7;
+      --ring: rgba(37,99,235,.22); --shadow: 0 6px 24px rgba(15,23,42,.07);
+      --info-bg:#eef4ff; --info-text:#1e40af; --ok-bg:#eafaf2; --ok-text:#0a7a48;
+      --warn-bg:#fff7e8; --warn-text:#92600e; --err-bg:#fdecec; --err-text:#b42318;
+      --badge-green-bg:#e3f8ec; --badge-green-tx:#0a7a48;
+      --badge-gray-bg:#eef0f4; --badge-gray-tx:#475569;
+      --badge-red-bg:#fdecec; --badge-red-tx:#b42318;
+      --badge-amber-bg:#fff3da; --badge-amber-tx:#9a6207;
+    }
+    [data-theme="dark"] {
+      --bg: #0e1116; --card: #161a21; --text: #e6e9ef; --muted: #9aa4b2;
+      --border: #232936; --soft: #1b2230; --input-bg: #121722; --input-border: #2c3442;
+      --primary: #3b82f6; --primary-text: #ffffff; --primary-soft: #1b2740;
+      --ghost-bg: #1d2532; --ghost-text: #c7d2fe;
+      --danger-bg: #3a1d1d; --danger-text: #fca5a5;
+      --row-line: #222a36;
+      --ring: rgba(59,130,246,.35); --shadow: 0 10px 30px rgba(0,0,0,.5);
+      --info-bg:#10213d; --info-text:#bfdbfe; --ok-bg:#0d2a20; --ok-text:#86efac;
+      --warn-bg:#33270a; --warn-text:#fcd667; --err-bg:#3a1d1d; --err-text:#fca5a5;
+      --badge-green-bg:#0d2a20; --badge-green-tx:#6ee7b7;
+      --badge-gray-bg:#222a36; --badge-gray-tx:#cbd5e1;
+      --badge-red-bg:#3a1d1d; --badge-red-tx:#fca5a5;
+      --badge-amber-bg:#33270a; --badge-amber-tx:#fcd667;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      display: flex; min-height: 100vh; align-items: flex-start; justify-content: center; padding: 14px;
+      transition: background .2s ease, color .2s ease; line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card { background: transparent; padding: 0; max-width: 540px; width: 100%; }
+    .hdr { display:flex; align-items:center; gap:10px; min-height: 36px; margin-bottom: 12px; }
+    .hdr .back {
+      background: var(--card); color: var(--text); border:1px solid var(--border);
+      border-radius: 10px; padding: 8px 12px; font-size: 14px; font-weight: 600; cursor:pointer;
+      box-shadow: var(--shadow); transition: transform .08s ease;
+    }
+    .hdr .back:active { transform: scale(.96); }
+    .hdr .ttl { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+    h2 { font-size: 15px; font-weight: 700; margin: 18px 2px 8px; letter-spacing: -.01em; }
+    .sub { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+    .status { border-radius: 12px; padding: 11px 13px; font-size: 14px; line-height: 1.5; margin-bottom: 12px; }
+    .status.info { background: var(--info-bg); color: var(--info-text); }
+    .status.ok   { background: var(--ok-bg); color: var(--ok-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+    .status.err  { background: var(--err-bg); color: var(--err-text); }
+    .status.hidden { display: none; }
+    .row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; font-size: 14px; border-top: 1px solid var(--row-line); }
+    .row:first-child { border-top: 0; }
+    .row span:first-child { color: var(--muted); }
+    .row span:last-child { text-align: right; word-break: break-word; }
+    label { display:block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 12px 0 5px; }
+    input, select {
+      width: 100%; padding: 12px 13px; border: 1px solid var(--input-border);
+      border-radius: 12px; font-size: 15px; background: var(--input-bg); color: var(--text);
+      transition: border-color .15s ease, box-shadow .15s ease; appearance: none; -webkit-appearance: none;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px var(--ring); }
+    button {
+      border: 0; border-radius: 12px; padding: 12px 15px; font-size: 15px; font-weight: 600;
+      cursor: pointer; background: var(--primary); color: var(--primary-text);
+      transition: transform .08s ease, filter .15s ease, opacity .15s ease;
+    }
+    button:active { transform: scale(.97); }
+    button.full { width: 100%; margin-top: 14px; }
+    button.ghost { background: var(--ghost-bg); color: var(--ghost-text); }
+    button.danger { background: var(--danger-bg); color: var(--danger-text); }
+    button.small { padding: 8px 12px; font-size: 13px; border-radius: 10px; }
+    button:disabled { opacity: .5; cursor: default; transform: none; }
+    .menu { display:flex; flex-direction:column; gap:10px; margin-top: 4px; }
+    .menu-btn {
+      display:flex; align-items:center; gap:13px; width:100%; text-align:left;
+      background: var(--card); color: var(--text); border: 1px solid var(--border);
+      border-radius: 16px; padding: 13px 14px; font-size: 16px; font-weight: 600;
+      box-shadow: var(--shadow); transition: transform .08s ease, border-color .15s ease;
+    }
+    .menu-btn:active { transform: scale(.985); border-color: var(--primary); }
+    .menu-btn .ic {
+      font-size: 20px; width: 40px; height: 40px; flex: 0 0 auto; border-radius: 12px;
+      background: var(--primary-soft); display:flex; align-items:center; justify-content:center;
+    }
+    .menu-btn .lbl { flex: 1; }
+    .menu-btn .chev { color: var(--muted); font-size: 22px; font-weight: 400; opacity: .6; }
+    .item {
+      border: 1px solid var(--border); border-radius: 14px; padding: 13px 14px; margin-top: 10px;
+      background: var(--card); box-shadow: var(--shadow);
+    }
+    .item.tap { cursor: pointer; transition: transform .08s ease, border-color .15s ease; }
+    .item.tap:active { transform: scale(.99); border-color: var(--primary); }
+    .item .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .item .title { font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
+    .item .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .badge { font-size: 11.5px; padding: 4px 9px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+    .badge.green { background: var(--badge-green-bg); color: var(--badge-green-tx); }
+    .badge.gray  { background: var(--badge-gray-bg); color: var(--badge-gray-tx); }
+    .badge.red   { background: var(--badge-red-bg); color: var(--badge-red-tx); }
+    .badge.amber { background: var(--badge-amber-bg); color: var(--badge-amber-tx); }
+    .codebox { background:#0f172a; color:#e2e8f0; border-radius:12px; padding:11px 13px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; margin-top: 8px; }
+    .muted { color: var(--muted); font-size: 12px; margin-top: 14px; word-break: break-all; }
+    .empty { color: var(--muted); font-size: 14px; padding: 18px 0; text-align:center; }
+    .hint { background: var(--soft); border:1px solid var(--border); border-radius:12px; padding:10px 13px; font-size:13px; color: var(--muted); margin-top:10px; line-height:1.5; }
+    .seg { display:flex; gap:6px; background: var(--soft); border:1px solid var(--border); border-radius: 12px; padding: 4px; margin-top: 6px; }
+    .seg button { flex:1; min-width: 80px; background: transparent; color: var(--muted); border:0; box-shadow:none; padding: 9px 10px; border-radius: 9px; font-size: 13px; }
+    .seg button.active { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+    .hero {
+      border-radius: 20px; padding: 20px 18px; margin: 2px 0 14px;
+      background: linear-gradient(135deg, #2563eb 0%, #4f46e5 52%, #7c3aed 100%);
+      color: #fff; display: flex; align-items: center; gap: 14px;
+      box-shadow: 0 14px 34px rgba(79,70,229,.35); transition: transform .08s ease;
+    }
+    .hero:active { transform: scale(.99); }
+    [data-theme="dark"] .hero { box-shadow: 0 14px 34px rgba(0,0,0,.5); }
+    .hero .avatar {
+      width: 56px; height: 56px; border-radius: 18px; flex: 0 0 auto;
+      background: rgba(255,255,255,.18);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 21px; font-weight: 700; letter-spacing: .5px;
+      border: 1px solid rgba(255,255,255,.35);
+    }
+    .hero .who { min-width: 0; }
+    .hero .greet { font-size: 12px; opacity: .85; margin-bottom: 2px; }
+    .hero .nm { font-size: 20px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; letter-spacing: -.01em; }
+    .hero .rl { font-size: 12.5px; opacity: .9; margin-top: 3px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .chip {
+      background: var(--soft); color: var(--text); border: 1px solid var(--border);
+      border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: transform .08s ease, background .12s ease, border-color .12s ease;
+    }
+    .chip:active { transform: scale(.95); }
+    .chip.active { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
+    .spinner {
+      width: 22px; height: 22px; border-radius: 50%; margin: 18px auto;
+      border: 2.5px solid var(--border); border-top-color: var(--primary); animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .fade-in { animation: fadeIn .22s ease; }
+    @media (prefers-reduced-motion: reduce) { .fade-in { animation: none; } button:active, .item.tap:active, .hero:active, .chip:active { transform: none; } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="hdr" id="app-hdr">
+      <button class="back" id="back-btn" style="display:none">←</button>
+      <div class="ttl" id="hdr-title"></div>
+    </div>
+    <div id="status" class="status hidden"></div>
+    <div id="content"></div>
+    <p class="muted" id="debug"></p>
+  </div>
+
+  <script>
+    // ════════════════════════ Состояние ════════════════════════
+    const state = {
+      token: null, user: null, initData: "", startParam: "",
+      subscriptionActive: null,
+      lang: localStorage.getItem("pa_lang") || "ru",
+      theme: localStorage.getItem("pa_theme") || "",
+    };
+
+    const tg = window.Telegram && window.Telegram.WebApp;
+
+    const statusEl  = document.getElementById("status");
+    const contentEl = document.getElementById("content");
+    const titleEl   = document.getElementById("hdr-title");
+    const backBtn   = document.getElementById("back-btn");
+    const hdrEl     = document.getElementById("app-hdr");
+    const debugEl   = document.getElementById("debug");
+
+    // ════════════════════════ Переводы ════════════════════════
+    const I18N = {
+      ru: {
+        back:"Назад", save:"Сохранить", saveChanges:"Сохранить изменения", cancel:"Отмена",
+        del:"Удалить", edit:"Редактировать", loading:"Загрузка…", done:"Готово.", saved:"Сохранено.",
+        notFound:"Ничего не найдено.", empty:"Пусто.", copy:"Копировать", copied:"Скопировано.",
+        myProfile:"Мой профиль", profile:"Профиль", myAgencies:"Мои агентства", settings:"Настройки",
+        addObject:"Добавить объект", findObject:"Найти объект", myDatabase:"Моя база", team:"Команда", invites:"Приглашения",
+        name:"Имя", username:"Username", roleLbl:"Роль", tgId:"Telegram ID", agencyLbl:"Агентство",
+        role_superadmin:"Владелец платформы", role_agency_admin:"Администратор агентства", role_agent:"Агент",
+        language:"Язык", theme:"Тема", themeLight:"Светлая", themeDark:"Тёмная",
+        lang_ru:"Русский", lang_uz:"Oʻzbekcha", lang_en:"English",
+        defaultCurrency:"Валюта по умолчанию", timezone:"Часовой пояс", districts:"Районы",
+        addDistrict:"Добавить район", newDistrict:"Новый район", districtAdded:"Район добавлен.", delDistrictQ:"Удалить район?",
+        saveSettings:"Сохранить настройки", settingsHint:"Язык и тема сохраняются на этом устройстве.",
+        addAgency:"+ Добавить агентство", createAgency:"Создать агентство", agencyName:"Название агентства",
+        adminTgId:"Telegram ID администратора", adminUsername:"Username администратора (необязательно)",
+        subDays:"Подписка на сколько дней", noAgencies:"Пока нет ни одного агентства.",
+        admin:"Админ", notAssigned:"не назначен", subUntil:"подписка до", manageAgency:"Управление агентством",
+        rename:"Переименовать", changeAdmin:"Сменить админа", freeze:"Заморозить", activate:"Активировать",
+        extendDays:"На сколько дней продлить", extendBtn:"Продлить подписку", deleteAgency:"Удалить агентство",
+        newName:"Новое название агентства:", emptyName:"Название не может быть пустым.",
+        promptAdminId:"Telegram ID нового администратора:", promptAdminUser:"Username администратора (необязательно, без @):",
+        badId:"Введите корректный Telegram ID (число).", adminAssigned:"Администратор назначен.",
+        delAgQ1:"Удалить агентство со ВСЕМИ данными (объекты, команда, приглашения, районы)? Это необратимо.",
+        delAgQ2:"Точно удалить? Данные восстановить будет нельзя.", agDeleted:"Агентство удалено.",
+        agencyCreated:"Агентство создано.", renamed:"Переименовано.", subUpdated:"Подписка обновлена.",
+        st_active:"Активна", st_trial:"Пробная", st_frozen:"Заморожена", st_expired:"Просрочена",
+        f_name:"Наименование", f_type:"Тип объекта", f_status:"Статус", f_district:"Район", f_address:"Адрес",
+        f_rooms:"Комнат", f_floor:"Этаж", f_tfloors:"Этажей", f_area:"Площадь, м²", f_price:"Цена",
+        f_currency:"Валюта", f_condition:"Состояние объекта", f_phone:"Телефон", f_desc:"Описание",
+        any:"Любой", floorFrom:"Этаж от", to:"до", priceFrom:"Цена от",
+        searchText:"Поиск (наименование, адрес, № объекта)", searchBtn:"Найти", showMore:"Показать ещё",
+        found:"Найдено", addedBy:"Добавил", shareCard:"Скопировать карточку", shareTg:"Отправить в Telegram",
+        saveObject:"Сохранить объект", objCreated:"Объект создан: №", clearHint:"Чтобы очистить поле — сотрите его содержимое и сохраните.",
+        editTitle:"Редактирование №", delObjQ:"Удалить объект безвозвратно?", objDeleted:"Объект удалён.",
+        statusActive:"Активен", statusDeposit:"Задаток", statusSold:"Продан", statusArchived:"Архив",
+        toDeposit:"Задаток", toSold:"Продан", toArchive:"В архив", removeDeposit:"Снять задаток",
+        backToActive:"Вернуть в активные", changingStatus:"Меняем статус…",
+        members:"Сотрудники агентства", noMembers:"Сотрудников пока нет.", enable:"Включить", disable:"Отключить",
+        mActive:"активен", mDisabled:"отключён", itsYou:"это вы", promote:"Повысить до админа", demote:"Сделать агентом",
+        roleQ:"Назначить сотруднику роль «", roleChanged:"Роль изменена.",
+        createInvite:"Создать приглашение", inviteRole:"Роль приглашаемого", inviteDays:"Срок действия, дней",
+        inviteCreated:"Приглашение создано.", giveToEmployee:"Передайте это приглашаемому сотруднику:",
+        codeLbl:"Код", copyLink:"Копировать ссылку", copyCode:"Копировать код", issuedInvites:"Выданные приглашения",
+        noInvites:"Приглашений пока нет.", revoke:"Отозвать", revoked:"Приглашение отозвано.",
+        inv_active:"активно", inv_used:"использовано", inv_expired:"просрочено",
+        joinTitle:"Вступление в агентство", joinCodeLabel:"Код приглашения от вашего агентства",
+        joinBtn:"Вступить в агентство", joinChecking:"Проверяем приглашение…",
+        notInAgency:"Вы пока не в агентстве. Введите код приглашения, чтобы вступить.",
+        suspendedTitle:"Доступ приостановлен",
+        suspendedMsg:"Подписка вашего агентства неактивна, доступ временно приостановлен. Все данные сохранены. Обратитесь к владельцу платформы для продления подписки.",
+        loginIn:"Выполняем вход через Telegram…", loginFail:"Войти не удалось: ",
+        openInTg:"Откройте приложение внутри Telegram, чтобы войти.", backendOk:"Связь с backend есть.",
+        backendErr:"Не удаётся связаться с backend. Проверьте, что контейнеры запущены.",
+        notSet:"—", apartment:"Объект", saving:"Сохраняем…",
+        projectName:"Название проекта", projectNameHint:"Это название увидят сотрудники вашего агентства.",
+        roomsFrom:"Комнат от", setDateLabel:"Дата окончания подписки", setDateBtn:"Задать дату вручную",
+        greeting:"Здравствуйте", typeMultiHint:"Можно выбрать несколько типов",
+        activatedAt:"Дата активации", extendPrompt:"На сколько дней продлить подписку?",
+        setDatePrompt:"Новая дата окончания (ГГГГ-ММ-ДД):", badDate:"Неверный формат даты. Пример: 2026-12-31",
+        changeDateBtn:"Изменить дату", notSold:"Не проданные", mainAdmin:"Главный",
+        makeOwner:"Сделать главным", makeOwnerQ:"Передать роль главного администратора этому сотруднику? Вы станете обычным админом.", ownerTransferred:"Роль главного передана.",
+        soldDate:"Дата продажи", archivedDate:"Дата архива", history:"История", ev_created:"создал объект", ev_updated:"изменил", ev_status:"статус", daysLeft:"осталось дней", stats:"Статистика",
+      },
+      uz: {
+        back:"Orqaga", save:"Saqlash", saveChanges:"Oʻzgarishlarni saqlash", cancel:"Bekor qilish",
+        del:"Oʻchirish", edit:"Tahrirlash", loading:"Yuklanmoqda…", done:"Bajarildi.", saved:"Saqlandi.",
+        notFound:"Hech narsa topilmadi.", empty:"Boʻsh.", copy:"Nusxa olish", copied:"Nusxa olindi.",
+        myProfile:"Mening profilim", profile:"Profil", myAgencies:"Mening agentliklarim", settings:"Sozlamalar",
+        addObject:"Obyekt qoʻshish", findObject:"Obyekt qidirish", myDatabase:"Mening bazam", team:"Jamoa", invites:"Takliflar",
+        name:"Ism", username:"Username", roleLbl:"Rol", tgId:"Telegram ID", agencyLbl:"Agentlik",
+        role_superadmin:"Platforma egasi", role_agency_admin:"Agentlik administratori", role_agent:"Agent",
+        language:"Til", theme:"Mavzu", themeLight:"Yorugʻ", themeDark:"Tungi",
+        lang_ru:"Русский", lang_uz:"Oʻzbekcha", lang_en:"English",
+        defaultCurrency:"Standart valyuta", timezone:"Vaqt mintaqasi", districts:"Tumanlar",
+        addDistrict:"Tuman qoʻshish", newDistrict:"Yangi tuman", districtAdded:"Tuman qoʻshildi.", delDistrictQ:"Tuman oʻchirilsinmi?",
+        saveSettings:"Sozlamalarni saqlash", settingsHint:"Til va mavzu shu qurilmada saqlanadi.",
+        addAgency:"+ Agentlik qoʻshish", createAgency:"Agentlik yaratish", agencyName:"Agentlik nomi",
+        adminTgId:"Administrator Telegram ID", adminUsername:"Administrator username (ixtiyoriy)",
+        subDays:"Obuna necha kunga", noAgencies:"Hozircha agentliklar yoʻq.",
+        admin:"Admin", notAssigned:"tayinlanmagan", subUntil:"obuna muddati", manageAgency:"Agentlikni boshqarish",
+        rename:"Nomini oʻzgartirish", changeAdmin:"Adminni almashtirish", freeze:"Muzlatish", activate:"Faollashtirish",
+        extendDays:"Necha kunga uzaytirish", extendBtn:"Obunani uzaytirish", deleteAgency:"Agentlikni oʻchirish",
+        newName:"Agentlikning yangi nomi:", emptyName:"Nom boʻsh boʻlishi mumkin emas.",
+        promptAdminId:"Yangi administrator Telegram ID:", promptAdminUser:"Administrator username (ixtiyoriy, @ siz):",
+        badId:"Toʻgʻri Telegram ID kiriting (raqam).", adminAssigned:"Administrator tayinlandi.",
+        delAgQ1:"Agentlikni BARCHA maʼlumotlari bilan oʻchirasizmi (obyektlar, jamoa, takliflar, tumanlar)? Qaytarib boʻlmaydi.",
+        delAgQ2:"Aniq oʻchirilsinmi? Maʼlumotlarni tiklab boʻlmaydi.", agDeleted:"Agentlik oʻchirildi.",
+        agencyCreated:"Agentlik yaratildi.", renamed:"Nomi oʻzgartirildi.", subUpdated:"Obuna yangilandi.",
+        st_active:"Faol", st_trial:"Sinov", st_frozen:"Muzlatilgan", st_expired:"Muddati oʻtgan",
+        f_name:"Nomi", f_type:"Obyekt turi", f_status:"Holat", f_district:"Tuman", f_address:"Manzil",
+        f_rooms:"Xonalar", f_floor:"Qavat", f_tfloors:"Qavatlar soni", f_area:"Maydon, m²", f_price:"Narx",
+        f_currency:"Valyuta", f_condition:"Holati", f_phone:"Telefon", f_desc:"Tavsif",
+        any:"Istalgan", floorFrom:"Qavat (dan)", to:"gacha", priceFrom:"Narx (dan)",
+        searchText:"Qidiruv (nomi, manzil, obyekt №)", searchBtn:"Qidirish", showMore:"Yana koʻrsatish",
+        found:"Topildi", addedBy:"Qoʻshdi", shareCard:"Kartochkani nusxalash", shareTg:"Telegramga yuborish",
+        saveObject:"Obyektni saqlash", objCreated:"Obyekt yaratildi: №", clearHint:"Maydonni tozalash uchun — matnini oʻchirib saqlang.",
+        editTitle:"Tahrirlash №", delObjQ:"Obyekt butunlay oʻchirilsinmi?", objDeleted:"Obyekt oʻchirildi.",
+        statusActive:"Faol", statusDeposit:"Zakalat", statusSold:"Sotilgan", statusArchived:"Arxiv",
+        toDeposit:"Zakalat", toSold:"Sotilgan", toArchive:"Arxivga", removeDeposit:"Zakalatni olib tashlash",
+        backToActive:"Faolga qaytarish", changingStatus:"Holat oʻzgartirilmoqda…",
+        members:"Agentlik xodimlari", noMembers:"Hozircha xodimlar yoʻq.", enable:"Yoqish", disable:"Oʻchirish",
+        mActive:"faol", mDisabled:"oʻchirilgan", itsYou:"bu siz", promote:"Adminlikka koʻtarish", demote:"Agent qilish",
+        roleQ:"Xodimga «", roleChanged:"Rol oʻzgartirildi.",
+        createInvite:"Taklif yaratish", inviteRole:"Taklif etiluvchi roli", inviteDays:"Amal qilish muddati, kun",
+        inviteCreated:"Taklif yaratildi.", giveToEmployee:"Buni taklif etilayotgan xodimga bering:",
+        codeLbl:"Kod", copyLink:"Havolani nusxalash", copyCode:"Kodni nusxalash", issuedInvites:"Berilgan takliflar",
+        noInvites:"Hozircha takliflar yoʻq.", revoke:"Bekor qilish", revoked:"Taklif bekor qilindi.",
+        inv_active:"faol", inv_used:"ishlatilgan", inv_expired:"muddati oʻtgan",
+        joinTitle:"Agentlikka qoʻshilish", joinCodeLabel:"Agentligingizdan taklif kodi",
+        joinBtn:"Agentlikka qoʻshilish", joinChecking:"Taklif tekshirilmoqda…",
+        notInAgency:"Siz hali agentlikda emassiz. Qoʻshilish uchun taklif kodini kiriting.",
+        suspendedTitle:"Kirish toʻxtatilgan",
+        suspendedMsg:"Agentligingiz obunasi faol emas, kirish vaqtincha toʻxtatilgan. Barcha maʼlumotlar saqlangan. Obunani uzaytirish uchun platforma egasiga murojaat qiling.",
+        loginIn:"Telegram orqali kirish…", loginFail:"Kirib boʻlmadi: ",
+        openInTg:"Kirish uchun ilovani Telegram ichida oching.", backendOk:"Backend bilan aloqa bor.",
+        backendErr:"Backend bilan bogʻlanib boʻlmadi. Konteynerlar ishlayotganini tekshiring.",
+        notSet:"—", apartment:"Obyekt", saving:"Saqlanmoqda…",
+        projectName:"Loyiha nomi", projectNameHint:"Bu nomni agentligingiz xodimlari koʻradi.",
+        roomsFrom:"Xonalar (dan)", setDateLabel:"Obuna tugash sanasi", setDateBtn:"Sanani qoʻlda belgilash",
+        greeting:"Assalomu alaykum", typeMultiHint:"Bir nechta turni tanlash mumkin",
+        activatedAt:"Faollashtirilgan sana", extendPrompt:"Obunani necha kunga uzaytirilsin?",
+        setDatePrompt:"Yangi tugash sanasi (YYYY-MM-DD):", badDate:"Sana formati notoʻgʻri. Masalan: 2026-12-31",
+        changeDateBtn:"Sanani oʻzgartirish", notSold:"Sotilmagan", mainAdmin:"Bosh admin",
+        makeOwner:"Bosh admin qilish", makeOwnerQ:"Bosh administrator rolini shu xodimga berasizmi? Siz oddiy admin boʻlasiz.", ownerTransferred:"Bosh admin roli berildi.",
+        soldDate:"Sotilgan sana", archivedDate:"Arxiv sanasi", history:"Tarix", ev_created:"obyekt yaratdi", ev_updated:"oʻzgartirdi", ev_status:"holat", daysLeft:"kun qoldi", stats:"Statistika",
+      },
+      en: {
+        back:"Back", save:"Save", saveChanges:"Save changes", cancel:"Cancel",
+        del:"Delete", edit:"Edit", loading:"Loading…", done:"Done.", saved:"Saved.",
+        notFound:"Nothing found.", empty:"Empty.", copy:"Copy", copied:"Copied.",
+        myProfile:"My profile", profile:"Profile", myAgencies:"My agencies", settings:"Settings",
+        addObject:"Add property", findObject:"Find property", myDatabase:"My database", team:"Team", invites:"Invites",
+        name:"Name", username:"Username", roleLbl:"Role", tgId:"Telegram ID", agencyLbl:"Agency",
+        role_superadmin:"Platform owner", role_agency_admin:"Agency admin", role_agent:"Agent",
+        language:"Language", theme:"Theme", themeLight:"Light", themeDark:"Dark",
+        lang_ru:"Русский", lang_uz:"Oʻzbekcha", lang_en:"English",
+        defaultCurrency:"Default currency", timezone:"Timezone", districts:"Districts",
+        addDistrict:"Add district", newDistrict:"New district", districtAdded:"District added.", delDistrictQ:"Delete district?",
+        saveSettings:"Save settings", settingsHint:"Language and theme are stored on this device.",
+        addAgency:"+ Add agency", createAgency:"Create agency", agencyName:"Agency name",
+        adminTgId:"Admin Telegram ID", adminUsername:"Admin username (optional)",
+        subDays:"Subscription days", noAgencies:"No agencies yet.",
+        admin:"Admin", notAssigned:"not assigned", subUntil:"subscription until", manageAgency:"Manage agency",
+        rename:"Rename", changeAdmin:"Change admin", freeze:"Freeze", activate:"Activate",
+        extendDays:"Extend by how many days", extendBtn:"Extend subscription", deleteAgency:"Delete agency",
+        newName:"New agency name:", emptyName:"Name cannot be empty.",
+        promptAdminId:"New admin Telegram ID:", promptAdminUser:"Admin username (optional, no @):",
+        badId:"Enter a valid Telegram ID (number).", adminAssigned:"Admin assigned.",
+        delAgQ1:"Delete agency with ALL data (properties, team, invites, districts)? This is irreversible.",
+        delAgQ2:"Really delete? Data cannot be restored.", agDeleted:"Agency deleted.",
+        agencyCreated:"Agency created.", renamed:"Renamed.", subUpdated:"Subscription updated.",
+        st_active:"Active", st_trial:"Trial", st_frozen:"Frozen", st_expired:"Expired",
+        f_name:"Title", f_type:"Property type", f_status:"Status", f_district:"District", f_address:"Address",
+        f_rooms:"Rooms", f_floor:"Floor", f_tfloors:"Total floors", f_area:"Area, m²", f_price:"Price",
+        f_currency:"Currency", f_condition:"Condition", f_phone:"Phone", f_desc:"Description",
+        any:"Any", floorFrom:"Floor from", to:"to", priceFrom:"Price from",
+        searchText:"Search (title, address, property №)", searchBtn:"Search", showMore:"Show more",
+        found:"Found", addedBy:"Added by", shareCard:"Copy card", shareTg:"Send to Telegram",
+        saveObject:"Save property", objCreated:"Property created: №", clearHint:"To clear a field — erase its content and save.",
+        editTitle:"Editing №", delObjQ:"Delete property permanently?", objDeleted:"Property deleted.",
+        statusActive:"Active", statusDeposit:"Deposit", statusSold:"Sold", statusArchived:"Archived",
+        toDeposit:"Deposit", toSold:"Sold", toArchive:"To archive", removeDeposit:"Remove deposit",
+        backToActive:"Back to active", changingStatus:"Changing status…",
+        members:"Agency members", noMembers:"No members yet.", enable:"Enable", disable:"Disable",
+        mActive:"active", mDisabled:"disabled", itsYou:"it's you", promote:"Promote to admin", demote:"Make agent",
+        roleQ:"Assign the role «", roleChanged:"Role changed.",
+        createInvite:"Create invite", inviteRole:"Invitee role", inviteDays:"Valid for, days",
+        inviteCreated:"Invite created.", giveToEmployee:"Give this to the invited employee:",
+        codeLbl:"Code", copyLink:"Copy link", copyCode:"Copy code", issuedInvites:"Issued invites",
+        noInvites:"No invites yet.", revoke:"Revoke", revoked:"Invite revoked.",
+        inv_active:"active", inv_used:"used", inv_expired:"expired",
+        joinTitle:"Join an agency", joinCodeLabel:"Invite code from your agency",
+        joinBtn:"Join agency", joinChecking:"Checking invite…",
+        notInAgency:"You are not in an agency yet. Enter an invite code to join.",
+        suspendedTitle:"Access suspended",
+        suspendedMsg:"Your agency subscription is inactive, access is temporarily suspended. All data is preserved. Contact the platform owner to renew the subscription.",
+        loginIn:"Signing in via Telegram…", loginFail:"Sign-in failed: ",
+        openInTg:"Open the app inside Telegram to sign in.", backendOk:"Backend connection OK.",
+        backendErr:"Cannot reach backend. Make sure the containers are running.",
+        notSet:"—", apartment:"Property", saving:"Saving…",
+        projectName:"Project name", projectNameHint:"Your agency members will see this name.",
+        roomsFrom:"Rooms from", setDateLabel:"Subscription end date", setDateBtn:"Set date manually",
+        greeting:"Hello", typeMultiHint:"You can select several types",
+        activatedAt:"Activation date", extendPrompt:"Extend subscription by how many days?",
+        setDatePrompt:"New end date (YYYY-MM-DD):", badDate:"Invalid date format. Example: 2026-12-31",
+        changeDateBtn:"Change date", notSold:"Not sold", mainAdmin:"Main",
+        makeOwner:"Make main", makeOwnerQ:"Transfer the main admin role to this member? You will become a regular admin.", ownerTransferred:"Main admin role transferred.",
+        soldDate:"Sold date", archivedDate:"Archived date", history:"History", ev_created:"created the property", ev_updated:"edited", ev_status:"status", daysLeft:"days left", stats:"Statistics",
+      },
+    };
+    function t(key) {
+      const l = I18N[state.lang] || I18N.ru;
+      return (key in l) ? l[key] : (I18N.ru[key] != null ? I18N.ru[key] : key);
+    }
+
+    // Фиксированные значения данных (хранятся в БД как есть) + переводимые подписи.
+    const OBJ_TYPE_VALUES = ["Квартира", "Дом", "Коммерция", "Земля"];
+    const OBJ_TYPE_LABELS = {
+      ru: ["Квартира", "Дом", "Коммерция", "Земля"],
+      uz: ["Kvartira", "Uy", "Tijorat", "Yer"],
+      en: ["Apartment", "House", "Commercial", "Land"],
+    };
+    const OBJ_COND_VALUES = ["Без ремонта", "Черновая", "White box", "Средний ремонт", "Новый ремонт", "Дизайнерский ремонт"];
+    const OBJ_COND_LABELS = {
+      ru: ["Без ремонта", "Черновая", "White box", "Средний ремонт", "Новый ремонт", "Дизайнерский ремонт"],
+      uz: ["Taʼmirsiz", "Qoʻpol", "White box", "Oʻrtacha taʼmir", "Yangi taʼmir", "Dizaynerlik taʼmir"],
+      en: ["No renovation", "Rough finish", "White box", "Average renovation", "New renovation", "Designer renovation"],
+    };
+    const STATUS_BADGE = { active: "green", deposit: "amber", sold: "gray", archived: "gray" };
+    function statusLabel(s) {
+      const map = { active: t("statusActive"), deposit: t("statusDeposit"), sold: t("statusSold"), archived: t("statusArchived") };
+      return map[s] || s;
+    }
+    function typeLabel(v) {
+      const i = OBJ_TYPE_VALUES.indexOf(v);
+      return i >= 0 ? (OBJ_TYPE_LABELS[state.lang] || OBJ_TYPE_LABELS.ru)[i] : v;
+    }
+    function condLabel(v) {
+      const i = OBJ_COND_VALUES.indexOf(v);
+      return i >= 0 ? (OBJ_COND_LABELS[state.lang] || OBJ_COND_LABELS.ru)[i] : v;
+    }
+    function roleLabel(role) {
+      const k = "role_" + role;
+      return (I18N[state.lang] && I18N[state.lang][k]) ? I18N[state.lang][k] : (role || t("notSet"));
+    }
+    // ════════════════════════ Тема и язык ════════════════════════
+    function applyTheme() {
+      let theme = state.theme;
+      if (!theme) theme = (tg && tg.colorScheme === "dark") ? "dark" : "light";
+      theme = theme === "dark" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", theme);
+      // Подкрашиваем фон/шапку самого Telegram под нашу тему (если поддерживается).
+      const bg = theme === "dark" ? "#0e1116" : "#f4f5f7";
+      try { if (tg && tg.setBackgroundColor) tg.setBackgroundColor(bg); } catch (e) {}
+      try { if (tg && tg.setHeaderColor) tg.setHeaderColor(bg); } catch (e) {}
+    }
+    function haptic(kind) {
+      try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(kind || "light"); } catch (e) {}
+    }
+    function setTheme(theme) {
+      state.theme = theme;
+      localStorage.setItem("pa_theme", theme);
+      applyTheme();
+    }
+    function setLang(lang) {
+      state.lang = lang;
+      localStorage.setItem("pa_lang", lang);
+      document.documentElement.setAttribute("lang", lang === "uz" ? "uz" : (lang === "en" ? "en" : "ru"));
+      renderCurrent();
+    }
+
+    // ════════════════════════ Утилиты ════════════════════════
+    function setStatus(text, kind) {
+      if (!text) { statusEl.className = "status hidden"; statusEl.textContent = ""; return; }
+      statusEl.textContent = text;
+      statusEl.className = "status " + (kind || "info");
+    }
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+    function fmtDate(iso) {
+      if (!iso) return t("notSet");
+      try {
+        const d = new Date(iso);
+        const tz = state.timezone || null;
+        const dOpts = tz ? { timeZone: tz } : {};
+        const tOpts = tz ? { hour:"2-digit", minute:"2-digit", timeZone: tz } : { hour:"2-digit", minute:"2-digit" };
+        const loc = state.lang === "en" ? "en-GB" : (state.lang === "uz" ? "uz-UZ" : "ru-RU");
+        return d.toLocaleDateString(loc, dOpts) + " " + d.toLocaleTimeString(loc, tOpts);
+      } catch (e) { return iso; }
+    }
+    function errText(data, status) {
+      if (!data) return t("notSet") + " " + status;
+      const d = data.detail;
+      if (typeof d === "string") return d;
+      if (Array.isArray(d) && d.length) return d.map(e => e.msg || JSON.stringify(e)).join("; ");
+      return "" + status;
+    }
+    async function copyText(text) {
+      try { await navigator.clipboard.writeText(text); setStatus(t("copied"), "ok"); }
+      catch (e) { window.prompt(t("copy") + ":", text); }
+    }
+
+    // ════════════════════════ Сеть ════════════════════════
+    async function api(path, opts) {
+      opts = opts || {};
+      const headers = { "Content-Type": "application/json" };
+      if (state.token) headers["Authorization"] = "Bearer " + state.token;
+      const res = await fetch(path, {
+        method: opts.method || "GET",
+        headers,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      return { ok: res.ok, status: res.status, data };
+    }
+    async function login(initData) {
+      return api("/api/v1/auth/telegram", { method: "POST", body: { init_data: initData } });
+    }
+    async function redeem(initData, code) {
+      return api("/api/v1/invites/redeem", { method: "POST", body: { init_data: initData, code } });
+    }
+
+    // ════════════════════════ Навигация ════════════════════════
+    // Каждый экран — { titleKey, render }. Стек хранит экраны для кнопки «Назад».
+    const nav = { stack: [] };
+    function renderCurrent() {
+      const screen = nav.stack[nav.stack.length - 1];
+      if (!screen) return;
+      const title = screen.titleKey ? t(screen.titleKey) : "";
+      titleEl.textContent = title;
+      const hasBack = nav.stack.length > 1;
+      backBtn.style.display = hasBack ? "" : "none";
+      backBtn.textContent = "← " + t("back");
+      // Пустую шапку (нет ни кнопки «Назад», ни заголовка) скрываем,
+      // чтобы над герой-карточкой не было пустой полосы.
+      if (hdrEl) hdrEl.style.display = (hasBack || title) ? "flex" : "none";
+      if (tg && tg.BackButton) { try { hasBack ? tg.BackButton.show() : tg.BackButton.hide(); } catch (e) {} }
+      setStatus("", null);
+      contentEl.innerHTML = "";
+      contentEl.classList.remove("fade-in");
+      void contentEl.offsetWidth;
+      contentEl.classList.add("fade-in");
+      screen.render(contentEl);
+    }
+    function navigate(screen) { haptic("light"); nav.stack.push(screen); renderCurrent(); }
+    function back() { if (nav.stack.length > 1) { haptic("light"); nav.stack.pop(); renderCurrent(); } }
+    function resetTo(screen) { nav.stack = [screen]; renderCurrent(); }
+    backBtn.addEventListener("click", back);
+    if (tg && tg.BackButton && tg.BackButton.onClick) { try { tg.BackButton.onClick(back); } catch (e) {} }
+
+    // ════════════════════════ Общие UI-помощники ════════════════════════
+    function el(html) { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; }
+    function menuButton(icon, labelKey, onClick) {
+      const b = el(`<button class="menu-btn"><span class="ic">${icon}</span><span class="lbl">${esc(t(labelKey))}</span><span class="chev">›</span></button>`);
+      b.addEventListener("click", onClick);
+      return b;
+    }
+    function profileRowsHtml() {
+      const u = state.user || {};
+      let rows = `
+        <div class="row"><span>${esc(t("name"))}</span><span><b>${esc(u.full_name || t("notSet"))}</b></span></div>
+        <div class="row"><span>${esc(t("username"))}</span><span><b>${u.username ? "@" + esc(u.username) : t("notSet")}</b></span></div>
+        <div class="row"><span>${esc(t("roleLbl"))}</span><span><b>${esc(roleLabel(u.role))}</b></span></div>`;
+      if (u.telegram_id) rows += `<div class="row"><span>${esc(t("tgId"))}</span><span><b>${esc(u.telegram_id)}</b></span></div>`;
+      return rows;
+    }
+    function optionTag(value, label, current) {
+      return `<option value="${esc(value)}" ${String(value) === String(current == null ? "" : current) ? "selected" : ""}>${esc(label)}</option>`;
+    }
+
+    // ════════════════════════ Справочники (районы) и настройки ════════════════════════
+    const refs = { district: [], loaded: false };
+    async function loadRefs(force) {
+      if (refs.loaded && !force) return;
+      const d = await api("/api/v1/dictionaries?category=district");
+      refs.district = d.ok && Array.isArray(d.data) ? d.data : [];
+      refs.loaded = true;
+    }
+    async function loadAgencySettings(force) {
+      if (state.settingsLoaded && !force) return;
+      const r = await api("/api/v1/agency/settings");
+      if (r.ok && r.data) {
+        state.defaultCurrency = r.data.default_currency || null;
+        state.timezone = r.data.timezone || null;
+        state.agencyName = r.data.name || null;
+        state.projectName = r.data.project_name || null;
+        state.subscriptionExpiresAt = r.data.subscription_expires_at || null;
+        state.agencyStatus = r.data.status || null;
+        state.settingsLoaded = true;
+      }
+    }
+
+    // ════════════════════════ Форма объекта ════════════════════════
+    function objFormInner(o) {
+      o = o || {};
+      const typeOpts = `<option value="">${esc(t("notSet"))}</option>` + OBJ_TYPE_VALUES.map(v => optionTag(v, typeLabel(v), o.type)).join("");
+      const condOpts = `<option value="">${esc(t("notSet"))}</option>` + OBJ_COND_VALUES.map(v => optionTag(v, condLabel(v), o.condition)).join("");
+      const distOpts = `<option value="">${esc(t("notSet"))}</option>` + refs.district.map(x => optionTag(x.value, x.value, o.district)).join("");
+      const defCur = o.currency || state.defaultCurrency || "USD";
+      const curOpts = ["USD","UZS","EUR"].map(c => optionTag(c, c, defCur)).join("");
+      const num = v => (v != null ? v : "");
+      return `
+        <label>${esc(t("f_name"))}</label><input id="n-name" value="${esc(o.name || "")}" />
+        <label>${esc(t("f_type"))}</label><select id="n-type">${typeOpts}</select>
+        <label>${esc(t("f_district"))}</label><select id="n-district">${distOpts}</select>
+        <label>${esc(t("f_address"))}</label><input id="n-address" value="${esc(o.address || "")}" />
+        <div style="display:flex; gap:8px">
+          <div style="flex:1"><label>${esc(t("f_rooms"))}</label><input id="n-rooms" inputmode="numeric" value="${num(o.rooms)}" /></div>
+          <div style="flex:1"><label>${esc(t("f_floor"))}</label><input id="n-floor" inputmode="numeric" value="${num(o.floor)}" /></div>
+          <div style="flex:1"><label>${esc(t("f_tfloors"))}</label><input id="n-tfloors" inputmode="numeric" value="${num(o.total_floors)}" /></div>
+        </div>
+        <div style="display:flex; gap:8px">
+          <div style="flex:1"><label>${esc(t("f_area"))}</label><input id="n-area" inputmode="decimal" value="${num(o.area)}" /></div>
+          <div style="flex:1"><label>${esc(t("f_price"))}</label><input id="n-price" inputmode="numeric" value="${num(o.price)}" /></div>
+          <div style="flex:1"><label>${esc(t("f_currency"))}</label><select id="n-currency">${curOpts}</select></div>
+        </div>
+        <label>${esc(t("f_condition"))}</label><select id="n-condition">${condOpts}</select>
+        <label>${esc(t("f_phone"))}</label><input id="n-phone" value="${esc(o.phone || "")}" />
+        <label>${esc(t("f_desc"))}</label><input id="n-desc" value="${esc(o.description || "")}" />`;
+    }
+    function vNum(host, sel, isFloat) {
+      const e2 = host.querySelector(sel); const v = ((e2 && e2.value) || "").trim();
+      if (!v) return null; const n = isFloat ? parseFloat(v) : parseInt(v, 10);
+      return isNaN(n) ? null : n;
+    }
+    function vStr(host, sel) {
+      const e2 = host.querySelector(sel); const v = ((e2 && e2.value) || "").trim();
+      return v || null;
+    }
+    // full=true (редактирование) — включаем все поля (пустые как null, чтобы очищать).
+    function collectObjBody(host, full) {
+      const body = {};
+      const fields = {
+        name: vStr(host, "#n-name"), type: vStr(host, "#n-type"), district: vStr(host, "#n-district"),
+        address: vStr(host, "#n-address"), rooms: vNum(host, "#n-rooms", false), floor: vNum(host, "#n-floor", false),
+        total_floors: vNum(host, "#n-tfloors", false), area: vNum(host, "#n-area", true), price: vNum(host, "#n-price", true),
+        currency: host.querySelector("#n-currency").value, condition: vStr(host, "#n-condition"),
+        phone: vStr(host, "#n-phone"), description: vStr(host, "#n-desc"),
+      };
+      Object.keys(fields).forEach(k => {
+        if (full && k === "currency" && !fields[k]) return;
+        if (full || fields[k] !== null) body[k] = fields[k];
+      });
+      return body;
+    }
+    function buildShareCard(o) {
+      const lines = [];
+      lines.push("🏠 " + t("apartment") + " №" + (o.display_id || ""));
+      if (o.name) lines.push("📋 " + o.name);
+      if (o.type) lines.push("🏗 " + t("f_type") + ": " + typeLabel(o.type));
+      if (o.district) lines.push("📍 " + t("f_district") + ": " + o.district);
+      if (o.address) lines.push("🗺 " + t("f_address") + ": " + o.address);
+      if (o.rooms != null) lines.push("🚪 " + t("f_rooms") + ": " + o.rooms);
+      const fl = (o.floor != null && o.total_floors != null) ? (o.floor + "/" + o.total_floors) : (o.floor != null ? String(o.floor) : null);
+      if (fl) lines.push("🏢 " + t("f_floor") + ": " + fl);
+      if (o.area != null) lines.push("📐 " + o.area + " m²");
+      if (o.condition) lines.push("🔧 " + condLabel(o.condition));
+      if (o.price != null) lines.push("💵 " + o.price + " " + (o.currency || ""));
+      if (o.phone) lines.push("📞 " + o.phone);
+      if (o.description) lines.push("📝 " + o.description);
+      return lines.join("\n");
+    }
+    function shareToTelegram(text) {
+      const link = "https://t.me/share/url?url=&text=" + encodeURIComponent(text);
+      if (tg && tg.openTelegramLink) tg.openTelegramLink(link); else window.open(link, "_blank");
+    }
+
+    // ════════════════════════ Главное меню ════════════════════════
+    function initials(name) {
+      const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return "👤";
+      const a = parts[0][0] || "";
+      const b = parts.length > 1 ? (parts[parts.length - 1][0] || "") : "";
+      return (a + b).toUpperCase();
+    }
+    function heroHtml() {
+      const u = state.user || {};
+      const role = u.role;
+      // Для админа главным заголовком показываем название его проекта (если задано),
+      // иначе — имя пользователя.
+      let bigName = u.full_name || (u.username ? "@" + u.username : t("notSet"));
+      let sub = roleLabel(role);
+      if (role === "agency_admin" && state.projectName) {
+        sub = u.full_name ? (roleLabel(role) + " · " + u.full_name) : roleLabel(role);
+        bigName = state.projectName;
+      }
+      return `<div class="hero">
+        <div class="avatar">${esc(initials(u.full_name || state.projectName))}</div>
+        <div class="who">
+          <div class="greet">${esc(t("greeting"))}</div>
+          <div class="nm">${esc(bigName)}</div>
+          <div class="rl">${esc(sub)}</div>
+        </div>
+      </div>`;
+    }
+    async function appendStats(host) {
+      const box = el(`<div class="item" id="stats-box"><div class="meta">${esc(t("stats"))}…</div></div>`);
+      host.appendChild(box);
+      const r = await api("/api/v1/apartments/stats");
+      if (!r.ok || !r.data) { box.remove(); return; }
+      const s = r.data;
+      box.innerHTML = `
+        <div style="display:flex; justify-content:space-between; gap:8px; text-align:center">
+          <div style="flex:1"><div style="font-size:20px; font-weight:700">${s.active || 0}</div><div class="meta">${esc(t("statusActive"))}</div></div>
+          <div style="flex:1"><div style="font-size:20px; font-weight:700">${s.deposit || 0}</div><div class="meta">${esc(t("statusDeposit"))}</div></div>
+          <div style="flex:1"><div style="font-size:20px; font-weight:700">${s.sold || 0}</div><div class="meta">${esc(t("statusSold"))}</div></div>
+        </div>`;
+    }
+    function homeScreen() {
+      return { titleKey: null, render(host) {
+        const role = state.user && state.user.role;
+        const hero = el(heroHtml());
+        hero.style.cursor = "pointer";
+        hero.addEventListener("click", () => navigate(profileScreen()));
+        host.appendChild(hero);
+        if (role === "agency_admin" || role === "agent") appendStats(host);
+        const menu = el(`<div class="menu"></div>`);
+        if (role === "superadmin") {
+          menu.appendChild(menuButton("🏢", "myAgencies", () => navigate(agenciesScreen())));
+          menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
+        } else if (role === "agency_admin") {
+          menu.appendChild(menuButton("➕", "addObject", () => navigate(addObjectScreen())));
+          menu.appendChild(menuButton("🔎", "findObject", () => navigate(searchFormScreen())));
+          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(databaseScreen())));
+          menu.appendChild(menuButton("👥", "team", () => navigate(teamScreen())));
+          menu.appendChild(menuButton("✉️", "invites", () => navigate(invitesScreen())));
+          menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
+        } else if (role === "agent") {
+          menu.appendChild(menuButton("➕", "addObject", () => navigate(addObjectScreen())));
+          menu.appendChild(menuButton("🔎", "findObject", () => navigate(searchFormScreen())));
+          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(databaseScreen())));
+          menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
+        } else {
+          menu.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
+        }
+        host.appendChild(menu);
+      }};
+    }
+
+    function profileScreen() {
+      return { titleKey: "profile", render(host) {
+        host.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
+        if (state.projectName) host.appendChild(el(`<div class="hint">${esc(t("projectName"))}: ${esc(state.projectName)}</div>`));
+        // Главный админ видит свой срок подписки и сколько дней осталось.
+        if (state.user && state.user.is_owner && state.subscriptionExpiresAt) {
+          const end = new Date(state.subscriptionExpiresAt);
+          const days = Math.max(0, Math.ceil((end - new Date()) / 86400000));
+          host.appendChild(el(`<div class="item">
+            <div class="row"><span>${esc(t("subUntil"))}</span><span><b>${fmtDate(state.subscriptionExpiresAt)}</b></span></div>
+            <div class="row"><span>${esc(t("daysLeft"))}</span><span><b>${days}</b></span></div>
+          </div>`));
+        }
+      }};
+    }
+
+    function suspendedScreen() {
+      return { titleKey: "suspendedTitle", render(host) {
+        host.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
+        host.appendChild(el(`<div class="status err" style="margin-top:14px">${esc(t("suspendedMsg"))}</div>`));
+      }};
+    }
+
+    // ════════════════════════ Экран: Настройки ════════════════════════
+    function settingsScreen() {
+      return { titleKey: "settings", render(host) {
+        const role = state.user && state.user.role;
+        // Язык
+        host.appendChild(el(`<label>${esc(t("language"))}</label>`));
+        const langSeg = el(`<div class="seg" id="lang-seg">
+          <button data-l="ru" class="${state.lang === "ru" ? "active" : ""}">${esc(t("lang_ru"))}</button>
+          <button data-l="uz" class="${state.lang === "uz" ? "active" : ""}">${esc(t("lang_uz"))}</button>
+          <button data-l="en" class="${state.lang === "en" ? "active" : ""}">${esc(t("lang_en"))}</button>
+        </div>`);
+        langSeg.querySelectorAll("button").forEach(b => b.addEventListener("click", () => setLang(b.dataset.l)));
+        host.appendChild(langSeg);
+        // Тема
+        const curTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        host.appendChild(el(`<label>${esc(t("theme"))}</label>`));
+        const themeSeg = el(`<div class="seg" id="theme-seg">
+          <button data-th="light" class="${curTheme === "light" ? "active" : ""}">☀️ ${esc(t("themeLight"))}</button>
+          <button data-th="dark" class="${curTheme === "dark" ? "active" : ""}">🌙 ${esc(t("themeDark"))}</button>
+        </div>`);
+        themeSeg.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { setTheme(b.dataset.th); renderCurrent(); }));
+        host.appendChild(themeSeg);
+        host.appendChild(el(`<div class="hint">${esc(t("settingsHint"))}</div>`));
+
+        // Доп. настройки только для админа агентства: название проекта и валюта.
+        if (role === "agency_admin") {
+          host.appendChild(el(`<h2>${esc(t("agencyLbl"))}</h2>`));
+          host.appendChild(el(`<label>${esc(t("projectName"))}</label>`));
+          const pnInput = el(`<input id="set-project" value="${esc(state.projectName || "")}" />`);
+          host.appendChild(pnInput);
+          host.appendChild(el(`<div class="hint">${esc(t("projectNameHint"))}</div>`));
+          host.appendChild(el(`<label>${esc(t("defaultCurrency"))}</label>`));
+          const curSel = el(`<select id="set-currency">${["USD","UZS","EUR"].map(c => optionTag(c, c, state.defaultCurrency || "USD")).join("")}</select>`);
+          host.appendChild(curSel);
+          const saveBtn = el(`<button class="full">${esc(t("saveSettings"))}</button>`);
+          saveBtn.addEventListener("click", async () => {
+            setStatus(t("saving"), "info");
+            const r = await api("/api/v1/agency/settings", { method: "PATCH", body: { project_name: (pnInput.value || "").trim(), default_currency: curSel.value } });
+            if (r.ok) {
+              state.defaultCurrency = r.data.default_currency || null;
+              state.projectName = r.data.project_name || null;
+              setStatus(t("saved"), "ok");
+            } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+          });
+          host.appendChild(saveBtn);
+        }
+      }};
+    }
+
+    // ════════════════════════ СУПЕРАДМИН: агентства ════════════════════════
+    function agenciesScreen() {
+      return { titleKey: "myAgencies", render(host) {
+        const addBtn = el(`<button class="full">${esc(t("addAgency"))}</button>`);
+        addBtn.addEventListener("click", () => navigate(createAgencyScreen()));
+        host.appendChild(addBtn);
+        const box = el(`<div id="ag-list"><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        loadAgenciesInto(box);
+      }};
+    }
+    function agencyEffectiveStatus(a) {
+      if (a.status === "frozen") return "frozen";
+      if (a.subscription_expires_at && new Date(a.subscription_expires_at) < new Date()) return "expired";
+      return a.status;
+    }
+    function agencyStatusBadge(a) {
+      const eff = agencyEffectiveStatus(a);
+      const map = { active: ["green","st_active"], trial: ["green","st_trial"], frozen: ["amber","st_frozen"], expired: ["red","st_expired"] };
+      const m = map[eff] || ["gray", null];
+      return `<span class="badge ${m[0]}">${esc(m[1] ? t(m[1]) : eff)}</span>`;
+    }
+    async function loadAgenciesInto(box) {
+      const r = await api("/api/v1/agencies");
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">${esc(t("noAgencies"))}</div>`; return; }
+      box.innerHTML = "";
+      r.data.forEach(a => {
+        const adminTxt = a.admin_name ? (esc(a.admin_name) + (a.admin_telegram_id ? " (ID " + a.admin_telegram_id + ")" : "")) : t("notAssigned");
+        const item = el(`<div class="item tap">
+          <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a)}</div>
+          ${a.project_name ? `<div class="meta">${esc(t("projectName"))}: ${esc(a.project_name)}</div>` : ""}
+          <div class="meta">ID ${a.id} · ${esc(t("subUntil"))}: ${fmtDate(a.subscription_expires_at)}</div>
+          <div class="meta">${esc(t("admin"))}: ${adminTxt}</div>
+          <div class="meta" style="margin-top:6px">›</div>
+        </div>`);
+        item.addEventListener("click", () => navigate(agencyManageScreen(a.id)));
+        box.appendChild(item);
+      });
+    }
+
+    function agencyManageScreen(agencyId) {
+      return { titleKey: "manageAgency", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        renderAgencyManage(box, agencyId);
+      }};
+    }
+    async function renderAgencyManage(box, agencyId) {
+      const r = await api("/api/v1/agencies");
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      const a = (r.data || []).find(x => x.id === agencyId);
+      if (!a) { box.innerHTML = `<div class="empty">${esc(t("notFound"))}</div>`; return; }
+      const frozen = a.status === "frozen";
+      const adminTxt = a.admin_name ? (esc(a.admin_name) + (a.admin_telegram_id ? " (ID " + a.admin_telegram_id + ")" : "")) : t("notAssigned");
+      box.innerHTML = "";
+      box.appendChild(el(`<div class="item">
+        <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a)}</div>
+        ${a.project_name ? `<div class="meta">${esc(t("projectName"))}: ${esc(a.project_name)}</div>` : ""}
+        <div class="meta">ID ${a.id}</div>
+        <div class="meta">${esc(t("activatedAt"))}: ${fmtDate(a.activated_at || a.created_at)}</div>
+        <div class="meta">${esc(t("subUntil"))}: ${fmtDate(a.subscription_expires_at)}</div>
+        <div class="meta">${esc(t("admin"))}: ${adminTxt}</div>
+      </div>`));
+
+      // Все действия — кнопками. Продление и смена даты открывают окошко ввода.
+      const actions = el(`<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
+
+      const extBtn = el(`<button class="small ghost">${esc(t("extendBtn"))}</button>`);
+      extBtn.addEventListener("click", async () => {
+        const v = window.prompt(t("extendPrompt"), "30");
+        if (v === null) return;
+        const days = parseInt((v || "").trim(), 10);
+        if (isNaN(days) || days <= 0) { setStatus(t("badDate"), "warn"); return; }
+        await agencySub(agencyId, "extend", days); renderCurrent();
+      });
+
+      const dateBtn = el(`<button class="small ghost">${esc(t("changeDateBtn"))}</button>`);
+      dateBtn.addEventListener("click", async () => {
+        const v = window.prompt(t("setDatePrompt"), "");
+        if (v === null) return;
+        const s = (v || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) { setStatus(t("badDate"), "warn"); return; }
+        await agencySub(agencyId, "set", null, s + "T23:59:59Z"); renderCurrent();
+      });
+
+      const freezeBtn = el(`<button class="small ${frozen ? "ghost" : "danger"}">${esc(frozen ? t("activate") : t("freeze"))}</button>`);
+      freezeBtn.addEventListener("click", async () => { await agencySub(agencyId, frozen ? "activate" : "freeze", null); renderCurrent(); });
+      const renameBtn = el(`<button class="small ghost">${esc(t("rename"))}</button>`);
+      renameBtn.addEventListener("click", () => doRenameAgency(agencyId, a.name));
+      const adminBtn = el(`<button class="small ghost">${esc(t("changeAdmin"))}</button>`);
+      adminBtn.addEventListener("click", () => doChangeAdmin(agencyId));
+      const delBtn = el(`<button class="small danger">${esc(t("deleteAgency"))}</button>`);
+      delBtn.addEventListener("click", () => doDeleteAgency(agencyId, a.name));
+
+      [extBtn, dateBtn, freezeBtn, renameBtn, adminBtn, delBtn].forEach(b => actions.appendChild(b));
+      box.appendChild(actions);
+    }
+    async function agencySub(id, action, days, expiresAt) {
+      setStatus(t("saving"), "info");
+      const body = { action };
+      if (days != null) body.days = days;
+      if (expiresAt) body.expires_at = expiresAt;
+      const r = await api("/api/v1/agencies/" + id + "/subscription", { method: "POST", body });
+      if (r.ok) setStatus(t("subUpdated"), "ok"); else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+    }
+    async function doRenameAgency(id, currentName) {
+      const name = window.prompt(t("newName"), currentName || "");
+      if (name === null) return;
+      const trimmed = name.trim();
+      if (!trimmed) { setStatus(t("emptyName"), "warn"); return; }
+      setStatus(t("saving"), "info");
+      const r = await api("/api/v1/agencies/" + id, { method: "PATCH", body: { name: trimmed } });
+      if (r.ok) { setStatus(t("renamed"), "ok"); renderCurrent(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+    }
+    async function doChangeAdmin(id) {
+      const idStr = window.prompt(t("promptAdminId"), "");
+      if (idStr === null) return;
+      const tgId = parseInt((idStr || "").trim(), 10);
+      if (isNaN(tgId)) { setStatus(t("badId"), "warn"); return; }
+      const username = window.prompt(t("promptAdminUser"), "");
+      if (username === null) return;
+      const body = { admin_telegram_id: tgId };
+      const u = (username || "").trim(); if (u) body.admin_username = u;
+      setStatus(t("saving"), "info");
+      const r = await api("/api/v1/agencies/" + id + "/admin", { method: "POST", body });
+      if (r.ok) { setStatus(t("adminAssigned"), "ok"); renderCurrent(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+    }
+    async function doDeleteAgency(id, name) {
+      if (!window.confirm(t("delAgQ1"))) return;
+      if (!window.confirm(t("delAgQ2"))) return;
+      setStatus(t("saving"), "info");
+      const r = await api("/api/v1/agencies/" + id, { method: "DELETE" });
+      if (r.ok) { setStatus(t("agDeleted"), "ok"); back(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+    }
+
+    function createAgencyScreen() {
+      return { titleKey: "createAgency", render(host) {
+        host.appendChild(el(`<label>${esc(t("agencyName"))}</label>`));
+        const nName = el(`<input id="ag-name" />`); host.appendChild(nName);
+        host.appendChild(el(`<label>${esc(t("adminTgId"))}</label>`));
+        const nId = el(`<input id="ag-admin-id" inputmode="numeric" />`); host.appendChild(nId);
+        host.appendChild(el(`<label>${esc(t("adminUsername"))}</label>`));
+        const nUser = el(`<input id="ag-admin-username" />`); host.appendChild(nUser);
+        host.appendChild(el(`<label>${esc(t("subDays"))}</label>`));
+        const nDays = el(`<input id="ag-days" inputmode="numeric" value="30" />`); host.appendChild(nDays);
+        const btn = el(`<button class="full">${esc(t("createAgency"))}</button>`);
+        btn.addEventListener("click", async () => {
+          const name = (nName.value || "").trim();
+          const adminId = parseInt((nId.value || "").trim(), 10);
+          const days = parseInt((nDays.value || "").trim(), 10);
+          if (!name) { setStatus(t("emptyName"), "warn"); return; }
+          if (isNaN(adminId)) { setStatus(t("badId"), "warn"); return; }
+          btn.disabled = true; setStatus(t("saving"), "info");
+          const body = { name, admin_telegram_id: adminId, subscription_days: isNaN(days) ? 30 : days };
+          const u = (nUser.value || "").trim(); if (u) body.admin_username = u;
+          const r = await api("/api/v1/agencies", { method: "POST", body });
+          btn.disabled = false;
+          if (r.ok) { setStatus(t("agencyCreated"), "ok"); back(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+        });
+        host.appendChild(btn);
+      }};
+    }
+
+    // ════════════════════════ Объекты ════════════════════════
+    function objCard(o) {
+      const badge = STATUS_BADGE[o.status] || "gray";
+      const price = (o.price != null) ? (o.price + " " + (o.currency || "")) : t("notSet");
+      const parts = [typeLabel(o.type), o.district, (o.rooms != null ? (o.rooms + " " + t("f_rooms").toLowerCase()) : null)]
+        .filter(Boolean).map(esc).join(" · ");
+      const c = el(`<div class="item tap">
+        <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(statusLabel(o.status))}</span></div>
+        ${o.name ? `<div class="meta">${esc(o.name)}</div>` : ""}
+        <div class="meta">${parts || t("notSet")}</div>
+        <div class="meta">${esc(t("f_price"))}: ${esc(String(price))}</div>
+        ${o.created_by_name ? `<div class="meta">${esc(t("addedBy"))}: ${esc(o.created_by_name)}</div>` : ""}
+      </div>`);
+      c.addEventListener("click", () => navigate(objectDetailScreen(o.id)));
+      return c;
+    }
+
+    function renderObjectListInto(host, params) {
+      const page = { offset: 0, total: 0 };
+      const countEl = el(`<div class="meta" style="margin:6px 0"></div>`);
+      const cards = el(`<div></div>`);
+      const moreWrap = el(`<div></div>`);
+      host.appendChild(countEl); host.appendChild(cards); host.appendChild(moreWrap);
+      async function loadPage(append) {
+        moreWrap.innerHTML = `<div class="empty">${esc(t("loading"))}</div>`;
+        const p = new URLSearchParams();
+        Object.keys(params).forEach(k => {
+          const v = params[k];
+          if (v == null || v === "") return;
+          if (Array.isArray(v)) v.forEach(x => { if (x != null && x !== "") p.append(k, x); });
+          else p.set(k, v);
+        });
+        if (!p.has("status")) p.set("status", "all");
+        p.set("limit", "20"); p.set("offset", String(page.offset));
+        const r = await api("/api/v1/apartments?" + p.toString());
+        if (!r.ok) { moreWrap.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+        const items = (r.data && r.data.items) || [];
+        page.total = r.data.total || 0; page.offset += items.length;
+        if (!append && !items.length) { countEl.textContent = ""; cards.innerHTML = `<div class="empty">${esc(t("notFound"))}</div>`; moreWrap.innerHTML = ""; return; }
+        countEl.textContent = t("found") + ": " + page.total;
+        items.forEach(o => cards.appendChild(objCard(o)));
+        const left = page.total - page.offset;
+        if (left > 0) { const mb = el(`<button class="ghost full">${esc(t("showMore"))} (${left})</button>`); mb.addEventListener("click", () => loadPage(true)); moreWrap.innerHTML = ""; moreWrap.appendChild(mb); }
+        else moreWrap.innerHTML = "";
+      }
+      loadPage(false);
+    }
+    function objectListScreen(params, titleKey) {
+      return { titleKey, render(host) { renderObjectListInto(host, params); } };
+    }
+
+    // «Моя база» с разделением: не проданные / проданные (не смешиваются).
+    function databaseScreen() {
+      return { titleKey: "myDatabase", render(host) {
+        let view = "unsold";
+        const seg = el(`<div class="seg">
+          <button data-v="unsold" class="active">${esc(t("notSold"))}</button>
+          <button data-v="sold">${esc(t("statusSold"))}</button>
+        </div>`);
+        const listWrap = el(`<div></div>`);
+        host.appendChild(seg); host.appendChild(listWrap);
+        function load() { listWrap.innerHTML = ""; renderObjectListInto(listWrap, { status: view }); }
+        seg.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+          view = b.dataset.v;
+          seg.querySelectorAll("button").forEach(x => x.classList.toggle("active", x.dataset.v === view));
+          load();
+        }));
+        load();
+      }};
+    }
+
+    function addObjectScreen() {
+      return { titleKey: "addObject", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        Promise.all([loadRefs(), loadAgencySettings()]).then(() => {
+          box.innerHTML = "";
+          box.appendChild(el(`<div class="item">${objFormInner(null)}</div>`));
+          const saveBtn = el(`<button class="full">${esc(t("saveObject"))}</button>`);
+          saveBtn.addEventListener("click", async () => {
+            const body = collectObjBody(box, false);
+            saveBtn.disabled = true; setStatus(t("saving"), "info");
+            const r = await api("/api/v1/apartments", { method: "POST", body });
+            saveBtn.disabled = false;
+            if (r.ok) { setStatus(t("objCreated") + r.data.display_id, "ok"); back(); }
+            else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+          });
+          box.appendChild(saveBtn);
+        });
+      }};
+    }
+
+    function searchFormScreen() {
+      return { titleKey: "findObject", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        loadRefs().then(() => {
+          box.innerHTML = "";
+          // Статус: «—» (все) / Активные / Задаток / Проданные. Без архива.
+          const statusOpts = [["all","notSet"],["active","statusActive"],["deposit","statusDeposit"],["sold","statusSold"]]
+            .map(s => `<option value="${s[0]}">${esc(t(s[1]))}</option>`).join("");
+          // Тип и район — мультивыбор чипами.
+          const typeChips = OBJ_TYPE_VALUES.map(v => `<div class="chip" data-val="${esc(v)}">${esc(typeLabel(v))}</div>`).join("");
+          const distChips = refs.district.length
+            ? refs.district.map(x => `<div class="chip" data-val="${esc(x.value)}">${esc(x.value)}</div>`).join("")
+            : `<span class="muted">${esc(t("notSet"))}</span>`;
+          box.appendChild(el(`<div class="item">
+            <label>${esc(t("searchText"))}</label><input id="f-q" />
+            <label>${esc(t("f_status"))}</label><select id="f-status">${statusOpts}</select>
+            <label>${esc(t("f_type"))}</label>
+            <div class="chips" id="f-types">${typeChips}</div>
+            <div class="hint">${esc(t("typeMultiHint"))}</div>
+            <label>${esc(t("f_district"))}</label>
+            <div class="chips" id="f-districts">${distChips}</div>
+            <div style="display:flex; gap:8px">
+              <div style="flex:1"><label>${esc(t("roomsFrom"))}</label><input id="f-rmin" inputmode="numeric" /></div>
+              <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-rmax" inputmode="numeric" /></div>
+            </div>
+            <div style="display:flex; gap:8px">
+              <div style="flex:1"><label>${esc(t("floorFrom"))}</label><input id="f-fmin" inputmode="numeric" /></div>
+              <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-fmax" inputmode="numeric" /></div>
+            </div>
+            <div style="display:flex; gap:8px">
+              <div style="flex:1"><label>${esc(t("priceFrom"))}</label><input id="f-pmin" inputmode="numeric" /></div>
+              <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-pmax" inputmode="numeric" /></div>
+            </div>
+          </div>`));
+          box.querySelectorAll("#f-types .chip, #f-districts .chip").forEach(c => c.addEventListener("click", () => c.classList.toggle("active")));
+          const btn = el(`<button class="full">${esc(t("searchBtn"))}</button>`);
+          btn.addEventListener("click", () => {
+            const params = {};
+            const gv = sel => (box.querySelector(sel).value || "").trim();
+            params.status = gv("#f-status") || "all";
+            const types = Array.from(box.querySelectorAll("#f-types .chip.active")).map(c => c.dataset.val);
+            if (types.length) params.types = types;
+            const districts = Array.from(box.querySelectorAll("#f-districts .chip.active")).map(c => c.dataset.val);
+            if (districts.length) params.districts = districts;
+            const rmin = gv("#f-rmin"); if (rmin) params.rooms_min = rmin;
+            const rmax = gv("#f-rmax"); if (rmax) params.rooms_max = rmax;
+            const q = gv("#f-q"); if (q) params.q = q;
+            const fmin = gv("#f-fmin"); if (fmin) params.floor_min = fmin;
+            const fmax = gv("#f-fmax"); if (fmax) params.floor_max = fmax;
+            const pmin = gv("#f-pmin"); if (pmin) params.price_min = pmin;
+            const pmax = gv("#f-pmax"); if (pmax) params.price_max = pmax;
+            navigate(objectListScreen(params, "findObject"));
+          });
+          box.appendChild(btn);
+        });
+      }};
+    }
+
+    function objectDetailScreen(id) {
+      return { titleKey: "apartment", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        renderObjDetail(box, id);
+      }};
+    }
+    async function renderObjDetail(box, id) {
+      const r = await api("/api/v1/apartments/" + id);
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      const o = r.data;
+      const badge = STATUS_BADGE[o.status] || "gray";
+      const floorTxt = (o.floor != null && o.total_floors != null) ? (o.floor + " / " + o.total_floors) : (o.floor != null ? String(o.floor) : null);
+      const rows = [
+        [t("f_name"), o.name], [t("f_type"), o.type ? typeLabel(o.type) : null], [t("f_district"), o.district], [t("f_address"), o.address],
+        [t("f_rooms"), o.rooms], [t("f_floor"), floorTxt], [t("f_area"), o.area],
+        [t("f_price"), o.price != null ? (o.price + " " + (o.currency || "")) : null], [t("f_condition"), o.condition ? condLabel(o.condition) : null],
+        [t("f_phone"), o.phone], [t("f_desc"), o.description], [t("addedBy"), o.created_by_name],
+        (o.status === "sold" && o.archived_at) ? [t("soldDate"), fmtDate(o.archived_at)] : [null, null],
+      ];
+      const rowsHtml = rows.filter(x => x[1] != null && x[1] !== "").map(x => `<div class="row"><span>${esc(x[0])}</span><span><b>${esc(String(x[1]))}</b></span></div>`).join("");
+      const transitions = {
+        active: [["deposit","toDeposit"],["sold","toSold"]],
+        deposit: [["active","removeDeposit"],["sold","toSold"]],
+        sold: [["active","backToActive"]],
+        archived: [["active","backToActive"]],
+      };
+      box.innerHTML = "";
+      box.appendChild(el(`<div class="item">
+        <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(statusLabel(o.status))}</span></div>
+        ${rowsHtml}
+      </div>`));
+      const stWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
+      (transitions[o.status] || []).forEach(tr => {
+        const b = el(`<button class="small ghost">${esc(t(tr[1]))}</button>`);
+        b.addEventListener("click", async () => {
+          setStatus(t("changingStatus"), "info");
+          const rr = await api("/api/v1/apartments/" + o.id + "/status", { method: "POST", body: { status: tr[0] } });
+          if (rr.ok) { setStatus(t("done"), "ok"); renderObjDetail(box, id); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+        });
+        stWrap.appendChild(b);
+      });
+      box.appendChild(stWrap);
+      const card = buildShareCard(o);
+      const shWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
+      const cpy = el(`<button class="small ghost">${esc(t("shareCard"))}</button>`); cpy.addEventListener("click", () => copyText(card));
+      const stgb = el(`<button class="small ghost">${esc(t("shareTg"))}</button>`); stgb.addEventListener("click", () => shareToTelegram(card));
+      shWrap.appendChild(cpy); shWrap.appendChild(stgb); box.appendChild(shWrap);
+      const eWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
+      const edit = el(`<button class="small ghost">${esc(t("edit"))}</button>`); edit.addEventListener("click", () => navigate(objectEditScreen(o)));
+      eWrap.appendChild(edit);
+      const del = el(`<button class="small danger">${esc(t("del"))}</button>`);
+      del.addEventListener("click", async () => {
+        if (!window.confirm(t("delObjQ"))) return;
+        const rr = await api("/api/v1/apartments/" + o.id, { method: "DELETE" });
+        if (rr.ok) { setStatus(t("objDeleted"), "ok"); back(); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+      });
+      eWrap.appendChild(del);
+      box.appendChild(eWrap);
+
+      // История действий по объекту (кто создал / менял / сменил статус).
+      const histWrap = el(`<div></div>`);
+      box.appendChild(histWrap);
+      renderHistoryInto(histWrap, id);
+    }
+
+    const EV_FIELD_KEYS = {
+      name:"f_name", type:"f_type", district:"f_district", address:"f_address", rooms:"f_rooms",
+      floor:"f_floor", total_floors:"f_tfloors", area:"f_area", price:"f_price", currency:"f_currency",
+      condition:"f_condition", phone:"f_phone", description:"f_desc",
+    };
+    function eventText(e) {
+      if (e.action === "created") return t("ev_created");
+      if (e.action === "status") return t("ev_status") + ": " + statusLabel(e.note);
+      if (e.action === "updated") {
+        const fields = (e.note || "").split(",").filter(Boolean).map(k => t(EV_FIELD_KEYS[k] || k));
+        return t("ev_updated") + (fields.length ? (": " + fields.join(", ")) : "");
+      }
+      return e.action;
+    }
+    async function renderHistoryInto(host, id) {
+      const r = await api("/api/v1/apartments/" + id + "/events");
+      if (!r.ok || !Array.isArray(r.data) || !r.data.length) return;
+      host.appendChild(el(`<h2>${esc(t("history"))}</h2>`));
+      r.data.forEach(e => {
+        const who = e.user_name ? esc(e.user_name) : t("notSet");
+        host.appendChild(el(`<div class="item"><div class="meta"><b>${who}</b> · ${esc(eventText(e))}</div><div class="meta">${fmtDate(e.created_at)}</div></div>`));
+      });
+    }
+
+    function objectEditScreen(o) {
+      return { titleKey: "edit", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`);
+        host.appendChild(box);
+        Promise.all([loadRefs(), loadAgencySettings()]).then(() => {
+          box.innerHTML = "";
+          box.appendChild(el(`<div class="item">${objFormInner(o)}<div class="hint">${esc(t("clearHint"))}</div></div>`));
+          const saveBtn = el(`<button class="full">${esc(t("saveChanges"))}</button>`);
+          saveBtn.addEventListener("click", async () => {
+            const body = collectObjBody(box, true);
+            saveBtn.disabled = true; setStatus(t("saving"), "info");
+            const r = await api("/api/v1/apartments/" + o.id, { method: "PATCH", body });
+            saveBtn.disabled = false;
+            if (r.ok) { setStatus(t("saved"), "ok"); back(); } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+          });
+          box.appendChild(saveBtn);
+        });
+      }};
+    }
+
+    // ════════════════════════ Команда ════════════════════════
+    function teamScreen() {
+      return { titleKey: "team", render(host) {
+        const box = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`); host.appendChild(box);
+        loadTeamInto(box);
+      }};
+    }
+    async function loadTeamInto(box) {
+      const r = await api("/api/v1/team");
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">${esc(t("noMembers"))}</div>`; return; }
+      box.innerHTML = "";
+      const meOwner = !!(state.user && state.user.is_owner);
+      r.data.forEach(m => {
+        const isSelf = state.user && m.id === state.user.id;
+        const name = m.full_name || (m.username ? "@" + m.username : ("ID " + m.telegram_id));
+        const statusBadge = m.is_active ? `<span class="badge green">${esc(t("mActive"))}</span>` : `<span class="badge gray">${esc(t("mDisabled"))}</span>`;
+        const ownerBadge = m.is_owner ? `<span class="badge amber">${esc(t("mainAdmin"))}</span>` : "";
+        const item = el(`<div class="item">
+          <div class="top"><span class="title">${esc(name)}</span><span style="display:flex; gap:6px">${ownerBadge}${statusBadge}</span></div>
+          <div class="meta">${esc(roleLabel(m.role))}${m.username ? " · @" + esc(m.username) : ""}</div>
+          <div class="acts" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap"></div>
+        </div>`);
+        const acts = item.querySelector(".acts");
+        // Кто кем может управлять: над администраторами и главным — только главный.
+        const canAct = !isSelf && !m.is_owner && (m.role === "agent" || meOwner);
+        if (isSelf) {
+          acts.appendChild(el(`<span class="badge gray">${esc(t("itsYou"))}</span>`));
+        } else if (canAct) {
+          const tglBtn = el(`<button class="small ${m.is_active ? "danger" : "ghost"}">${esc(m.is_active ? t("disable") : t("enable"))}</button>`);
+          tglBtn.addEventListener("click", async () => {
+            const rr = await api("/api/v1/team/" + m.id, { method: "PATCH", body: { is_active: !m.is_active } });
+            if (rr.ok) { setStatus(t("done"), "ok"); loadTeamInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+          });
+          acts.appendChild(tglBtn);
+          const nextRole = m.role === "agency_admin" ? "agent" : "agency_admin";
+          const rb = el(`<button class="small ghost">${esc(m.role === "agency_admin" ? t("demote") : t("promote"))}</button>`);
+          rb.addEventListener("click", async () => {
+            const roleName = nextRole === "agency_admin" ? t("role_agency_admin") : t("role_agent");
+            if (!window.confirm(t("roleQ") + roleName + "»?")) return;
+            const rr = await api("/api/v1/team/" + m.id, { method: "PATCH", body: { role: nextRole } });
+            if (rr.ok) { setStatus(t("roleChanged"), "ok"); loadTeamInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+          });
+          acts.appendChild(rb);
+          if (meOwner) {
+            const ob = el(`<button class="small ghost">${esc(t("makeOwner"))}</button>`);
+            ob.addEventListener("click", async () => {
+              if (!window.confirm(t("makeOwnerQ"))) return;
+              const rr = await api("/api/v1/team/" + m.id + "/owner", { method: "POST" });
+              if (rr.ok) { state.user.is_owner = false; setStatus(t("ownerTransferred"), "ok"); loadTeamInto(box); }
+              else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+            });
+            acts.appendChild(ob);
+          }
+        }
+        box.appendChild(item);
+      });
+    }
+
+    // ════════════════════════ Приглашения ════════════════════════
+    function invitesScreen() {
+      return { titleKey: "invites", render(host) {
+        host.appendChild(el(`<label>${esc(t("inviteRole"))}</label>`));
+        const roleSel = el(`<select><option value="agent">${esc(t("role_agent"))}</option><option value="agency_admin">${esc(t("role_agency_admin"))}</option></select>`);
+        host.appendChild(roleSel);
+        host.appendChild(el(`<label>${esc(t("inviteDays"))}</label>`));
+        const daysInput = el(`<input inputmode="numeric" value="7" />`); host.appendChild(daysInput);
+        const createBtn = el(`<button class="full">${esc(t("createInvite"))}</button>`); host.appendChild(createBtn);
+        const created = el(`<div></div>`); host.appendChild(created);
+        host.appendChild(el(`<h2>${esc(t("issuedInvites"))}</h2>`));
+        const list = el(`<div><div class="empty">${esc(t("loading"))}</div></div>`); host.appendChild(list);
+        createBtn.addEventListener("click", async () => {
+          const days = parseInt((daysInput.value || "").trim(), 10);
+          createBtn.disabled = true; setStatus(t("saving"), "info");
+          const r = await api("/api/v1/invites", { method: "POST", body: { role: roleSel.value, expires_in_days: isNaN(days) ? 7 : days } });
+          createBtn.disabled = false;
+          if (!r.ok) { setStatus(t("error") + ": " + errText(r.data, r.status), "err"); return; }
+          setStatus(t("inviteCreated"), "ok");
+          const inv = r.data; const link = inv.join_link;
+          created.innerHTML = "";
+          const c = el(`<div class="item">
+            <div class="meta">${esc(t("giveToEmployee"))}</div>
+            ${link ? `<div class="codebox">${esc(link)}</div>` : ""}
+            <div class="meta" style="margin-top:8px">${esc(t("codeLbl"))}:</div>
+            <div class="codebox">${esc(inv.code)}</div>
+            <div class="acts" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap"></div>
+          </div>`);
+          const acts = c.querySelector(".acts");
+          if (link) { const lb = el(`<button class="ghost small">${esc(t("copyLink"))}</button>`); lb.addEventListener("click", () => copyText(link)); acts.appendChild(lb); }
+          const cb = el(`<button class="ghost small">${esc(t("copyCode"))}</button>`); cb.addEventListener("click", () => copyText(inv.code)); acts.appendChild(cb);
+          created.appendChild(c);
+          loadInvitesInto(list);
+        });
+        loadInvitesInto(list);
+      }};
+    }
+    async function loadInvitesInto(box) {
+      const r = await api("/api/v1/invites");
+      if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
+      if (!r.data.length) { box.innerHTML = `<div class="empty">${esc(t("noInvites"))}</div>`; return; }
+      const stMap = { active: ["green","inv_active"], used: ["gray","inv_used"], expired: ["amber","inv_expired"] };
+      box.innerHTML = "";
+      r.data.forEach(inv => {
+        const s = stMap[inv.status] || ["gray", null];
+        const item = el(`<div class="item">
+          <div class="top"><span class="title">${esc(roleLabel(inv.role))}</span><span class="badge ${s[0]}">${esc(s[1] ? t(s[1]) : inv.status)}</span></div>
+          <div class="meta">${esc(t("codeLbl"))}: ${esc(inv.code)} · ${fmtDate(inv.expires_at)}</div>
+          <div class="acts" style="margin-top:8px"></div>
+        </div>`);
+        const rev = el(`<button class="small danger">${esc(t("revoke"))}</button>`);
+        rev.addEventListener("click", async () => {
+          const rr = await api("/api/v1/invites/" + inv.id, { method: "DELETE" });
+          if (rr.ok) { setStatus(t("revoked"), "ok"); loadInvitesInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+        });
+        item.querySelector(".acts").appendChild(rev);
+        box.appendChild(item);
+      });
+    }
+
+    // ════════════════════════ Вступление по коду ════════════════════════
+    function joinScreen(prefill) {
+      return { titleKey: "joinTitle", render(host) {
+        host.appendChild(el(`<div class="status info">${esc(t("notInAgency"))}</div>`));
+        host.appendChild(el(`<label>${esc(t("joinCodeLabel"))}</label>`));
+        const input = el(`<input value="${esc(prefill || "")}" />`); host.appendChild(input);
+        const btn = el(`<button class="full">${esc(t("joinBtn"))}</button>`); host.appendChild(btn);
+        async function doJoin() {
+          const code = (input.value || "").trim();
+          if (!code) return;
+          btn.disabled = true; setStatus(t("joinChecking"), "info");
+          const r = await redeem(state.initData, code);
+          if (r.ok) { state.token = r.data.access_token; state.user = r.data.user; state.subscriptionActive = r.data.subscription_active; afterLogin(); }
+          else { btn.disabled = false; setStatus(t("loginFail") + errText(r.data, r.status), "err"); }
+        }
+        btn.addEventListener("click", doJoin);
+        if (prefill) doJoin();
+      }};
+    }
+
+    // ════════════════════════ Старт ════════════════════════
+    async function afterLogin() {
+      setStatus("", null);
+      const role = state.user && state.user.role;
+      if (role === "agency_admin" || role === "agent") {
+        // Подтягиваем настройки агентства до показа главного экрана, чтобы
+        // герой-карточка сразу показала название проекта и валюту по умолчанию.
+        await loadAgencySettings(true);
+      }
+      if ((role === "agency_admin" || role === "agent") && state.subscriptionActive === false) { resetTo(suspendedScreen()); return; }
+      resetTo(homeScreen());
+    }
+
+    async function main() {
+      applyTheme();
+      document.documentElement.setAttribute("lang", state.lang === "uz" ? "uz" : (state.lang === "en" ? "en" : "ru"));
+      if (tg) { try { tg.ready(); tg.expand(); } catch (e) {} }
+      state.initData = (tg && tg.initData) ? tg.initData : "";
+      state.startParam = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
+
+      if (!state.initData) {
+        let backendOk = false;
+        try { const res = await fetch("/health"); const d = await res.json(); backendOk = d.database === "connected"; } catch (e) {}
+        resetTo({ titleKey: null, render(host) {
+          host.appendChild(el(`<div class="status ${backendOk ? "ok" : "warn"}">${esc(backendOk ? t("backendOk") : t("backendErr"))}</div>`));
+          host.appendChild(el(`<div class="hint">${esc(t("openInTg"))}</div>`));
+        }});
+        return;
+      }
+
+      setStatus(t("loginIn"), "info");
+      try {
+        const r = await login(state.initData);
+        if (r.ok) { state.token = r.data.access_token; state.user = r.data.user; state.subscriptionActive = r.data.subscription_active; afterLogin(); return; }
+        if (r.status === 403) { resetTo(joinScreen(state.startParam)); return; }
+        setStatus(t("loginFail") + errText(r.data, r.status), "err");
+      } catch (e) { setStatus(t("loginFail") + e.message, "err"); }
+    }
+    main();
+
+  </script>
+</body>
+</html>

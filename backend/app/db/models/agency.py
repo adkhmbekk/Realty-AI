@@ -15,10 +15,19 @@ class Agency(Base):
     __tablename__ = "agencies"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # name — внутреннее имя, которое задаёт суперадмин (обычно имя человека,
+    # с которым он договорился об аренде проекта).
     name: Mapped[str] = mapped_column(String, nullable=False)
+    # project_name — публичное название проекта, которое задаёт сам админ
+    # агентства (как он хочет назвать свой сервис). Может быть пустым.
+    project_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Статус подписки агентства: trial / active / frozen / expired
     status: Mapped[str] = mapped_column(String, nullable=False, default="trial")
     subscription_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Когда агентству в последний раз предоставили доступ (активация подписки).
+    activated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     timezone: Mapped[str] = mapped_column(String, nullable=False, default="Asia/Tashkent")
