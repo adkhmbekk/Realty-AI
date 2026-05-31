@@ -75,11 +75,13 @@ function ObjectForm({
   onSubmit,
   submitLabel,
   saving,
+  children,
 }: {
   initial?: Partial<Apartment> | null;
   onSubmit: (body: Record<string, unknown>, full: boolean) => void;
   submitLabel: string;
   saving: boolean;
+  children?: React.ReactNode;
 }) {
   const { t, L, settings } = useApp();
   const districts = useDistricts();
@@ -248,6 +250,8 @@ function ObjectForm({
         <Textarea rows={3} value={f.comment} onChange={(e) => set("comment", e.target.value)} />
       </Field>
       <Hint>{t("commentHint")}</Hint>
+
+      {children}
 
       <Button full className="mt-4" disabled={saving} onClick={submit}>
         {submitLabel}
@@ -478,21 +482,134 @@ export function ObjectList({ params }: { params: SearchParams }) {
   );
 }
 
+// ── Выбор фото при создании объекта (до того, как объект сохранён) ──
+function PendingPhotos({
+  files,
+  setFiles,
+  tgUrls,
+  setTgUrls,
+}: {
+  files: File[];
+  setFiles: (f: File[]) => void;
+  tgUrls: string[];
+  setTgUrls: (u: string[]) => void;
+}) {
+  const { t } = useApp();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [previews, setPreviews] = useState<string[]>([]);
+  useEffect(() => {
+    const urls = files.map((f) => URL.createObjectURL(f));
+    setPreviews(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [files]);
+
+  return (
+    <>
+      <div className="text-[12px] font-extrabold uppercase tracking-wider text-primary mt-5 mb-1 pt-3 border-t border-[var(--border)]">
+        {t("photos")}
+      </div>
+      {(previews.length > 0 || tgUrls.length > 0) && (
+        <div className="grid grid-cols-3 gap-2 mb-2.5">
+          {previews.map((src, i) => (
+            <div key={"f" + i} className="relative aspect-square rounded-[14px] overflow-hidden bg-[var(--soft)] border border-line">
+              <img src={src} alt="" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
+                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          ))}
+          {tgUrls.map((u, i) => (
+            <div key={"t" + i} className="relative aspect-square rounded-[14px] bg-[var(--soft)] border border-line flex items-center justify-center text-muted text-[11px] p-2 text-center">
+              <Send size={18} />
+              <button
+                type="button"
+                onClick={() => setTgUrls(tgUrls.filter((_, idx) => idx !== i))}
+                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 flex-wrap">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            if (e.target.files) setFiles([...files, ...Array.from(e.target.files)]);
+            e.target.value = "";
+          }}
+        />
+        <Button type="button" size="sm" variant="ghost" onClick={() => fileRef.current?.click()}>
+          <Camera size={15} /> {t("addPhotos")}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            const url = window.prompt(t("importTgPrompt"), "");
+            if (url && url.trim()) setTgUrls([...tgUrls, url.trim()]);
+          }}
+        >
+          <Send size={15} /> {t("importTg")}
+        </Button>
+      </div>
+      <Hint>{t("photosHint")}</Hint>
+    </>
+  );
+}
+
 // ── Экран: добавить объект ──────────────────────────────────────────
 export function AddObjectScreen() {
   const { t, toast } = useApp();
   const nav = useNav();
   const [saving, setSaving] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [tgUrls, setTgUrls] = useState<string[]>([]);
+
   async function submit(body: Record<string, unknown>) {
     setSaving(true);
     const r = await api<Apartment>("/api/v1/apartments", { method: "POST", body });
+    if (!r.ok || !r.data) {
+      setSaving(false);
+      toast(errText(r.data, r.status), "err");
+      return;
+    }
+    const newId = r.data.id;
+    // Прикрепляем выбранные фото к уже созданному объекту.
+    try {
+      if (files.length) {
+        const fd = new FormData();
+        files.forEach((f) => fd.append("files", f));
+        await apiUpload(`/api/v1/apartments/${newId}/photos`, fd);
+      }
+      for (const url of tgUrls) {
+        await api(`/api/v1/apartments/${newId}/photos/import-telegram`, { method: "POST", body: { url } });
+      }
+    } catch {
+      /* фото не критичны — объект уже создан */
+    }
     setSaving(false);
-    if (r.ok && r.data) {
-      toast(t("objCreated") + r.data.display_id, "ok");
-      nav.pop();
-    } else toast(errText(r.data, r.status), "err");
+    toast(t("objCreated") + r.data.display_id, "ok");
+    // Открываем карточку нового объекта (там видно фото и можно дозагрузить).
+    nav.pop();
+    nav.push({ name: "objectDetail", id: newId });
   }
-  return <ObjectForm onSubmit={submit} submitLabel={t("saveObject")} saving={saving} />;
+
+  return (
+    <ObjectForm onSubmit={submit} submitLabel={t("saveObject")} saving={saving}>
+      <PendingPhotos files={files} setFiles={setFiles} tgUrls={tgUrls} setTgUrls={setTgUrls} />
+    </ObjectForm>
+  );
 }
 
 // ── Экран: редактирование ───────────────────────────────────────────
@@ -681,16 +798,16 @@ export function ObjectDetailScreen({ id }: { id: number }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  async function load() {
-    setLoading(true);
+  async function load(silent?: boolean) {
+    if (!silent) setLoading(true);
     const r = await api<Apartment>("/api/v1/apartments/" + id);
-    setLoading(false);
+    if (!silent) setLoading(false);
     if (r.ok && r.data) {
       setO(r.data);
       api<ApartmentEvent[]>("/api/v1/apartments/" + id + "/events").then((e) => {
         if (e.ok && Array.isArray(e.data)) setEvents(e.data);
       });
-    } else toast(errText(r.data, r.status), "err");
+    } else if (!silent) toast(errText(r.data, r.status), "err");
   }
   useEffect(() => {
     load();
@@ -750,7 +867,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
 
   return (
     <div>
-      <PhotoGallery apartmentId={id} onChange={load} />
+      <PhotoGallery apartmentId={id} onChange={() => load(true)} />
       <Card>
         <div className="flex items-center justify-between gap-2 mb-1">
           <span className="text-[16px] font-extrabold">№{o.display_id}</span>
