@@ -100,3 +100,22 @@ def require_agency_admin(
         )
     _ensure_subscription_active(db, user)
     return user
+
+
+def require_agency_owner(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> User:
+    """
+    Пропускает только ГЛАВНОГО администратора агентства (is_owner).
+
+    Главный админ — единственный, кто управляет приглашениями (добавлением
+    людей в команду) и повышением сотрудников до администратора. Обычный
+    администратор такими правами не обладает.
+    """
+    if user.role != "agency_admin" or user.agency_id is None or not user.is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ только для главного администратора агентства.",
+        )
+    _ensure_subscription_active(db, user)
+    return user
