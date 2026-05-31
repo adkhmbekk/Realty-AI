@@ -82,3 +82,43 @@ def update_member(
     db.commit()
     db.refresh(member)
     return member
+
+
+
+def transfer_ownership(
+    db: Session, agency_id: int, current_user: User, member_id: int
+) -> User:
+    """
+    Передать роль главного администратора другому сотруднику.
+
+    Делать это может только текущий главный админ. Указанный сотрудник
+    становится главным админом (и админом, если был агентом), а текущий
+    главный — обычным администратором.
+    """
+    if not current_user.is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Передать роль главного может только сам главный администратор.",
+        )
+
+    member = user_repo.get_member(db, agency_id, member_id)
+    if member is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден."
+        )
+    if member.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Вы уже главный администратор.",
+        )
+
+    # Новый главный: становится админом, активен, is_owner.
+    member.role = "agency_admin"
+    member.is_active = True
+    member.is_owner = True
+    # Текущий главный складывает полномочия — остаётся обычным администратором.
+    current_user.is_owner = False
+
+    db.commit()
+    db.refresh(member)
+    return member

@@ -35,3 +35,16 @@ def update_member(
     return member_service.update_member(
         db, current_user.agency_id, current_user, member_id, body
     )
+
+
+
+@router.post("/{member_id}/owner", response_model=MemberOut)
+def transfer_ownership(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_admin),
+):
+    """Передать роль главного администратора другому сотруднику (только главный)."""
+    return member_service.transfer_ownership(
+        db, current_user.agency_id, current_user, member_id
+    )

@@ -210,6 +210,7 @@
         activatedAt:"Дата активации", extendPrompt:"На сколько дней продлить подписку?",
         setDatePrompt:"Новая дата окончания (ГГГГ-ММ-ДД):", badDate:"Неверный формат даты. Пример: 2026-12-31",
         changeDateBtn:"Изменить дату", notSold:"Не проданные", mainAdmin:"Главный",
+        makeOwner:"Сделать главным", makeOwnerQ:"Передать роль главного администратора этому сотруднику? Вы станете обычным админом.", ownerTransferred:"Роль главного передана.",
       },
       uz: {
         back:"Orqaga", save:"Saqlash", saveChanges:"Oʻzgarishlarni saqlash", cancel:"Bekor qilish",
@@ -271,6 +272,7 @@
         activatedAt:"Faollashtirilgan sana", extendPrompt:"Obunani necha kunga uzaytirilsin?",
         setDatePrompt:"Yangi tugash sanasi (YYYY-MM-DD):", badDate:"Sana formati notoʻgʻri. Masalan: 2026-12-31",
         changeDateBtn:"Sanani oʻzgartirish", notSold:"Sotilmagan", mainAdmin:"Bosh admin",
+        makeOwner:"Bosh admin qilish", makeOwnerQ:"Bosh administrator rolini shu xodimga berasizmi? Siz oddiy admin boʻlasiz.", ownerTransferred:"Bosh admin roli berildi.",
       },
       en: {
         back:"Back", save:"Save", saveChanges:"Save changes", cancel:"Cancel",
@@ -332,6 +334,7 @@
         activatedAt:"Activation date", extendPrompt:"Extend subscription by how many days?",
         setDatePrompt:"New end date (YYYY-MM-DD):", badDate:"Invalid date format. Example: 2026-12-31",
         changeDateBtn:"Change date", notSold:"Not sold", mainAdmin:"Main",
+        makeOwner:"Make main", makeOwnerQ:"Transfer the main admin role to this member? You will become a regular admin.", ownerTransferred:"Main admin role transferred.",
       },
     };
     function t(key) {
@@ -1137,6 +1140,16 @@
             if (rr.ok) { setStatus(t("roleChanged"), "ok"); loadTeamInto(box); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
           });
           acts.appendChild(rb);
+          if (meOwner) {
+            const ob = el(`<button class="small ghost">${esc(t("makeOwner"))}</button>`);
+            ob.addEventListener("click", async () => {
+              if (!window.confirm(t("makeOwnerQ"))) return;
+              const rr = await api("/api/v1/team/" + m.id + "/owner", { method: "POST" });
+              if (rr.ok) { state.user.is_owner = false; setStatus(t("ownerTransferred"), "ok"); loadTeamInto(box); }
+              else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+            });
+            acts.appendChild(ob);
+          }
         }
         box.appendChild(item);
       });
