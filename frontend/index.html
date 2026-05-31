@@ -203,38 +203,46 @@
        побеждают, если объявлены ниже).
        ════════════════════════════════════════════════════════════════ */
     :root {
-      --bg: #eef1f8; --card: #ffffff; --text: #0b1220; --muted: #647088;
-      --border: #e9edf5; --soft: #f1f4fa;
-      --input-bg: #ffffff; --input-border: #dde3ee;
-      --primary: #5b5bf0; --primary-2: #8b5cf6; --primary-text: #ffffff; --primary-soft: #ececfe;
-      --ghost-bg: #eef0fe; --ghost-text: #4f46e5;
+      --bg: #f5f7fb; --card: #ffffff; --text: #0c1424; --muted: #5c6b85;
+      --border: #e8edf5; --soft: #eef2f9;
+      --input-bg: #ffffff; --input-border: #d9e0ee;
+      --primary: #2563eb; --primary-2: #1d4ed8; --primary-text: #ffffff; --primary-soft: #e6efff;
+      --ghost-bg: #eaf0ff; --ghost-text: #1d4ed8;
       --danger-bg: #fdeceb; --danger-text: #d4332a;
-      --row-line: #eef1f7;
-      --ring: rgba(91,91,240,.20); --shadow: 0 8px 30px rgba(17,24,39,.08);
-      --shadow-lg: 0 18px 50px rgba(17,24,39,.14);
+      --row-line: #eef2f8;
+      --ring: rgba(37,99,235,.18); --shadow: 0 8px 30px rgba(13,30,66,.08);
+      --shadow-lg: 0 18px 50px rgba(13,30,66,.14);
       --radius: 18px;
+      --grad: linear-gradient(135deg, #2563eb 0%, #3b82f6 45%, #1d4ed8 100%);
     }
     [data-theme="dark"] {
-      --bg: #0a0e16; --card: #141a24; --text: #eef2f8; --muted: #93a0b4;
-      --border: #232c3a; --soft: #1a212e; --input-bg: #10161f; --input-border: #2a3442;
-      --primary: #7c7cf6; --primary-2: #a78bfa; --primary-text: #ffffff; --primary-soft: #20264a;
-      --ghost-bg: #1c2436; --ghost-text: #c7cdfe;
+      --bg: #060b16; --card: #101826; --text: #eaf0fb; --muted: #8b9bb5;
+      --border: #1e2940; --soft: #152032; --input-bg: #0c1422; --input-border: #243149;
+      --primary: #3b82f6; --primary-2: #2563eb; --primary-text: #ffffff; --primary-soft: #16243f;
+      --ghost-bg: #16223a; --ghost-text: #bcd2ff;
       --danger-bg: #3a1d1d; --danger-text: #fca5a5;
-      --row-line: #222b39;
-      --ring: rgba(124,124,246,.34); --shadow: 0 10px 34px rgba(0,0,0,.45);
-      --shadow-lg: 0 22px 60px rgba(0,0,0,.6);
+      --row-line: #1c2740;
+      --ring: rgba(59,130,246,.32); --shadow: 0 10px 34px rgba(0,0,0,.5);
+      --shadow-lg: 0 22px 60px rgba(0,0,0,.62);
+      --grad: linear-gradient(135deg, #1d4ed8 0%, #2563eb 45%, #3b82f6 100%);
     }
 
-    /* Фон с мягким «авроровым» свечением сверху. */
+    /* Фон: мягкие синие свечения + еле заметная точечная сетка (деловой финтех). */
     body {
       background:
-        radial-gradient(1200px 420px at 15% -10%, rgba(124,92,246,.16), transparent 60%),
-        radial-gradient(1000px 380px at 110% 0%, rgba(56,189,248,.14), transparent 55%),
+        radial-gradient(1100px 420px at 12% -12%, rgba(37,99,235,.16), transparent 60%),
+        radial-gradient(900px 360px at 112% -4%, rgba(56,189,248,.12), transparent 55%),
         var(--bg);
       background-attachment: fixed;
       padding: 14px 14px calc(28px + env(safe-area-inset-bottom, 0px));
       letter-spacing: -0.005em;
     }
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .5;
+      background-image: radial-gradient(currentColor 1px, transparent 1px);
+      background-size: 22px 22px; color: rgba(37,99,235,.05);
+    }
+    [data-theme="dark"] body::before { color: rgba(120,160,255,.06); }
     .card { max-width: 560px; }
 
     /* Шапка. */
@@ -245,29 +253,34 @@
     }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 22px 4px 10px; }
 
-    /* Hero-карточка профиля. */
+    /* Hero-карточка профиля — балансовый финтех-блок. */
     .hero {
       position: relative; overflow: hidden;
       border-radius: 24px; padding: 22px 20px; margin: 4px 0 16px; gap: 16px;
       background:
-        radial-gradient(120% 120% at 0% 0%, #6d5bf5 0%, #5b5bf0 38%, #7c3aed 78%, #8b5cf6 100%);
-      box-shadow: 0 20px 46px rgba(91,76,237,.42);
+        radial-gradient(140% 130% at 0% 0%, #3b82f6 0%, #2563eb 42%, #1d4ed8 100%);
+      box-shadow: 0 20px 46px rgba(29,78,216,.40);
     }
     .hero::after {
-      content: ""; position: absolute; right: -40px; top: -60px; width: 200px; height: 200px;
-      background: radial-gradient(circle, rgba(255,255,255,.22), transparent 65%); pointer-events: none;
+      content: ""; position: absolute; right: -50px; top: -70px; width: 220px; height: 220px;
+      background: radial-gradient(circle, rgba(255,255,255,.20), transparent 65%); pointer-events: none;
+    }
+    .hero::before {
+      content: ""; position: absolute; left: -30px; bottom: -80px; width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(125,211,252,.22), transparent 66%); pointer-events: none;
     }
     [data-theme="dark"] .hero { box-shadow: 0 20px 50px rgba(0,0,0,.55); }
     .hero .avatar {
-      width: 60px; height: 60px; border-radius: 20px; font-size: 22px;
-      background: rgba(255,255,255,.2); border: 1.5px solid rgba(255,255,255,.45);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.3);
+      width: 58px; height: 58px; border-radius: 18px; font-size: 22px;
+      background: rgba(255,255,255,.18); border: 1.5px solid rgba(255,255,255,.4);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.3); backdrop-filter: blur(4px);
     }
+    .hero .avatar svg { width: 28px; height: 28px; }
     .hero .greet { font-size: 12px; opacity: .9; }
     .hero .nm { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
     .hero .rl { font-size: 12.5px; opacity: .92; margin-top: 4px; }
 
-    /* Меню — кнопки с цветными «плитками» иконок. */
+    /* Меню — кнопки с иконками в фирменной плитке (минимализм, один тон). */
     .menu { gap: 11px; }
     .menu-btn {
       border-radius: 18px; padding: 14px 15px; font-size: 16px; font-weight: 700;
@@ -276,15 +289,10 @@
     .menu-btn:hover { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
     .menu-btn:active { transform: scale(.985); }
     .menu-btn .ic {
-      width: 44px; height: 44px; border-radius: 14px; font-size: 21px; color: #fff;
-      box-shadow: 0 6px 16px rgba(17,24,39,.16);
+      width: 44px; height: 44px; border-radius: 14px; color: #fff;
+      background: var(--grad); box-shadow: 0 6px 16px rgba(37,99,235,.28);
     }
-    .menu .menu-btn:nth-child(6n+1) .ic { background: linear-gradient(135deg,#6366f1,#8b5cf6); }
-    .menu .menu-btn:nth-child(6n+2) .ic { background: linear-gradient(135deg,#0ea5e9,#22d3ee); }
-    .menu .menu-btn:nth-child(6n+3) .ic { background: linear-gradient(135deg,#10b981,#34d399); }
-    .menu .menu-btn:nth-child(6n+4) .ic { background: linear-gradient(135deg,#f59e0b,#fbbf24); }
-    .menu .menu-btn:nth-child(6n+5) .ic { background: linear-gradient(135deg,#ec4899,#f472b6); }
-    .menu .menu-btn:nth-child(6n+6) .ic { background: linear-gradient(135deg,#64748b,#94a3b8); }
+    .menu-btn .ic svg { width: 22px; height: 22px; }
     .menu-btn .chev { font-size: 24px; }
 
     /* Карточки. */
@@ -328,10 +336,10 @@
     /* Кнопки. */
     button {
       border-radius: 14px; font-weight: 700;
-      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      background: var(--grad);
       color: var(--primary-text);
     }
-    button.full { padding: 14px 16px; box-shadow: 0 12px 26px rgba(91,76,237,.34); }
+    button.full { padding: 14px 16px; box-shadow: 0 12px 26px rgba(37,99,235,.32); }
     button.ghost { background: var(--ghost-bg); color: var(--ghost-text); }
     button.danger { background: var(--danger-bg); color: var(--danger-text); }
     button.full.danger { background: linear-gradient(135deg,#ef4444,#f87171); color:#fff; box-shadow: 0 12px 26px rgba(239,68,68,.32); }
@@ -344,7 +352,7 @@
 
     /* Чипы. */
     .chip { border-radius: 999px; padding: 9px 15px; font-weight: 700; border: 1px solid var(--border); background: var(--card); }
-    .chip.active { background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff; border-color: transparent; box-shadow: 0 6px 16px rgba(91,76,237,.3); }
+    .chip.active { background: var(--grad); color: #fff; border-color: transparent; box-shadow: 0 6px 16px rgba(37,99,235,.3); }
 
     /* Бейджи (с точкой). */
     .badge { padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .02em; }
@@ -356,6 +364,47 @@
     .form-sec { color: var(--primary); }
     .empty { padding: 26px 0; }
     .spinner { border-top-color: var(--primary); }
+
+    /* ─── Новые компоненты редизайна «Realty AI» ──────────────────── */
+    /* Бренд над hero. */
+    .brand { display:flex; align-items:center; gap:9px; margin: 2px 2px 12px; }
+    .brand .logo {
+      width: 30px; height: 30px; border-radius: 9px; display:flex; align-items:center; justify-content:center;
+      background: var(--grad); color:#fff; box-shadow: 0 6px 16px rgba(37,99,235,.32);
+    }
+    .brand .logo svg { width: 18px; height: 18px; }
+    .brand .bname { font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
+    .brand .bname b { color: var(--primary); }
+    /* Быстрые действия (ряд иконок-кнопок, финтех-паттерн). */
+    .qa { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 2px 0 16px; }
+    .qa-btn {
+      display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;
+      background: var(--card); border:1px solid var(--border); border-radius:16px; padding:13px 6px;
+      box-shadow: var(--shadow); transition: transform .12s ease, box-shadow .15s ease;
+      color: var(--text);
+    }
+    .qa-btn:active { transform: scale(.95); }
+    .qa-btn:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+    .qa-ic { width:42px; height:42px; border-radius:13px; display:flex; align-items:center; justify-content:center;
+      background: var(--primary-soft); color: var(--primary); }
+    .qa-ic svg { width:21px; height:21px; }
+    .qa-lbl { font-size: 11.5px; font-weight: 700; color: var(--muted); text-align:center; line-height:1.15; }
+    /* Мини-график под счётчиком статуса. */
+    .stat-track { width:100%; height:5px; border-radius:999px; background: var(--soft); margin-top:8px; overflow:hidden; }
+    .stat-fill { height:100%; border-radius:999px; }
+    .stat-active .stat-fill { background: linear-gradient(90deg,#16a34a,#34d399); }
+    .stat-deposit .stat-fill { background: linear-gradient(90deg,#f59e0b,#fbbf24); }
+    .stat-sold .stat-fill { background: linear-gradient(90deg,#64748b,#94a3b8); }
+    /* Иконка-лидер в карточке объекта. */
+    .item .lead { display:flex; align-items:center; gap:12px; }
+    .lead-ic { width:44px; height:44px; flex:0 0 auto; border-radius:13px; display:flex; align-items:center; justify-content:center;
+      background: var(--primary-soft); color: var(--primary); }
+    .lead-ic svg { width:22px; height:22px; }
+    .lead-main { min-width:0; flex:1; }
+    /* Заголовок секции статистики. */
+    .section-row { display:flex; align-items:center; justify-content:space-between; margin: 4px 2px 10px; }
+    .section-row .ttl2 { font-size: 14px; font-weight: 800; letter-spacing: -.01em; }
+    .section-row .lnk { font-size: 13px; font-weight: 700; color: var(--primary); cursor:pointer; }
   </style>
 </head>
 <body>
@@ -762,8 +811,25 @@
 
     // ════════════════════════ Общие UI-помощники ════════════════════════
     function el(html) { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; }
-    function menuButton(icon, labelKey, onClick) {
-      const b = el(`<button class="menu-btn"><span class="ic">${icon}</span><span class="lbl">${esc(t(labelKey))}</span><span class="chev">›</span></button>`);
+    // Набор векторных иконок (Feather-стиль). Заменяют эмодзи — выглядят профессиональнее.
+    const ICONS = {
+      briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+      settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+      plus: '<path d="M12 5v14M5 12h14"/>',
+      search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+      database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>',
+      users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+      mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/>',
+      home: '<path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+      user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+      building: '<path d="M6 22V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v18"/><path d="M3 22h18M9 7h.01M15 7h.01M9 11h.01M15 11h.01M9 15h.01M15 15h.01"/>',
+    };
+    function svgIcon(name) {
+      const p = ICONS[name] || "";
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    }
+    function menuButton(iconName, labelKey, onClick) {
+      const b = el(`<button class="menu-btn"><span class="ic">${svgIcon(iconName)}</span><span class="lbl">${esc(t(labelKey))}</span><span class="chev">›</span></button>`);
       b.addEventListener("click", onClick);
       return b;
     }
@@ -928,30 +994,39 @@
       </div>`;
     }
     async function appendStats(host) {
-      const box = el(`<div class="stats-wrap" id="stats-box"></div>`);
-      host.appendChild(box);
+      const wrap = el(`<div id="stats-box"></div>`);
+      host.appendChild(wrap);
       const r = await api("/api/v1/apartments/stats");
-      if (!r.ok || !r.data) { box.remove(); return; }
+      if (!r.ok || !r.data) { wrap.remove(); return; }
       const s = r.data;
       const tiles = [
         ["active", "statusActive", s.active || 0, "stat-active"],
         ["deposit", "statusDeposit", s.deposit || 0, "stat-deposit"],
         ["sold", "statusSold", s.sold || 0, "stat-sold"],
       ];
-      box.innerHTML = "";
+      const max = Math.max(1, s.active || 0, s.deposit || 0, s.sold || 0);
+      wrap.innerHTML = `<div class="section-row"><span class="ttl2">${esc(t("stats"))}</span><span class="lnk" id="stats-all">${esc(t("myDatabase"))} ›</span></div>`;
+      const grid = el(`<div class="stats-wrap"></div>`);
       tiles.forEach(([status, labelKey, count, cls]) => {
+        const pct = Math.round((count / max) * 100);
         const tile = el(`<button class="stat-tile ${cls}">
           <div class="stat-num">${count}</div>
           <div class="stat-lbl">${esc(t(labelKey))}</div>
+          <div class="stat-track"><div class="stat-fill" style="width:${pct}%"></div></div>
         </button>`);
         // Нажатие на плитку открывает список объектов только с этим статусом.
         tile.addEventListener("click", () => navigate(objectListScreen({ status }, labelKey)));
-        box.appendChild(tile);
+        grid.appendChild(tile);
       });
+      wrap.appendChild(grid);
+      const allLnk = wrap.querySelector("#stats-all");
+      if (allLnk) allLnk.addEventListener("click", () => navigate(databaseScreen()));
     }
     function homeScreen() {
       return { titleKey: null, render(host) {
         const role = state.user && state.user.role;
+        // Брендовая шапка.
+        host.appendChild(el(`<div class="brand"><span class="logo">${svgIcon('building')}</span><span class="bname">Realty <b>AI</b></span></div>`));
         const hero = el(heroHtml());
         hero.style.cursor = "pointer";
         hero.addEventListener("click", () => navigate(profileScreen()));
@@ -959,21 +1034,21 @@
         if (role === "agency_admin" || role === "agent") appendStats(host);
         const menu = el(`<div class="menu"></div>`);
         if (role === "superadmin") {
-          menu.appendChild(menuButton("🏢", "myAgencies", () => navigate(agenciesScreen())));
-          menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
+          menu.appendChild(menuButton("briefcase", "myAgencies", () => navigate(agenciesScreen())));
+          menu.appendChild(menuButton("settings", "settings", () => navigate(settingsScreen())));
         } else if (role === "agency_admin") {
-          menu.appendChild(menuButton("➕", "addObject", () => navigate(addObjectScreen())));
-          menu.appendChild(menuButton("🔎", "findObject", () => navigate(searchFormScreen())));
-          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(databaseScreen())));
-          menu.appendChild(menuButton("👥", "team", () => navigate(teamScreen())));
+          menu.appendChild(menuButton("plus", "addObject", () => navigate(addObjectScreen())));
+          menu.appendChild(menuButton("search", "findObject", () => navigate(searchFormScreen())));
+          menu.appendChild(menuButton("database", "myDatabase", () => navigate(databaseScreen())));
+          menu.appendChild(menuButton("users", "team", () => navigate(teamScreen())));
           // Приглашать сотрудников может только главный администратор агентства.
-          if (state.user.is_owner) menu.appendChild(menuButton("✉️", "invites", () => navigate(invitesScreen())));
-          menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
+          if (state.user.is_owner) menu.appendChild(menuButton("mail", "invites", () => navigate(invitesScreen())));
+          menu.appendChild(menuButton("settings", "settings", () => navigate(settingsScreen())));
         } else if (role === "agent") {
-          menu.appendChild(menuButton("➕", "addObject", () => navigate(addObjectScreen())));
-          menu.appendChild(menuButton("🔎", "findObject", () => navigate(searchFormScreen())));
-          menu.appendChild(menuButton("🗂", "myDatabase", () => navigate(databaseScreen())));
-          menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
+          menu.appendChild(menuButton("plus", "addObject", () => navigate(addObjectScreen())));
+          menu.appendChild(menuButton("search", "findObject", () => navigate(searchFormScreen())));
+          menu.appendChild(menuButton("database", "myDatabase", () => navigate(databaseScreen())));
+          menu.appendChild(menuButton("settings", "settings", () => navigate(settingsScreen())));
         } else {
           menu.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
         }
@@ -1028,8 +1103,8 @@
         host.appendChild(themeSeg);
         host.appendChild(el(`<div class="hint">${esc(t("settingsHint"))}</div>`));
 
-        // Доп. настройки только для админа агентства: название проекта, валюта, контакт.
-        if (role === "agency_admin") {
+        // Настройки агентства (название проекта, контакт, валюта) — только главный админ.
+        if (role === "agency_admin" && state.user && state.user.is_owner) {
           host.appendChild(el(`<h2>${esc(t("agencyLbl"))}</h2>`));
           host.appendChild(el(`<label>${esc(t("projectName"))}</label>`));
           const pnInput = el(`<input id="set-project" value="${esc(state.projectName || "")}" />`);
@@ -1263,11 +1338,16 @@
         .filter(Boolean).map(esc).join(" · ");
       const photoIc = o.photo_url ? " 📷" : "";
       const c = el(`<div class="item tap st-${esc(o.status)}">
-        <div class="top"><span class="title">№${esc(o.display_id)}${photoIc}</span><span class="badge ${badge}">${esc(statusLabel(o.status))}</span></div>
-        ${o.name ? `<div class="meta">${esc(o.name)}</div>` : ""}
-        <div class="meta">${parts || t("notSet")}</div>
-        <div class="meta">${esc(t("f_price"))}: <span class="price-tag">${esc(String(price))}</span></div>
-        ${o.created_by_name ? `<div class="meta">${esc(t("addedBy"))}: ${esc(o.created_by_name)}</div>` : ""}
+        <div class="lead">
+          <div class="lead-ic">${svgIcon('home')}</div>
+          <div class="lead-main">
+            <div class="top"><span class="title">№${esc(o.display_id)}${photoIc}</span><span class="badge ${badge}">${esc(statusLabel(o.status))}</span></div>
+            ${o.name ? `<div class="meta">${esc(o.name)}</div>` : ""}
+            <div class="meta">${parts || t("notSet")}</div>
+            <div class="meta">${esc(t("f_price"))}: <span class="price-tag">${esc(String(price))}</span></div>
+            ${o.created_by_name ? `<div class="meta">${esc(t("addedBy"))}: ${esc(o.created_by_name)}</div>` : ""}
+          </div>
+        </div>
       </div>`);
       c.addEventListener("click", () => navigate(objectDetailScreen(o.id)));
       return c;

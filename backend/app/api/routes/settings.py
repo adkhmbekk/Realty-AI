@@ -8,7 +8,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_agency_admin, require_agency_member
+from app.core.dependencies import require_agency_member, require_agency_owner
 from app.db.models.user import User
 from app.db.session import get_db
 from app.repositories import agency_repo
@@ -31,9 +31,9 @@ def get_settings(
 def update_settings(
     body: AgencySettingsUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_admin),
+    current_user: User = Depends(require_agency_owner),
 ):
-    """Изменить настройки агентства (только администратор)."""
+    """Изменить настройки агентства (только главный администратор агентства)."""
     return agency_service.update_settings(
         db,
         current_user.agency_id,
