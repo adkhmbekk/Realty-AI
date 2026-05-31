@@ -196,6 +196,166 @@
     /* Главная кнопка — мягкое свечение. */
     button.full { box-shadow: 0 8px 20px rgba(37,99,235,.28); }
     button.full.danger { box-shadow: 0 8px 20px rgba(192,39,31,.18); }
+
+    /* ════════════════════════════════════════════════════════════════
+       РЕДИЗАЙН v0.5 «Aurora» — премиальный вид. Определён последним,
+       поэтому переопределяет базовые стили (правила той же специфичности
+       побеждают, если объявлены ниже).
+       ════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg: #eef1f8; --card: #ffffff; --text: #0b1220; --muted: #647088;
+      --border: #e9edf5; --soft: #f1f4fa;
+      --input-bg: #ffffff; --input-border: #dde3ee;
+      --primary: #5b5bf0; --primary-2: #8b5cf6; --primary-text: #ffffff; --primary-soft: #ececfe;
+      --ghost-bg: #eef0fe; --ghost-text: #4f46e5;
+      --danger-bg: #fdeceb; --danger-text: #d4332a;
+      --row-line: #eef1f7;
+      --ring: rgba(91,91,240,.20); --shadow: 0 8px 30px rgba(17,24,39,.08);
+      --shadow-lg: 0 18px 50px rgba(17,24,39,.14);
+      --radius: 18px;
+    }
+    [data-theme="dark"] {
+      --bg: #0a0e16; --card: #141a24; --text: #eef2f8; --muted: #93a0b4;
+      --border: #232c3a; --soft: #1a212e; --input-bg: #10161f; --input-border: #2a3442;
+      --primary: #7c7cf6; --primary-2: #a78bfa; --primary-text: #ffffff; --primary-soft: #20264a;
+      --ghost-bg: #1c2436; --ghost-text: #c7cdfe;
+      --danger-bg: #3a1d1d; --danger-text: #fca5a5;
+      --row-line: #222b39;
+      --ring: rgba(124,124,246,.34); --shadow: 0 10px 34px rgba(0,0,0,.45);
+      --shadow-lg: 0 22px 60px rgba(0,0,0,.6);
+    }
+
+    /* Фон с мягким «авроровым» свечением сверху. */
+    body {
+      background:
+        radial-gradient(1200px 420px at 15% -10%, rgba(124,92,246,.16), transparent 60%),
+        radial-gradient(1000px 380px at 110% 0%, rgba(56,189,248,.14), transparent 55%),
+        var(--bg);
+      background-attachment: fixed;
+      padding: 14px 14px calc(28px + env(safe-area-inset-bottom, 0px));
+      letter-spacing: -0.005em;
+    }
+    .card { max-width: 560px; }
+
+    /* Шапка. */
+    .hdr .ttl { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+    .hdr .back {
+      border-radius: 12px; padding: 9px 13px; font-weight: 700;
+      border: 1px solid var(--border); background: var(--card); box-shadow: var(--shadow);
+    }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 22px 4px 10px; }
+
+    /* Hero-карточка профиля. */
+    .hero {
+      position: relative; overflow: hidden;
+      border-radius: 24px; padding: 22px 20px; margin: 4px 0 16px; gap: 16px;
+      background:
+        radial-gradient(120% 120% at 0% 0%, #6d5bf5 0%, #5b5bf0 38%, #7c3aed 78%, #8b5cf6 100%);
+      box-shadow: 0 20px 46px rgba(91,76,237,.42);
+    }
+    .hero::after {
+      content: ""; position: absolute; right: -40px; top: -60px; width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(255,255,255,.22), transparent 65%); pointer-events: none;
+    }
+    [data-theme="dark"] .hero { box-shadow: 0 20px 50px rgba(0,0,0,.55); }
+    .hero .avatar {
+      width: 60px; height: 60px; border-radius: 20px; font-size: 22px;
+      background: rgba(255,255,255,.2); border: 1.5px solid rgba(255,255,255,.45);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.3);
+    }
+    .hero .greet { font-size: 12px; opacity: .9; }
+    .hero .nm { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .hero .rl { font-size: 12.5px; opacity: .92; margin-top: 4px; }
+
+    /* Меню — кнопки с цветными «плитками» иконок. */
+    .menu { gap: 11px; }
+    .menu-btn {
+      border-radius: 18px; padding: 14px 15px; font-size: 16px; font-weight: 700;
+      border: 1px solid var(--border); box-shadow: var(--shadow);
+    }
+    .menu-btn:hover { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+    .menu-btn:active { transform: scale(.985); }
+    .menu-btn .ic {
+      width: 44px; height: 44px; border-radius: 14px; font-size: 21px; color: #fff;
+      box-shadow: 0 6px 16px rgba(17,24,39,.16);
+    }
+    .menu .menu-btn:nth-child(6n+1) .ic { background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+    .menu .menu-btn:nth-child(6n+2) .ic { background: linear-gradient(135deg,#0ea5e9,#22d3ee); }
+    .menu .menu-btn:nth-child(6n+3) .ic { background: linear-gradient(135deg,#10b981,#34d399); }
+    .menu .menu-btn:nth-child(6n+4) .ic { background: linear-gradient(135deg,#f59e0b,#fbbf24); }
+    .menu .menu-btn:nth-child(6n+5) .ic { background: linear-gradient(135deg,#ec4899,#f472b6); }
+    .menu .menu-btn:nth-child(6n+6) .ic { background: linear-gradient(135deg,#64748b,#94a3b8); }
+    .menu-btn .chev { font-size: 24px; }
+
+    /* Карточки. */
+    .item { border-radius: var(--radius); padding: 15px 16px; box-shadow: var(--shadow); }
+    .item.tap { transition: transform .12s ease, box-shadow .15s ease, border-color .15s ease; }
+    .item.tap:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+    .item .title { font-size: 16px; font-weight: 800; letter-spacing: -.01em; }
+    .item .meta { font-size: 13px; }
+
+    /* Статистика-дашборд (кликабельные плитки). */
+    .stats-wrap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 2px 0 14px; }
+    .stat-tile {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+      padding: 15px 14px; border-radius: 18px; border: 1px solid var(--border);
+      background: var(--card); box-shadow: var(--shadow); cursor: pointer; text-align: left;
+      position: relative; overflow: hidden; transition: transform .12s ease, box-shadow .15s ease;
+    }
+    .stat-tile::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 4px;
+    }
+    .stat-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .stat-tile:active { transform: scale(.97); }
+    .stat-num { font-size: 26px; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; color: var(--text); }
+    .stat-lbl { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .stat-active::before  { background: linear-gradient(180deg,#16a34a,#34d399); }
+    .stat-deposit::before { background: linear-gradient(180deg,#f59e0b,#fbbf24); }
+    .stat-sold::before    { background: linear-gradient(180deg,#64748b,#94a3b8); }
+    .stat-active .stat-num  { color: #16a34a; }
+    .stat-deposit .stat-num { color: #d99100; }
+    [data-theme="dark"] .stat-active .stat-num { color: #4ade80; }
+    [data-theme="dark"] .stat-deposit .stat-num { color: #fbbf24; }
+
+    /* Поля ввода. */
+    input, select, textarea {
+      border-radius: 14px; padding: 13px 14px; font-size: 15px;
+      border: 1px solid var(--input-border); background: var(--input-bg);
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--ring); }
+    label { font-size: 12px; font-weight: 700; letter-spacing: .01em; margin: 14px 0 6px; }
+
+    /* Кнопки. */
+    button {
+      border-radius: 14px; font-weight: 700;
+      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      color: var(--primary-text);
+    }
+    button.full { padding: 14px 16px; box-shadow: 0 12px 26px rgba(91,76,237,.34); }
+    button.ghost { background: var(--ghost-bg); color: var(--ghost-text); }
+    button.danger { background: var(--danger-bg); color: var(--danger-text); }
+    button.full.danger { background: linear-gradient(135deg,#ef4444,#f87171); color:#fff; box-shadow: 0 12px 26px rgba(239,68,68,.32); }
+    button.small { border-radius: 11px; padding: 9px 13px; font-size: 13px; }
+
+    /* Сегмент-переключатель. */
+    .seg { border-radius: 14px; padding: 5px; gap: 4px; background: var(--soft); }
+    .seg button { border-radius: 10px; font-weight: 700; background: transparent; color: var(--muted); }
+    .seg button.active { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+
+    /* Чипы. */
+    .chip { border-radius: 999px; padding: 9px 15px; font-weight: 700; border: 1px solid var(--border); background: var(--card); }
+    .chip.active { background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff; border-color: transparent; box-shadow: 0 6px 16px rgba(91,76,237,.3); }
+
+    /* Бейджи (с точкой). */
+    .badge { padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .02em; }
+
+    /* Прочее. */
+    .hint { border-radius: 14px; padding: 11px 14px; }
+    .codebox { border-radius: 14px; }
+    .status { border-radius: 14px; padding: 12px 14px; font-weight: 600; }
+    .form-sec { color: var(--primary); }
+    .empty { padding: 26px 0; }
+    .spinner { border-top-color: var(--primary); }
   </style>
 </head>
 <body>
@@ -768,17 +928,26 @@
       </div>`;
     }
     async function appendStats(host) {
-      const box = el(`<div class="item" id="stats-box"><div class="meta">${esc(t("stats"))}…</div></div>`);
+      const box = el(`<div class="stats-wrap" id="stats-box"></div>`);
       host.appendChild(box);
       const r = await api("/api/v1/apartments/stats");
       if (!r.ok || !r.data) { box.remove(); return; }
       const s = r.data;
-      box.innerHTML = `
-        <div style="display:flex; justify-content:space-between; gap:8px; text-align:center">
-          <div style="flex:1"><div style="font-size:20px; font-weight:700">${s.active || 0}</div><div class="meta">${esc(t("statusActive"))}</div></div>
-          <div style="flex:1"><div style="font-size:20px; font-weight:700">${s.deposit || 0}</div><div class="meta">${esc(t("statusDeposit"))}</div></div>
-          <div style="flex:1"><div style="font-size:20px; font-weight:700">${s.sold || 0}</div><div class="meta">${esc(t("statusSold"))}</div></div>
-        </div>`;
+      const tiles = [
+        ["active", "statusActive", s.active || 0, "stat-active"],
+        ["deposit", "statusDeposit", s.deposit || 0, "stat-deposit"],
+        ["sold", "statusSold", s.sold || 0, "stat-sold"],
+      ];
+      box.innerHTML = "";
+      tiles.forEach(([status, labelKey, count, cls]) => {
+        const tile = el(`<button class="stat-tile ${cls}">
+          <div class="stat-num">${count}</div>
+          <div class="stat-lbl">${esc(t(labelKey))}</div>
+        </button>`);
+        // Нажатие на плитку открывает список объектов только с этим статусом.
+        tile.addEventListener("click", () => navigate(objectListScreen({ status }, labelKey)));
+        box.appendChild(tile);
+      });
     }
     function homeScreen() {
       return { titleKey: null, render(host) {
