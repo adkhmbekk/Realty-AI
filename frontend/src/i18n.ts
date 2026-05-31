@@ -77,6 +77,11 @@ export const I18N: Record<Lang, Record<string, string>> = {
     platformSection: "Платформа",
     home: "Главная", logout: "Выйти", actions: "Действия", quickActions: "Быстрые действия",
     addPhotoUrl: "Ссылка на фото", openInTgBtn: "Открыть",
+    photos: "Фотографии", addPhotos: "Загрузить фото", importTg: "Импорт из Telegram",
+    importTgPrompt: "Вставьте ссылку на пост открытого Telegram-канала с фото:",
+    uploadingPhotos: "Загружаем фото…", importingPhotos: "Импортируем фото…",
+    photoAdded: "Фото добавлены.", photoDeleted: "Фото удалено.", delPhotoQ: "Удалить это фото?",
+    noPhotos: "Фотографий пока нет.", photosHint: "Можно загрузить с телефона или импортировать из поста Telegram.",
   },
   uz: {
     back: "Orqaga", save: "Saqlash", saveChanges: "Oʻzgarishlarni saqlash", cancel: "Bekor qilish",
@@ -151,6 +156,11 @@ export const I18N: Record<Lang, Record<string, string>> = {
     platformSection: "Platforma",
     home: "Bosh sahifa", logout: "Chiqish", actions: "Amallar", quickActions: "Tezkor amallar",
     addPhotoUrl: "Foto havolasi", openInTgBtn: "Ochish",
+    photos: "Suratlar", addPhotos: "Foto yuklash", importTg: "Telegramdan import",
+    importTgPrompt: "Ochiq Telegram-kanal postiga (foto bilan) havolani joylang:",
+    uploadingPhotos: "Foto yuklanmoqda…", importingPhotos: "Fotolar import qilinmoqda…",
+    photoAdded: "Fotolar qoʻshildi.", photoDeleted: "Foto oʻchirildi.", delPhotoQ: "Bu foto oʻchirilsinmi?",
+    noPhotos: "Hozircha foto yoʻq.", photosHint: "Telefondan yuklash yoki Telegram postidan import qilish mumkin.",
   },
   en: {
     back: "Back", save: "Save", saveChanges: "Save changes", cancel: "Cancel",
@@ -225,6 +235,11 @@ export const I18N: Record<Lang, Record<string, string>> = {
     platformSection: "Platform",
     home: "Home", logout: "Log out", actions: "Actions", quickActions: "Quick actions",
     addPhotoUrl: "Photo link", openInTgBtn: "Open",
+    photos: "Photos", addPhotos: "Upload photos", importTg: "Import from Telegram",
+    importTgPrompt: "Paste a link to a public Telegram channel post with photos:",
+    uploadingPhotos: "Uploading photos…", importingPhotos: "Importing photos…",
+    photoAdded: "Photos added.", photoDeleted: "Photo deleted.", delPhotoQ: "Delete this photo?",
+    noPhotos: "No photos yet.", photosHint: "Upload from your phone or import from a Telegram post.",
   },
 };
 

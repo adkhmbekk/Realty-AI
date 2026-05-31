@@ -38,6 +38,9 @@ services:
       SUPERADMIN_TELEGRAM_ID: ${SUPERADMIN_TELEGRAM_ID:-}
       JWT_SECRET: ${JWT_SECRET:-}
       BOT_USERNAME: ${BOT_USERNAME:-}
+    volumes:
+      # Загруженные фото объектов хранятся здесь и переживают перезапуски.
+      - photos_data:/data/photos
     depends_on:
       db:
         condition: service_healthy
@@ -70,3 +73,4 @@ services:
 
 volumes:
   db_data:
+  photos_data:

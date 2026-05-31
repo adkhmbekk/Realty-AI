@@ -10,6 +10,7 @@ from app.api.routes import (
     auth,
     dictionaries,
     invites,
+    photos,
     platform,
     settings,
     team,
@@ -25,3 +26,4 @@ api_router.include_router(team.router)
 api_router.include_router(agents.router)
 api_router.include_router(dictionaries.router)
 api_router.include_router(apartments.router)
+api_router.include_router(photos.router)

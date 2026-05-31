@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # использования), по умолчанию 24 часа.
     init_data_max_age_seconds: int = 86400
 
+    # Папка для хранения загруженных фотографий объектов (внутри контейнера).
+    # Монтируется на Docker-том, чтобы фото не пропадали между перезапусками.
+    photos_dir: str = "/data/photos"
+
     @field_validator("bot_token", "jwt_secret", "bot_username", mode="before")
     @classmethod
     def _empty_string_to_none(cls, value):
