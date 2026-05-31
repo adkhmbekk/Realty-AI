@@ -32,6 +32,9 @@ class User(Base):
         BigInteger, ForeignKey("agencies.id"), nullable=True, index=True
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
+    # Главный администратор агентства (тот, кого назначил суперадмин). Имеет
+    # права над другими администраторами; повышенный из агента админ — нет.
+    is_owner: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Деактивация сотрудника без удаления его истории.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
