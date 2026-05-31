@@ -18,9 +18,12 @@ class AgencyCreate(BaseModel):
 
 class AgencySubscriptionUpdate(BaseModel):
     # extend — продлить на N дней (и сделать активной);
+    # set — задать дату окончания вручную (и активировать);
     # freeze — заморозить; activate — снова активировать.
-    action: Literal["extend", "freeze", "activate"]
+    action: Literal["extend", "set", "freeze", "activate"]
     days: Optional[int] = 30
+    # Для action="set": конкретная дата/время окончания подписки.
+    expires_at: Optional[datetime] = None
 
 
 class AgencyUpdate(BaseModel):
@@ -40,12 +43,14 @@ class AgencySettingsOut(BaseModel):
 
     id: int
     name: str
+    project_name: Optional[str] = None
     timezone: str
     default_currency: str
 
 
 class AgencySettingsUpdate(BaseModel):
     # Что админ агентства может менять в настройках.
+    project_name: Optional[str] = None
     timezone: Optional[str] = None
     default_currency: Optional[str] = None
 
@@ -55,6 +60,7 @@ class AgencyOut(BaseModel):
 
     id: int
     name: str
+    project_name: Optional[str] = None
     status: str
     subscription_expires_at: Optional[datetime] = None
     created_at: datetime

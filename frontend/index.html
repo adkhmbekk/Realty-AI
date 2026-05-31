@@ -93,6 +93,30 @@
     .seg { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
     .seg button { flex:1; min-width: 90px; background: var(--soft); color: var(--text); border:1px solid var(--border); }
     .seg button.active { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
+    .hero {
+      border-radius: 18px; padding: 20px 18px; margin: 4px 0 14px;
+      background: linear-gradient(135deg, #2563eb 0%, #4f46e5 55%, #7c3aed 100%);
+      color: #fff; display: flex; align-items: center; gap: 14px;
+      box-shadow: 0 10px 26px rgba(79,70,229,.35);
+    }
+    [data-theme="dark"] .hero { box-shadow: 0 10px 26px rgba(0,0,0,.45); }
+    .hero .avatar {
+      width: 54px; height: 54px; border-radius: 50%; flex: 0 0 auto;
+      background: rgba(255,255,255,.18); backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 21px; font-weight: 700; letter-spacing: .5px;
+      border: 1px solid rgba(255,255,255,.35);
+    }
+    .hero .who { min-width: 0; }
+    .hero .greet { font-size: 12px; opacity: .85; margin-bottom: 2px; }
+    .hero .nm { font-size: 19px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+    .hero .rl { font-size: 12.5px; opacity: .9; margin-top: 3px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .chip {
+      background: var(--soft); color: var(--text); border: 1px solid var(--border);
+      border-radius: 999px; padding: 8px 13px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .chip.active { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
   </style>
 </head>
 <body>
@@ -179,6 +203,9 @@
         openInTg:"Откройте приложение внутри Telegram, чтобы войти.", backendOk:"Связь с backend есть.",
         backendErr:"Не удаётся связаться с backend. Проверьте, что контейнеры запущены.",
         notSet:"—", apartment:"Объект", saving:"Сохраняем…",
+        projectName:"Название проекта", projectNameHint:"Это название увидят сотрудники вашего агентства.",
+        roomsFrom:"Комнат от", setDateLabel:"Дата окончания подписки", setDateBtn:"Задать дату вручную",
+        greeting:"Здравствуйте", typeMultiHint:"Можно выбрать несколько типов",
       },
       uz: {
         back:"Orqaga", save:"Saqlash", saveChanges:"Oʻzgarishlarni saqlash", cancel:"Bekor qilish",
@@ -234,6 +261,9 @@
         openInTg:"Kirish uchun ilovani Telegram ichida oching.", backendOk:"Backend bilan aloqa bor.",
         backendErr:"Backend bilan bogʻlanib boʻlmadi. Konteynerlar ishlayotganini tekshiring.",
         notSet:"—", apartment:"Obyekt", saving:"Saqlanmoqda…",
+        projectName:"Loyiha nomi", projectNameHint:"Bu nomni agentligingiz xodimlari koʻradi.",
+        roomsFrom:"Xonalar (dan)", setDateLabel:"Obuna tugash sanasi", setDateBtn:"Sanani qoʻlda belgilash",
+        greeting:"Assalomu alaykum", typeMultiHint:"Bir nechta turni tanlash mumkin",
       },
       en: {
         back:"Back", save:"Save", saveChanges:"Save changes", cancel:"Cancel",
@@ -289,6 +319,9 @@
         openInTg:"Open the app inside Telegram to sign in.", backendOk:"Backend connection OK.",
         backendErr:"Cannot reach backend. Make sure the containers are running.",
         notSet:"—", apartment:"Property", saving:"Saving…",
+        projectName:"Project name", projectNameHint:"Your agency members will see this name.",
+        roomsFrom:"Rooms from", setDateLabel:"Subscription end date", setDateBtn:"Set date manually",
+        greeting:"Hello", typeMultiHint:"You can select several types",
       },
     };
     function t(key) {
@@ -454,6 +487,7 @@
         state.defaultCurrency = r.data.default_currency || null;
         state.timezone = r.data.timezone || null;
         state.agencyName = r.data.name || null;
+        state.projectName = r.data.project_name || null;
         state.settingsLoaded = true;
       }
     }
@@ -461,9 +495,9 @@
     // ════════════════════════ Форма объекта ════════════════════════
     function objFormInner(o) {
       o = o || {};
-      const typeOpts = `<option value="">${esc(t("any"))}</option>` + OBJ_TYPE_VALUES.map(v => optionTag(v, typeLabel(v), o.type)).join("");
+      const typeOpts = `<option value="">${esc(t("notSet"))}</option>` + OBJ_TYPE_VALUES.map(v => optionTag(v, typeLabel(v), o.type)).join("");
       const condOpts = `<option value="">${esc(t("notSet"))}</option>` + OBJ_COND_VALUES.map(v => optionTag(v, condLabel(v), o.condition)).join("");
-      const distOpts = `<option value="">${esc(t("any"))}</option>` + refs.district.map(x => optionTag(x.value, x.value, o.district)).join("");
+      const distOpts = `<option value="">${esc(t("notSet"))}</option>` + refs.district.map(x => optionTag(x.value, x.value, o.district)).join("");
       const defCur = o.currency || state.defaultCurrency || "USD";
       const curOpts = ["USD","UZS","EUR"].map(c => optionTag(c, c, defCur)).join("");
       const num = v => (v != null ? v : "");
@@ -533,13 +567,40 @@
       if (tg && tg.openTelegramLink) tg.openTelegramLink(link); else window.open(link, "_blank");
     }
 
-    // ════════════════════════ Экран: Главное меню ════════════════════════
+    // ════════════════════════ Главное меню ════════════════════════
+    function initials(name) {
+      const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return "👤";
+      const a = parts[0][0] || "";
+      const b = parts.length > 1 ? (parts[parts.length - 1][0] || "") : "";
+      return (a + b).toUpperCase();
+    }
+    function heroHtml() {
+      const u = state.user || {};
+      const role = u.role;
+      // Для админа главным заголовком показываем название его проекта (если задано),
+      // иначе — имя пользователя.
+      let bigName = u.full_name || (u.username ? "@" + u.username : t("notSet"));
+      let sub = roleLabel(role);
+      if (role === "agency_admin" && state.projectName) {
+        sub = u.full_name ? (roleLabel(role) + " · " + u.full_name) : roleLabel(role);
+        bigName = state.projectName;
+      }
+      return `<div class="hero">
+        <div class="avatar">${esc(initials(u.full_name || state.projectName))}</div>
+        <div class="who">
+          <div class="greet">${esc(t("greeting"))}</div>
+          <div class="nm">${esc(bigName)}</div>
+          <div class="rl">${esc(sub)}</div>
+        </div>
+      </div>`;
+    }
     function homeScreen() {
       return { titleKey: null, render(host) {
         const role = state.user && state.user.role;
+        host.appendChild(el(heroHtml()));
         const menu = el(`<div class="menu"></div>`);
         if (role === "superadmin") {
-          menu.appendChild(menuButton("👤", "myProfile", () => navigate(profileScreen())));
           menu.appendChild(menuButton("🏢", "myAgencies", () => navigate(agenciesScreen())));
           menu.appendChild(menuButton("⚙️", "settings", () => navigate(settingsScreen())));
         } else if (role === "agency_admin") {
@@ -601,56 +662,29 @@
         host.appendChild(themeSeg);
         host.appendChild(el(`<div class="hint">${esc(t("settingsHint"))}</div>`));
 
-        // Доп. настройки только для админа агентства: валюта, часовой пояс, районы.
+        // Доп. настройки только для админа агентства: название проекта и валюта.
         if (role === "agency_admin") {
-          host.appendChild(el(`<h2>${esc(t("defaultCurrency"))} / ${esc(t("timezone"))}</h2>`));
-          const curSel = el(`<select id="set-currency">
-            ${["USD","UZS","EUR"].map(c => optionTag(c, c, state.defaultCurrency || "USD")).join("")}
-          </select>`);
+          host.appendChild(el(`<h2>${esc(t("agencyLbl"))}</h2>`));
+          host.appendChild(el(`<label>${esc(t("projectName"))}</label>`));
+          const pnInput = el(`<input id="set-project" value="${esc(state.projectName || "")}" />`);
+          host.appendChild(pnInput);
+          host.appendChild(el(`<div class="hint">${esc(t("projectNameHint"))}</div>`));
           host.appendChild(el(`<label>${esc(t("defaultCurrency"))}</label>`));
+          const curSel = el(`<select id="set-currency">${["USD","UZS","EUR"].map(c => optionTag(c, c, state.defaultCurrency || "USD")).join("")}</select>`);
           host.appendChild(curSel);
-          host.appendChild(el(`<label>${esc(t("timezone"))}</label>`));
-          const tzInput = el(`<input id="set-tz" placeholder="Asia/Tashkent" value="${esc(state.timezone || "")}" />`);
-          host.appendChild(tzInput);
           const saveBtn = el(`<button class="full">${esc(t("saveSettings"))}</button>`);
           saveBtn.addEventListener("click", async () => {
             setStatus(t("saving"), "info");
-            const r = await api("/api/v1/agency/settings", { method: "PATCH", body: { default_currency: curSel.value, timezone: (tzInput.value || "").trim() || null } });
-            if (r.ok) { state.defaultCurrency = r.data.default_currency || null; state.timezone = r.data.timezone || null; setStatus(t("saved"), "ok"); }
-            else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
+            const r = await api("/api/v1/agency/settings", { method: "PATCH", body: { project_name: (pnInput.value || "").trim(), default_currency: curSel.value } });
+            if (r.ok) {
+              state.defaultCurrency = r.data.default_currency || null;
+              state.projectName = r.data.project_name || null;
+              setStatus(t("saved"), "ok");
+            } else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
           });
           host.appendChild(saveBtn);
-
-          // Районы
-          host.appendChild(el(`<h2>${esc(t("districts"))}</h2>`));
-          host.appendChild(el(`<label>${esc(t("newDistrict"))}</label>`));
-          const dInput = el(`<input id="dist-name" placeholder="${esc(t("newDistrict"))}" />`);
-          host.appendChild(dInput);
-          const dAdd = el(`<button class="full">${esc(t("addDistrict"))}</button>`);
-          const dList = el(`<div id="dist-list" style="margin-top:8px"><div class="empty">${esc(t("loading"))}</div></div>`);
-          dAdd.addEventListener("click", async () => {
-            const value = (dInput.value || "").trim();
-            if (!value) return;
-            setStatus(t("saving"), "info");
-            const r = await api("/api/v1/dictionaries", { method: "POST", body: { category: "district", value } });
-            if (r.ok) { setStatus(t("districtAdded"), "ok"); dInput.value = ""; await loadRefs(true); paintDistricts(dList); }
-            else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
-          });
-          host.appendChild(dAdd);
-          host.appendChild(dList);
-          loadRefs(true).then(() => paintDistricts(dList));
         }
       }};
-    }
-    function paintDistricts(box) {
-      if (!refs.district.length) { box.innerHTML = `<div class="empty">${esc(t("empty"))}</div>`; return; }
-      box.innerHTML = refs.district.map(d => `<div class="item"><div class="top"><span class="title">${esc(d.value)}</span><button class="small danger" data-del="${d.id}">${esc(t("del"))}</button></div></div>`).join("");
-      box.querySelectorAll("button[data-del]").forEach(b => b.addEventListener("click", async () => {
-        if (!window.confirm(t("delDistrictQ"))) return;
-        const r = await api("/api/v1/dictionaries/" + b.dataset.del, { method: "DELETE" });
-        if (r.ok) { await loadRefs(true); paintDistricts(box); setStatus(t("done"), "ok"); }
-        else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
-      }));
     }
 
     // ════════════════════════ СУПЕРАДМИН: агентства ════════════════════════
@@ -678,6 +712,7 @@
         const adminTxt = a.admin_name ? (esc(a.admin_name) + (a.admin_telegram_id ? " (ID " + a.admin_telegram_id + ")" : "")) : t("notAssigned");
         const item = el(`<div class="item tap">
           <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a.status)}</div>
+          ${a.project_name ? `<div class="meta">${esc(t("projectName"))}: ${esc(a.project_name)}</div>` : ""}
           <div class="meta">ID ${a.id} · ${esc(t("subUntil"))}: ${fmtDate(a.subscription_expires_at)}</div>
           <div class="meta">${esc(t("admin"))}: ${adminTxt}</div>
           <div class="meta" style="margin-top:6px">›</div>
@@ -704,6 +739,7 @@
       box.innerHTML = "";
       box.appendChild(el(`<div class="item">
         <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a.status)}</div>
+        ${a.project_name ? `<div class="meta">${esc(t("projectName"))}: ${esc(a.project_name)}</div>` : ""}
         <div class="meta">ID ${a.id} · ${esc(t("subUntil"))}: ${fmtDate(a.subscription_expires_at)}</div>
         <div class="meta">${esc(t("admin"))}: ${adminTxt}</div>
       </div>`));
@@ -719,6 +755,18 @@
       });
       box.appendChild(extBtn);
 
+      // Ручная установка даты окончания подписки (изменить полностью).
+      box.appendChild(el(`<label>${esc(t("setDateLabel"))}</label>`));
+      const dateInput = el(`<input id="ext-date" type="date" />`);
+      box.appendChild(dateInput);
+      const setBtn = el(`<button class="ghost full">${esc(t("setDateBtn"))}</button>`);
+      setBtn.addEventListener("click", async () => {
+        const v = (dateInput.value || "").trim();
+        if (!v) { setStatus(t("setDateLabel"), "warn"); return; }
+        await agencySub(agencyId, "set", null, v + "T23:59:59Z"); renderCurrent();
+      });
+      box.appendChild(setBtn);
+
       const actions = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
       const freezeBtn = el(`<button class="small ${frozen ? "ghost" : "danger"}">${esc(frozen ? t("activate") : t("freeze"))}</button>`);
       freezeBtn.addEventListener("click", async () => { await agencySub(agencyId, frozen ? "activate" : "freeze", null); renderCurrent(); });
@@ -731,9 +779,11 @@
       actions.appendChild(freezeBtn); actions.appendChild(renameBtn); actions.appendChild(adminBtn); actions.appendChild(delBtn);
       box.appendChild(actions);
     }
-    async function agencySub(id, action, days) {
+    async function agencySub(id, action, days, expiresAt) {
       setStatus(t("saving"), "info");
-      const body = { action }; if (days != null) body.days = days;
+      const body = { action };
+      if (days != null) body.days = days;
+      if (expiresAt) body.expires_at = expiresAt;
       const r = await api("/api/v1/agencies/" + id + "/subscription", { method: "POST", body });
       if (r.ok) setStatus(t("subUpdated"), "ok"); else setStatus(t("error") + ": " + errText(r.data, r.status), "err");
     }
@@ -822,7 +872,12 @@
         async function loadPage(append) {
           moreWrap.innerHTML = `<div class="empty">${esc(t("loading"))}</div>`;
           const p = new URLSearchParams();
-          Object.keys(params).forEach(k => { if (params[k] != null && params[k] !== "") p.set(k, params[k]); });
+          Object.keys(params).forEach(k => {
+            const v = params[k];
+            if (v == null || v === "") return;
+            if (Array.isArray(v)) v.forEach(x => { if (x != null && x !== "") p.append(k, x); });
+            else p.set(k, v);
+          });
           if (!p.has("status")) p.set("status", "all");
           p.set("limit", "20"); p.set("offset", String(page.offset));
           const r = await api("/api/v1/apartments?" + p.toString());
@@ -867,17 +922,23 @@
         host.appendChild(box);
         loadRefs().then(() => {
           box.innerHTML = "";
-          const statusOpts = [["active","statusActive"],["deposit","statusDeposit"],["sold","statusSold"],["archived","statusArchived"],["all","any"]]
+          // Статус: «—» (все) / Активные / Задаток / Проданные. Без архива.
+          const statusOpts = [["all","notSet"],["active","statusActive"],["deposit","statusDeposit"],["sold","statusSold"]]
             .map(s => `<option value="${s[0]}">${esc(t(s[1]))}</option>`).join("");
-          const typeOpts = `<option value="">${esc(t("any"))}</option>` + OBJ_TYPE_VALUES.map(v => `<option value="${esc(v)}">${esc(typeLabel(v))}</option>`).join("");
-          const distOpts = `<option value="">${esc(t("any"))}</option>` + refs.district.map(x => `<option value="${esc(x.value)}">${esc(x.value)}</option>`).join("");
-          const roomsOpts = `<option value="">${esc(t("any"))}</option>` + [1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join("");
+          const distOpts = `<option value="">${esc(t("notSet"))}</option>` + refs.district.map(x => `<option value="${esc(x.value)}">${esc(x.value)}</option>`).join("");
+          // Тип — мультивыбор чипами.
+          const typeChips = OBJ_TYPE_VALUES.map(v => `<div class="chip" data-val="${esc(v)}">${esc(typeLabel(v))}</div>`).join("");
           box.appendChild(el(`<div class="item">
             <label>${esc(t("searchText"))}</label><input id="f-q" />
             <label>${esc(t("f_status"))}</label><select id="f-status">${statusOpts}</select>
-            <label>${esc(t("f_type"))}</label><select id="f-type">${typeOpts}</select>
+            <label>${esc(t("f_type"))}</label>
+            <div class="chips" id="f-types">${typeChips}</div>
+            <div class="hint">${esc(t("typeMultiHint"))}</div>
             <label>${esc(t("f_district"))}</label><select id="f-district">${distOpts}</select>
-            <label>${esc(t("f_rooms"))}</label><select id="f-rooms">${roomsOpts}</select>
+            <div style="display:flex; gap:8px">
+              <div style="flex:1"><label>${esc(t("roomsFrom"))}</label><input id="f-rmin" inputmode="numeric" /></div>
+              <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-rmax" inputmode="numeric" /></div>
+            </div>
             <div style="display:flex; gap:8px">
               <div style="flex:1"><label>${esc(t("floorFrom"))}</label><input id="f-fmin" inputmode="numeric" /></div>
               <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-fmax" inputmode="numeric" /></div>
@@ -887,14 +948,17 @@
               <div style="flex:1"><label>${esc(t("to"))}</label><input id="f-pmax" inputmode="numeric" /></div>
             </div>
           </div>`));
+          box.querySelectorAll("#f-types .chip").forEach(c => c.addEventListener("click", () => c.classList.toggle("active")));
           const btn = el(`<button class="full">${esc(t("searchBtn"))}</button>`);
           btn.addEventListener("click", () => {
             const params = {};
             const gv = sel => (box.querySelector(sel).value || "").trim();
-            const status = gv("#f-status"); if (status) params.status = status;
-            const type = gv("#f-type"); if (type) params.types = type;
+            params.status = gv("#f-status") || "all";
+            const types = Array.from(box.querySelectorAll("#f-types .chip.active")).map(c => c.dataset.val);
+            if (types.length) params.types = types;
             const dist = gv("#f-district"); if (dist) params.districts = dist;
-            const rooms = gv("#f-rooms"); if (rooms) params.rooms = rooms;
+            const rmin = gv("#f-rmin"); if (rmin) params.rooms_min = rmin;
+            const rmax = gv("#f-rmax"); if (rmax) params.rooms_max = rmax;
             const q = gv("#f-q"); if (q) params.q = q;
             const fmin = gv("#f-fmin"); if (fmin) params.floor_min = fmin;
             const fmax = gv("#f-fmax"); if (fmax) params.floor_max = fmax;
@@ -928,9 +992,9 @@
       ];
       const rowsHtml = rows.filter(x => x[1] != null && x[1] !== "").map(x => `<div class="row"><span>${esc(x[0])}</span><span><b>${esc(String(x[1]))}</b></span></div>`).join("");
       const transitions = {
-        active: [["deposit","toDeposit"],["sold","toSold"],["archived","toArchive"]],
-        deposit: [["active","removeDeposit"],["sold","toSold"],["archived","toArchive"]],
-        sold: [["active","backToActive"],["archived","toArchive"]],
+        active: [["deposit","toDeposit"],["sold","toSold"]],
+        deposit: [["active","removeDeposit"],["sold","toSold"]],
+        sold: [["active","backToActive"]],
         archived: [["active","backToActive"]],
       };
       box.innerHTML = "";
@@ -1114,10 +1178,14 @@
     }
 
     // ════════════════════════ Старт ════════════════════════
-    function afterLogin() {
+    async function afterLogin() {
       setStatus("", null);
       const role = state.user && state.user.role;
-      if (role === "agency_admin" || role === "agent") loadAgencySettings(true);
+      if (role === "agency_admin" || role === "agent") {
+        // Подтягиваем настройки агентства до показа главного экрана, чтобы
+        // герой-карточка сразу показала название проекта и валюту по умолчанию.
+        await loadAgencySettings(true);
+      }
       if ((role === "agency_admin" || role === "agent") && state.subscriptionActive === false) { resetTo(suspendedScreen()); return; }
       resetTo(homeScreen());
     }

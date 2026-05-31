@@ -42,6 +42,8 @@ def _build_conditions(
     price_max: Optional[float],
     agent_id: Optional[int],
     q: Optional[str] = None,
+    rooms_min: Optional[int] = None,
+    rooms_max: Optional[int] = None,
 ) -> list:
     # Первое и главное условие — принадлежность агентству.
     conditions = [Apartment.agency_id == agency_id]
@@ -54,6 +56,10 @@ def _build_conditions(
         conditions.append(Apartment.type.in_(list(types)))
     if rooms:
         conditions.append(Apartment.rooms.in_(list(rooms)))
+    if rooms_min is not None:
+        conditions.append(Apartment.rooms >= rooms_min)
+    if rooms_max is not None:
+        conditions.append(Apartment.rooms <= rooms_max)
     if floor_min is not None:
         conditions.append(Apartment.floor >= floor_min)
     if floor_max is not None:
@@ -102,6 +108,8 @@ def search(
     price_max: Optional[float] = None,
     agent_id: Optional[int] = None,
     q: Optional[str] = None,
+    rooms_min: Optional[int] = None,
+    rooms_max: Optional[int] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> Tuple[List[Apartment], int]:
@@ -122,6 +130,8 @@ def search(
         price_max=price_max,
         agent_id=agent_id,
         q=q,
+        rooms_min=rooms_min,
+        rooms_max=rooms_max,
     )
 
     total = db.execute(

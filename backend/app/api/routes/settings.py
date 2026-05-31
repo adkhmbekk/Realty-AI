@@ -37,6 +37,7 @@ def update_settings(
     return agency_service.update_settings(
         db,
         current_user.agency_id,
+        project_name=body.project_name,
         timezone_value=body.timezone,
         default_currency=body.default_currency,
     )

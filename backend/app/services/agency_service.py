@@ -85,11 +85,16 @@ def create_agency_with_admin(
 
 
 def update_subscription(
-    db: Session, agency_id: int, action: str, days: int = 30
+    db: Session,
+    agency_id: int,
+    action: str,
+    days: int = 30,
+    expires_at: Optional[datetime] = None,
 ) -> Agency:
     """
     Управление подпиской агентства (суперадмин):
       - extend   — продлить на N дней (и активировать);
+      - set      — задать дату окончания подписки вручную (и активировать);
       - freeze   — заморозить (доступ сотрудников ограничивается);
       - activate — снова активировать.
     """
@@ -107,6 +112,17 @@ def update_subscription(
         if base is None or base < now:
             base = now
         agency.subscription_expires_at = base + timedelta(days=add_days)
+        agency.status = "active"
+    elif action == "set":
+        if expires_at is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Не указана дата окончания подписки.",
+            )
+        # Приводим к timezone-aware (UTC), если дата без зоны.
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        agency.subscription_expires_at = expires_at
         agency.status = "active"
     elif action == "freeze":
         agency.status = "frozen"
@@ -204,11 +220,15 @@ def set_agency_admin(
 def update_settings(
     db: Session,
     agency_id: int,
+    project_name: Optional[str] = None,
     timezone_value: Optional[str] = None,
     default_currency: Optional[str] = None,
 ) -> Agency:
-    """Обновить настройки агентства (часовой пояс, валюта по умолчанию)."""
+    """Обновить настройки агентства (название проекта, часовой пояс, валюта)."""
     agency = _get_agency_or_404(db, agency_id)
+    if project_name is not None:
+        # Пустая строка очищает название проекта.
+        agency.project_name = project_name.strip() or None
     if timezone_value is not None:
         tz = timezone_value.strip()
         if tz:

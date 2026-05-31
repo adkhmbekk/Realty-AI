@@ -92,7 +92,9 @@ def update_subscription(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_superadmin),
 ):
-    """Управление подпиской агентства: продлить / заморозить / активировать."""
-    agency = agency_service.update_subscription(db, agency_id, body.action, body.days)
+    """Управление подпиской агентства: продлить / задать дату / заморозить / активировать."""
+    agency = agency_service.update_subscription(
+        db, agency_id, body.action, body.days, body.expires_at
+    )
     agency_service.attach_admins(db, [agency])
     return agency

@@ -12,7 +12,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.router import api_router
@@ -74,9 +74,79 @@ def bootstrap_superadmin() -> None:
         db.close()
 
 
+def ensure_schema_upgrades() -> None:
+    """
+    Лёгкие до-Alembic-миграции: добавляем недостающие колонки в существующие
+    таблицы, чтобы create_all (который НЕ умеет ALTER) не ломался на уже
+    созданной базе. Данные при этом не теряются.
+    """
+    statements = [
+        "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS project_name VARCHAR",
+    ]
+    try:
+        with engine.begin() as conn:
+            for stmt in statements:
+                conn.execute(text(stmt))
+        logger.info("Схема БД проверена (недостающие колонки добавлены при необходимости).")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не удалось выполнить до-миграции схемы: %s", exc)
+
+
+def normalize_legacy_display_ids() -> None:
+    """
+    Привести старые номера объектов к единому виду «0001».
+
+    Раньше display_id формировался с префиксом кода агента (например
+    «OTH-0001»). Теперь номер сквозной и числовой. Здесь однократно чистим
+    старые записи: из display_id берём только цифры и дополняем до 4 знаков.
+    При конфликте (такой номер уже занят) сдвигаем на следующий свободный.
+    """
+    import re
+
+    db = SessionLocal()
+    try:
+        from app.db.models.apartment import Apartment
+
+        apartments = db.execute(select(Apartment)).scalars().all()
+        # Группируем по агентству, чтобы номера были уникальны в его пределах.
+        by_agency: dict[int, list] = {}
+        for a in apartments:
+            by_agency.setdefault(a.agency_id, []).append(a)
+
+        changed = 0
+        for agency_id, items in by_agency.items():
+            used = set()
+            # Сначала фиксируем уже корректные числовые номера.
+            for a in items:
+                if a.display_id and re.fullmatch(r"\d+", a.display_id):
+                    used.add(a.display_id.zfill(4))
+            # Затем чиним нечисловые (например «OTH-0001»).
+            for a in items:
+                if a.display_id and re.fullmatch(r"\d+", a.display_id):
+                    continue
+                digits = "".join(ch for ch in (a.display_id or "") if ch.isdigit())
+                num = int(digits) if digits else 1
+                candidate = f"{num:04d}"
+                while candidate in used:
+                    num += 1
+                    candidate = f"{num:04d}"
+                a.display_id = candidate
+                used.add(candidate)
+                changed += 1
+        if changed:
+            db.commit()
+            logger.info("Нормализовано номеров объектов: %s.", changed)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не удалось нормализовать номера объектов: %s", exc)
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db_with_retry()
+    ensure_schema_upgrades()
+    normalize_legacy_display_ids()
     bootstrap_superadmin()
     yield
 
