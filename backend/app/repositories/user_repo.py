@@ -57,6 +57,7 @@ def create(
     agency_id: Optional[int] = None,
     username: Optional[str] = None,
     full_name: Optional[str] = None,
+    is_owner: bool = False,
 ) -> User:
     user = User(
         telegram_id=telegram_id,
@@ -65,6 +66,7 @@ def create(
         username=username,
         full_name=full_name,
         is_active=True,
+        is_owner=is_owner,
     )
     db.add(user)
     db.flush()  # чтобы получить сгенерированный id

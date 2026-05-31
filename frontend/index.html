@@ -209,7 +209,7 @@
         greeting:"Здравствуйте", typeMultiHint:"Можно выбрать несколько типов",
         activatedAt:"Дата активации", extendPrompt:"На сколько дней продлить подписку?",
         setDatePrompt:"Новая дата окончания (ГГГГ-ММ-ДД):", badDate:"Неверный формат даты. Пример: 2026-12-31",
-        changeDateBtn:"Изменить дату", notSold:"Не проданные",
+        changeDateBtn:"Изменить дату", notSold:"Не проданные", mainAdmin:"Главный",
       },
       uz: {
         back:"Orqaga", save:"Saqlash", saveChanges:"Oʻzgarishlarni saqlash", cancel:"Bekor qilish",
@@ -270,7 +270,7 @@
         greeting:"Assalomu alaykum", typeMultiHint:"Bir nechta turni tanlash mumkin",
         activatedAt:"Faollashtirilgan sana", extendPrompt:"Obunani necha kunga uzaytirilsin?",
         setDatePrompt:"Yangi tugash sanasi (YYYY-MM-DD):", badDate:"Sana formati notoʻgʻri. Masalan: 2026-12-31",
-        changeDateBtn:"Sanani oʻzgartirish", notSold:"Sotilmagan",
+        changeDateBtn:"Sanani oʻzgartirish", notSold:"Sotilmagan", mainAdmin:"Bosh admin",
       },
       en: {
         back:"Back", save:"Save", saveChanges:"Save changes", cancel:"Cancel",
@@ -331,7 +331,7 @@
         greeting:"Hello", typeMultiHint:"You can select several types",
         activatedAt:"Activation date", extendPrompt:"Extend subscription by how many days?",
         setDatePrompt:"New end date (YYYY-MM-DD):", badDate:"Invalid date format. Example: 2026-12-31",
-        changeDateBtn:"Change date", notSold:"Not sold",
+        changeDateBtn:"Change date", notSold:"Not sold", mainAdmin:"Main",
       },
     };
     function t(key) {
@@ -642,7 +642,7 @@
     function profileScreen() {
       return { titleKey: "profile", render(host) {
         host.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
-        if (state.agencyName) host.appendChild(el(`<div class="hint">${esc(t("agencyLbl"))}: ${esc(state.agencyName)}</div>`));
+        if (state.projectName) host.appendChild(el(`<div class="hint">${esc(t("projectName"))}: ${esc(state.projectName)}</div>`));
       }};
     }
 
@@ -1105,18 +1105,23 @@
       if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
       if (!r.data.length) { box.innerHTML = `<div class="empty">${esc(t("noMembers"))}</div>`; return; }
       box.innerHTML = "";
+      const meOwner = !!(state.user && state.user.is_owner);
       r.data.forEach(m => {
         const isSelf = state.user && m.id === state.user.id;
         const name = m.full_name || (m.username ? "@" + m.username : ("ID " + m.telegram_id));
-        const badge = m.is_active ? `<span class="badge green">${esc(t("mActive"))}</span>` : `<span class="badge gray">${esc(t("mDisabled"))}</span>`;
+        const statusBadge = m.is_active ? `<span class="badge green">${esc(t("mActive"))}</span>` : `<span class="badge gray">${esc(t("mDisabled"))}</span>`;
+        const ownerBadge = m.is_owner ? `<span class="badge amber">${esc(t("mainAdmin"))}</span>` : "";
         const item = el(`<div class="item">
-          <div class="top"><span class="title">${esc(name)}</span>${badge}</div>
+          <div class="top"><span class="title">${esc(name)}</span><span style="display:flex; gap:6px">${ownerBadge}${statusBadge}</span></div>
           <div class="meta">${esc(roleLabel(m.role))}${m.username ? " · @" + esc(m.username) : ""}</div>
           <div class="acts" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap"></div>
         </div>`);
         const acts = item.querySelector(".acts");
-        if (isSelf) { acts.appendChild(el(`<span class="badge gray">${esc(t("itsYou"))}</span>`)); }
-        else {
+        // Кто кем может управлять: над администраторами и главным — только главный.
+        const canAct = !isSelf && !m.is_owner && (m.role === "agent" || meOwner);
+        if (isSelf) {
+          acts.appendChild(el(`<span class="badge gray">${esc(t("itsYou"))}</span>`));
+        } else if (canAct) {
           const tglBtn = el(`<button class="small ${m.is_active ? "danger" : "ghost"}">${esc(m.is_active ? t("disable") : t("enable"))}</button>`);
           tglBtn.addEventListener("click", async () => {
             const rr = await api("/api/v1/team/" + m.id, { method: "PATCH", body: { is_active: !m.is_active } });

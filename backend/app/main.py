@@ -83,6 +83,7 @@ def ensure_schema_upgrades() -> None:
     statements = [
         "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS project_name VARCHAR",
         "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT FALSE",
     ]
     try:
         with engine.begin() as conn:
@@ -143,11 +144,49 @@ def normalize_legacy_display_ids() -> None:
         db.close()
 
 
+def backfill_agency_owners() -> None:
+    """
+    Для каждого агентства гарантируем одного «главного» админа (is_owner).
+    Если ни у одного администратора агентства флаг не выставлен — назначаем
+    самого раннего по дате создания администратора. Нужно для агентств,
+    созданных до появления иерархии админов.
+    """
+    db = SessionLocal()
+    try:
+        from app.db.models.agency import Agency
+        from app.db.models.user import User
+
+        agency_ids = db.execute(select(Agency.id)).scalars().all()
+        changed = 0
+        for agency_id in agency_ids:
+            admins = list(
+                db.execute(
+                    select(User)
+                    .where(User.agency_id == agency_id, User.role == "agency_admin")
+                    .order_by(User.created_at, User.id)
+                ).scalars().all()
+            )
+            if not admins:
+                continue
+            if any(a.is_owner for a in admins):
+                continue
+            admins[0].is_owner = True
+            changed += 1
+        if changed:
+            db.commit()
+            logger.info("Назначено главных админов для агентств: %s.", changed)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не удалось назначить главных админов: %s", exc)
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db_with_retry()
     ensure_schema_upgrades()
     normalize_legacy_display_ids()
+    backfill_agency_owners()
     bootstrap_superadmin()
     yield
 

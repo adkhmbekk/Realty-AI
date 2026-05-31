@@ -20,6 +20,7 @@ class UserProfile(BaseModel):
     username: Optional[str] = None
     full_name: Optional[str] = None
     role: str
+    is_owner: bool = False
     agency_id: Optional[int] = None
 
 

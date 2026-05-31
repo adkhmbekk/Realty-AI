@@ -15,6 +15,7 @@ class MemberOut(BaseModel):
     username: Optional[str] = None
     full_name: Optional[str] = None
     role: str
+    is_owner: bool = False
     is_active: bool
     created_at: datetime
     last_login_at: Optional[datetime] = None

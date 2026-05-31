@@ -35,12 +35,29 @@ def update_member(
             status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден."
         )
 
+    is_self = member.id == current_user.id
+
     # Защита от самоблокировки: админ не может отключить сам себя
     # (иначе агентство может остаться без управления).
-    if member.id == current_user.id and payload.is_active is False:
+    if is_self and payload.is_active is False:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Нельзя отключить доступ самому себе.",
+        )
+
+    # Иерархия админов: действия над администратором агентства (понизить,
+    # отключить) доступны только ГЛАВНОМУ админу (is_owner). Повышенный из агента
+    # админ не может действовать против других админов и тех, кто его повысил.
+    if member.role == "agency_admin" and not is_self and not current_user.is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Управлять администраторами может только главный администратор агентства.",
+        )
+    # Главного администратора нельзя изменить через раздел «Команда».
+    if member.is_owner and not is_self:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Главного администратора агентства изменить нельзя.",
         )
 
     if payload.role is not None:
@@ -52,7 +69,7 @@ def update_member(
             )
         # Защита: админ не может понизить сам себя — иначе агентство рискует
         # остаться без администратора. Сменить свою роль может только другой админ.
-        if member.id == current_user.id and new_role != member.role:
+        if is_self and new_role != member.role:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Нельзя менять роль самому себе. Попросите другого администратора.",

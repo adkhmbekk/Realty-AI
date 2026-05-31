@@ -57,7 +57,7 @@ def create_agency_with_admin(
     # запасной агент) — чтобы оно было готово к работе сразу после создания.
     seeding_service.seed_agency_defaults(db, agency.id)
 
-    # 2. Назначаем администратора агентства.
+    # 2. Назначаем администратора агентства (он же — главный админ, is_owner).
     existing = user_repo.get_by_telegram_id(db, payload.admin_telegram_id)
     if existing is not None:
         # Нельзя превращать суперадмина в админа агентства.
@@ -69,6 +69,7 @@ def create_agency_with_admin(
         existing.agency_id = agency.id
         existing.role = "agency_admin"
         existing.is_active = True
+        existing.is_owner = True
         if payload.admin_username:
             existing.username = payload.admin_username
     else:
@@ -78,6 +79,7 @@ def create_agency_with_admin(
             role="agency_admin",
             agency_id=agency.id,
             username=payload.admin_username,
+            is_owner=True,
         )
 
     db.commit()
@@ -193,6 +195,11 @@ def set_agency_admin(
     """
     agency = _get_agency_or_404(db, agency_id)
 
+    # Главный админ в агентстве должен быть один: снимаем флаг со всех текущих.
+    for member in user_repo.get_by_agency(db, agency_id):
+        if member.is_owner:
+            member.is_owner = False
+
     existing = user_repo.get_by_telegram_id(db, admin_telegram_id)
     if existing is not None:
         if existing.role == "superadmin":
@@ -208,6 +215,7 @@ def set_agency_admin(
         existing.agency_id = agency_id
         existing.role = "agency_admin"
         existing.is_active = True
+        existing.is_owner = True
         if admin_username:
             existing.username = admin_username
     else:
@@ -217,6 +225,7 @@ def set_agency_admin(
             role="agency_admin",
             agency_id=agency_id,
             username=admin_username,
+            is_owner=True,
         )
 
     db.commit()
