@@ -37,7 +37,7 @@ import {
 } from "../i18n";
 import { Badge } from "../components/ui";
 import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, SearchParams } from "../types";
-import { copyText, fmtDate, fmtPrice } from "../utils";
+import { copyText, downscaleImage, fmtDate, fmtPrice } from "../utils";
 import { haptic, openLink, shareToTelegram } from "../telegram";
 
 // Загрузка справочника районов (один раз на жизнь экрана).
@@ -303,7 +303,10 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
     const files = e.target.files;
     if (!files || !files.length) return;
     const fd = new FormData();
-    Array.from(files).forEach((f) => fd.append("files", f));
+    for (const f of Array.from(files)) {
+      const blob = await downscaleImage(f);
+      fd.append("files", blob, "photo.jpg");
+    }
     setBusy(true);
     toast(t("uploadingPhotos"), "info");
     const r = await apiUpload<ApartmentPhoto[]>(`/api/v1/apartments/${apartmentId}/photos`, fd);
@@ -589,7 +592,10 @@ export function AddObjectScreen() {
     try {
       if (files.length) {
         const fd = new FormData();
-        files.forEach((f) => fd.append("files", f));
+        for (const f of files) {
+          const blob = await downscaleImage(f);
+          fd.append("files", blob, "photo.jpg");
+        }
         await apiUpload(`/api/v1/apartments/${newId}/photos`, fd);
       }
       for (const url of tgUrls) {

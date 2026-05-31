@@ -50,3 +50,35 @@ export function fmtPrice(price?: number | null, currency?: string | null): strin
   else str = String(price);
   return `${str} ${currency || ""}`.trim();
 }
+
+
+// Уменьшить изображение перед загрузкой (ускоряет заливку и отдачу).
+// Возвращает сжатый Blob (JPEG) либо исходный файл, если сжать не удалось.
+export async function downscaleImage(file: File, maxDim = 1920, quality = 0.82): Promise<Blob> {
+  if (!file.type.startsWith("image/")) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const { width, height } = bitmap;
+    if (Math.max(width, height) <= maxDim && file.size < 600_000) {
+      bitmap.close?.();
+      return file;
+    }
+    const scale = Math.min(1, maxDim / Math.max(width, height));
+    const w = Math.round(width * scale);
+    const h = Math.round(height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close?.();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, "image/jpeg", quality));
+    return blob || file;
+  } catch {
+    return file;
+  }
+}

@@ -38,6 +38,41 @@ def _path(key: str) -> str:
     return os.path.join(settings.photos_dir, key)
 
 
+# Максимальный размер стороны изображения после сжатия (px).
+MAX_DIM = 1920
+
+
+def _process_image(data: bytes, content_type: str):
+    """
+    Сжать изображение: повернуть по EXIF, уменьшить до MAX_DIM по большей стороне,
+    перекодировать в JPEG (или PNG при наличии прозрачности). Это резко уменьшает
+    вес фото — важно для быстрой загрузки и отдачи через туннель/мобильный интернет.
+    При любой ошибке возвращаем исходные байты без изменений.
+    """
+    try:
+        import io
+
+        from PIL import Image, ImageOps
+
+        img = Image.open(io.BytesIO(data))
+        img.load()
+        try:
+            img = ImageOps.exif_transpose(img)
+        except Exception:  # noqa: BLE001
+            pass
+        if max(img.size) > MAX_DIM:
+            img.thumbnail((MAX_DIM, MAX_DIM))
+        has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+        out = io.BytesIO()
+        if has_alpha:
+            img.convert("RGBA").save(out, format="PNG", optimize=True)
+            return out.getvalue(), "image/png"
+        img.convert("RGB").save(out, format="JPEG", quality=82, optimize=True)
+        return out.getvalue(), "image/jpeg"
+    except Exception:  # noqa: BLE001
+        return data, content_type
+
+
 def public_url(key: str) -> str:
     return f"/api/v1/photos/{key}"
 
@@ -69,6 +104,8 @@ def list_photos(db, agency_id: int, apartment_id: int) -> List[dict]:
 
 def _save_one(db, agency_id: int, apartment_id: int, data: bytes, content_type: str, order: int):
     _ensure_dir()
+    # Сжимаем перед сохранением (уменьшение размера + перекодирование).
+    data, content_type = _process_image(data, content_type or "image/jpeg")
     key = secrets.token_urlsafe(16)
     with open(_path(key), "wb") as f:
         f.write(data)
