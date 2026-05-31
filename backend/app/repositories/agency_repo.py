@@ -37,6 +37,7 @@ def create(
         name=name,
         status="active",
         subscription_expires_at=expires_at,
+        activated_at=datetime.now(timezone.utc),
         created_by=created_by,
     )
     db.add(agency)

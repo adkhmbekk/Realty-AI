@@ -63,6 +63,7 @@ class AgencyOut(BaseModel):
     project_name: Optional[str] = None
     status: str
     subscription_expires_at: Optional[datetime] = None
+    activated_at: Optional[datetime] = None
     created_at: datetime
     # Текущий администратор агентства (для панели суперадмина).
     # Заполняется сервисом; в самой модели Agency этих полей нет.

@@ -82,6 +82,7 @@ def ensure_schema_upgrades() -> None:
     """
     statements = [
         "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS project_name VARCHAR",
+        "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ",
     ]
     try:
         with engine.begin() as conn:

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.agency import Agency
 from app.db.models.user import User
+from app.core.subscription import agency_is_active
 from app.repositories import agency_repo, user_repo
 from app.schemas.agency import AgencyCreate
 from app.services import seeding_service
@@ -105,6 +106,7 @@ def update_subscription(
         )
 
     now = datetime.now(timezone.utc)
+    was_active = agency_is_active(agency)
     if action == "extend":
         add_days = days if (days and days > 0) else 30
         # Продлеваем от текущей даты окончания (если она в будущем) или от сейчас.
@@ -113,6 +115,8 @@ def update_subscription(
             base = now
         agency.subscription_expires_at = base + timedelta(days=add_days)
         agency.status = "active"
+        if not was_active:
+            agency.activated_at = now
     elif action == "set":
         if expires_at is None:
             raise HTTPException(
@@ -124,10 +128,13 @@ def update_subscription(
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         agency.subscription_expires_at = expires_at
         agency.status = "active"
+        if not was_active:
+            agency.activated_at = now
     elif action == "freeze":
         agency.status = "frozen"
     elif action == "activate":
         agency.status = "active"
+        agency.activated_at = now
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное действие."

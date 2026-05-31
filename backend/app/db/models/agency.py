@@ -26,6 +26,10 @@ class Agency(Base):
     subscription_expires_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Когда агентству в последний раз предоставили доступ (активация подписки).
+    activated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     timezone: Mapped[str] = mapped_column(String, nullable=False, default="Asia/Tashkent")
     default_currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     # telegram_id суперадмина, который создал агентство.

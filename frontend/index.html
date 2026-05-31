@@ -121,7 +121,7 @@
 </head>
 <body>
   <div class="card">
-    <div class="hdr">
+    <div class="hdr" id="app-hdr">
       <button class="back" id="back-btn" style="display:none">←</button>
       <div class="ttl" id="hdr-title"></div>
     </div>
@@ -145,6 +145,7 @@
     const contentEl = document.getElementById("content");
     const titleEl   = document.getElementById("hdr-title");
     const backBtn   = document.getElementById("back-btn");
+    const hdrEl     = document.getElementById("app-hdr");
     const debugEl   = document.getElementById("debug");
 
     // ════════════════════════ Переводы ════════════════════════
@@ -206,6 +207,9 @@
         projectName:"Название проекта", projectNameHint:"Это название увидят сотрудники вашего агентства.",
         roomsFrom:"Комнат от", setDateLabel:"Дата окончания подписки", setDateBtn:"Задать дату вручную",
         greeting:"Здравствуйте", typeMultiHint:"Можно выбрать несколько типов",
+        activatedAt:"Дата активации", extendPrompt:"На сколько дней продлить подписку?",
+        setDatePrompt:"Новая дата окончания (ГГГГ-ММ-ДД):", badDate:"Неверный формат даты. Пример: 2026-12-31",
+        changeDateBtn:"Изменить дату",
       },
       uz: {
         back:"Orqaga", save:"Saqlash", saveChanges:"Oʻzgarishlarni saqlash", cancel:"Bekor qilish",
@@ -264,6 +268,9 @@
         projectName:"Loyiha nomi", projectNameHint:"Bu nomni agentligingiz xodimlari koʻradi.",
         roomsFrom:"Xonalar (dan)", setDateLabel:"Obuna tugash sanasi", setDateBtn:"Sanani qoʻlda belgilash",
         greeting:"Assalomu alaykum", typeMultiHint:"Bir nechta turni tanlash mumkin",
+        activatedAt:"Faollashtirilgan sana", extendPrompt:"Obunani necha kunga uzaytirilsin?",
+        setDatePrompt:"Yangi tugash sanasi (YYYY-MM-DD):", badDate:"Sana formati notoʻgʻri. Masalan: 2026-12-31",
+        changeDateBtn:"Sanani oʻzgartirish",
       },
       en: {
         back:"Back", save:"Save", saveChanges:"Save changes", cancel:"Cancel",
@@ -322,6 +329,9 @@
         projectName:"Project name", projectNameHint:"Your agency members will see this name.",
         roomsFrom:"Rooms from", setDateLabel:"Subscription end date", setDateBtn:"Set date manually",
         greeting:"Hello", typeMultiHint:"You can select several types",
+        activatedAt:"Activation date", extendPrompt:"Extend subscription by how many days?",
+        setDatePrompt:"New end date (YYYY-MM-DD):", badDate:"Invalid date format. Example: 2026-12-31",
+        changeDateBtn:"Change date",
       },
     };
     function t(key) {
@@ -437,10 +447,14 @@
     function renderCurrent() {
       const screen = nav.stack[nav.stack.length - 1];
       if (!screen) return;
-      titleEl.textContent = screen.titleKey ? t(screen.titleKey) : "";
+      const title = screen.titleKey ? t(screen.titleKey) : "";
+      titleEl.textContent = title;
       const hasBack = nav.stack.length > 1;
       backBtn.style.display = hasBack ? "" : "none";
       backBtn.textContent = "← " + t("back");
+      // Пустую шапку (нет ни кнопки «Назад», ни заголовка) скрываем,
+      // чтобы над герой-карточкой не было пустой полосы.
+      if (hdrEl) hdrEl.style.display = (hasBack || title) ? "flex" : "none";
       if (tg && tg.BackButton) { try { hasBack ? tg.BackButton.show() : tg.BackButton.hide(); } catch (e) {} }
       setStatus("", null);
       contentEl.innerHTML = "";
@@ -598,7 +612,10 @@
     function homeScreen() {
       return { titleKey: null, render(host) {
         const role = state.user && state.user.role;
-        host.appendChild(el(heroHtml()));
+        const hero = el(heroHtml());
+        hero.style.cursor = "pointer";
+        hero.addEventListener("click", () => navigate(profileScreen()));
+        host.appendChild(hero);
         const menu = el(`<div class="menu"></div>`);
         if (role === "superadmin") {
           menu.appendChild(menuButton("🏢", "myAgencies", () => navigate(agenciesScreen())));
@@ -740,34 +757,33 @@
       box.appendChild(el(`<div class="item">
         <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a.status)}</div>
         ${a.project_name ? `<div class="meta">${esc(t("projectName"))}: ${esc(a.project_name)}</div>` : ""}
-        <div class="meta">ID ${a.id} · ${esc(t("subUntil"))}: ${fmtDate(a.subscription_expires_at)}</div>
+        <div class="meta">ID ${a.id}</div>
+        <div class="meta">${esc(t("activatedAt"))}: ${fmtDate(a.activated_at || a.created_at)}</div>
+        <div class="meta">${esc(t("subUntil"))}: ${fmtDate(a.subscription_expires_at)}</div>
         <div class="meta">${esc(t("admin"))}: ${adminTxt}</div>
       </div>`));
 
-      // Продление на любой срок
-      box.appendChild(el(`<label>${esc(t("extendDays"))}</label>`));
-      const daysInput = el(`<input id="ext-days" inputmode="numeric" value="30" />`);
-      box.appendChild(daysInput);
-      const extBtn = el(`<button class="full">${esc(t("extendBtn"))}</button>`);
+      // Все действия — кнопками. Продление и смена даты открывают окошко ввода.
+      const actions = el(`<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
+
+      const extBtn = el(`<button class="small ghost">${esc(t("extendBtn"))}</button>`);
       extBtn.addEventListener("click", async () => {
-        const days = parseInt((daysInput.value || "").trim(), 10);
-        await agencySub(agencyId, "extend", isNaN(days) ? 30 : days); renderCurrent();
+        const v = window.prompt(t("extendPrompt"), "30");
+        if (v === null) return;
+        const days = parseInt((v || "").trim(), 10);
+        if (isNaN(days) || days <= 0) { setStatus(t("badDate"), "warn"); return; }
+        await agencySub(agencyId, "extend", days); renderCurrent();
       });
-      box.appendChild(extBtn);
 
-      // Ручная установка даты окончания подписки (изменить полностью).
-      box.appendChild(el(`<label>${esc(t("setDateLabel"))}</label>`));
-      const dateInput = el(`<input id="ext-date" type="date" />`);
-      box.appendChild(dateInput);
-      const setBtn = el(`<button class="ghost full">${esc(t("setDateBtn"))}</button>`);
-      setBtn.addEventListener("click", async () => {
-        const v = (dateInput.value || "").trim();
-        if (!v) { setStatus(t("setDateLabel"), "warn"); return; }
-        await agencySub(agencyId, "set", null, v + "T23:59:59Z"); renderCurrent();
+      const dateBtn = el(`<button class="small ghost">${esc(t("changeDateBtn"))}</button>`);
+      dateBtn.addEventListener("click", async () => {
+        const v = window.prompt(t("setDatePrompt"), "");
+        if (v === null) return;
+        const s = (v || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) { setStatus(t("badDate"), "warn"); return; }
+        await agencySub(agencyId, "set", null, s + "T23:59:59Z"); renderCurrent();
       });
-      box.appendChild(setBtn);
 
-      const actions = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
       const freezeBtn = el(`<button class="small ${frozen ? "ghost" : "danger"}">${esc(frozen ? t("activate") : t("freeze"))}</button>`);
       freezeBtn.addEventListener("click", async () => { await agencySub(agencyId, frozen ? "activate" : "freeze", null); renderCurrent(); });
       const renameBtn = el(`<button class="small ghost">${esc(t("rename"))}</button>`);
@@ -776,7 +792,8 @@
       adminBtn.addEventListener("click", () => doChangeAdmin(agencyId));
       const delBtn = el(`<button class="small danger">${esc(t("deleteAgency"))}</button>`);
       delBtn.addEventListener("click", () => doDeleteAgency(agencyId, a.name));
-      actions.appendChild(freezeBtn); actions.appendChild(renameBtn); actions.appendChild(adminBtn); actions.appendChild(delBtn);
+
+      [extBtn, dateBtn, freezeBtn, renameBtn, adminBtn, delBtn].forEach(b => actions.appendChild(b));
       box.appendChild(actions);
     }
     async function agencySub(id, action, days, expiresAt) {
