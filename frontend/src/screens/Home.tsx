@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Database, Mail, Plus, Search, Settings as SettingsIcon, Users } from "lucide-react";
+import { Mail, Plus, Search, Settings as SettingsIcon, Users } from "lucide-react";
 import { useApp } from "../store";
 import { useNav, Route } from "../nav";
 import { api } from "../api";
@@ -113,16 +113,24 @@ export function HomeScreen() {
   const role = user?.role;
   const go = (r: Route) => nav.push(r);
 
-  const actions: { icon: React.ReactNode; label: string; route: Route }[] = [
-    { icon: <Plus size={21} />, label: t("addObject"), route: { name: "addObject" } },
-    { icon: <Search size={21} />, label: t("findObject"), route: { name: "search" } },
-    { icon: <Database size={21} />, label: t("myDatabase"), route: { name: "objectList", params: { status: "unsold" }, titleKey: "myDatabase" } },
-  ];
-  if (role === "agency_admin") {
-    actions.push({ icon: <Users size={21} />, label: t("team"), route: { name: "team" } });
-    if (user?.is_owner) actions.push({ icon: <Mail size={21} />, label: t("invites"), route: { name: "invites" } });
+  const add = { icon: <Plus size={21} />, label: t("addObject"), route: { name: "addObject" } as Route };
+  const search = { icon: <Search size={21} />, label: t("findObject"), route: { name: "search" } as Route };
+  const team = { icon: <Users size={21} />, label: t("team"), route: { name: "team" } as Route };
+  const invites = { icon: <Mail size={21} />, label: t("invites"), route: { name: "invites" } as Route };
+  const settings = { icon: <SettingsIcon size={21} />, label: t("settings"), route: { name: "settings" } as Route };
+
+  // Быстрые действия НЕ дублируют нижнюю панель.
+  // Главный админ: команда, приглашения, настройки.
+  // Обычный админ: добавить, найти, команда, настройки.
+  // Агент: добавить, найти, настройки.
+  let actions: { icon: React.ReactNode; label: string; route: Route }[];
+  if (role === "agency_admin" && user?.is_owner) {
+    actions = [team, invites, settings];
+  } else if (role === "agency_admin") {
+    actions = [add, search, team, settings];
+  } else {
+    actions = [add, search, settings];
   }
-  actions.push({ icon: <SettingsIcon size={21} />, label: t("settings"), route: { name: "settings" } });
 
   return (
     <div>
