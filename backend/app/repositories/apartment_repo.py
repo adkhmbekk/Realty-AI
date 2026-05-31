@@ -153,3 +153,13 @@ def search(
         .all()
     )
     return items, total
+
+
+def count_by_status(db: Session, agency_id: int) -> dict:
+    """Вернуть количество объектов агентства по каждому статусу."""
+    rows = db.execute(
+        select(Apartment.status, func.count())
+        .where(Apartment.agency_id == agency_id)
+        .group_by(Apartment.status)
+    ).all()
+    return {row[0]: row[1] for row in rows}

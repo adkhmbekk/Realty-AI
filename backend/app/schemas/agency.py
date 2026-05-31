@@ -44,6 +44,8 @@ class AgencySettingsOut(BaseModel):
     id: int
     name: str
     project_name: Optional[str] = None
+    status: str
+    subscription_expires_at: Optional[datetime] = None
     timezone: str
     default_currency: str
 

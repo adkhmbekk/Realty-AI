@@ -1,25 +1,24 @@
 """
 Эндпоинты объектов недвижимости.
 
-Создание/редактирование/архив/восстановление/продан — любой сотрудник
-агентства (агент или админ). Удаление — только администратор агентства
-(по умолчанию из матрицы прав ТЗ, раздел 5).
-
-Все операции изолированы по агентству: agency_id берётся из текущего
-пользователя (из его пропуска), а не из параметров запроса.
+Создание/редактирование/архив/восстановление/продан/удаление — любой сотрудник
+агентства (агент или админ). Все операции изолированы по агентству: agency_id
+берётся из текущего пользователя (из его пропуска), а не из параметров запроса.
 """
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_agency_admin, require_agency_member
+from app.core.dependencies import require_agency_member
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.apartment import (
     ApartmentCreate,
+    ApartmentEventOut,
     ApartmentListOut,
     ApartmentOut,
+    ApartmentStatsOut,
     ApartmentStatusUpdate,
     ApartmentUpdate,
 )
@@ -34,7 +33,7 @@ def create_apartment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
-    """Создать объект. ID (display_id) генерируется автоматически по агенту."""
+    """Создать объект. ID (display_id) генерируется автоматически."""
     return apartment_service.create_apartment(
         db, current_user.agency_id, created_by=current_user.id, payload=body
     )
@@ -44,7 +43,7 @@ def create_apartment(
 def search_apartments(
     status: Optional[str] = Query(
         "active",
-        description="Статус: active / deposit / sold / archived. Передайте 'all' для всех статусов.",
+        description="Статус: active / deposit / sold / archived / unsold. 'all' — все статусы.",
     ),
     districts: Optional[List[str]] = Query(None, description="Районы (можно несколько)."),
     types: Optional[List[str]] = Query(None, description="Типы (можно несколько)."),
@@ -86,6 +85,16 @@ def search_apartments(
     return ApartmentListOut(items=items, total=total, limit=limit, offset=offset)
 
 
+# ВНИМАНИЕ: /stats объявлен ДО /{apartment_id}, иначе "stats" попадёт в параметр id.
+@router.get("/stats", response_model=ApartmentStatsOut)
+def get_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Мини-статистика по объектам агентства (счётчики по статусам)."""
+    return apartment_service.get_stats(db, current_user.agency_id)
+
+
 @router.get("/{apartment_id}", response_model=ApartmentOut)
 def get_apartment(
     apartment_id: int,
@@ -94,6 +103,16 @@ def get_apartment(
 ):
     """Карточка объекта."""
     return apartment_service.get_apartment(db, current_user.agency_id, apartment_id)
+
+
+@router.get("/{apartment_id}/events", response_model=List[ApartmentEventOut])
+def list_events(
+    apartment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """История действий по объекту (кто создал/менял/сменил статус)."""
+    return apartment_service.list_events(db, current_user.agency_id, apartment_id)
 
 
 @router.patch("/{apartment_id}", response_model=ApartmentOut)
@@ -105,7 +124,7 @@ def update_apartment(
 ):
     """Отредактировать объект (только разрешённые поля)."""
     return apartment_service.update_apartment(
-        db, current_user.agency_id, apartment_id, body
+        db, current_user.agency_id, apartment_id, body, actor_id=current_user.id
     )
 
 
@@ -118,7 +137,7 @@ def change_status(
 ):
     """Сменить статус объекта: active / deposit (задаток) / sold / archived."""
     return apartment_service.set_status(
-        db, current_user.agency_id, apartment_id, body.status
+        db, current_user.agency_id, apartment_id, body.status, actor_id=current_user.id
     )
 
 
@@ -126,7 +145,7 @@ def change_status(
 def delete_apartment(
     apartment_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_admin),
+    current_user: User = Depends(require_agency_member),
 ):
-    """Удалить объект безвозвратно (только администратор агентства)."""
+    """Удалить объект безвозвратно (любой сотрудник агентства)."""
     apartment_service.delete_apartment(db, current_user.agency_id, apartment_id)

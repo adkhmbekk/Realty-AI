@@ -5,7 +5,9 @@
 - ApartmentUpdate — что разрешено менять (белый список полей; статус и
   display_id здесь НЕ меняются — для статуса есть отдельные действия);
 - ApartmentOut    — что отдаём в ответе (полная карточка);
-- ApartmentListOut — страница списка с общим количеством (пагинация).
+- ApartmentListOut — страница списка с общим количеством (пагинация);
+- ApartmentStatsOut — мини-статистика по статусам;
+- ApartmentEventOut — запись журнала действий.
 """
 from datetime import datetime
 from typing import List, Literal, Optional
@@ -113,3 +115,20 @@ class ApartmentListOut(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class ApartmentStatsOut(BaseModel):
+    # Мини-статистика по объектам агентства.
+    active: int
+    deposit: int
+    sold: int
+    archived: int
+    total: int
+
+
+class ApartmentEventOut(BaseModel):
+    # Запись журнала действий по объекту.
+    action: str
+    note: Optional[str] = None
+    user_name: Optional[str] = None
+    created_at: datetime

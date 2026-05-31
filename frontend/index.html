@@ -211,6 +211,7 @@
         setDatePrompt:"Новая дата окончания (ГГГГ-ММ-ДД):", badDate:"Неверный формат даты. Пример: 2026-12-31",
         changeDateBtn:"Изменить дату", notSold:"Не проданные", mainAdmin:"Главный",
         makeOwner:"Сделать главным", makeOwnerQ:"Передать роль главного администратора этому сотруднику? Вы станете обычным админом.", ownerTransferred:"Роль главного передана.",
+        soldDate:"Дата продажи", archivedDate:"Дата архива", history:"История", ev_created:"создал объект", ev_updated:"изменил", ev_status:"статус", daysLeft:"осталось дней", stats:"Статистика",
       },
       uz: {
         back:"Orqaga", save:"Saqlash", saveChanges:"Oʻzgarishlarni saqlash", cancel:"Bekor qilish",
@@ -273,6 +274,7 @@
         setDatePrompt:"Yangi tugash sanasi (YYYY-MM-DD):", badDate:"Sana formati notoʻgʻri. Masalan: 2026-12-31",
         changeDateBtn:"Sanani oʻzgartirish", notSold:"Sotilmagan", mainAdmin:"Bosh admin",
         makeOwner:"Bosh admin qilish", makeOwnerQ:"Bosh administrator rolini shu xodimga berasizmi? Siz oddiy admin boʻlasiz.", ownerTransferred:"Bosh admin roli berildi.",
+        soldDate:"Sotilgan sana", archivedDate:"Arxiv sanasi", history:"Tarix", ev_created:"obyekt yaratdi", ev_updated:"oʻzgartirdi", ev_status:"holat", daysLeft:"kun qoldi", stats:"Statistika",
       },
       en: {
         back:"Back", save:"Save", saveChanges:"Save changes", cancel:"Cancel",
@@ -335,6 +337,7 @@
         setDatePrompt:"New end date (YYYY-MM-DD):", badDate:"Invalid date format. Example: 2026-12-31",
         changeDateBtn:"Change date", notSold:"Not sold", mainAdmin:"Main",
         makeOwner:"Make main", makeOwnerQ:"Transfer the main admin role to this member? You will become a regular admin.", ownerTransferred:"Main admin role transferred.",
+        soldDate:"Sold date", archivedDate:"Archived date", history:"History", ev_created:"created the property", ev_updated:"edited", ev_status:"status", daysLeft:"days left", stats:"Statistics",
       },
     };
     function t(key) {
@@ -505,6 +508,8 @@
         state.timezone = r.data.timezone || null;
         state.agencyName = r.data.name || null;
         state.projectName = r.data.project_name || null;
+        state.subscriptionExpiresAt = r.data.subscription_expires_at || null;
+        state.agencyStatus = r.data.status || null;
         state.settingsLoaded = true;
       }
     }
@@ -612,6 +617,19 @@
         </div>
       </div>`;
     }
+    async function appendStats(host) {
+      const box = el(`<div class="item" id="stats-box"><div class="meta">${esc(t("stats"))}…</div></div>`);
+      host.appendChild(box);
+      const r = await api("/api/v1/apartments/stats");
+      if (!r.ok || !r.data) { box.remove(); return; }
+      const s = r.data;
+      box.innerHTML = `
+        <div style="display:flex; justify-content:space-between; gap:8px; text-align:center">
+          <div style="flex:1"><div style="font-size:20px; font-weight:700">${s.active || 0}</div><div class="meta">${esc(t("statusActive"))}</div></div>
+          <div style="flex:1"><div style="font-size:20px; font-weight:700">${s.deposit || 0}</div><div class="meta">${esc(t("statusDeposit"))}</div></div>
+          <div style="flex:1"><div style="font-size:20px; font-weight:700">${s.sold || 0}</div><div class="meta">${esc(t("statusSold"))}</div></div>
+        </div>`;
+    }
     function homeScreen() {
       return { titleKey: null, render(host) {
         const role = state.user && state.user.role;
@@ -619,6 +637,7 @@
         hero.style.cursor = "pointer";
         hero.addEventListener("click", () => navigate(profileScreen()));
         host.appendChild(hero);
+        if (role === "agency_admin" || role === "agent") appendStats(host);
         const menu = el(`<div class="menu"></div>`);
         if (role === "superadmin") {
           menu.appendChild(menuButton("🏢", "myAgencies", () => navigate(agenciesScreen())));
@@ -646,6 +665,15 @@
       return { titleKey: "profile", render(host) {
         host.appendChild(el(`<div class="item">${profileRowsHtml()}</div>`));
         if (state.projectName) host.appendChild(el(`<div class="hint">${esc(t("projectName"))}: ${esc(state.projectName)}</div>`));
+        // Главный админ видит свой срок подписки и сколько дней осталось.
+        if (state.user && state.user.is_owner && state.subscriptionExpiresAt) {
+          const end = new Date(state.subscriptionExpiresAt);
+          const days = Math.max(0, Math.ceil((end - new Date()) / 86400000));
+          host.appendChild(el(`<div class="item">
+            <div class="row"><span>${esc(t("subUntil"))}</span><span><b>${fmtDate(state.subscriptionExpiresAt)}</b></span></div>
+            <div class="row"><span>${esc(t("daysLeft"))}</span><span><b>${days}</b></span></div>
+          </div>`));
+        }
       }};
     }
 
@@ -716,10 +744,16 @@
         loadAgenciesInto(box);
       }};
     }
-    function agencyStatusBadge(status) {
-      const map = { active: ["green","st_active"], trial: ["green","st_trial"], frozen: ["amber","st_frozen"], expired: ["amber","st_expired"] };
-      const m = map[status] || ["gray", null];
-      return `<span class="badge ${m[0]}">${esc(m[1] ? t(m[1]) : status)}</span>`;
+    function agencyEffectiveStatus(a) {
+      if (a.status === "frozen") return "frozen";
+      if (a.subscription_expires_at && new Date(a.subscription_expires_at) < new Date()) return "expired";
+      return a.status;
+    }
+    function agencyStatusBadge(a) {
+      const eff = agencyEffectiveStatus(a);
+      const map = { active: ["green","st_active"], trial: ["green","st_trial"], frozen: ["amber","st_frozen"], expired: ["red","st_expired"] };
+      const m = map[eff] || ["gray", null];
+      return `<span class="badge ${m[0]}">${esc(m[1] ? t(m[1]) : eff)}</span>`;
     }
     async function loadAgenciesInto(box) {
       const r = await api("/api/v1/agencies");
@@ -729,7 +763,7 @@
       r.data.forEach(a => {
         const adminTxt = a.admin_name ? (esc(a.admin_name) + (a.admin_telegram_id ? " (ID " + a.admin_telegram_id + ")" : "")) : t("notAssigned");
         const item = el(`<div class="item tap">
-          <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a.status)}</div>
+          <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a)}</div>
           ${a.project_name ? `<div class="meta">${esc(t("projectName"))}: ${esc(a.project_name)}</div>` : ""}
           <div class="meta">ID ${a.id} · ${esc(t("subUntil"))}: ${fmtDate(a.subscription_expires_at)}</div>
           <div class="meta">${esc(t("admin"))}: ${adminTxt}</div>
@@ -752,11 +786,11 @@
       if (!r.ok) { box.innerHTML = `<div class="empty">${esc(t("error"))} (${r.status}).</div>`; return; }
       const a = (r.data || []).find(x => x.id === agencyId);
       if (!a) { box.innerHTML = `<div class="empty">${esc(t("notFound"))}</div>`; return; }
-      const frozen = a.status === "frozen" || a.status === "expired";
+      const frozen = a.status === "frozen";
       const adminTxt = a.admin_name ? (esc(a.admin_name) + (a.admin_telegram_id ? " (ID " + a.admin_telegram_id + ")" : "")) : t("notAssigned");
       box.innerHTML = "";
       box.appendChild(el(`<div class="item">
-        <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a.status)}</div>
+        <div class="top"><span class="title">${esc(a.name)}</span>${agencyStatusBadge(a)}</div>
         ${a.project_name ? `<div class="meta">${esc(t("projectName"))}: ${esc(a.project_name)}</div>` : ""}
         <div class="meta">ID ${a.id}</div>
         <div class="meta">${esc(t("activatedAt"))}: ${fmtDate(a.activated_at || a.created_at)}</div>
@@ -1032,6 +1066,9 @@
         [t("f_rooms"), o.rooms], [t("f_floor"), floorTxt], [t("f_area"), o.area],
         [t("f_price"), o.price != null ? (o.price + " " + (o.currency || "")) : null], [t("f_condition"), o.condition ? condLabel(o.condition) : null],
         [t("f_phone"), o.phone], [t("f_desc"), o.description], [t("addedBy"), o.created_by_name],
+        (o.archived_at && (o.status === "sold" || o.status === "archived"))
+          ? [(o.status === "sold" ? t("soldDate") : t("archivedDate")), fmtDate(o.archived_at)]
+          : [null, null],
       ];
       const rowsHtml = rows.filter(x => x[1] != null && x[1] !== "").map(x => `<div class="row"><span>${esc(x[0])}</span><span><b>${esc(String(x[1]))}</b></span></div>`).join("");
       const transitions = {
@@ -1064,16 +1101,43 @@
       const eWrap = el(`<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap"></div>`);
       const edit = el(`<button class="small ghost">${esc(t("edit"))}</button>`); edit.addEventListener("click", () => navigate(objectEditScreen(o)));
       eWrap.appendChild(edit);
-      if (state.user && state.user.role === "agency_admin") {
-        const del = el(`<button class="small danger">${esc(t("del"))}</button>`);
-        del.addEventListener("click", async () => {
-          if (!window.confirm(t("delObjQ"))) return;
-          const rr = await api("/api/v1/apartments/" + o.id, { method: "DELETE" });
-          if (rr.ok) { setStatus(t("objDeleted"), "ok"); back(); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
-        });
-        eWrap.appendChild(del);
-      }
+      const del = el(`<button class="small danger">${esc(t("del"))}</button>`);
+      del.addEventListener("click", async () => {
+        if (!window.confirm(t("delObjQ"))) return;
+        const rr = await api("/api/v1/apartments/" + o.id, { method: "DELETE" });
+        if (rr.ok) { setStatus(t("objDeleted"), "ok"); back(); } else setStatus(t("error") + ": " + errText(rr.data, rr.status), "err");
+      });
+      eWrap.appendChild(del);
       box.appendChild(eWrap);
+
+      // История действий по объекту (кто создал / менял / сменил статус).
+      const histWrap = el(`<div></div>`);
+      box.appendChild(histWrap);
+      renderHistoryInto(histWrap, id);
+    }
+
+    const EV_FIELD_KEYS = {
+      name:"f_name", type:"f_type", district:"f_district", address:"f_address", rooms:"f_rooms",
+      floor:"f_floor", total_floors:"f_tfloors", area:"f_area", price:"f_price", currency:"f_currency",
+      condition:"f_condition", phone:"f_phone", description:"f_desc",
+    };
+    function eventText(e) {
+      if (e.action === "created") return t("ev_created");
+      if (e.action === "status") return t("ev_status") + ": " + statusLabel(e.note);
+      if (e.action === "updated") {
+        const fields = (e.note || "").split(",").filter(Boolean).map(k => t(EV_FIELD_KEYS[k] || k));
+        return t("ev_updated") + (fields.length ? (": " + fields.join(", ")) : "");
+      }
+      return e.action;
+    }
+    async function renderHistoryInto(host, id) {
+      const r = await api("/api/v1/apartments/" + id + "/events");
+      if (!r.ok || !Array.isArray(r.data) || !r.data.length) return;
+      host.appendChild(el(`<h2>${esc(t("history"))}</h2>`));
+      r.data.forEach(e => {
+        const who = e.user_name ? esc(e.user_name) : t("notSet");
+        host.appendChild(el(`<div class="item"><div class="meta"><b>${who}</b> · ${esc(eventText(e))}</div><div class="meta">${fmtDate(e.created_at)}</div></div>`));
+      });
     }
 
     function objectEditScreen(o) {
