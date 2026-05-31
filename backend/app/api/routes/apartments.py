@@ -18,6 +18,7 @@ from app.schemas.apartment import (
     ApartmentEventOut,
     ApartmentListOut,
     ApartmentOut,
+    ApartmentShareOut,
     ApartmentStatsOut,
     ApartmentStatusUpdate,
     ApartmentUpdate,
@@ -103,6 +104,22 @@ def get_apartment(
 ):
     """Карточка объекта."""
     return apartment_service.get_apartment(db, current_user.agency_id, apartment_id)
+
+
+@router.get("/{apartment_id}/share", response_model=ApartmentShareOut)
+def share_apartment(
+    apartment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """
+    Карточка объекта для отправки клиентам.
+    Без номера собственника и внутреннего комментария; вместо номера
+    собственника — контактный номер агентства (главного администратора).
+    """
+    return apartment_service.build_share_card(
+        db, current_user.agency_id, apartment_id
+    )
 
 
 @router.get("/{apartment_id}/events", response_model=List[ApartmentEventOut])

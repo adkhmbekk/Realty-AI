@@ -10,12 +10,14 @@ from app.api.routes import (
     auth,
     dictionaries,
     invites,
+    platform,
     settings,
     team,
 )
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
+api_router.include_router(platform.router)
 api_router.include_router(agencies.router)
 api_router.include_router(settings.router)
 api_router.include_router(invites.router)

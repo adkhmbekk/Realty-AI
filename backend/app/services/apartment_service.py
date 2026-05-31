@@ -6,7 +6,9 @@
   - создание/редактирование объекта (редактирование — только по белому списку);
   - перевод в архив / восстановление / пометка «продан»;
   - поиск с фильтрами;
-  - журнал действий (кто создал/изменил/сменил статус).
+  - журнал действий (кто создал/изменил/сменил статус);
+  - формирование карточки для «поделиться» (без номера собственника и
+    комментария, с подстановкой контактного номера главного админа агентства).
 
 Изоляция по агентству обеспечивается тем, что все вызовы репозитория получают
 agency_id текущего пользователя (а сам agency_id берётся из сессии, не с фронта).
@@ -21,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.defaults import DEFAULT_AGENT_CODE, DEFAULT_AGENT_NAME
 from app.db.models.apartment import Apartment
 from app.repositories import (
+    agency_repo,
     agent_repo,
     apartment_event_repo,
     apartment_repo,
@@ -40,8 +43,17 @@ _CLOSED_STATUSES = (STATUS_SOLD, STATUS_ARCHIVED)
 # Поля, изменение которых отражаем в журнале (в порядке формы).
 _TRACKED_FIELDS = (
     "name", "type", "district", "address", "rooms", "floor", "total_floors",
-    "area", "price", "currency", "condition", "phone", "description",
+    "area", "condition", "furniture_appliances", "price", "currency",
+    "owner_phone", "description", "comment", "photo_url", "source_link",
 )
+
+# Человекочитаемые подписи для поля «мебель и техника».
+FURNITURE_APPLIANCES_LABELS = {
+    "furniture_and_appliances": "Мебель и техника",
+    "furniture_only": "Только мебель",
+    "appliances_only": "Только техника",
+    "none": "Без мебели и техники",
+}
 
 
 def _next_display_id(db: Session, agency_id: int) -> str:
@@ -112,7 +124,7 @@ def create_apartment(
         agent_id=None,
         created_by=created_by,
         name=payload.name,
-        phone=payload.phone,
+        owner_phone=payload.owner_phone,
         district=payload.district,
         address=payload.address,
         type=payload.type,
@@ -121,11 +133,13 @@ def create_apartment(
         total_floors=payload.total_floors,
         area=payload.area,
         condition=payload.condition,
-        furniture=payload.furniture,
-        appliances=payload.appliances,
+        furniture_appliances=payload.furniture_appliances,
         price=payload.price,
         currency=payload.currency or "USD",
         description=payload.description,
+        comment=payload.comment,
+        photo_url=payload.photo_url,
+        source_link=payload.source_link,
         archived_at=datetime.now(timezone.utc) if new_status in _CLOSED_STATUSES else None,
     )
     apartment_repo.create(db, apartment)
@@ -272,6 +286,107 @@ def get_stats(db: Session, agency_id: int) -> dict:
         "sold": sold,
         "archived": archived,
         "total": total,
+    }
+
+
+def _agency_contact_phone(db: Session, agency_id: int) -> Optional[str]:
+    """
+    Контактный телефон для отправки клиентам.
+
+    Приоритет: телефон, указанный в настройках агентства (contact_phone).
+    Если не задан — None (тогда в карточке контакт не выводится).
+    """
+    agency = agency_repo.get_by_id(db, agency_id)
+    if agency is not None and getattr(agency, "contact_phone", None):
+        return agency.contact_phone
+    return None
+
+
+def _format_price(apartment: Apartment) -> Optional[str]:
+    if apartment.price is None:
+        return None
+    # Цена без лишних нулей: 50000.00 → 50000.
+    price = apartment.price
+    try:
+        price_int = int(price)
+        price_str = f"{price_int:,}".replace(",", " ") if price == price_int else f"{price}"
+    except Exception:  # noqa: BLE001
+        price_str = str(price)
+    return f"{price_str} {apartment.currency}".strip()
+
+
+def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
+    """
+    Подготовить карточку объекта для отправки третьим лицам.
+
+    ВАЖНО: номер собственника (owner_phone) и внутренний комментарий (comment)
+    НЕ включаются. Вместо номера собственника подставляется контактный номер
+    главного администратора агентства (contact_phone из настроек агентства).
+    """
+    apartment = get_apartment(db, agency_id, apartment_id)
+    contact_phone = _agency_contact_phone(db, agency_id)
+
+    # Собираем текстовое представление карточки (без конфиденциальных полей).
+    lines = []
+    title = apartment.name or f"Объект №{apartment.display_id}"
+    lines.append(f"🏠 {title}")
+    lines.append(f"№ {apartment.display_id}")
+    lines.append("")
+
+    if apartment.type:
+        lines.append(f"Тип: {apartment.type}")
+    if apartment.district:
+        lines.append(f"Район: {apartment.district}")
+    if apartment.address:
+        lines.append(f"Адрес: {apartment.address}")
+    if apartment.rooms is not None:
+        lines.append(f"Комнат: {apartment.rooms}")
+    if apartment.floor is not None:
+        floor_line = f"Этаж: {apartment.floor}"
+        if apartment.total_floors is not None:
+            floor_line += f"/{apartment.total_floors}"
+        lines.append(floor_line)
+    if apartment.area is not None:
+        lines.append(f"Площадь: {apartment.area} м²")
+    if apartment.condition:
+        lines.append(f"Состояние: {apartment.condition}")
+    if apartment.furniture_appliances:
+        label = FURNITURE_APPLIANCES_LABELS.get(
+            apartment.furniture_appliances, apartment.furniture_appliances
+        )
+        lines.append(f"Мебель/техника: {label}")
+    price_str = _format_price(apartment)
+    if price_str:
+        lines.append(f"Цена: {price_str}")
+    if apartment.description:
+        lines.append("")
+        lines.append(apartment.description)
+    if contact_phone:
+        lines.append("")
+        lines.append(f"☎️ Контакт: {contact_phone}")
+
+    share_text = "\n".join(lines)
+
+    return {
+        "display_id": apartment.display_id,
+        "status": apartment.status,
+        "name": apartment.name,
+        "district": apartment.district,
+        "address": apartment.address,
+        "type": apartment.type,
+        "rooms": apartment.rooms,
+        "floor": apartment.floor,
+        "total_floors": apartment.total_floors,
+        "area": float(apartment.area) if apartment.area is not None else None,
+        "condition": apartment.condition,
+        "furniture_appliances": apartment.furniture_appliances,
+        "price": float(apartment.price) if apartment.price is not None else None,
+        "currency": apartment.currency,
+        "description": apartment.description,
+        "photo_url": apartment.photo_url,
+        "source_link": apartment.source_link,
+        "contact_phone": contact_phone,
+        "share_text": share_text,
     }
 
 
