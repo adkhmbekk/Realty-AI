@@ -136,6 +136,7 @@ def search_apartments(
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
     agent_id: Optional[int] = None,
+    q: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> Tuple[list, int]:
@@ -151,6 +152,7 @@ def search_apartments(
         price_min=price_min,
         price_max=price_max,
         agent_id=agent_id,
+        q=q,
         limit=limit,
         offset=offset,
     )

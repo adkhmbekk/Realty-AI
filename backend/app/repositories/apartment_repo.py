@@ -8,7 +8,7 @@
 """
 from typing import List, Optional, Sequence, Tuple
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.apartment import Apartment
@@ -41,6 +41,7 @@ def _build_conditions(
     price_min: Optional[float],
     price_max: Optional[float],
     agent_id: Optional[int],
+    q: Optional[str] = None,
 ) -> list:
     # Первое и главное условие — принадлежность агентству.
     conditions = [Apartment.agency_id == agency_id]
@@ -64,6 +65,26 @@ def _build_conditions(
     if agent_id is not None:
         conditions.append(Apartment.agent_id == agent_id)
 
+    # Текстовый поиск по наименованию, адресу и номеру объекта (display_id).
+    if q:
+        term = q.strip()
+        if term:
+            like = f"%{term}%"
+            text_conds = [
+                Apartment.name.ilike(like),
+                Apartment.address.ilike(like),
+                Apartment.display_id.ilike(like),
+            ]
+            # Если ввели цифры (например «№0001» или «1») — ищем и по номеру,
+            # игнорируя ведущие нули и нецифровые символы.
+            digits = "".join(ch for ch in term if ch.isdigit())
+            if digits:
+                text_conds.append(Apartment.display_id.ilike(f"%{digits}%"))
+                stripped = digits.lstrip("0")
+                if stripped and stripped != digits:
+                    text_conds.append(Apartment.display_id.ilike(f"%{stripped}%"))
+            conditions.append(or_(*text_conds))
+
     return conditions
 
 
@@ -80,6 +101,7 @@ def search(
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
     agent_id: Optional[int] = None,
+    q: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> Tuple[List[Apartment], int]:
@@ -99,6 +121,7 @@ def search(
         price_min=price_min,
         price_max=price_max,
         agent_id=agent_id,
+        q=q,
     )
 
     total = db.execute(

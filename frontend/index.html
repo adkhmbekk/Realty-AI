@@ -135,7 +135,10 @@
       if (!iso) return "—";
       try {
         const d = new Date(iso);
-        return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU", {hour:"2-digit", minute:"2-digit"});
+        const tz = (typeof agencySettings !== "undefined" && agencySettings.timezone) ? agencySettings.timezone : null;
+        const dOpts = tz ? { timeZone: tz } : {};
+        const tOpts = tz ? { hour: "2-digit", minute: "2-digit", timeZone: tz } : { hour: "2-digit", minute: "2-digit" };
+        return d.toLocaleDateString("ru-RU", dOpts) + " " + d.toLocaleTimeString("ru-RU", tOpts);
       } catch (e) { return iso; }
     }
     function roleLabel(role) {
@@ -251,22 +254,37 @@
       box.innerHTML = r.data.map(a => {
         const st = (a.status === "active" || a.status === "trial") ? "green" : "amber";
         const frozen = a.status === "frozen";
+        const adminTxt = a.admin_name
+          ? esc(a.admin_name) + (a.admin_telegram_id ? " (ID " + a.admin_telegram_id + ")" : "")
+          : "— не назначен —";
         return `<div class="item">
           <div class="top">
             <span class="title">${esc(a.name)}</span>
             <span class="badge ${st}">${esc(a.status)}</span>
           </div>
           <div class="meta">ID ${a.id} · подписка до: ${fmtDate(a.subscription_expires_at)}</div>
-          <div style="margin-top:8px">
+          <div class="meta">Админ: ${adminTxt}</div>
+          <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
             <button class="small ghost" data-sub="extend" data-id="${a.id}">+30 дней</button>
             ${frozen
               ? `<button class="small ghost" data-sub="activate" data-id="${a.id}">Активировать</button>`
               : `<button class="small danger" data-sub="freeze" data-id="${a.id}">Заморозить</button>`}
           </div>
+          <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap">
+            <button class="small ghost" data-rename="${a.id}" data-name="${esc(a.name)}">Переименовать</button>
+            <button class="small ghost" data-admin="${a.id}">Сменить админа</button>
+            <button class="small danger" data-del-ag="${a.id}" data-name="${esc(a.name)}">Удалить</button>
+          </div>
         </div>`;
       }).join("");
       box.querySelectorAll("button[data-sub]").forEach(b =>
         b.addEventListener("click", () => subAction(b.dataset.sub, parseInt(b.dataset.id, 10))));
+      box.querySelectorAll("button[data-rename]").forEach(b =>
+        b.addEventListener("click", () => renameAgency(parseInt(b.dataset.rename, 10), b.dataset.name)));
+      box.querySelectorAll("button[data-admin]").forEach(b =>
+        b.addEventListener("click", () => changeAgencyAdmin(parseInt(b.dataset.admin, 10))));
+      box.querySelectorAll("button[data-del-ag]").forEach(b =>
+        b.addEventListener("click", () => deleteAgency(parseInt(b.dataset.delAg, 10), b.dataset.name)));
     }
 
     async function subAction(action, id) {
@@ -275,6 +293,42 @@
       if (action === "extend") body.days = 30;
       const r = await api("/api/v1/agencies/" + id + "/subscription", { method: "POST", body });
       if (r.ok) { setStatus("Готово.", "ok"); loadAgencies(); }
+      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
+    }
+
+    async function renameAgency(id, currentName) {
+      const name = window.prompt("Новое название агентства:", currentName || "");
+      if (name === null) return;
+      const trimmed = name.trim();
+      if (!trimmed) { setStatus("Название не может быть пустым.", "warn"); return; }
+      setStatus("Переименовываем…", "info");
+      const r = await api("/api/v1/agencies/" + id, { method: "PATCH", body: { name: trimmed } });
+      if (r.ok) { setStatus("Готово.", "ok"); loadAgencies(); }
+      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
+    }
+
+    async function changeAgencyAdmin(id) {
+      const idStr = window.prompt("Telegram ID нового администратора агентства:", "");
+      if (idStr === null) return;
+      const tgId = parseInt((idStr || "").trim(), 10);
+      if (isNaN(tgId)) { setStatus("Введите корректный Telegram ID (число).", "warn"); return; }
+      const username = window.prompt("Username администратора (необязательно, без @):", "");
+      if (username === null) return;
+      const body = { admin_telegram_id: tgId };
+      const u = (username || "").trim();
+      if (u) body.admin_username = u;
+      setStatus("Назначаем администратора…", "info");
+      const r = await api("/api/v1/agencies/" + id + "/admin", { method: "POST", body });
+      if (r.ok) { setStatus("Администратор назначен.", "ok"); loadAgencies(); }
+      else setStatus("Ошибка: " + errText(r.data, r.status), "err");
+    }
+
+    async function deleteAgency(id, name) {
+      if (!window.confirm("Удалить агентство «" + (name || id) + "» со ВСЕМИ его данными (объекты, команда, приглашения, районы)? Это необратимо.")) return;
+      if (!window.confirm("Точно удалить? Данные восстановить будет нельзя.")) return;
+      setStatus("Удаляем агентство…", "info");
+      const r = await api("/api/v1/agencies/" + id, { method: "DELETE" });
+      if (r.ok) { setStatus("Агентство удалено.", "ok"); loadAgencies(); }
       else setStatus("Ошибка: " + errText(r.data, r.status), "err");
     }
 
@@ -312,12 +366,14 @@
           <button id="tab-team">Команда</button>
           <button id="tab-invites">Приглашения</button>
           <button id="tab-districts">Районы</button>
+          <button id="tab-settings">Настройки</button>
         </div>
         <div id="tab-body"></div>`;
       document.getElementById("tab-objects").addEventListener("click", () => switchTab("objects"));
       document.getElementById("tab-team").addEventListener("click", () => switchTab("team"));
       document.getElementById("tab-invites").addEventListener("click", () => switchTab("invites"));
       document.getElementById("tab-districts").addEventListener("click", () => switchTab("districts"));
+      document.getElementById("tab-settings").addEventListener("click", () => switchTab("settings"));
       switchTab("objects");
     }
 
@@ -326,11 +382,13 @@
       document.getElementById("tab-team").classList.toggle("active", which === "team");
       document.getElementById("tab-invites").classList.toggle("active", which === "invites");
       document.getElementById("tab-districts").classList.toggle("active", which === "districts");
+      document.getElementById("tab-settings").classList.toggle("active", which === "settings");
       const body = document.getElementById("tab-body");
       if (which === "objects") objectsScreen(body);
       else if (which === "team") renderTeamTab();
       else if (which === "invites") renderInvitesTab();
-      else renderDistrictsTab();
+      else if (which === "districts") renderDistrictsTab();
+      else renderSettingsTab();
     }
 
     // --- Вкладка «Команда» ---
@@ -506,6 +564,49 @@
       else setStatus("Ошибка: " + errText(r.data, r.status), "err");
     }
 
+    // --- Вкладка «Настройки» (валюта по умолчанию и часовой пояс агентства) ---
+    function renderSettingsTab() {
+      const body = document.getElementById("tab-body");
+      body.innerHTML = `
+        <h2>Настройки агентства</h2>
+        <div class="hint">Валюта по умолчанию подставляется в форму нового объекта. Часовой пояс влияет на отображение дат.</div>
+        <label>Валюта по умолчанию</label>
+        <select id="set-currency">
+          <option value="USD">USD</option>
+          <option value="UZS">UZS</option>
+          <option value="EUR">EUR</option>
+        </select>
+        <label>Часовой пояс</label>
+        <input id="set-tz" placeholder="например, Asia/Tashkent" />
+        <button class="full" id="set-save">Сохранить настройки</button>`;
+      loadSettingsForm();
+      document.getElementById("set-save").addEventListener("click", saveSettings);
+    }
+    async function loadSettingsForm() {
+      await loadAgencySettings(true);
+      const cur = document.getElementById("set-currency");
+      const tz = document.getElementById("set-tz");
+      if (cur && agencySettings.default_currency) cur.value = agencySettings.default_currency;
+      if (tz) tz.value = agencySettings.timezone || "";
+    }
+    async function saveSettings() {
+      const currency = document.getElementById("set-currency").value;
+      const timezone = (document.getElementById("set-tz").value || "").trim();
+      setStatus("Сохраняем настройки…", "info");
+      const r = await api("/api/v1/agency/settings", {
+        method: "PATCH",
+        body: { default_currency: currency, timezone: timezone || null },
+      });
+      if (r.ok) {
+        setStatus("Настройки сохранены.", "ok");
+        agencySettings.default_currency = r.data.default_currency || null;
+        agencySettings.timezone = r.data.timezone || null;
+        agencySettings.loaded = true;
+      } else {
+        setStatus("Ошибка: " + errText(r.data, r.status), "err");
+      }
+    }
+
     // ───────────────────── АГЕНT ─────────────────────
     function renderAgent() {
       subtitleEl.textContent = "Панель агента";
@@ -520,6 +621,19 @@
     // ───────────────────── ОБЪЕКТЫ (UI Этапа 3) ─────────────────────
     // Справочник районов грузим один раз и кэшируем (нужен для формы и фильтров).
     const refs = { district: [], loaded: false };
+
+    // Настройки агентства кэшируем (валюта по умолчанию для формы, часовой пояс для дат).
+    const agencySettings = { default_currency: null, timezone: null, loaded: false };
+
+    async function loadAgencySettings(force) {
+      if (agencySettings.loaded && !force) return;
+      const r = await api("/api/v1/agency/settings");
+      if (r.ok && r.data) {
+        agencySettings.default_currency = r.data.default_currency || null;
+        agencySettings.timezone = r.data.timezone || null;
+        agencySettings.loaded = true;
+      }
+    }
 
     async function loadRefs() {
       if (refs.loaded) return;
@@ -540,6 +654,10 @@
 
     // Текущий «вид» списка объектов (какой статус показываем).
     let objView = "active";
+
+    // Пагинация списка объектов: грузим порциями и докручиваем «Показать ещё».
+    const OBJ_PAGE_SIZE = 20;
+    let objPage = { offset: 0, total: 0 };
 
     // --- Мультивыбор «чипами» ---
     function chips(id, values) {
@@ -569,6 +687,8 @@
         </div>
 
         <div class="item" style="background:#fff">
+          <label>Поиск (наименование, адрес, № объекта)</label>
+          <input id="f-q" placeholder="например: центр, Навои, 0001" />
           <label>Тип объекта</label>
           ${chips("f-types", OBJ_TYPES)}
           <label>Район</label>
@@ -588,6 +708,7 @@
         <div id="obj-results"><div class="empty">Загрузка…</div></div>`;
 
       await loadRefs();
+      await loadAgencySettings();
       const dbox = host.querySelector("#f-districts");
       dbox.innerHTML = refs.district.length
         ? refs.district.map(x => `<button type="button" class="chip" data-val="${esc(x.value)}">${esc(x.value)}</button>`).join("")
@@ -620,7 +741,7 @@
       const distOpts = `<option value="">—</option>` + refs.district.map(x => opt(x.value, o.district)).join("");
       const statusOpts = [["active", "Активен"], ["deposit", "Задаток"], ["sold", "Продан"]]
         .map(s => `<option value="${s[0]}" ${s[0] === (o.status || "active") ? "selected" : ""}>${s[1]}</option>`).join("");
-      const cur = o.currency || "USD";
+      const cur = o.currency || agencySettings.default_currency || "USD";
       const curOpts = ["USD", "UZS", "EUR"].map(c => `<option ${c === cur ? "selected" : ""}>${c}</option>`).join("");
       const num = v => (v != null ? v : "");
       return `
@@ -669,7 +790,10 @@
     }
 
     // Собрать тело запроса из полей формы (общее для создания и редактирования).
-    function collectObjBody(host, includeStatus) {
+    // full=true (редактирование): включаем ВСЕ поля, даже пустые (как null),
+    // чтобы можно было очистить ранее заполненное поле. full=false (создание):
+    // пустые поля не отправляем.
+    function collectObjBody(host, includeStatus, full) {
       const body = {};
       const fields = {
         name: vStr(host, "#n-name"),
@@ -687,7 +811,11 @@
         description: vStr(host, "#n-desc"),
       };
       if (includeStatus) fields.status = vStr(host, "#n-status");
-      Object.keys(fields).forEach(k => { if (fields[k] !== null) body[k] = fields[k]; });
+      Object.keys(fields).forEach(k => {
+        // Валюту никогда не обнуляем (она обязательна), остальное — по режиму.
+        if (full && k === "currency" && !fields[k]) return;
+        if (full || fields[k] !== null) body[k] = fields[k];
+      });
       return body;
     }
 
@@ -723,9 +851,8 @@
       </div>`;
     }
 
-    async function searchObjects(host) {
-      const box = host.querySelector("#obj-results");
-      box.innerHTML = `<div class="empty">Загрузка…</div>`;
+    // Собирает параметры фильтра/поиска (без пагинации).
+    function buildObjQuery(host) {
       const p = new URLSearchParams();
       p.set("status", objView);
       pickedChips(host, "f-types").forEach(v => p.append("types", v));
@@ -733,19 +860,71 @@
       pickedChips(host, "f-rooms").forEach(v => p.append("rooms", v));
       const fmin = vStr(host, "#f-fmin"), fmax = vStr(host, "#f-fmax");
       const pmin = vStr(host, "#f-pmin"), pmax = vStr(host, "#f-pmax");
+      const q = vStr(host, "#f-q");
       if (fmin) p.set("floor_min", fmin);
       if (fmax) p.set("floor_max", fmax);
       if (pmin) p.set("price_min", pmin);
       if (pmax) p.set("price_max", pmax);
-      p.set("limit", "100");
+      if (q) p.set("q", q);
+      return p;
+    }
+
+    // Привязывает обработчик «Открыть» к новым карточкам (без двойной привязки).
+    function wireOpenButtons(host, container) {
+      container.querySelectorAll("button[data-open]").forEach(b => {
+        if (b.dataset.wired) return;
+        b.dataset.wired = "1";
+        b.addEventListener("click", () => openObject(host, parseInt(b.dataset.open, 10)));
+      });
+    }
+
+    // append=false — новый поиск (сброс и перерисовка); append=true — догрузка.
+    async function searchObjects(host, append) {
+      const box = host.querySelector("#obj-results");
+      if (!append) {
+        objPage = { offset: 0, total: 0 };
+        box.innerHTML = `
+          <div class="meta" id="obj-count" style="margin:10px 0 0"></div>
+          <div id="obj-cards"></div>
+          <div id="obj-more"></div>`;
+      }
+      const moreBox = host.querySelector("#obj-more");
+      if (moreBox) moreBox.innerHTML = `<div class="empty">Загрузка…</div>`;
+
+      const p = buildObjQuery(host);
+      p.set("limit", String(OBJ_PAGE_SIZE));
+      p.set("offset", String(objPage.offset));
       const r = await api("/api/v1/apartments?" + p.toString());
-      if (!r.ok) { box.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`; return; }
+      if (!r.ok) {
+        if (moreBox) moreBox.innerHTML = `<div class="empty">Не удалось загрузить (${r.status}).</div>`;
+        return;
+      }
       const items = (r.data && r.data.items) || [];
-      if (!items.length) { box.innerHTML = `<div class="empty">Ничего не найдено.</div>`; return; }
-      box.innerHTML = `<div class="meta" style="margin:10px 0 0">Найдено: ${r.data.total}</div>` +
-        items.map(objCardHtml).join("");
-      box.querySelectorAll("button[data-open]").forEach(b =>
-        b.addEventListener("click", () => openObject(host, parseInt(b.dataset.open, 10))));
+      objPage.total = r.data.total || 0;
+      objPage.offset += items.length;
+
+      const cards = host.querySelector("#obj-cards");
+      const countEl = host.querySelector("#obj-count");
+      if (!append && !items.length) {
+        if (countEl) countEl.textContent = "";
+        cards.innerHTML = `<div class="empty">Ничего не найдено.</div>`;
+        if (moreBox) moreBox.innerHTML = "";
+        return;
+      }
+      if (countEl) countEl.textContent = "Найдено: " + objPage.total;
+      const tmp = document.createElement("div");
+      tmp.innerHTML = items.map(objCardHtml).join("");
+      while (tmp.firstChild) cards.appendChild(tmp.firstChild);
+      wireOpenButtons(host, cards);
+
+      // Кнопка «Показать ещё», если показаны не все найденные объекты.
+      const left = objPage.total - objPage.offset;
+      if (left > 0) {
+        moreBox.innerHTML = `<button class="ghost full" id="obj-more-btn">Показать ещё (${left})</button>`;
+        moreBox.querySelector("#obj-more-btn").addEventListener("click", () => searchObjects(host, true));
+      } else {
+        moreBox.innerHTML = "";
+      }
     }
 
     // --- Детальная карточка объекта ---
@@ -755,6 +934,34 @@
       if (!r.ok) { setStatus("Не удалось открыть объект (" + r.status + ").", "err"); return; }
       setStatus("", null);
       renderObjDetail(host, r.data);
+    }
+
+    // --- Готовая карточка объекта для пересылки клиенту (как в старом боте) ---
+    function buildShareCard(o) {
+      const lines = [];
+      lines.push("🏠 Объект №" + (o.display_id || ""));
+      if (o.name) lines.push("📋 " + o.name);
+      if (o.type) lines.push("🏗 Тип: " + o.type);
+      if (o.district) lines.push("📍 Район: " + o.district);
+      if (o.address) lines.push("🗺 Адрес: " + o.address);
+      if (o.rooms != null) lines.push("🚪 Комнат: " + o.rooms);
+      const floorTxt = (o.floor != null && o.total_floors != null) ? (o.floor + "/" + o.total_floors)
+        : (o.floor != null ? String(o.floor) : null);
+      if (floorTxt) lines.push("🏢 Этаж: " + floorTxt);
+      if (o.area != null) lines.push("📐 Площадь: " + o.area + " м²");
+      if (o.condition) lines.push("🔧 Состояние: " + o.condition);
+      if (o.price != null) lines.push("💵 Цена: " + o.price + " " + (o.currency || ""));
+      if (o.phone) lines.push("📞 Телефон: " + o.phone);
+      if (o.description) lines.push("📝 " + o.description);
+      return lines.join("\n");
+    }
+
+    // Открыть диалог пересылки Telegram с готовым текстом карточки.
+    function shareToTelegram(text) {
+      const link = "https://t.me/share/url?url=&text=" + encodeURIComponent(text);
+      const tg = window.Telegram && window.Telegram.WebApp;
+      if (tg && tg.openTelegramLink) tg.openTelegramLink(link);
+      else window.open(link, "_blank");
     }
 
     function renderObjDetail(host, o) {
@@ -794,10 +1001,14 @@
           <div class="top"><span class="title">№${esc(o.display_id)}</span><span class="badge ${badge}">${esc(label)}</span></div>
           ${rowsHtml}
           <div style="margin-top:10px">${statusBtns}</div>
+          <div style="margin-top:10px"><button class="ghost small" id="d-share">Скопировать карточку</button> <button class="ghost small" id="d-share-tg">Отправить в Telegram</button></div>
           <div style="margin-top:10px"><button class="ghost small" id="d-edit">Редактировать</button> ${adminBtn}</div>
         </div>`;
       host.querySelector("#d-back").addEventListener("click", () => objectsScreen(host));
       host.querySelector("#d-edit").addEventListener("click", () => renderObjEdit(host, o));
+      const card = buildShareCard(o);
+      host.querySelector("#d-share").addEventListener("click", () => copyText(card));
+      host.querySelector("#d-share-tg").addEventListener("click", () => shareToTelegram(card));
       host.querySelectorAll("button[data-status]").forEach(b =>
         b.addEventListener("click", () => changeStatusDetail(host, o.id, b.dataset.status)));
       const del = host.querySelector("#d-del");
@@ -825,6 +1036,7 @@
         <h2>Редактирование №${esc(o.display_id)}</h2>
         <div class="item" style="background:#fbfbfe">
           ${objFormInner(o, false)}
+          <div class="hint">Чтобы очистить поле — сотрите его содержимое и нажмите «Сохранить изменения».</div>
           <button class="full" id="e-save">Сохранить изменения</button>
         </div>`;
       host.querySelector("#e-cancel").addEventListener("click", () => openObject(host, o.id));
@@ -833,7 +1045,7 @@
 
     async function saveObjEdit(host, id) {
       const btn = host.querySelector("#e-save");
-      const body = collectObjBody(host, false);
+      const body = collectObjBody(host, false, true);
       btn.disabled = true; setStatus("Сохраняем…", "info");
       const r = await api("/api/v1/apartments/" + id, { method: "PATCH", body });
       btn.disabled = false;

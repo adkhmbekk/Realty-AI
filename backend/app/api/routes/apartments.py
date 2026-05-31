@@ -54,6 +54,7 @@ def search_apartments(
     price_min: Optional[float] = Query(None, description="Цена от."),
     price_max: Optional[float] = Query(None, description="Цена до."),
     agent_id: Optional[int] = Query(None, description="Фильтр по агенту."),
+    q: Optional[str] = Query(None, description="Текстовый поиск: наименование, адрес, номер объекта."),
     limit: int = Query(50, ge=1, le=200, description="Сколько вернуть (1–200)."),
     offset: int = Query(0, ge=0, description="Смещение для пагинации."),
     db: Session = Depends(get_db),
@@ -74,6 +75,7 @@ def search_apartments(
         price_min=price_min,
         price_max=price_max,
         agent_id=agent_id,
+        q=q,
         limit=limit,
         offset=offset,
     )
