@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Camera,
@@ -9,10 +9,11 @@ import {
   Search as SearchIcon,
   Send,
   Trash2,
+  X,
 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
-import { api, buildQuery, errText } from "../api";
+import { api, apiUpload, buildQuery, errText } from "../api";
 import {
   Button,
   Card,
@@ -35,7 +36,7 @@ import {
   STATUS_BADGE,
 } from "../i18n";
 import { Badge } from "../components/ui";
-import type { Apartment, ApartmentEvent, ApartmentList, DictItem, SearchParams } from "../types";
+import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, SearchParams } from "../types";
 import { copyText, fmtDate, fmtPrice } from "../utils";
 import { haptic, openLink, shareToTelegram } from "../telegram";
 
@@ -99,7 +100,6 @@ function ObjectForm({
     condition: o.condition ?? "",
     furniture_appliances: o.furniture_appliances ?? "",
     owner_phone: o.owner_phone ?? "",
-    photo_url: o.photo_url ?? "",
     source_link: o.source_link ?? "",
     description: o.description ?? "",
     comment: o.comment ?? "",
@@ -121,7 +121,6 @@ function ObjectForm({
       condition: f.condition || null,
       furniture_appliances: f.furniture_appliances || null,
       owner_phone: f.owner_phone.trim() || null,
-      photo_url: f.photo_url.trim() || null,
       source_link: f.source_link.trim() || null,
       description: f.description.trim() || null,
       comment: f.comment.trim() || null,
@@ -237,9 +236,6 @@ function ObjectForm({
         <Input value={f.owner_phone} onChange={(e) => set("owner_phone", e.target.value)} />
       </Field>
       <Hint>{t("ownerPhoneHint")}</Hint>
-      <Field label={t("f_photo")}>
-        <Input inputMode="url" placeholder="https://…" value={f.photo_url} onChange={(e) => set("photo_url", e.target.value)} />
-      </Field>
       <Field label={t("f_source")}>
         <Input inputMode="url" placeholder="https://…" value={f.source_link} onChange={(e) => set("source_link", e.target.value)} />
       </Field>
@@ -281,6 +277,97 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
   if (o.description) lines.push("📝 " + o.description);
   if (contactPhone) lines.push("📞 " + contactPhone);
   return lines.join("\n");
+}
+
+// ── Галерея фото объекта (загрузка/импорт/удаление) ─────────────────
+function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange?: () => void }) {
+  const { t, toast } = useApp();
+  const [photos, setPhotos] = useState<ApartmentPhoto[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function load() {
+    const r = await api<ApartmentPhoto[]>(`/api/v1/apartments/${apartmentId}/photos`);
+    setPhotos(r.ok && Array.isArray(r.data) ? r.data : []);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apartmentId]);
+
+  async function onFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || !files.length) return;
+    const fd = new FormData();
+    Array.from(files).forEach((f) => fd.append("files", f));
+    setBusy(true);
+    toast(t("uploadingPhotos"), "info");
+    const r = await apiUpload<ApartmentPhoto[]>(`/api/v1/apartments/${apartmentId}/photos`, fd);
+    setBusy(false);
+    e.target.value = "";
+    if (r.ok && r.data) {
+      setPhotos(r.data);
+      toast(t("photoAdded"), "ok");
+      onChange?.();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  async function importTg() {
+    const url = window.prompt(t("importTgPrompt"), "");
+    if (!url) return;
+    setBusy(true);
+    toast(t("importingPhotos"), "info");
+    const r = await api<ApartmentPhoto[]>(`/api/v1/apartments/${apartmentId}/photos/import-telegram`, { method: "POST", body: { url } });
+    setBusy(false);
+    if (r.ok && r.data) {
+      setPhotos(r.data);
+      toast(t("photoAdded"), "ok");
+      onChange?.();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  async function del(id: number) {
+    if (!window.confirm(t("delPhotoQ"))) return;
+    const r = await api(`/api/v1/apartments/${apartmentId}/photos/${id}`, { method: "DELETE" });
+    if (r.ok) {
+      toast(t("photoDeleted"), "ok");
+      load();
+      onChange?.();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  return (
+    <div className="mb-3">
+      {photos && photos.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 mb-2.5">
+          {photos.map((p) => (
+            <div key={p.id} className="relative aspect-square rounded-[14px] overflow-hidden bg-[var(--soft)] border border-line">
+              <a href={p.url} target="_blank" rel="noopener noreferrer">
+                <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+              </a>
+              <button
+                onClick={() => del(p.id)}
+                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90"
+                aria-label={t("del")}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 flex-wrap">
+        <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFiles} />
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => fileRef.current?.click()}>
+          <Camera size={15} /> {t("addPhotos")}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={importTg}>
+          <Send size={15} /> {t("importTg")}
+        </Button>
+      </div>
+      <Hint>{t("photosHint")}</Hint>
+    </div>
+  );
 }
 
 // ── Карточка в списке ───────────────────────────────────────────────
@@ -663,18 +750,8 @@ export function ObjectDetailScreen({ id }: { id: number }) {
 
   return (
     <div>
+      <PhotoGallery apartmentId={id} onChange={load} />
       <Card>
-        {o.photo_url && (
-          <a href={o.photo_url} target="_blank" rel="noopener noreferrer" className="block rounded-[14px] overflow-hidden mb-3 bg-[var(--soft)]">
-            <img
-              src={o.photo_url}
-              alt=""
-              loading="lazy"
-              className="w-full max-h-56 object-cover"
-              onError={(e) => ((e.target as HTMLImageElement).parentElement!.style.display = "none")}
-            />
-          </a>
-        )}
         <div className="flex items-center justify-between gap-2 mb-1">
           <span className="text-[16px] font-extrabold">№{o.display_id}</span>
           <Badge color={badgeColor}>{L.statusLabel(o.status)}</Badge>

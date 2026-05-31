@@ -121,6 +121,12 @@ export interface DictItem {
   is_active: boolean;
 }
 
+export interface ApartmentPhoto {
+  id: number;
+  url: string;
+  sort_order: number;
+}
+
 export interface SearchParams {
   status?: string;
   districts?: string[];

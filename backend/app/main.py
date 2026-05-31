@@ -237,6 +237,12 @@ async def lifespan(app: FastAPI):
     normalize_legacy_display_ids()
     backfill_agency_owners()
     bootstrap_superadmin()
+    # Папка для фотографий объектов (на Docker-томе).
+    try:
+        import os
+        os.makedirs(settings.photos_dir, exist_ok=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не удалось создать папку для фото (%s): %s", settings.photos_dir, exc)
     yield
 
 

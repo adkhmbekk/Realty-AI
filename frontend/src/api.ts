@@ -46,6 +46,26 @@ export function errText(data: any, status: number, fallback = "—"): string {
   return "" + status;
 }
 
+// Загрузка файлов (multipart/form-data). Content-Type выставляет браузер сам.
+export async function apiUpload<T = any>(path: string, formData: FormData): Promise<ApiResult<T>> {
+  const headers: Record<string, string> = {};
+  const token = tokenGetter();
+  if (token) headers["Authorization"] = "Bearer " + token;
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", headers, body: formData });
+  } catch {
+    return { ok: false, status: 0, data: null };
+  }
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+
 // Построение query-строки из объекта параметров (массивы повторяются).
 export function buildQuery(params: Record<string, unknown>): string {
   const p = new URLSearchParams();

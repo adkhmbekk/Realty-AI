@@ -30,6 +30,7 @@ from app.repositories import (
     user_repo,
 )
 from app.schemas.apartment import ApartmentCreate, ApartmentUpdate
+from app.services import photo_service
 
 # Допустимые статусы объекта.
 STATUS_ACTIVE = "active"
@@ -266,7 +267,8 @@ def set_status(
 
 def delete_apartment(db: Session, agency_id: int, apartment_id: int) -> None:
     apartment = get_apartment(db, agency_id, apartment_id)
-    # Сначала чистим журнал (внешний ключ ссылается на объект), затем сам объект.
+    # Сначала удаляем фото (файлы + строки) и журнал — на них ссылается объект.
+    photo_service.purge_apartment(db, agency_id, apartment.id)
     apartment_event_repo.delete_for_apartment(db, apartment.id)
     db.delete(apartment)
     db.commit()
