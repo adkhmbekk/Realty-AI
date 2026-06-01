@@ -35,16 +35,22 @@ function StatTile({
   );
 }
 
-// Столбчатый график (без сторонних библиотек). Каждый период (день/месяц) —
-// отдельный столбец со своей подписью. Если столбцов много (например 30 дней),
-// график прокручивается по горизонтали — так каждый день виден по отдельности.
+// Столбчатый график (без сторонних библиотек). Каждый период — отдельный
+// столбец со своей подписью. Когда столбцов немного (неделя, полгода, год) —
+// они растягиваются на всю ширину. Когда много (месяц = 30 дней) — график
+// прокручивается по горизонтали, чтобы виден был каждый день.
 function BarChart({ data, color }: { data: { label: string; value: number }[]; color: string }) {
   const max = Math.max(1, ...data.map((d) => d.value));
+  const scroll = data.length > 14;
   return (
-    <div className="overflow-x-auto -mx-1 px-1 pb-1">
-      <div className="flex items-end gap-1.5" style={{ minWidth: data.length * 30 }}>
+    <div className={scroll ? "overflow-x-auto -mx-1 px-1 pb-1" : ""}>
+      <div className="flex items-end gap-1.5" style={scroll ? { minWidth: data.length * 30 } : undefined}>
         {data.map((d, i) => (
-          <div key={i} className="flex flex-col items-center shrink-0" style={{ width: 26 }}>
+          <div
+            key={i}
+            className={"flex flex-col items-center " + (scroll ? "shrink-0" : "flex-1 min-w-0")}
+            style={scroll ? { width: 26 } : undefined}
+          >
             <div className="text-[9px] text-muted mb-0.5 h-3 leading-none">{d.value || ""}</div>
             <div className="w-full h-32 flex items-end">
               <div
@@ -57,7 +63,9 @@ function BarChart({ data, color }: { data: { label: string; value: number }[]; c
                 title={`${d.label}: ${d.value}`}
               />
             </div>
-            <div className="text-[9px] text-muted mt-1 whitespace-nowrap">{d.label}</div>
+            <div className="text-[9px] text-muted mt-1 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
+              {d.label}
+            </div>
           </div>
         ))}
       </div>
