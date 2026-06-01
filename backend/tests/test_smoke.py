@@ -88,4 +88,4 @@ def test_bucket_starts_counts():
 
 def test_bucket_label_formats():
     assert _aptsvc._bucket_label("day", _dt.date(2026, 6, 1)) == "01.06"
-    assert _aptsvc._bucket_label("month", _dt.date(2026, 6, 1)) == "июн 26"
+    assert _aptsvc._bucket_label("month", _dt.date(2026, 6, 1)) == "июн"

@@ -44,11 +44,24 @@ export function SettingsScreen() {
     }
     const username = window.prompt(t("transferUserPrompt"), "");
     if (username === null) return;
-    if (!window.confirm(t("transferConfirm"))) return;
+    const uname = username.trim();
+
+    // Шаг 1: запросить код подтверждения (придёт в чат с ботом).
+    const reqBody: Record<string, unknown> = { new_telegram_id: tgId };
+    if (uname) reqBody.new_username = uname;
+    const r1 = await api("/api/v1/platform/transfer-request", { method: "POST", body: reqBody });
+    if (!r1.ok) {
+      toast(errText(r1.data, r1.status), "err");
+      return;
+    }
+    toast(t("codeSent"), "info");
+
+    // Шаг 2: ввести код из бота и подтвердить.
+    const code = window.prompt(t("enterCode"), "");
+    if (code === null || !code.trim()) return;
     if (!window.confirm(t("transferConfirm2"))) return;
-    const body: Record<string, unknown> = { new_telegram_id: tgId };
-    const u = username.trim();
-    if (u) body.new_username = u;
+    const body: Record<string, unknown> = { new_telegram_id: tgId, code: code.trim() };
+    if (uname) body.new_username = uname;
     const r = await api("/api/v1/platform/transfer-ownership", { method: "POST", body });
     if (r.ok) {
       toast(t("transferred"), "ok");
