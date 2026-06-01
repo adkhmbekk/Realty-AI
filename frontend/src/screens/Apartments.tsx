@@ -40,7 +40,7 @@ import {
 import { Badge } from "../components/ui";
 import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, SearchParams } from "../types";
 import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
-import { canShareMessage, haptic, openLink, shareMessage } from "../telegram";
+import { haptic, openLink } from "../telegram";
 
 // Загрузка справочника районов (один раз на жизнь экрана).
 function useDistricts(): DictItem[] {
@@ -966,21 +966,15 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     } else toast(errText(r.data, r.status), "err");
   }
   async function share() {
-    if (!canShareMessage()) {
-      toast(t("shareNeedUpdate"), "warn");
-      return;
-    }
     setBusy(true);
     toast(t("shareSending"), "info");
-    const r = await api<{ prepared_message_id: string }>(`/api/v1/apartments/${id}/share-prepare`, { method: "POST" });
-    if (!r.ok || !r.data) {
-      setBusy(false);
-      toast(errText(r.data, r.status), "err");
-      return;
-    }
-    const sent = await shareMessage(r.data.prepared_message_id);
+    // Альбом со всеми фото уходит в личный чат сотрудника с ботом — оттуда он
+    // одним нажатием пересылает клиенту. Так доходят ВСЕ фото (Telegram не даёт
+    // мини-приложению отправить несколько фото напрямую в произвольный чужой чат).
+    const r = await api<{ ok: boolean; photos: number }>(`/api/v1/apartments/${id}/share`, { method: "POST" });
     setBusy(false);
-    if (sent) toast(t("shareDone"), "ok");
+    if (r.ok) toast(t("shareAlbumSent"), "ok");
+    else toast(errText(r.data, r.status), "err");
   }
   async function copyCard() {
     const text = buildShareCard(o!, L, t, settings?.contact_phone);

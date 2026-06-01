@@ -566,7 +566,7 @@ def send_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
 # Доступные периоды для графиков: (гранулярность, сколько корзин).
 _PERIODS = {
     "week": ("day", 7),
-    "month": ("week", 5),
+    "month": ("day", 30),
     "halfyear": ("month", 6),
     "year": ("month", 12),
 }
