@@ -59,14 +59,26 @@ services:
       - backend
     restart: unless-stopped
 
-  # ─── Туннель (публичный HTTPS-адрес для Telegram) ───────────────────────
-  # Создаёт временный публичный адрес вида https://xxx.trycloudflare.com,
-  # который ведёт на наш веб-сервер. Telegram умеет открывать только HTTPS,
-  # а наш компьютер из интернета не виден — туннель решает обе проблемы.
-  # Адрес меняется при каждом перезапуске (для разработки это нормально).
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate --url http://web:80
+  # ─── Туннель (постоянный публичный HTTPS-адрес для Telegram) ────────────
+  # ngrok создаёт публичный адрес, который ведёт на наш веб-сервер (web).
+  # Telegram умеет открывать только HTTPS, а наш компьютер из интернета не
+  # виден — туннель решает обе проблемы.
+  #
+  # В отличие от прежнего cloudflared, адрес здесь ПОСТОЯННЫЙ
+  # (https://pagan-crawling-retiring.ngrok-free.dev) — его достаточно один раз
+  # прописать в @BotFather как URL Mini App, и он больше не меняется.
+  #
+  # Токен и домен вшиты значениями по умолчанию (репозиторий приватный).
+  # При желании их можно переопределить в файле .env, не трогая этот файл.
+  ngrok:
+    image: ngrok/ngrok:latest
+    command: http --domain=${NGROK_DOMAIN:-pagan-crawling-retiring.ngrok-free.dev} web:80
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-3EWS0VQvnjdRR4g3PpcwQ6pub9B_4tZoRGho3RGK8KmgHbZ6n}
+    ports:
+      # Локальная панель ngrok (список запросов, удобно при отладке загрузки
+      # фото): открой http://localhost:4040 в браузере.
+      - "4040:4040"
     depends_on:
       - web
     restart: unless-stopped
