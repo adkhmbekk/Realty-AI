@@ -51,6 +51,8 @@ class AgencySettingsOut(BaseModel):
     # Контактный номер агентства (подставляется при «поделиться» вместо
     # номера собственника). Виден сотрудникам, чтобы понимать, что уйдёт клиенту.
     contact_phone: Optional[str] = None
+    # Слать ли уведомление бота руководителям при добавлении объекта.
+    notify_new_objects: bool = False
 
 
 class AgencySettingsUpdate(BaseModel):
@@ -60,6 +62,8 @@ class AgencySettingsUpdate(BaseModel):
     default_currency: Optional[str] = None
     # Контактный номер агентства (номер главного админа для клиентов).
     contact_phone: Optional[str] = None
+    # Включить/выключить уведомления о новых объектах.
+    notify_new_objects: Optional[bool] = None
 
 
 class AgencyOut(BaseModel):

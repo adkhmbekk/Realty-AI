@@ -14,6 +14,7 @@ from app.core.dependencies import require_agency_admin, require_agency_member
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.apartment import (
+    AgentEventOut,
     ApartmentAnalyticsOut,
     ApartmentCreate,
     ApartmentEventOut,
@@ -23,7 +24,9 @@ from app.schemas.apartment import (
     ApartmentStatsOut,
     ApartmentStatusUpdate,
     ApartmentUpdate,
+    SharePrepareOut,
     ShareResultOut,
+    TimeseriesOut,
 )
 from app.services import apartment_service
 
@@ -58,6 +61,7 @@ def search_apartments(
     price_min: Optional[float] = Query(None, description="Цена от."),
     price_max: Optional[float] = Query(None, description="Цена до."),
     agent_id: Optional[int] = Query(None, description="Фильтр по агенту."),
+    created_by: Optional[int] = Query(None, description="Фильтр по сотруднику-создателю."),
     q: Optional[str] = Query(None, description="Текстовый поиск: наименование, адрес, номер объекта."),
     limit: int = Query(50, ge=1, le=200, description="Сколько вернуть (1–200)."),
     offset: int = Query(0, ge=0, description="Смещение для пагинации."),
@@ -81,6 +85,7 @@ def search_apartments(
         price_min=price_min,
         price_max=price_max,
         agent_id=agent_id,
+        created_by=created_by,
         q=q,
         limit=limit,
         offset=offset,
@@ -106,6 +111,26 @@ def get_analytics(
 ):
     """Аналитика для руководителя агентства (только администратор)."""
     return apartment_service.get_analytics(db, current_user.agency_id)
+
+
+@router.get("/timeseries", response_model=TimeseriesOut)
+def get_timeseries(
+    period: str = Query("month", description="week / month / halfyear / year"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_admin),
+):
+    """Данные для графика «добавлено/продано» по периодам (только администратор)."""
+    return apartment_service.get_timeseries(db, current_user.agency_id, period)
+
+
+@router.get("/agent/{user_id}/activity", response_model=List[AgentEventOut])
+def agent_activity(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_admin),
+):
+    """Последние действия сотрудника по объектам (только администратор)."""
+    return apartment_service.get_agent_activity(db, current_user.agency_id, user_id)
 
 
 @router.get("/similar", response_model=List[ApartmentOut])
@@ -169,6 +194,21 @@ def send_share(
     (без конфиденциальных полей). Сотрудник пересылает сообщение клиенту.
     """
     return apartment_service.send_share(
+        db, current_user.agency_id, apartment_id, current_user
+    )
+
+
+@router.post("/{apartment_id}/share-prepare", response_model=SharePrepareOut)
+def prepare_share(
+    apartment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """
+    Подготовить сообщение для отправки НАПРЯМУЮ в выбранный пользователем чат
+    (через Telegram.WebApp.shareMessage). Возвращает prepared_message_id.
+    """
+    return apartment_service.prepare_share(
         db, current_user.agency_id, apartment_id, current_user
     )
 

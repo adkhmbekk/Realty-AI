@@ -148,3 +148,26 @@ def notify_async(chat_ids: Sequence[int], text: str) -> None:
                 pass
 
     threading.Thread(target=_run, daemon=True).start()
+
+
+def save_prepared_inline_message(user_id: int, result: dict) -> Optional[str]:
+    """
+    Подготовить сообщение, которое пользователь сможет отправить в выбранный им
+    чат (метод Bot API savePreparedInlineMessage). Возвращает id подготовленного
+    сообщения (его затем передаёт фронтенд в Telegram.WebApp.shareMessage) либо
+    None при ошибке. Это и есть «отправить напрямую, кому выберу».
+    """
+    res = _post_json(
+        "savePreparedInlineMessage",
+        {
+            "user_id": user_id,
+            "result": result,
+            "allow_user_chats": True,
+            "allow_group_chats": True,
+            "allow_channel_chats": True,
+            "allow_bot_chats": False,
+        },
+    )
+    if res and res.get("ok"):
+        return (res.get("result") or {}).get("id")
+    return None

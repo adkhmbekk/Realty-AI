@@ -46,6 +46,7 @@ def _build_conditions(
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
+    created_by: Optional[int] = None,
 ) -> list:
     # Первое и главное условие — принадлежность агентству.
     conditions = [Apartment.agency_id == agency_id]
@@ -75,6 +76,8 @@ def _build_conditions(
         conditions.append(Apartment.price <= price_max)
     if agent_id is not None:
         conditions.append(Apartment.agent_id == agent_id)
+    if created_by is not None:
+        conditions.append(Apartment.created_by == created_by)
 
     # Текстовый поиск по наименованию, адресу и номеру объекта (display_id).
     if q:
@@ -115,6 +118,7 @@ def search(
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
+    created_by: Optional[int] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> Tuple[List[Apartment], int]:
@@ -137,6 +141,7 @@ def search(
         q=q,
         rooms_min=rooms_min,
         rooms_max=rooms_max,
+        created_by=created_by,
     )
 
     total = db.execute(
@@ -206,6 +211,41 @@ def stats_by_creator(db: Session, agency_id: int) -> List[Tuple[Optional[int], i
         .group_by(Apartment.created_by)
     ).all()
     return [(row[0], int(row[1]), int(row[2] or 0)) for row in rows]
+
+
+def timeseries_counts(db: Session, agency_id: int, since: datetime, granularity: str):
+    """
+    Подсчитать «добавлено» и «продано» по периодам (для графиков).
+    granularity: 'day' или 'month'. Возвращает два словаря {дата_корзины: число}.
+    """
+    created_bucket = func.date_trunc(granularity, Apartment.created_at)
+    created_rows = db.execute(
+        select(created_bucket, func.count())
+        .where(Apartment.agency_id == agency_id, Apartment.created_at >= since)
+        .group_by(created_bucket)
+    ).all()
+
+    sold_bucket = func.date_trunc(granularity, Apartment.archived_at)
+    sold_rows = db.execute(
+        select(sold_bucket, func.count())
+        .where(
+            Apartment.agency_id == agency_id,
+            Apartment.status == "sold",
+            Apartment.archived_at >= since,
+        )
+        .group_by(sold_bucket)
+    ).all()
+
+    def _keyize(rows) -> dict:
+        out = {}
+        for bucket, count in rows:
+            if bucket is None:
+                continue
+            key = bucket.date() if hasattr(bucket, "date") else bucket
+            out[key] = int(count)
+        return out
+
+    return _keyize(created_rows), _keyize(sold_rows)
 
 
 def find_similar(
