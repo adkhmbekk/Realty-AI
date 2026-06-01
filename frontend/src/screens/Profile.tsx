@@ -24,6 +24,10 @@ export function ProfileScreen() {
           <Row label={t("daysLeft")} value={daysLeft(settings.subscription_expires_at)} />
         </Card>
       )}
+      {/* Версия сборки — чтобы было видно, что приложение обновилось до свежей. */}
+      <div className="text-center text-[11px] text-muted mt-5">
+        {t("buildVersion")}: {__BUILD_ID__}
+      </div>
     </div>
   );
 }
