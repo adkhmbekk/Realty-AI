@@ -71,25 +71,25 @@ export function TeamScreen() {
               {L.roleLabel(m.role)}
               {m.username ? " · @" + m.username : ""}
             </div>
-            <div className="mt-2 flex gap-1.5 flex-wrap">
+            <div className="mt-2">
               {isSelf ? (
                 <Badge color="gray">{t("itsYou")}</Badge>
               ) : canAct ? (
-                <>
-                  <Button size="sm" variant={m.is_active ? "danger" : "ghost"} onClick={() => toggleActive(m)}>
+                <div className="space-y-2">
+                  <Button full size="sm" variant={m.is_active ? "danger" : "ghost"} onClick={() => toggleActive(m)}>
                     {m.is_active ? t("disable") : t("enable")}
                   </Button>
                   {meOwner && (
-                    <>
-                      <Button size="sm" variant="ghost" onClick={() => changeRole(m)}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button full size="sm" variant="ghost" onClick={() => changeRole(m)}>
                         {m.role === "agency_admin" ? t("demote") : t("promote")}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => makeOwner(m)}>
+                      <Button full size="sm" variant="ghost" onClick={() => makeOwner(m)}>
                         {t("makeOwner")}
                       </Button>
-                    </>
+                    </div>
                   )}
-                </>
+                </div>
               ) : null}
             </div>
           </Card>

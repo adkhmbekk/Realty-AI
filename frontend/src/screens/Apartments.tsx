@@ -1031,33 +1031,67 @@ export function ObjectDetailScreen({ id }: { id: number }) {
         </div>
       )}
 
-      <div className="mt-3 flex gap-2 flex-wrap">
-        {(STATUS_TRANSITIONS[o.status] || []).map((tr) => (
-          <Button key={tr.to} size="sm" variant="ghost" disabled={busy} onClick={() => setStatus(tr.to)}>
-            {t(tr.key)}
+      <div className="mt-4 space-y-3.5">
+        {/* Статус объекта */}
+        {(STATUS_TRANSITIONS[o.status] || []).length > 0 && (
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted mx-0.5 mb-1.5">
+              {t("secStatus")}
+            </div>
+            <div className="flex gap-2">
+              {(STATUS_TRANSITIONS[o.status] || []).map((tr) => (
+                <Button
+                  key={tr.to}
+                  size="sm"
+                  className="flex-1"
+                  variant={tr.to === "sold" ? "soft" : "ghost"}
+                  disabled={busy}
+                  onClick={() => setStatus(tr.to)}
+                >
+                  {t(tr.key)}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Поделиться */}
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted mx-0.5 mb-1.5">
+            {t("secShare")}
+          </div>
+          <Button full variant="primary" disabled={busy} onClick={shareDirect}>
+            <Send size={16} /> {t("shareToClient")}
           </Button>
-        ))}
-      </div>
+          <div className="flex gap-2 mt-2">
+            <Button size="sm" className="flex-1" variant="ghost" disabled={busy} onClick={share}>
+              <ImageIcon size={15} /> {t("shareAllPhotos")}
+            </Button>
+            <Button size="sm" className="flex-1" variant="ghost" onClick={copyCard}>
+              <Copy size={15} /> {t("shareCard")}
+            </Button>
+          </div>
+        </div>
 
-      <div className="mt-2.5 flex gap-2 flex-wrap">
-        <Button size="sm" variant="ghost" onClick={copyCard}>
-          <Copy size={15} /> {t("shareCard")}
-        </Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={shareDirect}>
-          <Send size={15} /> {t("shareToClient")}
-        </Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={share}>
-          <ImageIcon size={15} /> {t("shareAllPhotos")}
-        </Button>
-      </div>
-
-      <div className="mt-2.5 flex gap-2 flex-wrap">
-        <Button size="sm" variant="ghost" onClick={() => nav.push({ name: "objectEdit", obj: o })}>
-          <Pencil size={15} /> {t("edit")}
-        </Button>
-        <Button size="sm" variant="danger" onClick={del}>
-          <Trash2 size={15} /> {t("del")}
-        </Button>
+        {/* Управление */}
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted mx-0.5 mb-1.5">
+            {t("secManage")}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="flex-1"
+              variant="ghost"
+              onClick={() => nav.push({ name: "objectEdit", obj: o })}
+            >
+              <Pencil size={15} /> {t("edit")}
+            </Button>
+            <Button size="sm" className="flex-1" variant="danger" onClick={del}>
+              <Trash2 size={15} /> {t("del")}
+            </Button>
+          </div>
+        </div>
       </div>
 
       {events.length > 0 && (
