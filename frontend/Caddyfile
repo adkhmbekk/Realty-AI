@@ -15,6 +15,15 @@
 	# Остальное — статика SPA. Любой путь отдаёт index.html (клиентская навигация).
 	handle {
 		root * /srv
+
+		# Хэшированные файлы (их имя меняется при каждой сборке) можно кэшировать
+		# надолго. А вот index.html и прочее — НЕ кэшировать, иначе Telegram/браузер
+		# показывает старую версию приложения после обновления.
+		@assets path /assets/*
+		@notassets not path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		header @notassets Cache-Control "no-store"
+
 		try_files {path} /index.html
 		file_server
 	}
