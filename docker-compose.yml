@@ -51,28 +51,18 @@ services:
     restart: unless-stopped
 
   # ─── Туннель ngrok (ПОСТОЯННЫЙ публичный HTTPS-адрес для Telegram) ───────
-  # Даёт стабильный адрес вида https://<NGROK_DOMAIN>, который НЕ меняется
-  # между перезапусками. Его достаточно ОДИН раз вставить в @BotFather.
-  # Нужны два значения в .env: NGROK_AUTHTOKEN и NGROK_DOMAIN (см. .env.example).
+  # Адрес стабильный: https://pagan-crawling-retiring.ngrok-free.dev
+  # Его достаточно ОДИН раз вставить в @BotFather (Mini App URL).
+  # Токен и домен можно переопределить в .env (NGROK_AUTHTOKEN / NGROK_DOMAIN),
+  # иначе используются значения по умолчанию ниже (репозиторий приватный).
   ngrok:
     image: ngrok/ngrok:latest
-    command: http web:80 --domain=${NGROK_DOMAIN}
+    command: http web:80 --domain=${NGROK_DOMAIN:-pagan-crawling-retiring.ngrok-free.dev}
     environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-3EWS0VQvnjdRR4g3PpcwQ6pub9B_4tZoRGho3RGK8KmgHbZ6n}
     depends_on:
       - web
     restart: unless-stopped
-
-  # ─── (Запасной вариант) Временный туннель Cloudflare ────────────────────
-  # Если ngrok ещё не настроен, можно временно включить этот блок (убрать
-  # комментарии) — он даёт СЛУЧАЙНЫЙ адрес https://xxx.trycloudflare.com,
-  # который меняется при каждом запуске. Тогда блок ngrok выше закомментируй.
-  # cloudflared:
-  #   image: cloudflare/cloudflared:latest
-  #   command: tunnel --no-autoupdate --url http://web:80
-  #   depends_on:
-  #     - web
-  #   restart: unless-stopped
 
 volumes:
   db_data:

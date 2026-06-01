@@ -18,11 +18,11 @@ if errorlevel 1 (
   exit /b 1
 )
 
-REM Читаем постоянный домен ngrok из .env.
-set "NGDOM="
+REM Постоянный домен ngrok (по умолчанию; можно переопределить в .env).
+set "NGDOM=pagan-crawling-retiring.ngrok-free.dev"
 if exist ".env" (
   for /f "usebackq tokens=1,* delims==" %%a in (".env") do (
-    if /i "%%a"=="NGROK_DOMAIN" set "NGDOM=%%b"
+    if /i "%%a"=="NGROK_DOMAIN" if not "%%b"=="" set "NGDOM=%%b"
   )
 )
 
@@ -38,19 +38,12 @@ echo --------------------------------------------
 echo.
 
 echo ============================================
-if defined NGDOM (
-  echo   ПОСТОЯННЫЙ адрес для Telegram (вставь в @BotFather ОДИН раз^):
-  echo.
-  echo        https://%NGDOM%
-  echo.
-  echo   Этот адрес НЕ меняется между запусками.
-) else (
-  echo   [!] В файле .env не задан NGROK_DOMAIN.
-  echo   Добавь в .env строки:
-  echo        NGROK_AUTHTOKEN=твой_токен
-  echo        NGROK_DOMAIN=твой-домен.ngrok-free.app
-  echo   и запусти start.bat снова.
-)
+echo   ПОСТОЯННЫЙ адрес приложения (для Telegram):
+echo.
+echo        https://%NGDOM%
+echo.
+echo   Адрес НЕ меняется. В @BotFather вставляется ОДИН раз:
+echo   /mybots - твой бот - Bot Settings - Menu Button (Mini App URL).
 echo ============================================
 echo.
 echo   Проверка локально (в браузере на ПК): http://localhost:8080
