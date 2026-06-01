@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   Home as HomeIcon,
+  Image as ImageIcon,
   Pencil,
   Search as SearchIcon,
   Send,
@@ -40,7 +41,7 @@ import {
 import { Badge } from "../components/ui";
 import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, SearchParams } from "../types";
 import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
-import { haptic, openLink } from "../telegram";
+import { canShareMessage, haptic, openLink, shareMessage } from "../telegram";
 
 // Загрузка справочника районов (один раз на жизнь экрана).
 function useDistricts(): DictItem[] {
@@ -976,6 +977,24 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     if (r.ok) toast(t("shareAlbumSent"), "ok");
     else toast(errText(r.data, r.status), "err");
   }
+  async function shareDirect() {
+    // Прямая отправка в выбранный чат (нативный выбор получателя Telegram).
+    // Ограничение Telegram: уходит ОДНА (обложечная) фотография + полный текст.
+    if (!canShareMessage()) {
+      toast(t("shareNeedUpdate"), "warn");
+      return;
+    }
+    setBusy(true);
+    const r = await api<{ prepared_message_id: string }>(`/api/v1/apartments/${id}/share-prepare`, { method: "POST" });
+    if (!r.ok || !r.data) {
+      setBusy(false);
+      toast(errText(r.data, r.status), "err");
+      return;
+    }
+    const sent = await shareMessage(r.data.prepared_message_id);
+    setBusy(false);
+    if (sent) toast(t("shareDone"), "ok");
+  }
   async function copyCard() {
     const text = buildShareCard(o!, L, t, settings?.contact_phone);
     const ok = await copyText(text);
@@ -1024,8 +1043,11 @@ export function ObjectDetailScreen({ id }: { id: number }) {
         <Button size="sm" variant="ghost" onClick={copyCard}>
           <Copy size={15} /> {t("shareCard")}
         </Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={shareDirect}>
+          <Send size={15} /> {t("shareToClient")}
+        </Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={share}>
-          <Send size={15} /> {t("shareWithPhotos")}
+          <ImageIcon size={15} /> {t("shareAllPhotos")}
         </Button>
       </div>
 

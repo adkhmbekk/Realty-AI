@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "../store";
 import { api } from "../api";
 import { Card, Empty, Segmented, Spinner } from "../components/ui";
@@ -51,6 +52,16 @@ function ActivityLog({ userId }: { userId: number }) {
 export function AgentDetailScreen({ userId, agentName }: { userId: number; agentName: string }) {
   const { t } = useApp();
   const [tab, setTab] = useState<Tab>("added");
+  // Направление анимации: 1 — листаем вперёд (вправо->влево), -1 — назад.
+  const [dir, setDir] = useState(0);
+
+  function goTab(next: Tab) {
+    const cur = TABS.indexOf(tab);
+    const nx = TABS.indexOf(next);
+    if (nx === cur) return;
+    setDir(nx > cur ? 1 : -1);
+    setTab(next);
+  }
 
   // Переключение вкладок свайпом в любом месте экрана (влево — следующая,
   // вправо — предыдущая). Вертикальные жесты (прокрутка) игнорируем.
@@ -72,17 +83,17 @@ export function AgentDetailScreen({ userId, agentName }: { userId: number; agent
     const next = dx < 0 ? idx + 1 : idx - 1;
     if (next >= 0 && next < TABS.length) {
       haptic();
-      setTab(TABS[next]);
+      goTab(TABS[next]);
     }
   }
 
   return (
-    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="min-h-[70vh]">
+    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="min-h-[70vh] overflow-x-hidden">
       <div className="text-[15px] font-extrabold mb-2 mx-0.5">{agentName}</div>
 
       <Segmented
         value={tab}
-        onChange={(v) => setTab(v)}
+        onChange={(v) => goTab(v)}
         options={[
           { value: "added", label: t("addedObjects") },
           { value: "sold", label: t("soldObjects") },
@@ -90,10 +101,21 @@ export function AgentDetailScreen({ userId, agentName }: { userId: number; agent
         ]}
       />
 
-      <div className="mt-2">
-        {tab === "added" && <ObjectList params={{ created_by: userId, status: "all" }} />}
-        {tab === "sold" && <ObjectList params={{ created_by: userId, status: "sold" }} />}
-        {tab === "activity" && <ActivityLog userId={userId} />}
+      <div className="mt-2 relative">
+        <AnimatePresence mode="wait" custom={dir} initial={false}>
+          <motion.div
+            key={tab}
+            custom={dir}
+            initial={{ opacity: 0, x: dir === 0 ? 0 : dir * 60 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: dir * -60 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            {tab === "added" && <ObjectList params={{ created_by: userId, status: "all" }} />}
+            {tab === "sold" && <ObjectList params={{ created_by: userId, status: "sold" }} />}
+            {tab === "activity" && <ActivityLog userId={userId} />}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );
