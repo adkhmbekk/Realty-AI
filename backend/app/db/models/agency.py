@@ -26,6 +26,11 @@ class Agency(Base):
     subscription_expires_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Когда владельцу в последний раз отправили предупреждение об окончании
+    # подписки (чтобы не дублировать его слишком часто).
+    subscription_warned_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Когда агентству в последний раз предоставили доступ (активация подписки).
     activated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

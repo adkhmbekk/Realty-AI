@@ -10,55 +10,19 @@
 проходят в CI. Изоляция обеспечивается логикой репозиториев (WHERE agency_id=…),
 которая одинакова для SQLite и PostgreSQL.
 """
-import os
-
-os.environ.setdefault("PHOTOS_DIR", "/tmp/realty_test_photos")
-
 import pytest
-from sqlalchemy import BigInteger, create_engine
-from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.core.errors import AppError  # noqa: E402
-from app.db import models  # noqa: F401, E402  — регистрирует все модели
-from app.db.base import Base  # noqa: E402
-from app.db.models.agency import Agency  # noqa: E402
-from app.repositories import (  # noqa: E402
+from app.core.errors import AppError
+from app.db.models.agency import Agency
+from app.repositories import (
     apartment_repo,
     dictionary_repo,
     invite_repo,
     user_repo,
 )
-from app.schemas.apartment import ApartmentCreate  # noqa: E402
-from app.services import apartment_service  # noqa: E402
-from datetime import datetime, timedelta, timezone  # noqa: E402
-
-
-# В SQLite автоинкремент работает только у INTEGER PRIMARY KEY, а наши ключи —
-# BigInteger. Это правило (ТОЛЬКО для диалекта sqlite, т.е. только в тестах)
-# заставляет BigInteger компилироваться как INTEGER. На PostgreSQL не влияет.
-@compiles(BigInteger, "sqlite")
-def _compile_bigint_sqlite(type_, compiler, **kw):  # noqa: ANN001
-    return "INTEGER"
-
-
-@pytest.fixture()
-def db():
-    """Чистая БД SQLite в памяти на каждый тест (общая на все соединения)."""
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    session = Session()
-    try:
-        yield session
-    finally:
-        session.close()
-        engine.dispose()
+from app.schemas.apartment import ApartmentCreate
+from app.services import apartment_service
+from datetime import datetime, timedelta, timezone
 
 
 def _make_agency(db, name: str) -> int:

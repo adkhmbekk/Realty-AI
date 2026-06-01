@@ -28,6 +28,7 @@ from app.db import models  # noqa: F401  — нужен, чтобы модели
 from app.db.migrate import run_migrations
 from app.db.session import SessionLocal, get_db
 from app.repositories import user_repo
+from app.services.scheduler import start_scheduler
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -73,6 +74,8 @@ async def lifespan(app: FastAPI):
         os.makedirs(settings.photos_dir, exist_ok=True)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Не удалось создать папку для фото (%s): %s", settings.photos_dir, exc)
+    # Фоновые задачи по расписанию (предупреждение об окончании подписки).
+    start_scheduler()
     yield
 
 
