@@ -40,7 +40,7 @@ import {
 import { Badge } from "../components/ui";
 import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, SearchParams } from "../types";
 import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
-import { haptic, openLink } from "../telegram";
+import { canShareMessage, haptic, openLink, shareMessage } from "../telegram";
 
 // Загрузка справочника районов (один раз на жизнь экрана).
 function useDistricts(): DictItem[] {
@@ -966,12 +966,21 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     } else toast(errText(r.data, r.status), "err");
   }
   async function share() {
+    if (!canShareMessage()) {
+      toast(t("shareNeedUpdate"), "warn");
+      return;
+    }
     setBusy(true);
     toast(t("shareSending"), "info");
-    const r = await api(`/api/v1/apartments/${id}/share`, { method: "POST" });
+    const r = await api<{ prepared_message_id: string }>(`/api/v1/apartments/${id}/share-prepare`, { method: "POST" });
+    if (!r.ok || !r.data) {
+      setBusy(false);
+      toast(errText(r.data, r.status), "err");
+      return;
+    }
+    const sent = await shareMessage(r.data.prepared_message_id);
     setBusy(false);
-    if (r.ok) toast(t("shareSent"), "ok");
-    else toast(errText(r.data, r.status), "err");
+    if (sent) toast(t("shareDone"), "ok");
   }
   async function copyCard() {
     const text = buildShareCard(o!, L, t, settings?.contact_phone);

@@ -85,9 +85,9 @@ export async function downscaleImage(file: File, maxDim = 1920, quality = 0.82):
 
 
 // Сжать изображение и вернуть data-URL (JPEG) для отправки в JSON.
-// 1920px / q0.85 — хороший баланс между чёткостью и размером (фото остаются
-// качественными, но запрос не слишком тяжёлый и стабильно проходит через туннель).
-export async function downscaleToDataUrl(file: File, maxDim = 1920, quality = 0.85): Promise<string> {
+// 2048px / q0.92 — высокое качество при разумном весе (фото чёткие, но запрос
+// не настолько тяжёлый, чтобы тормозить загрузку через туннель).
+export async function downscaleToDataUrl(file: File, maxDim = 2048, quality = 0.92): Promise<string> {
   try {
     const bitmap = await createImageBitmap(file);
     const { width, height } = bitmap;
