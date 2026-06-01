@@ -68,8 +68,10 @@ services:
   # (https://pagan-crawling-retiring.ngrok-free.dev) — его достаточно один раз
   # прописать в @BotFather как URL Mini App, и он больше не меняется.
   #
-  # Токен и домен вшиты значениями по умолчанию (репозиторий приватный).
-  # При желании их можно переопределить в файле .env, не трогая этот файл.
+  # Домен — не секрет, поэтому он вшит значением по умолчанию.
+  # А вот ТОКЕН ngrok — это секрет, и теперь он берётся ТОЛЬКО из файла .env
+  # (он не попадает в репозиторий). Если .env с токеном нет — запуск остановится
+  # с понятной подсказкой. Как создать .env — см. файл .env.example.
   ngrok:
     image: ngrok/ngrok:latest
     # --request-header-add добавляет к каждому запросу заголовок
@@ -82,7 +84,7 @@ services:
       - "ngrok-skip-browser-warning:true"
       - "web:80"
     environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-3EWS0VQvnjdRR4g3PpcwQ6pub9B_4tZoRGho3RGK8KmgHbZ6n}
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Не задан NGROK_AUTHTOKEN. Создай файл .env рядом с docker-compose.yml и впиши строку NGROK_AUTHTOKEN=твой_токен (подробно в .env.example).}
     ports:
       # Локальная панель ngrok (список запросов, удобно при отладке загрузки
       # фото): открой http://localhost:4040 в браузере.
