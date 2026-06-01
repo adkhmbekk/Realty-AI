@@ -31,16 +31,22 @@ def list_photos(
 
 
 @router.post("/apartments/{apartment_id}/photos", status_code=201)
-async def upload_photos(
+def upload_photos(
     apartment_id: int,
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
-    """Загрузить одно или несколько фото с устройства."""
+    """
+    Загрузить одно или несколько фото с устройства.
+
+    Маршрут СИНХРОННЫЙ — FastAPI выполняет его в пуле потоков и не блокирует
+    основной цикл событий. Тяжёлая обработка фото больше не «подвешивает» весь
+    backend, поэтому другие запросы (например, открытие базы) не упираются в таймаут.
+    """
     blobs = []
     for f in files:
-        data = await f.read()
+        data = f.file.read()  # синхронное чтение уже принятого файла
         blobs.append((data, f.content_type or "image/jpeg"))
     return photo_service.add_blobs(db, current_user.agency_id, apartment_id, blobs)
 
