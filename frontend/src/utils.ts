@@ -82,3 +82,32 @@ export async function downscaleImage(file: File, maxDim = 1920, quality = 0.82):
     return file;
   }
 }
+
+
+// Сжать изображение и вернуть data-URL (JPEG) для отправки в JSON.
+// Сильное уменьшение (1280px, q0.72) делает запрос лёгким и быстрым.
+export async function downscaleToDataUrl(file: File, maxDim = 1280, quality = 0.72): Promise<string> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const { width, height } = bitmap;
+    const scale = Math.min(1, maxDim / Math.max(width, height));
+    const w = Math.max(1, Math.round(width * scale));
+    const h = Math.max(1, Math.round(height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    // Запасной путь: прочитать исходный файл как data-URL.
+    return await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(new Error("read failed"));
+      fr.readAsDataURL(file);
+    });
+  }
+}

@@ -287,3 +287,27 @@ def file_for(db, key: str) -> Optional[Tuple[str, str]]:
     if not os.path.exists(path):
         return None
     return path, photo.content_type
+
+
+
+def decode_data_url(s: str) -> Tuple[bytes, str]:
+    """
+    Декодировать изображение из строки base64 / data-URL.
+    Возвращает (байты, content_type). При ошибке — (b"", "image/jpeg").
+    """
+    import base64
+
+    if not s:
+        return b"", "image/jpeg"
+    ctype = "image/jpeg"
+    payload = s
+    if s.startswith("data:"):
+        header, _, b64 = s.partition(",")
+        payload = b64
+        if ":" in header and ";" in header:
+            ctype = header[header.index(":") + 1 : header.index(";")] or "image/jpeg"
+    try:
+        data = base64.b64decode(payload, validate=False)
+    except Exception:  # noqa: BLE001
+        data = b""
+    return data, ctype
