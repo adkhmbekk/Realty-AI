@@ -39,13 +39,21 @@ function StatTile({
 function BarChart({ data, color }: { data: { label: string; value: number }[]; color: string }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   const n = data.length || 1;
-  const step = n > 12 ? Math.ceil(n / 6) : 1;
+  const showValues = n <= 8; // значения над столбцами — только когда их немного
+  // Подписи по оси X: мало столбцов — показываем все; много — только опорные
+  // (начало / четверти / конец), чтобы не было «каши» и обрезок.
+  const labelIdx: number[] =
+    n <= 8
+      ? data.map((_, i) => i)
+      : Array.from(
+          new Set([0, Math.round(n * 0.25), Math.round(n * 0.5), Math.round(n * 0.75), n - 1])
+        );
   return (
-    <div className="overflow-x-auto -mx-1 px-1">
-      <div className="flex items-end gap-1 h-40" style={{ minWidth: Math.max(0, n * 16) }}>
+    <div>
+      <div className="flex items-end gap-[3px] h-40">
         {data.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center justify-end h-full min-w-[10px]">
-            <div className="text-[9px] text-muted mb-0.5 h-3 leading-none">{d.value || ""}</div>
+          <div key={i} className="flex-1 flex flex-col items-center justify-end h-full min-w-[3px]">
+            {showValues && <div className="text-[9px] text-muted mb-0.5 h-3 leading-none">{d.value || ""}</div>}
             <div
               className="w-full rounded-t-md transition-all"
               style={{
@@ -58,11 +66,11 @@ function BarChart({ data, color }: { data: { label: string; value: number }[]; c
           </div>
         ))}
       </div>
-      <div className="flex gap-1 mt-1.5" style={{ minWidth: Math.max(0, n * 16) }}>
-        {data.map((d, i) => (
-          <div key={i} className="flex-1 text-center text-[9px] text-muted min-w-[10px] whitespace-nowrap overflow-hidden">
-            {i % step === 0 ? d.label : ""}
-          </div>
+      <div className="flex justify-between mt-1.5 text-[10px] text-muted">
+        {labelIdx.map((i) => (
+          <span key={i} className="whitespace-nowrap">
+            {data[i]?.label}
+          </span>
         ))}
       </div>
     </div>

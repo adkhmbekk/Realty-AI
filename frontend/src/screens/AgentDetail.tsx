@@ -1,10 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../store";
 import { api } from "../api";
 import { Card, Empty, Segmented, Spinner } from "../components/ui";
 import { fmtDate } from "../utils";
+import { haptic } from "../telegram";
 import { ObjectList } from "./Apartments";
 import type { AgentEvent } from "../types";
+
+const TABS = ["added", "sold", "activity"] as const;
+type Tab = (typeof TABS)[number];
 
 const ACTION_KEY: Record<string, string> = {
   created: "evCreated",
@@ -46,10 +50,34 @@ function ActivityLog({ userId }: { userId: number }) {
 
 export function AgentDetailScreen({ userId, agentName }: { userId: number; agentName: string }) {
   const { t } = useApp();
-  const [tab, setTab] = useState<"added" | "sold" | "activity">("added");
+  const [tab, setTab] = useState<Tab>("added");
+
+  // Переключение вкладок свайпом в любом месте экрана (влево — следующая,
+  // вправо — предыдущая). Вертикальные жесты (прокрутка) игнорируем.
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  function onTouchStart(e: React.TouchEvent) {
+    const p = e.touches[0];
+    touch.current = { x: p.clientX, y: p.clientY };
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    const s = touch.current;
+    touch.current = null;
+    if (!s) return;
+    const p = e.changedTouches[0];
+    const dx = p.clientX - s.x;
+    const dy = p.clientY - s.y;
+    // Свайп засчитываем, только если он явно горизонтальный и заметный.
+    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+    const idx = TABS.indexOf(tab);
+    const next = dx < 0 ? idx + 1 : idx - 1;
+    if (next >= 0 && next < TABS.length) {
+      haptic();
+      setTab(TABS[next]);
+    }
+  }
 
   return (
-    <div>
+    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="min-h-[70vh]">
       <div className="text-[15px] font-extrabold mb-2 mx-0.5">{agentName}</div>
 
       <Segmented
