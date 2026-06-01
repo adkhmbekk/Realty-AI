@@ -1,7 +1,6 @@
 """
 Схемы для гибких справочников агентства (районы, типы и т.д.).
 """
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator

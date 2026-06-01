@@ -1,0 +1,64 @@
+# Авто-проверки кода. Запускаются автоматически на каждый Pull Request в main
+# (и при пуше в main). Если проверка «красная» — значит в коде есть проблема,
+# которую лучше починить до слияния. Ничего настраивать не нужно: GitHub
+# выполняет это сам в облаке.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  # ─── Проверка бэкенда (Python): линтер + быстрые тесты ──────────────────
+  backend:
+    name: Backend (lint + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff pytest
+
+      - name: Lint (ruff)
+        run: ruff check app tests
+
+      - name: Run tests
+        env:
+          PHOTOS_DIR: /tmp/realty_test_photos
+        run: pytest -q
+
+  # ─── Проверка фронтенда (React): типизация + сборка ─────────────────────
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (tsc + vite)
+        run: npm run build
