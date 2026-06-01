@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Building2, Database, Home, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
 import { NavProvider, Route, useNav } from "./nav";
-import { api, errText } from "./api";
+import { api, errText, setReauthHandler } from "./api";
 import { tg, tgReady, getInitData, getStartParam } from "./telegram";
 import type { AuthResponse, AgencySettings } from "./types";
 import { Button, Card, Field, Input, Spinner } from "./components/ui";
@@ -360,6 +360,28 @@ export function App() {
     const initData = getInitData();
     const sp = getStartParam();
     setStartParam(sp);
+
+    // Тихий перелогин: если пропуск истечёт во время работы, API-клиент сам
+    // запросит новый через Telegram и повторит запрос (см. api.ts). Прямой
+    // fetch (без обёртки api) — чтобы не было зацикливания на 401.
+    setReauthHandler(async () => {
+      const fresh = getInitData();
+      if (!fresh) return null;
+      try {
+        const res = await fetch("/api/v1/auth/telegram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: fresh }),
+        });
+        if (!res.ok) return null;
+        const data: AuthResponse = await res.json();
+        setAuth(data.access_token, data.user, data.subscription_active ?? null);
+        return data.access_token;
+      } catch {
+        return null;
+      }
+    });
+
     if (!initData) {
       setPhase("open");
       return;

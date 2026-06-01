@@ -12,6 +12,7 @@
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -26,11 +27,49 @@ class InitDataError(Exception):
     """Данные входа от Telegram не прошли проверку."""
 
 
-# Секрет для подписи JWT. Если не задан в настройках — генерируем случайный.
-# (При перезапуске сервиса он сменится, и старые токены станут недействительны —
-#  для локальной разработки это нормально.)
-_JWT_SECRET = settings.jwt_secret or secrets.token_urlsafe(32)
 _JWT_ALGORITHM = "HS256"
+
+
+def _resolve_jwt_secret() -> str:
+    """
+    Определить секрет для подписи пропусков (JWT).
+
+    Порядок выбора:
+      1) если JWT_SECRET задан в настройках/.env — используем его;
+      2) иначе берём ранее сохранённый секрет из файла на постоянном диске
+         (Docker-том с фотографиями). Благодаря этому секрет НЕ меняется
+         между перезапусками, и пользователей больше не «выкидывает» после
+         каждого рестарта сервиса;
+      3) если такого файла ещё нет — создаём новый секрет и сохраняем его туда.
+
+    Секрет наружу не попадает: файл лежит на томе и не отдаётся через веб
+    (эндпоинт фотографий отдаёт только то, что есть в базе данных).
+    """
+    if settings.jwt_secret:
+        return settings.jwt_secret
+    try:
+        os.makedirs(settings.photos_dir, exist_ok=True)
+        secret_file = os.path.join(settings.photos_dir, ".app_jwt_secret")
+        if os.path.exists(secret_file):
+            with open(secret_file, "r", encoding="utf-8") as fh:
+                saved = fh.read().strip()
+            if saved:
+                return saved
+        generated = secrets.token_urlsafe(48)
+        with open(secret_file, "w", encoding="utf-8") as fh:
+            fh.write(generated)
+        try:
+            os.chmod(secret_file, 0o600)
+        except OSError:
+            pass
+        return generated
+    except Exception:  # noqa: BLE001
+        # Крайний случай (нет доступа к диску) — временный секрет на сессию.
+        return secrets.token_urlsafe(48)
+
+
+# Секрет для подписи JWT (стабильный между перезапусками — см. функцию выше).
+_JWT_SECRET = _resolve_jwt_secret()
 
 
 # ─── Проверка данных Telegram (initData) ────────────────────────────────────

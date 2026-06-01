@@ -12,22 +12,58 @@ export function setTokenGetter(fn: () => string | null) {
   tokenGetter = fn;
 }
 
+// Обработчик «тихого перелогина». Когда пропуск истёк (сервер отвечает 401),
+// мы один раз пытаемся получить свежий пропуск через Telegram и повторить
+// запрос — пользователь даже не замечает, что срок действия закончился.
+let reauthHandler: () => Promise<string | null> = async () => null;
+
+export function setReauthHandler(fn: () => Promise<string | null>) {
+  reauthHandler = fn;
+}
+
+// Чтобы при пачке одновременных 401 не дёргать вход много раз — объединяем
+// параллельные попытки перелогина в одну.
+let reauthInFlight: Promise<string | null> | null = null;
+
+function tryReauth(): Promise<string | null> {
+  if (!reauthInFlight) {
+    reauthInFlight = reauthHandler().finally(() => {
+      reauthInFlight = null;
+    });
+  }
+  return reauthInFlight;
+}
+
 export async function api<T = any>(
   path: string,
   opts: { method?: string; body?: unknown } = {}
 ): Promise<ApiResult<T>> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const token = tokenGetter();
-  if (token) headers["Authorization"] = "Bearer " + token;
-  let res: Response;
-  try {
-    res = await fetch(path, {
+  const doFetch = (token: string | null): Promise<Response> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch(path, {
       method: opts.method || "GET",
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });
+  };
+
+  let res: Response;
+  try {
+    res = await doFetch(tokenGetter());
   } catch {
     return { ok: false, status: 0, data: null };
+  }
+  // Пропуск истёк — один раз пробуем тихо перелогиниться и повторить запрос.
+  if (res.status === 401) {
+    const fresh = await tryReauth();
+    if (fresh) {
+      try {
+        res = await doFetch(fresh);
+      } catch {
+        return { ok: false, status: 0, data: null };
+      }
+    }
   }
   let data: any = null;
   try {
@@ -48,14 +84,26 @@ export function errText(data: any, status: number, fallback = "—"): string {
 
 // Загрузка файлов (multipart/form-data). Content-Type выставляет браузер сам.
 export async function apiUpload<T = any>(path: string, formData: FormData): Promise<ApiResult<T>> {
-  const headers: Record<string, string> = {};
-  const token = tokenGetter();
-  if (token) headers["Authorization"] = "Bearer " + token;
+  const doFetch = (token: string | null): Promise<Response> => {
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch(path, { method: "POST", headers, body: formData });
+  };
   let res: Response;
   try {
-    res = await fetch(path, { method: "POST", headers, body: formData });
+    res = await doFetch(tokenGetter());
   } catch {
     return { ok: false, status: 0, data: null };
+  }
+  if (res.status === 401) {
+    const fresh = await tryReauth();
+    if (fresh) {
+      try {
+        res = await doFetch(fresh);
+      } catch {
+        return { ok: false, status: 0, data: null };
+      }
+    }
   }
   let data: any = null;
   try {
