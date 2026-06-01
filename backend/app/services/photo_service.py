@@ -100,7 +100,7 @@ def _path(key: str) -> str:
 
 
 # Максимальный размер стороны изображения после сжатия (px).
-MAX_DIM = 1920
+MAX_DIM = 2048
 
 
 def _process_image(data: bytes, content_type: str):
@@ -128,7 +128,7 @@ def _process_image(data: bytes, content_type: str):
         if has_alpha:
             img.convert("RGBA").save(out, format="PNG", optimize=True)
             return out.getvalue(), "image/png"
-        img.convert("RGB").save(out, format="JPEG", quality=88, optimize=True)
+        img.convert("RGB").save(out, format="JPEG", quality=92, optimize=True)
         return out.getvalue(), "image/jpeg"
     except Exception:  # noqa: BLE001
         return data, content_type

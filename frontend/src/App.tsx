@@ -13,6 +13,7 @@ import { SettingsScreen } from "./screens/Settings";
 import { TeamScreen } from "./screens/Team";
 import { InvitesScreen } from "./screens/Invites";
 import { AnalyticsScreen } from "./screens/Analytics";
+import { AgentDetailScreen } from "./screens/AgentDetail";
 import { AgenciesScreen, AgencyCreateScreen, AgencyManageScreen } from "./screens/Superadmin";
 import {
   AddObjectScreen,
@@ -83,6 +84,8 @@ function titleKeyFor(route: Route): string | null {
       return "invites";
     case "analytics":
       return "analytics";
+    case "agentDetail":
+      return route.agentName;
   }
 }
 
@@ -116,6 +119,8 @@ function RouteView({ route }: { route: Route }) {
       return <InvitesScreen />;
     case "analytics":
       return <AnalyticsScreen />;
+    case "agentDetail":
+      return <AgentDetailScreen userId={route.userId} agentName={route.agentName} />;
   }
 }
 

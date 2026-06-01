@@ -120,15 +120,15 @@ export function HomeScreen() {
   const settings = { icon: <SettingsIcon size={21} />, label: t("settings"), route: { name: "settings" } as Route };
   const analytics = { icon: <BarChart3 size={21} />, label: t("analytics"), route: { name: "analytics" } as Route };
 
-  // Быстрые действия НЕ дублируют нижнюю панель.
-  // Главный админ: аналитика, команда, приглашения, настройки.
-  // Обычный админ: добавить, найти, команда, настройки.
-  // Агент: добавить, найти, настройки.
+  // Быстрые действия НЕ дублируют нижнюю панель (там уже есть «Добавить» и «Найти»).
+  // Главный админ: аналитика, команда, приглашения, настройки (4).
+  // Обычный админ: аналитика, команда, настройки (3).
+  // Агент: добавить, найти, настройки (3).
   let actions: { icon: React.ReactNode; label: string; route: Route }[];
   if (role === "agency_admin" && user?.is_owner) {
     actions = [analytics, team, invites, settings];
   } else if (role === "agency_admin") {
-    actions = [add, search, team, settings];
+    actions = [analytics, team, settings];
   } else {
     actions = [add, search, settings];
   }

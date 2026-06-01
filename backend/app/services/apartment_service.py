@@ -13,13 +13,16 @@
 Изоляция по агентству обеспечивается тем, что все вызовы репозитория получают
 agency_id текущего пользователя (а сам agency_id берётся из сессии, не с фронта).
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional, Sequence, Tuple
+
+import secrets
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.core.defaults import DEFAULT_AGENT_CODE, DEFAULT_AGENT_NAME
 from app.db.models.apartment import Apartment
 from app.repositories import (
@@ -161,6 +164,10 @@ def _notify_new_apartment(db: Session, agency_id: int, apartment: Apartment, cre
     try:
         if not telegram_service.is_configured():
             return
+        agency = agency_repo.get_by_id(db, agency_id)
+        # Уведомления отключены в настройках агентства — ничего не делаем.
+        if agency is None or not getattr(agency, "notify_new_objects", False):
+            return
         recipients = []
         creator_name = None
         for u in user_repo.get_by_agency(db, agency_id):
@@ -217,6 +224,7 @@ def search_apartments(
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
+    created_by: Optional[int] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> Tuple[list, int]:
@@ -235,6 +243,7 @@ def search_apartments(
         q=q,
         rooms_min=rooms_min,
         rooms_max=rooms_max,
+        created_by=created_by,
         limit=limit,
         offset=offset,
     )
@@ -551,3 +560,121 @@ def send_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
             detail="Не удалось отправить. Откройте чат с ботом, нажмите «Старт» и повторите.",
         )
     return {"ok": True, "photos": len(blobs)}
+
+
+
+# Доступные периоды для графиков: (гранулярность, сколько корзин).
+_PERIODS = {
+    "week": ("day", 7),
+    "month": ("day", 30),
+    "halfyear": ("month", 6),
+    "year": ("month", 12),
+}
+
+
+def _bucket_starts(granularity: str, count: int):
+    """Список начал корзин (дат) от старой к новой, включая текущую."""
+    today = datetime.now(timezone.utc).date()
+    starts = []
+    if granularity == "day":
+        for i in range(count - 1, -1, -1):
+            starts.append(today - timedelta(days=i))
+    else:  # month
+        y, m = today.year, today.month
+        for i in range(count - 1, -1, -1):
+            mm = m - i
+            yy = y
+            while mm <= 0:
+                mm += 12
+                yy -= 1
+            starts.append(datetime(yy, mm, 1, tzinfo=timezone.utc).date())
+    return starts
+
+
+_MONTHS_RU = ["", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+
+
+def _bucket_label(granularity: str, d) -> str:
+    if granularity == "day":
+        return f"{d.day:02d}.{d.month:02d}"
+    return f"{_MONTHS_RU[d.month]} {str(d.year)[2:]}"
+
+
+def get_timeseries(db: Session, agency_id: int, period: str) -> dict:
+    """Данные для графика «добавлено/продано» по периодам."""
+    granularity, count = _PERIODS.get(period, _PERIODS["month"])
+    starts = _bucket_starts(granularity, count)
+    since = datetime(
+        starts[0].year, starts[0].month, starts[0].day, tzinfo=timezone.utc
+    )
+    created_map, sold_map = apartment_repo.timeseries_counts(db, agency_id, since, granularity)
+    buckets = [
+        {
+            "label": _bucket_label(granularity, d),
+            "added": created_map.get(d, 0),
+            "sold": sold_map.get(d, 0),
+        }
+        for d in starts
+    ]
+    return {"period": period, "buckets": buckets}
+
+
+def get_agent_activity(db: Session, agency_id: int, user_id: int) -> list:
+    """Последние действия сотрудника (для разбора активности)."""
+    rows = apartment_event_repo.list_for_agency_user(db, agency_id, user_id, limit=30)
+    return [
+        {
+            "display_id": display_id,
+            "action": event.action,
+            "note": event.note,
+            "created_at": event.created_at,
+        }
+        for event, display_id in rows
+    ]
+
+
+def prepare_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
+    """
+    Подготовить сообщение для отправки НАПРЯМУЮ в выбранный пользователем чат
+    (Telegram.WebApp.shareMessage). Возвращает prepared_message_id.
+
+    Из-за ограничений Telegram прямое сообщение содержит одну (обложечную)
+    фотографию и полную текстовую карточку в подписи. Если фото нет — уходит
+    только текст.
+    """
+    if not telegram_service.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Отправка недоступна: не настроен токен бота.",
+        )
+    card = build_share_card(db, agency_id, apartment_id)
+    caption = card["share_text"]
+    cover = card.get("photo_url")
+    result_id = secrets.token_hex(8)
+
+    if cover:
+        photo_url = settings.public_base_url.rstrip("/") + cover
+        result = {
+            "type": "photo",
+            "id": result_id,
+            "photo_url": photo_url,
+            "thumbnail_url": photo_url,
+            "caption": caption[:1024],
+        }
+    else:
+        title = card.get("name") or f"Объект №{card.get('display_id')}"
+        result = {
+            "type": "article",
+            "id": result_id,
+            "title": title,
+            "description": caption[:120],
+            "input_message_content": {"message_text": caption[:4096]},
+        }
+
+    prepared_id = telegram_service.save_prepared_inline_message(user.telegram_id, result)
+    if not prepared_id:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Не удалось подготовить отправку. Попробуйте ещё раз.",
+        )
+    return {"prepared_message_id": prepared_id}

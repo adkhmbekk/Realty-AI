@@ -69,3 +69,23 @@ def test_telegram_multipart_structure():
     assert b'name="chat_id"' in body
     assert b'name="photo0"; filename="photo0.jpg"' in body
     assert b"binarydata" in body
+
+
+
+# ─── Хелперы графиков аналитики (без сети/БД) ────────────────────────────
+import datetime as _dt  # noqa: E402
+
+from app.services import apartment_service as _aptsvc  # noqa: E402
+
+
+def test_bucket_starts_counts():
+    assert len(_aptsvc._bucket_starts("day", 7)) == 7
+    assert len(_aptsvc._bucket_starts("month", 6)) == 6
+    # Корзины идут по возрастанию (старые -> новые).
+    days = _aptsvc._bucket_starts("day", 5)
+    assert days == sorted(days)
+
+
+def test_bucket_label_formats():
+    assert _aptsvc._bucket_label("day", _dt.date(2026, 6, 1)) == "01.06"
+    assert _aptsvc._bucket_label("month", _dt.date(2026, 6, 1)) == "июн 26"

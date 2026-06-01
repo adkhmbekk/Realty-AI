@@ -86,6 +86,12 @@ export const I18N: Record<Lang, Record<string, string>> = {
     agentsActivity: "Активность сотрудников", colAdded: "Добавлено", colSold: "Продано", noAnalytics: "Пока нет данных для аналитики.",
     shareWithPhotos: "Отправить с фото", shareSending: "Отправляем…", shareSent: "Объект с фото отправлен вам в чат с ботом — перешлите его клиенту.",
     dupFound: "Похожие объекты уже есть:", dupAsk: "Всё равно добавить?",
+    dynamics: "Динамика", perWeek: "Неделя", perMonth: "Месяц", perHalfYear: "Полгода", perYear: "Год",
+    addedObjects: "Добавленные", soldObjects: "Проданные", recentActivity: "Последние действия", noActivity: "Действий пока нет.",
+    evCreated: "добавил объект", evUpdated: "изменил объект", evStatusChanged: "сменил статус",
+    shareDone: "Отправлено!", shareNeedUpdate: "Обновите Telegram, чтобы отправлять напрямую.",
+    notifyNewObjects: "Уведомления о новых объектах", notifyOn: "Вкл", notifyOff: "Выкл",
+    notifyNewObjectsHint: "Если включено — бот пишет руководителям о каждом новом объекте. По умолчанию выключено, чтобы не засорять чат.",
   },
   uz: {
     back: "Orqaga", save: "Saqlash", saveChanges: "Oʻzgarishlarni saqlash", cancel: "Bekor qilish",
@@ -169,6 +175,12 @@ export const I18N: Record<Lang, Record<string, string>> = {
     agentsActivity: "Xodimlar faolligi", colAdded: "Qoʻshgan", colSold: "Sotgan", noAnalytics: "Hozircha tahlil uchun maʼlumot yoʻq.",
     shareWithPhotos: "Foto bilan yuborish", shareSending: "Yuborilmoqda…", shareSent: "Obyekt foto bilan bot chatingizga yuborildi — uni mijozga yoʻllang.",
     dupFound: "Shunga oʻxshash obyektlar bor:", dupAsk: "Baribir qoʻshilsinmi?",
+    dynamics: "Dinamika", perWeek: "Hafta", perMonth: "Oy", perHalfYear: "Yarim yil", perYear: "Yil",
+    addedObjects: "Qoʻshilganlar", soldObjects: "Sotilganlar", recentActivity: "Soʻnggi amallar", noActivity: "Hozircha amallar yoʻq.",
+    evCreated: "obyekt qoʻshdi", evUpdated: "obyektni oʻzgartirdi", evStatusChanged: "holatni oʻzgartirdi",
+    shareDone: "Yuborildi!", shareNeedUpdate: "Toʻgʻridan-toʻgʻri yuborish uchun Telegramni yangilang.",
+    notifyNewObjects: "Yangi obyektlar haqida bildirishnoma", notifyOn: "Yoq", notifyOff: "Oʻchiq",
+    notifyNewObjectsHint: "Yoqilsa — bot rahbarlarga har bir yangi obyekt haqida yozadi. Standart holatda oʻchiq.",
   },
   en: {
     back: "Back", save: "Save", saveChanges: "Save changes", cancel: "Cancel",
@@ -252,6 +264,12 @@ export const I18N: Record<Lang, Record<string, string>> = {
     agentsActivity: "Team activity", colAdded: "Added", colSold: "Sold", noAnalytics: "No analytics data yet.",
     shareWithPhotos: "Send with photos", shareSending: "Sending…", shareSent: "The property with photos was sent to your bot chat — forward it to the client.",
     dupFound: "Similar properties already exist:", dupAsk: "Add anyway?",
+    dynamics: "Dynamics", perWeek: "Week", perMonth: "Month", perHalfYear: "6 months", perYear: "Year",
+    addedObjects: "Added", soldObjects: "Sold", recentActivity: "Recent activity", noActivity: "No activity yet.",
+    evCreated: "added a property", evUpdated: "edited a property", evStatusChanged: "changed status",
+    shareDone: "Sent!", shareNeedUpdate: "Update Telegram to share directly.",
+    notifyNewObjects: "New-object notifications", notifyOn: "On", notifyOff: "Off",
+    notifyNewObjectsHint: "When on, the bot messages managers about each new property. Off by default to avoid clutter.",
   },
 };
 

@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # Монтируется на Docker-том, чтобы фото не пропадали между перезапусками.
     photos_dir: str = "/data/photos"
 
+    # Публичный HTTPS-адрес приложения (тот же, что у туннеля ngrok). Нужен,
+    # чтобы при «поделиться» Telegram мог забрать фото по абсолютной ссылке.
+    public_base_url: str = "https://pagan-crawling-retiring.ngrok-free.dev"
+
     @field_validator("bot_token", "jwt_secret", "bot_username", mode="before")
     @classmethod
     def _empty_string_to_none(cls, value):

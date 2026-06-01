@@ -48,6 +48,29 @@ def list_for_apartment(
     )
 
 
+def list_for_agency_user(
+    db: Session, agency_id: int, user_id: int, limit: int = 30
+):
+    """
+    Последние действия конкретного сотрудника по всему агентству.
+    Возвращает список пар (событие, display_id_объекта) — для разбора активности.
+    """
+    from app.db.models.apartment import Apartment
+
+    return list(
+        db.execute(
+            select(ApartmentEvent, Apartment.display_id)
+            .join(Apartment, Apartment.id == ApartmentEvent.apartment_id)
+            .where(
+                ApartmentEvent.agency_id == agency_id,
+                ApartmentEvent.user_id == user_id,
+            )
+            .order_by(ApartmentEvent.created_at.desc(), ApartmentEvent.id.desc())
+            .limit(limit)
+        ).all()
+    )
+
+
 def delete_for_apartment(db: Session, apartment_id: int) -> None:
     db.execute(
         sa_delete(ApartmentEvent).where(ApartmentEvent.apartment_id == apartment_id)

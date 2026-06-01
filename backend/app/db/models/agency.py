@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -35,6 +35,11 @@ class Agency(Base):
     # Контактный телефон агентства (номер главного админа). Подставляется
     # вместо номера собственника, когда сотрудник делится объектом с клиентом.
     contact_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Слать ли руководителям уведомление бота при добавлении нового объекта.
+    # По умолчанию выключено, чтобы не засорять чат при большой команде.
+    notify_new_objects: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     # telegram_id суперадмина, который создал агентство.
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

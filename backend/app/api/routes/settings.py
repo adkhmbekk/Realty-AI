@@ -41,4 +41,5 @@ def update_settings(
         timezone_value=body.timezone,
         default_currency=body.default_currency,
         contact_phone=body.contact_phone,
+        notify_new_objects=body.notify_new_objects,
     )

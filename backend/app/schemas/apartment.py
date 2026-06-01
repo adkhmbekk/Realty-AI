@@ -203,3 +203,28 @@ class ShareResultOut(BaseModel):
     # Результат отправки объекта через бота.
     ok: bool
     photos: int
+
+
+
+class TimeseriesPointOut(BaseModel):
+    label: str
+    added: int
+    sold: int
+
+
+class TimeseriesOut(BaseModel):
+    period: str
+    buckets: List[TimeseriesPointOut]
+
+
+class AgentEventOut(BaseModel):
+    # Одно действие сотрудника (для журнала активности).
+    display_id: str
+    action: str
+    note: Optional[str] = None
+    created_at: datetime
+
+
+class SharePrepareOut(BaseModel):
+    # id подготовленного сообщения для Telegram.WebApp.shareMessage.
+    prepared_message_id: str

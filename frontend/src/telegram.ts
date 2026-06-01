@@ -82,3 +82,29 @@ export function shareToTelegram(text: string) {
   const link = "https://t.me/share/url?url=&text=" + encodeURIComponent(text);
   openTelegramLink(link);
 }
+
+
+// Доступна ли нативная отправка подготовленного сообщения (Telegram 8.0+).
+export function canShareMessage(): boolean {
+  try {
+    return typeof tg?.shareMessage === "function";
+  } catch {
+    return false;
+  }
+}
+
+// Отправить подготовленное сообщение (prepared_message_id) в выбранный
+// пользователем чат. Возвращает Promise<boolean> — было ли отправлено.
+export function shareMessage(preparedId: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      if (typeof tg?.shareMessage !== "function") {
+        resolve(false);
+        return;
+      }
+      tg.shareMessage(preparedId, (sent: boolean) => resolve(!!sent));
+    } catch {
+      resolve(false);
+    }
+  });
+}

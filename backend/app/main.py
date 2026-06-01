@@ -85,6 +85,8 @@ def ensure_schema_upgrades() -> None:
         "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ",
         # Контактный номер агентства (подставляется при «поделиться»).
         "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS contact_phone VARCHAR",
+        # Тумблер уведомлений о новых объектах.
+        "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS notify_new_objects BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT FALSE",
         # Новые поля объекта недвижимости.
         "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS owner_phone TEXT",

@@ -86,6 +86,24 @@ export interface ApartmentAnalytics {
   agents: AgentActivity[];
 }
 
+export interface TimeseriesPoint {
+  label: string;
+  added: number;
+  sold: number;
+}
+
+export interface Timeseries {
+  period: string;
+  buckets: TimeseriesPoint[];
+}
+
+export interface AgentEvent {
+  display_id: string;
+  action: string;
+  note?: string | null;
+  created_at: string;
+}
+
 export interface AgencyOut {
   id: number;
   name: string;
@@ -107,6 +125,7 @@ export interface AgencySettings {
   timezone: string;
   default_currency: string;
   contact_phone?: string | null;
+  notify_new_objects?: boolean;
 }
 
 export interface Member {
@@ -155,6 +174,7 @@ export interface SearchParams {
   floor_max?: string | number;
   price_min?: string | number;
   price_max?: string | number;
+  created_by?: string | number;
   q?: string;
   [k: string]: unknown;
 }
