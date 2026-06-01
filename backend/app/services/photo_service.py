@@ -22,9 +22,10 @@ import urllib.request
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
-from fastapi import HTTPException, status
+from fastapi import status
 
 from app.config import settings
+from app.core.errors import AppError
 from app.repositories import apartment_photo_repo, apartment_repo
 
 MAX_PHOTOS = 20
@@ -54,23 +55,14 @@ def _assert_public_url(url: str) -> None:
     """
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Поддерживаются только ссылки http/https.",
-        )
+        raise AppError("only_http_links", status.HTTP_400_BAD_REQUEST)
     host = parsed.hostname
     if not host:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Некорректная ссылка.",
-        )
+        raise AppError("invalid_link", status.HTTP_400_BAD_REQUEST)
     try:
         infos = socket.getaddrinfo(host, None)
     except Exception:  # noqa: BLE001
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не удалось определить адрес ссылки.",
-        )
+        raise AppError("link_host_unresolved", status.HTTP_400_BAD_REQUEST)
     for info in infos:
         ip_str = info[4][0]
         try:
@@ -85,10 +77,7 @@ def _assert_public_url(url: str) -> None:
             or addr.is_multicast
             or addr.is_unspecified
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ссылка ведёт во внутреннюю сеть и заблокирована.",
-            )
+            raise AppError("link_internal_blocked", status.HTTP_400_BAD_REQUEST)
 
 
 def _ensure_dir() -> None:
@@ -145,7 +134,7 @@ def to_out(photo) -> dict:
 def _require_apartment(db, agency_id: int, apartment_id: int):
     apt = apartment_repo.get_by_id(db, agency_id, apartment_id)
     if apt is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Объект не найден.")
+        raise AppError("apartment_not_found", status.HTTP_404_NOT_FOUND)
     return apt
 
 
@@ -189,24 +178,19 @@ def add_blobs(
         if not data:
             continue
         if len(data) > MAX_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Фото больше {MAX_BYTES // (1024 * 1024)} МБ — слишком большое.",
+            raise AppError(
+                "photo_too_large_mb",
+                status.HTTP_400_BAD_REQUEST,
+                mb=MAX_BYTES // (1024 * 1024),
             )
         if ctype and not ctype.startswith("image/"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Можно загружать только изображения.",
-            )
+            raise AppError("only_images", status.HTTP_400_BAD_REQUEST)
         _save_one(db, agency_id, apartment_id, data, ctype or "image/jpeg", order)
         order += 1
         saved += 1
 
     if saved == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Нет фото для загрузки или достигнут лимит.",
-        )
+        raise AppError("no_photos_or_limit", status.HTTP_400_BAD_REQUEST)
     _sync_cover(db, agency_id, apartment_id)
     db.commit()
     return [to_out(p) for p in apartment_photo_repo.list_for(db, agency_id, apartment_id)]
@@ -219,7 +203,7 @@ def _fetch(url: str, max_bytes: int) -> Tuple[bytes, str]:
         data = resp.read(max_bytes + 1)
         ctype = resp.headers.get("Content-Type", "") or ""
     if len(data) > max_bytes:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Файл слишком большой.")
+        raise AppError("file_too_large", status.HTTP_400_BAD_REQUEST)
     return data, ctype
 
 
@@ -254,34 +238,25 @@ def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) -> Lis
     _require_apartment(db, agency_id, apartment_id)
     url = (url or "").strip()
     if not url:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пустая ссылка.")
+        raise AppError("empty_link", status.HTTP_400_BAD_REQUEST)
 
     # Нормализуем ссылку и берём «встраиваемую» версию поста (там видны фото).
     base = url.split("#")[0].split("?")[0]
     if not _is_telegram_url(base):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Импорт работает только со ссылками Telegram (t.me/<канал>/<номер>).",
-        )
+        raise AppError("import_only_telegram", status.HTTP_400_BAD_REQUEST)
     fetch_url = base + "?embed=1&mode=tme"
 
     try:
         page, _ = _fetch(fetch_url, MAX_HTML_BYTES)
         page_html = page.decode("utf-8", errors="ignore")
-    except HTTPException:
+    except AppError:
         raise
     except Exception:  # noqa: BLE001
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не удалось открыть ссылку. Проверьте, что канал открытый.",
-        )
+        raise AppError("link_open_failed", status.HTTP_400_BAD_REQUEST)
 
     image_urls = _extract_image_urls(page_html)
     if not image_urls:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="По ссылке не найдено фотографий. Убедитесь, что в посте есть фото и канал открытый.",
-        )
+        raise AppError("no_photos_in_post", status.HTTP_400_BAD_REQUEST)
 
     existing = apartment_photo_repo.count_for(db, agency_id, apartment_id)
     order = apartment_photo_repo.max_sort_order(db, agency_id, apartment_id) + 1
@@ -304,10 +279,7 @@ def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) -> Lis
         saved += 1
 
     if saved == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не удалось загрузить фото по ссылке.",
-        )
+        raise AppError("photo_download_failed", status.HTTP_400_BAD_REQUEST)
     _sync_cover(db, agency_id, apartment_id)
     db.commit()
     return [to_out(p) for p in apartment_photo_repo.list_for(db, agency_id, apartment_id)]
@@ -316,7 +288,7 @@ def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) -> Lis
 def delete_photo(db, agency_id: int, apartment_id: int, photo_id: int) -> None:
     photo = apartment_photo_repo.get(db, agency_id, apartment_id, photo_id)
     if photo is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Фото не найдено.")
+        raise AppError("photo_not_found", status.HTTP_404_NOT_FOUND)
     key = photo.storage_key
     apartment_photo_repo.delete(db, photo)
     db.flush()

@@ -6,9 +6,10 @@
 """
 from typing import List
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppError
 from app.db.models.agent import Agent
 from app.repositories import agent_repo
 from app.schemas.agent import AgentCreate, AgentUpdate
@@ -22,9 +23,8 @@ def create_agent(db: Session, agency_id: int, payload: AgentCreate) -> Agent:
     # Код агента должен быть уникален в пределах агентства.
     existing = agent_repo.get_by_code(db, agency_id, payload.code)
     if existing is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Агент с кодом «{payload.code}» уже существует в этом агентстве.",
+        raise AppError(
+            "agent_code_exists", status.HTTP_409_CONFLICT, code=payload.code
         )
     agent = agent_repo.create(db, agency_id, name=payload.name, code=payload.code)
     db.commit()
@@ -37,9 +37,7 @@ def update_agent(
 ) -> Agent:
     agent = agent_repo.get_by_id(db, agency_id, agent_id)
     if agent is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Агент не найден."
-        )
+        raise AppError("agent_not_found", status.HTTP_404_NOT_FOUND)
     # Меняем только переданные поля (код не меняем — он влияет на уже выданные ID).
     if payload.name is not None:
         agent.name = payload.name

@@ -53,14 +53,14 @@ class _ApartmentBase(BaseModel):
     @classmethod
     def _non_negative_int(cls, value: Optional[int]) -> Optional[int]:
         if value is not None and value < 0:
-            raise ValueError("Значение не может быть отрицательным.")
+            raise ValueError("value_negative")
         return value
 
     @field_validator("area", "price")
     @classmethod
     def _non_negative_num(cls, value: Optional[float]) -> Optional[float]:
         if value is not None and value < 0:
-            raise ValueError("Значение не может быть отрицательным.")
+            raise ValueError("value_negative")
         return value
 
     @field_validator("currency")

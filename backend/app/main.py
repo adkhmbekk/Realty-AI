@@ -16,11 +16,14 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.router import api_router
 from app.config import settings
+from app.core.errors import MESSAGES, LanguageMiddleware, translate
 from app.db import models  # noqa: F401  — нужен, чтобы модели зарегистрировались
 from app.db.migrate import run_migrations
 from app.db.session import SessionLocal, get_db
@@ -82,6 +85,34 @@ app = FastAPI(
 
 # Подключаем рабочее API под префиксом /api/v1.
 app.include_router(api_router)
+
+# Определение языка запроса по заголовку X-Lang (для локализации ошибок).
+app.add_middleware(LanguageMiddleware)
+
+
+@app.exception_handler(RequestValidationError)
+async def _localized_validation_handler(request, exc: RequestValidationError):
+    """
+    Локализуем ошибки проверки форм (422). Наши валидаторы бросают
+    ValueError("<ключ>") — переводим такой ключ на язык запроса. Остальные
+    (встроенные) ошибки оставляем как есть.
+    """
+    out = []
+    for err in exc.errors():
+        msg = err.get("msg", "")
+        ctx = err.get("ctx") or {}
+        err_obj = ctx.get("error")
+        key = str(err_obj) if err_obj is not None else None
+        if key and key in MESSAGES:
+            msg = translate(key)
+        out.append(
+            {
+                "loc": list(err.get("loc", [])),
+                "msg": msg,
+                "type": err.get("type", ""),
+            }
+        )
+    return JSONResponse(status_code=422, content={"detail": out})
 
 
 @app.get("/")

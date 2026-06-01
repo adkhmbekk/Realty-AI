@@ -18,7 +18,7 @@ class DictionaryCreate(BaseModel):
     def _not_empty(cls, value: str) -> str:
         value = value.strip()
         if not value:
-            raise ValueError("Значение не может быть пустым.")
+            raise ValueError("value_empty")
         return value
 
 
@@ -34,7 +34,7 @@ class DictionaryUpdate(BaseModel):
             return None
         value = value.strip()
         if not value:
-            raise ValueError("Значение не может быть пустым.")
+            raise ValueError("value_empty")
         return value
 
 

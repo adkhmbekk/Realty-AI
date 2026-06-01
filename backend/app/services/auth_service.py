@@ -10,11 +10,12 @@
 """
 from datetime import datetime, timezone
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core import security
+from app.core.errors import AppError
 from app.core.subscription import agency_is_active
 from app.repositories import agency_repo, user_repo
 
@@ -22,9 +23,8 @@ from app.repositories import agency_repo, user_repo
 def login_with_init_data(db: Session, init_data: str) -> dict:
     # 1. Без токена бота проверить подлинность входа невозможно.
     if not settings.bot_token:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Вход через Telegram не настроен (не задан токен бота).",
+        raise AppError(
+            "telegram_login_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
     # 2. Проверяем подпись Telegram.
@@ -33,9 +33,7 @@ def login_with_init_data(db: Session, init_data: str) -> dict:
             init_data, settings.bot_token, settings.init_data_max_age_seconds
         )
     except security.InitDataError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
-        ) from exc
+        raise AppError(exc.key, status.HTTP_401_UNAUTHORIZED) from exc
 
     tg_user = data["user"]
     telegram_id = int(tg_user["id"])
@@ -43,15 +41,9 @@ def login_with_init_data(db: Session, init_data: str) -> dict:
     # 3. Ищем пользователя в нашей базе.
     user = user_repo.get_by_telegram_id(db, telegram_id)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Вы не привязаны ни к одному агентству. Обратитесь к администратору.",
-        )
+        raise AppError("not_in_agency", status.HTTP_403_FORBIDDEN)
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Ваш доступ деактивирован. Обратитесь к администратору.",
-        )
+        raise AppError("access_deactivated", status.HTTP_403_FORBIDDEN)
 
     # 4. Обновляем актуальные данные из Telegram и время входа.
     username = tg_user.get("username")

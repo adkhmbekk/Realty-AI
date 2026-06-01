@@ -12,12 +12,13 @@ multipart/form-data: обычные JSON-запросы стабильно пр�
 """
 from typing import List
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_agency_member
+from app.core.errors import AppError
 from app.db.models.user import User
 from app.db.session import get_db
 from app.services import photo_service
@@ -54,7 +55,7 @@ def upload_photos(
         if data:
             blobs.append((data, ctype))
     if not blobs:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет фото для загрузки.")
+        raise AppError("no_photos_to_upload", status.HTTP_400_BAD_REQUEST)
     return photo_service.add_blobs(db, current_user.agency_id, apartment_id, blobs)
 
 
@@ -85,6 +86,6 @@ def serve_photo(key: str, db: Session = Depends(get_db)):
     """Публичная отдача файла по ключу (для тега <img>)."""
     found = photo_service.file_for(db, key)
     if found is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Фото не найдено.")
+        raise AppError("photo_not_found", status.HTTP_404_NOT_FOUND)
     path, content_type = found
     return FileResponse(path, media_type=content_type, headers={"Cache-Control": "public, max-age=86400"})
