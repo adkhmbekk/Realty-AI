@@ -11,44 +11,50 @@ echo.
 REM Проверяем, запущен ли Docker.
 docker info >nul 2>&1
 if errorlevel 1 (
-  echo [!] Docker не запущен.
-  echo     Открой Docker Desktop, дождись зелёного значка и запусти этот файл снова.
+  echo [!] Docker Desktop не запущен.
+  echo     Открой Docker Desktop, дождись зелёного значка слева внизу,
+  echo     и запусти этот файл снова.
   echo.
   pause
   exit /b 1
 )
 
-echo [1/2] Собираем и запускаем проект... (первый раз дольше, дальше быстро)
+echo [1/3] Собираем и запускаем (первый раз дольше, потом быстро)...
 echo.
 docker compose up -d --build
-if errorlevel 1 (
-  echo.
-  echo [!] Что-то пошло не так при запуске. Прокрути сообщения выше.
-  echo.
-  pause
-  exit /b 1
-)
-
 echo.
-echo [2/2] Получаем публичную ссылку для Telegram (10-20 сек)...
-timeout /t 14 /nobreak >nul
 
+echo [2/3] Статус контейнеров (все должны быть "running"/"Up"):
+echo --------------------------------------------
+docker compose ps
+echo --------------------------------------------
+echo.
+
+echo [3/3] Получаем публичный адрес туннеля (до ~30 сек)...
+set "FOUND="
+for /L %%i in (1,1,15) do (
+  docker compose logs cloudflared 2>nul | findstr /C:"trycloudflare.com" >nul && set "FOUND=1"
+  if defined FOUND goto :showurl
+  timeout /t 2 /nobreak >nul
+)
+:showurl
 echo.
 echo ============================================
-echo   ПУБЛИЧНАЯ ССЫЛКА (вставь её в @BotFather
-echo   как URL Mini App, если адрес сменился):
+echo   ПУБЛИЧНАЯ ССЫЛКА для Telegram:
 echo ============================================
 docker compose logs cloudflared 2>nul | findstr /C:"trycloudflare.com"
+echo ============================================
 echo.
-echo --------------------------------------------
-echo   Локально (на этом компьютере):
-echo     Приложение:  http://localhost:8080
-echo     API / docs:  http://localhost:8000/docs
-echo --------------------------------------------
+echo   !!! ВАЖНО !!!
+echo   Этот адрес МЕНЯЕТСЯ при каждом перезапуске.
+echo   Скопируй ссылку выше (https://....trycloudflare.com) и вставь её
+echo   в @BotFather: /mybots - твой бот - Bot Settings - Menu Button / Mini App URL.
+echo   Без этого Mini App будет открывать СТАРЫЙ (мёртвый) адрес.
 echo.
-echo Готово. Проект работает в фоне.
-echo   - Посмотреть логи сервера:  logs.bat
-echo   - Остановить проект:        stop.bat
-echo   - Полная пересборка:        rebuild.bat
+echo   (Это лечится постоянным адресом - спроси разработчика про ngrok.)
+echo.
+echo   Проверка локально (в браузере на ПК): http://localhost:8080
+echo.
+echo Команды: logs.bat (логи)  ^|  url.bat (показать ссылку)  ^|  stop.bat (стоп)
 echo.
 pause
