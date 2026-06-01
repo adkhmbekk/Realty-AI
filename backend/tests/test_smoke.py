@@ -31,3 +31,41 @@ def test_validate_init_data_rejects_tampered():
     # Подпись (hash) заведомо неверная — данные должны быть отклонены.
     with pytest.raises(security.InitDataError):
         security.validate_init_data("user=%7B%22id%22%3A1%7D&hash=deadbeef", "dummy-bot-token")
+
+
+
+# ─── Защита импорта фотографий (только Telegram + без внутренней сети) ────
+from fastapi import HTTPException  # noqa: E402
+
+from app.services import photo_service, telegram_service  # noqa: E402
+
+
+def test_is_telegram_url():
+    assert photo_service._is_telegram_url("https://t.me/some_channel/42")
+    assert photo_service._is_telegram_url("https://telegram.me/some_channel/42")
+    assert not photo_service._is_telegram_url("https://example.com/post")
+    assert not photo_service._is_telegram_url("https://evil-t.me.attacker.com/x")
+
+
+def test_assert_public_url_blocks_internal_and_bad_scheme():
+    for bad in (
+        "http://localhost/x",
+        "http://127.0.0.1/x",
+        "http://10.0.0.5/x",
+        "http://169.254.169.254/latest/meta-data",
+        "ftp://example.com/x",
+    ):
+        with pytest.raises(HTTPException):
+            photo_service._assert_public_url(bad)
+
+
+# ─── Сборка альбома для бота (без сети) ──────────────────────────────────
+def test_telegram_multipart_structure():
+    body, content_type = telegram_service._build_multipart(
+        {"chat_id": "1", "media": "[]"},
+        [("photo0", "photo0.jpg", "image/jpeg", b"binarydata")],
+    )
+    assert content_type.startswith("multipart/form-data; boundary=")
+    assert b'name="chat_id"' in body
+    assert b'name="photo0"; filename="photo0.jpg"' in body
+    assert b"binarydata" in body

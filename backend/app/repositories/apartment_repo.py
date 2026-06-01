@@ -8,7 +8,9 @@
 """
 from typing import List, Optional, Sequence, Tuple
 
-from sqlalchemy import func, or_, select
+from datetime import datetime, timezone
+
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.apartment import Apartment
@@ -163,3 +165,103 @@ def count_by_status(db: Session, agency_id: int) -> dict:
         .group_by(Apartment.status)
     ).all()
     return {row[0]: row[1] for row in rows}
+
+
+def _month_start_utc() -> datetime:
+    """Начало текущего месяца в UTC (для подсчётов «за этот месяц»)."""
+    now = datetime.now(timezone.utc)
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def count_created_since(db: Session, agency_id: int, since: datetime) -> int:
+    """Сколько объектов добавлено с момента since."""
+    return db.execute(
+        select(func.count())
+        .select_from(Apartment)
+        .where(Apartment.agency_id == agency_id, Apartment.created_at >= since)
+    ).scalar_one()
+
+
+def count_sold_since(db: Session, agency_id: int, since: datetime) -> int:
+    """Сколько объектов продано (status='sold') с момента since (по дате снятия)."""
+    return db.execute(
+        select(func.count())
+        .select_from(Apartment)
+        .where(
+            Apartment.agency_id == agency_id,
+            Apartment.status == "sold",
+            Apartment.archived_at >= since,
+        )
+    ).scalar_one()
+
+
+def stats_by_creator(db: Session, agency_id: int) -> List[Tuple[Optional[int], int, int]]:
+    """
+    Активность по сотрудникам: для каждого создателя — (created_by, всего, продано).
+    """
+    sold_expr = func.sum(case((Apartment.status == "sold", 1), else_=0))
+    rows = db.execute(
+        select(Apartment.created_by, func.count(), sold_expr)
+        .where(Apartment.agency_id == agency_id)
+        .group_by(Apartment.created_by)
+    ).all()
+    return [(row[0], int(row[1]), int(row[2] or 0)) for row in rows]
+
+
+def find_similar(
+    db: Session,
+    agency_id: int,
+    *,
+    district: Optional[str] = None,
+    rooms: Optional[int] = None,
+    type_: Optional[str] = None,
+    price: Optional[float] = None,
+    address: Optional[str] = None,
+    exclude_id: Optional[int] = None,
+    limit: int = 5,
+) -> List[Apartment]:
+    """
+    Найти возможные дубли объекта среди активных/задаточных объектов агентства.
+
+    Совпадением считается:
+      A) одинаковый адрес (без учёта регистра), либо
+      B) одинаковые район + кол-во комнат (+ тип, если задан) и цена в пределах
+         ±10 %, если цены указаны у обоих.
+    """
+    base = [
+        Apartment.agency_id == agency_id,
+        Apartment.status.in_(["active", "deposit"]),
+    ]
+    if exclude_id is not None:
+        base.append(Apartment.id != exclude_id)
+
+    match_clauses = []
+
+    addr = (address or "").strip()
+    if addr:
+        match_clauses.append(func.lower(Apartment.address) == addr.lower())
+
+    # Характеристики имеют смысл только если есть хотя бы район и кол-во комнат.
+    if district and rooms is not None:
+        char_conds = [Apartment.district == district, Apartment.rooms == rooms]
+        if type_:
+            char_conds.append(Apartment.type == type_)
+        if price is not None and price > 0:
+            char_conds.append(Apartment.price >= price * 0.9)
+            char_conds.append(Apartment.price <= price * 1.1)
+        match_clauses.append(and_(*char_conds))
+
+    if not match_clauses:
+        return []
+
+    conditions = base + [or_(*match_clauses)]
+    return list(
+        db.execute(
+            select(Apartment)
+            .where(*conditions)
+            .order_by(Apartment.created_at.desc())
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )

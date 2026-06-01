@@ -10,10 +10,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_agency_member
+from app.core.dependencies import require_agency_admin, require_agency_member
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.apartment import (
+    ApartmentAnalyticsOut,
     ApartmentCreate,
     ApartmentEventOut,
     ApartmentListOut,
@@ -22,6 +23,7 @@ from app.schemas.apartment import (
     ApartmentStatsOut,
     ApartmentStatusUpdate,
     ApartmentUpdate,
+    ShareResultOut,
 )
 from app.services import apartment_service
 
@@ -96,6 +98,40 @@ def get_stats(
     return apartment_service.get_stats(db, current_user.agency_id)
 
 
+# /analytics и /similar объявлены ДО /{apartment_id}, иначе слово попадёт в id.
+@router.get("/analytics", response_model=ApartmentAnalyticsOut)
+def get_analytics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_admin),
+):
+    """Аналитика для руководителя агентства (только администратор)."""
+    return apartment_service.get_analytics(db, current_user.agency_id)
+
+
+@router.get("/similar", response_model=List[ApartmentOut])
+def find_similar(
+    district: Optional[str] = Query(None),
+    rooms: Optional[int] = Query(None),
+    type: Optional[str] = Query(None),
+    price: Optional[float] = Query(None),
+    address: Optional[str] = Query(None),
+    exclude_id: Optional[int] = Query(None, description="Исключить объект с этим id."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Найти возможные дубли объекта (для предупреждения при добавлении)."""
+    return apartment_service.find_similar(
+        db,
+        current_user.agency_id,
+        district=district,
+        rooms=rooms,
+        type_=type,
+        price=price,
+        address=address,
+        exclude_id=exclude_id,
+    )
+
+
 @router.get("/{apartment_id}", response_model=ApartmentOut)
 def get_apartment(
     apartment_id: int,
@@ -119,6 +155,21 @@ def share_apartment(
     """
     return apartment_service.build_share_card(
         db, current_user.agency_id, apartment_id
+    )
+
+
+@router.post("/{apartment_id}/share", response_model=ShareResultOut)
+def send_share(
+    apartment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """
+    Отправить объект сотруднику в его чат с ботом: альбом фотографий + подпись
+    (без конфиденциальных полей). Сотрудник пересылает сообщение клиенту.
+    """
+    return apartment_service.send_share(
+        db, current_user.agency_id, apartment_id, current_user
     )
 
 

@@ -30,7 +30,7 @@ from app.repositories import (
     user_repo,
 )
 from app.schemas.apartment import ApartmentCreate, ApartmentUpdate
-from app.services import photo_service
+from app.services import photo_service, telegram_service
 
 # Допустимые статусы объекта.
 STATUS_ACTIVE = "active"
@@ -148,7 +148,47 @@ def create_apartment(
     db.commit()
     db.refresh(apartment)
     _attach_creators(db, [apartment])
+    _notify_new_apartment(db, agency_id, apartment, created_by)
     return apartment
+
+
+def _notify_new_apartment(db: Session, agency_id: int, apartment: Apartment, creator_id) -> None:
+    """
+    Уведомить руководителей агентства (главного админа и админов) о новом
+    объекте. Создателя самого себя не уведомляем. Best-effort: любые ошибки
+    глушим, рассылка идёт в фоне и не задерживает ответ.
+    """
+    try:
+        if not telegram_service.is_configured():
+            return
+        recipients = []
+        creator_name = None
+        for u in user_repo.get_by_agency(db, agency_id):
+            if u.id == creator_id:
+                creator_name = _display_name(u)
+            if (
+                u.role == "agency_admin"
+                and u.is_active
+                and u.telegram_id
+                and u.id != creator_id
+            ):
+                recipients.append(u.telegram_id)
+        if not recipients:
+            return
+        parts = [f"🏠 Новый объект №{apartment.display_id}"]
+        if apartment.name:
+            parts.append(apartment.name)
+        loc = " · ".join(x for x in [apartment.type, apartment.district] if x)
+        if loc:
+            parts.append(loc)
+        price = _format_price(apartment)
+        if price:
+            parts.append(f"Цена: {price}")
+        if creator_name:
+            parts.append(f"Добавил: {creator_name}")
+        telegram_service.notify_async(recipients, "\n".join(parts))
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def get_apartment(db: Session, agency_id: int, apartment_id: int) -> Apartment:
@@ -411,3 +451,103 @@ def list_events(db: Session, agency_id: int, apartment_id: int) -> list:
         }
         for e in events
     ]
+
+
+
+def get_analytics(db: Session, agency_id: int) -> dict:
+    """
+    Аналитика для руководителя агентства: счётчики по статусам, добавлено и
+    продано за текущий месяц, активность по сотрудникам (всего/продано).
+    """
+    counts = apartment_repo.count_by_status(db, agency_id)
+    active = counts.get(STATUS_ACTIVE, 0)
+    deposit = counts.get(STATUS_DEPOSIT, 0)
+    sold = counts.get(STATUS_SOLD, 0)
+    archived = counts.get(STATUS_ARCHIVED, 0)
+    total = active + deposit + sold + archived
+
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    added_this_month = apartment_repo.count_created_since(db, agency_id, month_start)
+    sold_this_month = apartment_repo.count_sold_since(db, agency_id, month_start)
+
+    creator_rows = apartment_repo.stats_by_creator(db, agency_id)
+    ids = {cid for cid, _, _ in creator_rows if cid is not None}
+    names = {}
+    if ids:
+        for u in user_repo.get_by_ids(db, ids):
+            names[u.id] = _display_name(u)
+    agents = [
+        {
+            "user_id": cid,
+            "name": names.get(cid) if cid is not None else None,
+            "total": tot,
+            "sold": sold_c,
+        }
+        for cid, tot, sold_c in creator_rows
+    ]
+    agents.sort(key=lambda a: a["total"], reverse=True)
+
+    return {
+        "active": active,
+        "deposit": deposit,
+        "sold": sold,
+        "archived": archived,
+        "total": total,
+        "added_this_month": added_this_month,
+        "sold_this_month": sold_this_month,
+        "agents": agents,
+    }
+
+
+def find_similar(
+    db: Session,
+    agency_id: int,
+    *,
+    district: Optional[str] = None,
+    rooms: Optional[int] = None,
+    type_: Optional[str] = None,
+    price: Optional[float] = None,
+    address: Optional[str] = None,
+    exclude_id: Optional[int] = None,
+) -> list:
+    """Найти возможные дубли объекта (для предупреждения при добавлении)."""
+    items = apartment_repo.find_similar(
+        db,
+        agency_id,
+        district=district,
+        rooms=rooms,
+        type_=type_,
+        price=price,
+        address=address,
+        exclude_id=exclude_id,
+        limit=5,
+    )
+    _attach_creators(db, items)
+    return items
+
+
+def send_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
+    """
+    Отправить объект сотруднику в его личный чат с ботом: альбом фотографий с
+    подписью (карточка без конфиденциальных полей). Сотрудник затем пересылает
+    сообщение клиенту. Если фото нет — отправляем только текст.
+    """
+    if not telegram_service.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Отправка через бота недоступна: не настроен токен бота.",
+        )
+    card = build_share_card(db, agency_id, apartment_id)
+    caption = card["share_text"]
+    blobs = photo_service.read_blobs_for_share(db, agency_id, apartment_id, limit=10)
+    if blobs:
+        ok = telegram_service.send_media_group(user.telegram_id, blobs, caption)
+    else:
+        ok = telegram_service.send_message(user.telegram_id, caption)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Не удалось отправить. Откройте чат с ботом, нажмите «Старт» и повторите.",
+        )
+    return {"ok": True, "photos": len(blobs)}
