@@ -153,7 +153,7 @@ def add_blobs(
 
 def _fetch(url: str, max_bytes: int) -> Tuple[bytes, str]:
     req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
+    with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310
         data = resp.read(max_bytes + 1)
         ctype = resp.headers.get("Content-Type", "") or ""
     if len(data) > max_bytes:
