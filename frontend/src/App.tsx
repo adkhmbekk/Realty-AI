@@ -12,6 +12,7 @@ import { ProfileScreen, SuspendedScreen } from "./screens/Profile";
 import { SettingsScreen } from "./screens/Settings";
 import { TeamScreen } from "./screens/Team";
 import { InvitesScreen } from "./screens/Invites";
+import { AnalyticsScreen } from "./screens/Analytics";
 import { AgenciesScreen, AgencyCreateScreen, AgencyManageScreen } from "./screens/Superadmin";
 import {
   AddObjectScreen,
@@ -80,6 +81,8 @@ function titleKeyFor(route: Route): string | null {
       return "team";
     case "invites":
       return "invites";
+    case "analytics":
+      return "analytics";
   }
 }
 
@@ -111,6 +114,8 @@ function RouteView({ route }: { route: Route }) {
       return <TeamScreen />;
     case "invites":
       return <InvitesScreen />;
+    case "analytics":
+      return <AnalyticsScreen />;
   }
 }
 

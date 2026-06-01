@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Mail, Plus, Search, Settings as SettingsIcon, Users } from "lucide-react";
+import { BarChart3, Mail, Plus, Search, Settings as SettingsIcon, Users } from "lucide-react";
 import { useApp } from "../store";
 import { useNav, Route } from "../nav";
 import { api } from "../api";
@@ -118,14 +118,15 @@ export function HomeScreen() {
   const team = { icon: <Users size={21} />, label: t("team"), route: { name: "team" } as Route };
   const invites = { icon: <Mail size={21} />, label: t("invites"), route: { name: "invites" } as Route };
   const settings = { icon: <SettingsIcon size={21} />, label: t("settings"), route: { name: "settings" } as Route };
+  const analytics = { icon: <BarChart3 size={21} />, label: t("analytics"), route: { name: "analytics" } as Route };
 
   // Быстрые действия НЕ дублируют нижнюю панель.
-  // Главный админ: команда, приглашения, настройки.
+  // Главный админ: аналитика, команда, приглашения, настройки.
   // Обычный админ: добавить, найти, команда, настройки.
   // Агент: добавить, найти, настройки.
   let actions: { icon: React.ReactNode; label: string; route: Route }[];
   if (role === "agency_admin" && user?.is_owner) {
-    actions = [team, invites, settings];
+    actions = [analytics, team, invites, settings];
   } else if (role === "agency_admin") {
     actions = [add, search, team, settings];
   } else {
