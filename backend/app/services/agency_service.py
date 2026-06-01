@@ -5,11 +5,12 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.orm import Session
 
 from app.db.models.agency import Agency
 from app.db.models.user import User
+from app.core.errors import AppError
 from app.core.subscription import agency_is_active
 from app.repositories import agency_repo, user_repo
 from app.schemas.agency import AgencyCreate
@@ -62,9 +63,8 @@ def create_agency_with_admin(
     if existing is not None:
         # Нельзя превращать суперадмина в админа агентства.
         if existing.role == "superadmin":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Нельзя назначить суперадмина администратором агентства.",
+            raise AppError(
+                "cannot_assign_superadmin_as_admin", status.HTTP_400_BAD_REQUEST
             )
         existing.agency_id = agency.id
         existing.role = "agency_admin"
@@ -103,9 +103,7 @@ def update_subscription(
     """
     agency = agency_repo.get_by_id(db, agency_id)
     if agency is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Агентство не найдено."
-        )
+        raise AppError("agency_not_found", status.HTTP_404_NOT_FOUND)
 
     now = datetime.now(timezone.utc)
     was_active = agency_is_active(agency)
@@ -121,9 +119,8 @@ def update_subscription(
             agency.activated_at = now
     elif action == "set":
         if expires_at is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Не указана дата окончания подписки.",
+            raise AppError(
+                "subscription_end_date_required", status.HTTP_400_BAD_REQUEST
             )
         # Приводим к timezone-aware (UTC), если дата без зоны.
         if expires_at.tzinfo is None:
@@ -138,9 +135,7 @@ def update_subscription(
         agency.status = "active"
         agency.activated_at = now
     else:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное действие."
-        )
+        raise AppError("unknown_action", status.HTTP_400_BAD_REQUEST)
 
     db.commit()
     db.refresh(agency)
@@ -150,9 +145,7 @@ def update_subscription(
 def _get_agency_or_404(db: Session, agency_id: int) -> Agency:
     agency = agency_repo.get_by_id(db, agency_id)
     if agency is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Агентство не найдено."
-        )
+        raise AppError("agency_not_found", status.HTTP_404_NOT_FOUND)
     return agency
 
 
@@ -162,10 +155,7 @@ def rename_agency(db: Session, agency_id: int, name: Optional[str]) -> Agency:
     if name is not None:
         new_name = name.strip()
         if not new_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Название агентства не может быть пустым.",
-            )
+            raise AppError("agency_name_empty", status.HTTP_400_BAD_REQUEST)
         agency.name = new_name
     db.commit()
     db.refresh(agency)
@@ -203,14 +193,12 @@ def set_agency_admin(
     existing = user_repo.get_by_telegram_id(db, admin_telegram_id)
     if existing is not None:
         if existing.role == "superadmin":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Нельзя назначить суперадмина администратором агентства.",
+            raise AppError(
+                "cannot_assign_superadmin_as_admin", status.HTTP_400_BAD_REQUEST
             )
         if existing.agency_id not in (None, agency_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Этот пользователь уже состоит в другом агентстве.",
+            raise AppError(
+                "user_already_in_another_agency", status.HTTP_400_BAD_REQUEST
             )
         existing.agency_id = agency_id
         existing.role = "agency_admin"

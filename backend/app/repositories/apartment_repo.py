@@ -42,7 +42,6 @@ def _build_conditions(
     floor_max: Optional[int],
     price_min: Optional[float],
     price_max: Optional[float],
-    agent_id: Optional[int],
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
@@ -74,8 +73,6 @@ def _build_conditions(
         conditions.append(Apartment.price >= price_min)
     if price_max is not None:
         conditions.append(Apartment.price <= price_max)
-    if agent_id is not None:
-        conditions.append(Apartment.agent_id == agent_id)
     if created_by is not None:
         conditions.append(Apartment.created_by == created_by)
 
@@ -114,7 +111,6 @@ def search(
     floor_max: Optional[int] = None,
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
-    agent_id: Optional[int] = None,
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
@@ -137,7 +133,6 @@ def search(
         floor_max=floor_max,
         price_min=price_min,
         price_max=price_max,
-        agent_id=agent_id,
         q=q,
         rooms_min=rooms_min,
         rooms_max=rooms_max,

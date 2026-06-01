@@ -18,7 +18,7 @@ class AgentCreate(BaseModel):
     def _name_not_empty(cls, value: str) -> str:
         value = value.strip()
         if not value:
-            raise ValueError("Имя агента не может быть пустым.")
+            raise ValueError("agent_name_empty")
         return value
 
     @field_validator("code")
@@ -28,11 +28,11 @@ class AgentCreate(BaseModel):
         # и исключаем дубликаты вида "sar" / "SAR".
         value = value.strip().upper()
         if not value:
-            raise ValueError("Код агента не может быть пустым.")
+            raise ValueError("agent_code_empty")
         if len(value) > 5:
-            raise ValueError("Код агента не длиннее 5 символов.")
+            raise ValueError("agent_code_too_long")
         if not value.isalnum():
-            raise ValueError("Код агента может содержать только буквы и цифры.")
+            raise ValueError("agent_code_alnum")
         return value
 
 
@@ -48,7 +48,7 @@ class AgentUpdate(BaseModel):
             return None
         value = value.strip()
         if not value:
-            raise ValueError("Имя агента не может быть пустым.")
+            raise ValueError("agent_name_empty")
         return value
 
 

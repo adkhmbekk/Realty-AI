@@ -57,10 +57,6 @@ class Apartment(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="active")
 
     name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    # Агент-источник объекта (из справочника agents этого агентства).
-    agent_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, ForeignKey("agents.id"), nullable=True
-    )
     # Номер собственника (конфиденциально — не показывается при шаринге).
     owner_phone: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     district: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

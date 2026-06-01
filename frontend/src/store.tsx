@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 import { Lang, makeT, labelHelpers } from "./i18n";
-import { setTokenGetter } from "./api";
+import { setTokenGetter, setLangGetter } from "./api";
 import { colorScheme, setChromeColors } from "./telegram";
 import type { AgencySettings, UserProfile } from "./types";
 
@@ -72,8 +72,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Токен для api-клиента.
   const tokenRef = useRef<string | null>(null);
   tokenRef.current = token;
+  // Текущий язык для api-клиента (заголовок X-Lang при каждом запросе).
+  const langRef = useRef<Lang>(lang);
+  langRef.current = lang;
   useEffect(() => {
     setTokenGetter(() => tokenRef.current);
+    setLangGetter(() => langRef.current);
   }, []);
 
   // Применяем тему к <html> и красим интерфейс Telegram.

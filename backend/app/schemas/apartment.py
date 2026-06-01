@@ -27,8 +27,6 @@ FurnitureAppliances = Literal[
 # Поля, общие для создания и редактирования объекта.
 class _ApartmentBase(BaseModel):
     name: Optional[str] = None
-    # Агент-источник (id из справочника agents этого агентства).
-    agent_id: Optional[int] = None
     # Номер собственника (конфиденциально — виден только команде).
     owner_phone: Optional[str] = None
     district: Optional[str] = None
@@ -55,14 +53,14 @@ class _ApartmentBase(BaseModel):
     @classmethod
     def _non_negative_int(cls, value: Optional[int]) -> Optional[int]:
         if value is not None and value < 0:
-            raise ValueError("Значение не может быть отрицательным.")
+            raise ValueError("value_negative")
         return value
 
     @field_validator("area", "price")
     @classmethod
     def _non_negative_num(cls, value: Optional[float]) -> Optional[float]:
         if value is not None and value < 0:
-            raise ValueError("Значение не может быть отрицательным.")
+            raise ValueError("value_negative")
         return value
 
     @field_validator("currency")
@@ -100,7 +98,6 @@ class ApartmentOut(BaseModel):
     display_id: str
     status: str
     name: Optional[str] = None
-    agent_id: Optional[int] = None
     owner_phone: Optional[str] = None
     district: Optional[str] = None
     address: Optional[str] = None

@@ -19,11 +19,12 @@ from typing import Optional, Sequence, Tuple
 
 import secrets
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core.defaults import DEFAULT_AGENT_CODE, DEFAULT_AGENT_NAME
+from app.core.errors import AppError
 from app.db.models.apartment import Apartment
 from app.repositories import (
     agency_repo,
@@ -72,10 +73,7 @@ def _next_display_id(db: Session, agency_id: int) -> str:
         )
     number = agent_repo.next_number(db, agency_id, counter.id)
     if number is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не удалось сгенерировать номер объекта.",
-        )
+        raise AppError("display_id_generation_failed", status.HTTP_400_BAD_REQUEST)
     return f"{number:04d}"
 
 
@@ -125,7 +123,6 @@ def create_apartment(
         agency_id=agency_id,
         display_id=display_id,
         status=new_status,
-        agent_id=None,
         created_by=created_by,
         name=payload.name,
         owner_phone=payload.owner_phone,
@@ -201,9 +198,7 @@ def _notify_new_apartment(db: Session, agency_id: int, apartment: Apartment, cre
 def get_apartment(db: Session, agency_id: int, apartment_id: int) -> Apartment:
     apartment = apartment_repo.get_by_id(db, agency_id, apartment_id)
     if apartment is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Объект не найден."
-        )
+        raise AppError("apartment_not_found", status.HTTP_404_NOT_FOUND)
     _attach_creators(db, [apartment])
     return apartment
 
@@ -220,7 +215,6 @@ def search_apartments(
     floor_max: Optional[int] = None,
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
-    agent_id: Optional[int] = None,
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
@@ -239,7 +233,6 @@ def search_apartments(
         floor_max=floor_max,
         price_min=price_min,
         price_max=price_max,
-        agent_id=agent_id,
         q=q,
         rooms_min=rooms_min,
         rooms_max=rooms_max,
@@ -262,7 +255,6 @@ def update_apartment(
 
     # exclude_unset=True → меняем только присланные поля (белый список схемы).
     changes = payload.model_dump(exclude_unset=True)
-    changes.pop("agent_id", None)
     if "currency" in changes and not changes["currency"]:
         changes.pop("currency")
 
@@ -294,10 +286,7 @@ def set_status(
 ) -> Apartment:
     """Сменить статус объекта (active / deposit / sold / archived)."""
     if new_status not in VALID_STATUSES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Недопустимый статус объекта.",
-        )
+        raise AppError("invalid_apartment_status", status.HTTP_400_BAD_REQUEST)
     apartment = get_apartment(db, agency_id, apartment_id)
     if apartment.status != new_status:
         apartment.status = new_status
@@ -543,10 +532,7 @@ def send_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
     сообщение клиенту. Если фото нет — отправляем только текст.
     """
     if not telegram_service.is_configured():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Отправка через бота недоступна: не настроен токен бота.",
-        )
+        raise AppError("share_via_bot_not_configured", status.HTTP_400_BAD_REQUEST)
     card = build_share_card(db, agency_id, apartment_id)
     caption = card["share_text"]
     blobs = photo_service.read_blobs_for_share(db, agency_id, apartment_id, limit=10)
@@ -555,10 +541,7 @@ def send_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
     else:
         ok = telegram_service.send_message(user.telegram_id, caption)
     if not ok:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Не удалось отправить. Откройте чат с ботом, нажмите «Старт» и повторите.",
-        )
+        raise AppError("share_send_failed", status.HTTP_502_BAD_GATEWAY)
     return {"ok": True, "photos": len(blobs)}
 
 
@@ -650,10 +633,7 @@ def prepare_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
     только текст.
     """
     if not telegram_service.is_configured():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Отправка недоступна: не настроен токен бота.",
-        )
+        raise AppError("share_not_configured", status.HTTP_400_BAD_REQUEST)
     card = build_share_card(db, agency_id, apartment_id)
     caption = card["share_text"]
     cover = card.get("photo_url")
@@ -680,8 +660,5 @@ def prepare_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
 
     prepared_id = telegram_service.save_prepared_inline_message(user.telegram_id, result)
     if not prepared_id:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Не удалось подготовить отправку. Попробуйте ещё раз.",
-        )
+        raise AppError("share_prepare_failed", status.HTTP_502_BAD_GATEWAY)
     return {"prepared_message_id": prepared_id}

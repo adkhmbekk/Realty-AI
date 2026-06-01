@@ -26,16 +26,14 @@ class InviteCreate(BaseModel):
     def _check_role(cls, value: str) -> str:
         value = (value or "").strip()
         if value not in ALLOWED_INVITE_ROLES:
-            raise ValueError(
-                "Роль должна быть 'agent' (агент) или 'agency_admin' (администратор)."
-            )
+            raise ValueError("invite_role_invalid")
         return value
 
     @field_validator("expires_in_days")
     @classmethod
     def _check_days(cls, value: int) -> int:
         if value < 1 or value > 365:
-            raise ValueError("Срок приглашения — от 1 до 365 дней.")
+            raise ValueError("invite_days_range")
         return value
 
 
@@ -66,5 +64,5 @@ class InviteRedeem(BaseModel):
     def _strip_code(cls, value: str) -> str:
         value = (value or "").strip()
         if not value:
-            raise ValueError("Код приглашения не может быть пустым.")
+            raise ValueError("invite_code_empty")
         return value

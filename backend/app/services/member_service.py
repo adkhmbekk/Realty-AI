@@ -7,9 +7,10 @@
 """
 from typing import List
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppError
 from app.db.models.user import User
 from app.repositories import user_repo
 from app.schemas.team import MemberUpdate
@@ -31,56 +32,36 @@ def update_member(
 ) -> User:
     member = user_repo.get_member(db, agency_id, member_id)
     if member is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден."
-        )
+        raise AppError("member_not_found", status.HTTP_404_NOT_FOUND)
 
     is_self = member.id == current_user.id
 
     # Защита от самоблокировки: админ не может отключить сам себя
     # (иначе агентство может остаться без управления).
     if is_self and payload.is_active is False:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Нельзя отключить доступ самому себе.",
-        )
+        raise AppError("cannot_disable_self", status.HTTP_400_BAD_REQUEST)
 
     # Иерархия админов: действия над администратором агентства (понизить,
     # отключить) доступны только ГЛАВНОМУ админу (is_owner). Повышенный из агента
     # админ не может действовать против других админов и тех, кто его повысил.
     if member.role == "agency_admin" and not is_self and not current_user.is_owner:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Управлять администраторами может только главный администратор агентства.",
-        )
+        raise AppError("only_owner_manage_admins", status.HTTP_403_FORBIDDEN)
     # Главного администратора нельзя изменить через раздел «Команда».
     if member.is_owner and not is_self:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Главного администратора агентства изменить нельзя.",
-        )
+        raise AppError("cannot_change_owner", status.HTTP_403_FORBIDDEN)
 
     if payload.role is not None:
         new_role = payload.role
         if new_role not in ASSIGNABLE_ROLES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Недопустимая роль. Доступно: администратор агентства или агент.",
-            )
+            raise AppError("invalid_role", status.HTTP_400_BAD_REQUEST)
         # Менять роли (в т.ч. повышать агента до администратора) может только
         # главный администратор агентства. Обычный админ этого делать не может.
         if new_role != member.role and not current_user.is_owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Менять роли сотрудников может только главный администратор агентства.",
-            )
+            raise AppError("only_owner_change_roles", status.HTTP_403_FORBIDDEN)
         # Защита: админ не может понизить сам себя — иначе агентство рискует
         # остаться без администратора. Сменить свою роль может только другой админ.
         if is_self and new_role != member.role:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Нельзя менять роль самому себе. Попросите другого администратора.",
-            )
+            raise AppError("cannot_change_own_role", status.HTTP_400_BAD_REQUEST)
         member.role = new_role
 
     if payload.is_active is not None:
@@ -103,21 +84,13 @@ def transfer_ownership(
     главный — обычным администратором.
     """
     if not current_user.is_owner:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Передать роль главного может только сам главный администратор.",
-        )
+        raise AppError("only_owner_transfer", status.HTTP_403_FORBIDDEN)
 
     member = user_repo.get_member(db, agency_id, member_id)
     if member is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден."
-        )
+        raise AppError("member_not_found", status.HTTP_404_NOT_FOUND)
     if member.id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Вы уже главный администратор.",
-        )
+        raise AppError("already_owner", status.HTTP_400_BAD_REQUEST)
 
     # Новый главный: становится админом, активен, is_owner.
     member.role = "agency_admin"

@@ -24,7 +24,15 @@ from app.config import settings
 
 
 class InitDataError(Exception):
-    """Данные входа от Telegram не прошли проверку."""
+    """Данные входа от Telegram не прошли проверку.
+
+    Несёт ключ перевода (key) для локализованного сообщения пользователю и
+    запасной русский текст (для логов).
+    """
+
+    def __init__(self, key: str, message: str = ""):
+        self.key = key
+        super().__init__(message or key)
 
 
 _JWT_ALGORITHM = "HS256"
@@ -86,18 +94,18 @@ def validate_init_data(
     from urllib.parse import parse_qsl
 
     if not init_data:
-        raise InitDataError("Пустые данные входа")
+        raise InitDataError("init_data_empty", "Пустые данные входа")
 
     try:
         parsed = dict(
             parse_qsl(init_data, strict_parsing=True, keep_blank_values=True)
         )
     except ValueError as exc:
-        raise InitDataError("Некорректный формат данных входа") from exc
+        raise InitDataError("init_data_bad_format", "Некорректный формат данных входа") from exc
 
     received_hash = parsed.pop("hash", None)
     if not received_hash:
-        raise InitDataError("В данных входа отсутствует подпись")
+        raise InitDataError("init_data_no_signature", "В данных входа отсутствует подпись")
 
     # Секретный ключ выводится из токена бота.
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
@@ -121,26 +129,26 @@ def validate_init_data(
         _calc(dcs_no_sig), received_hash
     )
     if not is_valid:
-        raise InitDataError("Подпись данных входа недействительна")
+        raise InitDataError("init_data_bad_signature", "Подпись данных входа недействительна")
 
     # Проверка свежести (защита от повторного использования старых данных).
     auth_date_raw = parsed.get("auth_date", "0")
     try:
         auth_date = int(auth_date_raw)
     except ValueError as exc:
-        raise InitDataError("Некорректная дата входа") from exc
+        raise InitDataError("init_data_bad_date", "Некорректная дата входа") from exc
 
     if max_age_seconds and (time.time() - auth_date) > max_age_seconds:
-        raise InitDataError("Данные входа устарели, откройте приложение заново")
+        raise InitDataError("init_data_expired", "Данные входа устарели, откройте приложение заново")
 
     # Поле user — это JSON-строка с информацией о пользователе.
     try:
         user = json.loads(parsed.get("user", "{}"))
     except json.JSONDecodeError as exc:
-        raise InitDataError("Некорректные данные пользователя") from exc
+        raise InitDataError("init_data_bad_user", "Некорректные данные пользователя") from exc
 
     if not user.get("id"):
-        raise InitDataError("В данных входа нет идентификатора пользователя")
+        raise InitDataError("init_data_no_user_id", "В данных входа нет идентификатора пользователя")
 
     return {"user": user, "auth_date": auth_date}
 

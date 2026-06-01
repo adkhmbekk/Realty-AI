@@ -5,11 +5,12 @@
   что он существует и активен.
 - require_superadmin — пускает дальше только суперадмина.
 """
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core import security
+from app.core.errors import AppError
 from app.core.subscription import agency_is_active
 from app.db.models.user import User
 from app.db.session import get_db
@@ -24,34 +25,22 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Требуется авторизация.",
-        )
+        raise AppError("auth_required", status.HTTP_401_UNAUTHORIZED)
 
     payload = security.decode_access_token(credentials.credentials)
     if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Недействительный или истёкший пропуск. Войдите заново.",
-        )
+        raise AppError("auth_invalid_token", status.HTTP_401_UNAUTHORIZED)
 
     user_id = payload.get("user_id")
     user = user_repo.get_by_id(db, user_id) if user_id is not None else None
     if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Пользователь не найден или деактивирован.",
-        )
+        raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
     return user
 
 
 def require_superadmin(user: User = Depends(get_current_user)) -> User:
     if user.role != "superadmin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Доступ только для суперадмина.",
-        )
+        raise AppError("forbidden_superadmin_only", status.HTTP_403_FORBIDDEN)
     return user
 
 
@@ -62,11 +51,7 @@ def _ensure_subscription_active(db: Session, user: User) -> None:
     """
     agency = agency_repo.get_by_id(db, user.agency_id)
     if not agency_is_active(agency):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Доступ к агентству приостановлен: подписка неактивна. "
-            "Обратитесь к владельцу платформы.",
-        )
+        raise AppError("subscription_suspended", status.HTTP_403_FORBIDDEN)
 
 
 def require_agency_member(
@@ -81,10 +66,7 @@ def require_agency_member(
     просроченное агентство блокируется (доступ приостановлен, данные сохранены).
     """
     if user.role not in ("agency_admin", "agent") or user.agency_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Доступ только для сотрудников агентства.",
-        )
+        raise AppError("forbidden_member_only", status.HTTP_403_FORBIDDEN)
     _ensure_subscription_active(db, user)
     return user
 
@@ -94,10 +76,7 @@ def require_agency_admin(
 ) -> User:
     """Пропускает только администратора агентства с активной подпиской."""
     if user.role != "agency_admin" or user.agency_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Доступ только для администратора агентства.",
-        )
+        raise AppError("forbidden_admin_only", status.HTTP_403_FORBIDDEN)
     _ensure_subscription_active(db, user)
     return user
 
@@ -113,9 +92,6 @@ def require_agency_owner(
     администратор такими правами не обладает.
     """
     if user.role != "agency_admin" or user.agency_id is None or not user.is_owner:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Доступ только для главного администратора агентства.",
-        )
+        raise AppError("forbidden_owner_only", status.HTTP_403_FORBIDDEN)
     _ensure_subscription_active(db, user)
     return user

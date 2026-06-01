@@ -4,9 +4,10 @@
 """
 from typing import List, Optional
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppError
 from app.db.models.dictionary import Dictionary
 from app.repositories import dictionary_repo
 from app.schemas.dictionary import DictionaryCreate, DictionaryUpdate
@@ -29,9 +30,11 @@ def create_dictionary(
     # Запрещаем дубликаты значения в пределах категории агентства.
     existing = dictionary_repo.get_one(db, agency_id, payload.category, payload.value)
     if existing is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Значение «{payload.value}» уже есть в категории «{payload.category}».",
+        raise AppError(
+            "dict_value_exists",
+            status.HTTP_409_CONFLICT,
+            value=payload.value,
+            category=payload.category,
         )
     item = dictionary_repo.create(
         db, agency_id, category=payload.category, value=payload.value,
@@ -47,9 +50,7 @@ def update_dictionary(
 ) -> Dictionary:
     item = dictionary_repo.get_by_id(db, agency_id, dict_id)
     if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Значение справочника не найдено."
-        )
+        raise AppError("dict_value_not_found", status.HTTP_404_NOT_FOUND)
     if payload.value is not None:
         item.value = payload.value
     if payload.sort_order is not None:
@@ -64,8 +65,6 @@ def update_dictionary(
 def delete_dictionary(db: Session, agency_id: int, dict_id: int) -> None:
     item = dictionary_repo.get_by_id(db, agency_id, dict_id)
     if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Значение справочника не найдено."
-        )
+        raise AppError("dict_value_not_found", status.HTTP_404_NOT_FOUND)
     dictionary_repo.delete(db, item)
     db.commit()

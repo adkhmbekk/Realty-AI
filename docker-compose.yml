@@ -38,9 +38,40 @@ services:
       SUPERADMIN_TELEGRAM_ID: ${SUPERADMIN_TELEGRAM_ID:-}
       JWT_SECRET: ${JWT_SECRET:-}
       BOT_USERNAME: ${BOT_USERNAME:-}
+      SUBSCRIPTION_WARN_DAYS: ${SUBSCRIPTION_WARN_DAYS:-3}
+      ERROR_ALERTS_ENABLED: ${ERROR_ALERTS_ENABLED:-true}
     volumes:
       # Загруженные фото объектов хранятся здесь и переживают перезапуски.
       - photos_data:/data/photos
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Авто-бэкапы по расписанию ──────────────────────────────────────────
+  # Отдельный лёгкий сервис на образе postgres:16 (в нём есть pg_dump нужной
+  # версии). По расписанию делает копию базы и фотографий в папку backups\ в
+  # том же формате, что и ручной backup.bat (метка auto-ГГГГ-ММ-ДД_ЧЧ-ММ-СС),
+  # поэтому такие копии можно восстановить тем же restore.bat. Старые авто-копии
+  # автоматически чистятся (хранится последних BACKUP_KEEP штук).
+  backup:
+    image: postgres:16
+    environment:
+      PGPASSWORD: realty_local_dev
+      DB_HOST: db
+      DB_USER: realty
+      DB_NAME: realty
+      # Как часто делать копию (часов) и сколько последних копий хранить.
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+    volumes:
+      # Копии складываются в папку backups\ рядом с проектом (как у backup.bat).
+      - ./backups:/backups
+      # Фотографии монтируем только для чтения — копировать можно, менять нельзя.
+      - photos_data:/data/photos:ro
+      # Сам скрипт расписания.
+      - ./scripts/auto_backup.sh:/auto_backup.sh:ro
+    entrypoint: ["/bin/sh", "/auto_backup.sh"]
     depends_on:
       db:
         condition: service_healthy

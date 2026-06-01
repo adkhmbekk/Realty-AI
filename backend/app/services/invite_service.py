@@ -16,11 +16,12 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core import security
+from app.core.errors import AppError
 from app.repositories import invite_repo, user_repo
 from app.schemas.invite import InviteCreate, InviteOut
 from app.services import auth_service
@@ -36,9 +37,8 @@ def _generate_unique_code(db: Session) -> str:
         if invite_repo.get_by_code(db, code) is None:
             return code
     # Практически недостижимо, но не зацикливаемся молча.
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="Не удалось сгенерировать код приглашения, попробуйте ещё раз.",
+    raise AppError(
+        "invite_code_generation_failed", status.HTTP_500_INTERNAL_SERVER_ERROR
     )
 
 
@@ -96,9 +96,7 @@ def list_invites(db: Session, agency_id: int) -> List[InviteOut]:
 def revoke_invite(db: Session, agency_id: int, invite_id: int) -> None:
     invite = invite_repo.get_by_id(db, agency_id, invite_id)
     if invite is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Приглашение не найдено."
-        )
+        raise AppError("invite_not_found", status.HTTP_404_NOT_FOUND)
     invite_repo.delete(db, invite)
     db.commit()
 
@@ -106,9 +104,8 @@ def revoke_invite(db: Session, agency_id: int, invite_id: int) -> None:
 def redeem_invite(db: Session, init_data: str, code: str) -> dict:
     # 1. Без токена бота проверить подлинность входа невозможно.
     if not settings.bot_token:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Вход через Telegram не настроен (не задан токен бота).",
+        raise AppError(
+            "telegram_login_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
     # 2. Проверяем подпись Telegram — это подтверждает личность сотрудника.
@@ -117,9 +114,7 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
             init_data, settings.bot_token, settings.init_data_max_age_seconds
         )
     except security.InitDataError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
-        ) from exc
+        raise AppError(exc.key, status.HTTP_401_UNAUTHORIZED) from exc
 
     tg_user = data["user"]
     telegram_id = int(tg_user["id"])
@@ -127,19 +122,11 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
     # 3. Находим и проверяем приглашение.
     invite = invite_repo.get_by_code(db, code)
     if invite is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Приглашение не найдено."
-        )
+        raise AppError("invite_not_found", status.HTTP_404_NOT_FOUND)
     if invite.used_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Это приглашение уже использовано.",
-        )
+        raise AppError("invite_already_used", status.HTTP_409_CONFLICT)
     if invite.expires_at <= datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Срок действия приглашения истёк.",
-        )
+        raise AppError("invite_expired", status.HTTP_400_BAD_REQUEST)
 
     # 4. Создаём или привязываем пользователя к агентству приглашения.
     username = tg_user.get("username")
@@ -150,15 +137,9 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
     user = user_repo.get_by_telegram_id(db, telegram_id)
     if user is not None:
         if user.role == "superadmin":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Владелец платформы не может вступать в агентство.",
-            )
+            raise AppError("superadmin_cannot_join", status.HTTP_400_BAD_REQUEST)
         if user.agency_id is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Вы уже состоите в агентстве.",
-            )
+            raise AppError("already_in_agency", status.HTTP_409_CONFLICT)
         # Пользователь существовал без агентства — привязываем.
         user.agency_id = invite.agency_id
         user.role = invite.role

@@ -12,6 +12,14 @@ export function setTokenGetter(fn: () => string | null) {
   tokenGetter = fn;
 }
 
+// Текущий язык интерфейса — шлём его серверу заголовком X-Lang, чтобы ошибки
+// приходили на выбранном языке (ru/uz/en).
+let langGetter: () => string = () => "ru";
+
+export function setLangGetter(fn: () => string) {
+  langGetter = fn;
+}
+
 // Обработчик «тихого перелогина». Когда пропуск истёк (сервер отвечает 401),
 // мы один раз пытаемся получить свежий пропуск через Telegram и повторить
 // запрос — пользователь даже не замечает, что срок действия закончился.
@@ -39,7 +47,7 @@ export async function api<T = any>(
   opts: { method?: string; body?: unknown } = {}
 ): Promise<ApiResult<T>> {
   const doFetch = (token: string | null): Promise<Response> => {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = { "Content-Type": "application/json", "X-Lang": langGetter() };
     if (token) headers["Authorization"] = "Bearer " + token;
     return fetch(path, {
       method: opts.method || "GET",
@@ -85,7 +93,7 @@ export function errText(data: any, status: number, fallback = "—"): string {
 // Загрузка файлов (multipart/form-data). Content-Type выставляет браузер сам.
 export async function apiUpload<T = any>(path: string, formData: FormData): Promise<ApiResult<T>> {
   const doFetch = (token: string | null): Promise<Response> => {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { "X-Lang": langGetter() };
     if (token) headers["Authorization"] = "Bearer " + token;
     return fetch(path, { method: "POST", headers, body: formData });
   };
