@@ -8,7 +8,10 @@ import { haptic } from "../telegram";
 import { ObjectList } from "./Apartments";
 import type { AgentEvent } from "../types";
 
-const TABS = ["added", "sold", "activity"] as const;
+// Две вкладки: «Добавленные объекты» (внутри — подвкладки «В работе» / «Проданные»)
+// и «Действия» (журнал). «Добавленные» включает ВСЕ объекты сотрудника, поэтому
+// они разделены на не проданные (в работе) и проданные — чтобы не путаться.
+const TABS = ["added", "activity"] as const;
 type Tab = (typeof TABS)[number];
 
 const ACTION_KEY: Record<string, string> = {
@@ -17,8 +20,7 @@ const ACTION_KEY: Record<string, string> = {
   status: "evStatusChanged",
 };
 
-// Журнал последних действий сотрудника (отдельная вкладка, чтобы не прокручивать
-// длинные списки объектов до самого низа).
+// Журнал последних действий сотрудника.
 function ActivityLog({ userId }: { userId: number }) {
   const { t, lang } = useApp();
   const [activity, setActivity] = useState<AgentEvent[] | null>(null);
@@ -49,10 +51,48 @@ function ActivityLog({ userId }: { userId: number }) {
   );
 }
 
+// Вкладка «Добавленные объекты» с двумя подвкладками:
+//   in_work — добавленные этим сотрудником, но ещё не проданные (status=unsold);
+//   sold    — добавленные им и уже проданные (status=sold).
+function AddedObjects({ userId }: { userId: number }) {
+  const { t } = useApp();
+  const [sub, setSub] = useState<"in_work" | "sold">("in_work");
+  return (
+    <div>
+      <Segmented
+        value={sub}
+        onChange={(v) => {
+          haptic();
+          setSub(v);
+        }}
+        options={[
+          { value: "in_work", label: t("agentInWork") },
+          { value: "sold", label: t("soldObjects") },
+        ]}
+      />
+      <div className="mt-2 relative">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={sub}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+          >
+            <ObjectList
+              params={{ created_by: userId, status: sub === "sold" ? "sold" : "unsold" }}
+            />
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
 export function AgentDetailScreen({ userId, agentName }: { userId: number; agentName: string }) {
   const { t } = useApp();
   const [tab, setTab] = useState<Tab>("added");
-  // Направление анимации: 1 — листаем вперёд (вправо->влево), -1 — назад.
+  // Направление анимации: 1 — вперёд, -1 — назад.
   const [dir, setDir] = useState(0);
 
   function goTab(next: Tab) {
@@ -63,8 +103,7 @@ export function AgentDetailScreen({ userId, agentName }: { userId: number; agent
     setTab(next);
   }
 
-  // Переключение вкладок свайпом в любом месте экрана (влево — следующая,
-  // вправо — предыдущая). Вертикальные жесты (прокрутка) игнорируем.
+  // Переключение основных вкладок свайпом. Вертикальные жесты игнорируем.
   const touch = useRef<{ x: number; y: number } | null>(null);
   function onTouchStart(e: React.TouchEvent) {
     const p = e.touches[0];
@@ -77,7 +116,6 @@ export function AgentDetailScreen({ userId, agentName }: { userId: number; agent
     const p = e.changedTouches[0];
     const dx = p.clientX - s.x;
     const dy = p.clientY - s.y;
-    // Свайп засчитываем, только если он явно горизонтальный и заметный.
     if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
     const idx = TABS.indexOf(tab);
     const next = dx < 0 ? idx + 1 : idx - 1;
@@ -95,8 +133,7 @@ export function AgentDetailScreen({ userId, agentName }: { userId: number; agent
         value={tab}
         onChange={(v) => goTab(v)}
         options={[
-          { value: "added", label: t("addedObjects") },
-          { value: "sold", label: t("soldObjects") },
+          { value: "added", label: t("agentTabAdded") },
           { value: "activity", label: t("activityTab") },
         ]}
       />
@@ -111,8 +148,7 @@ export function AgentDetailScreen({ userId, agentName }: { userId: number; agent
             exit={{ opacity: 0, x: dir * -60 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
           >
-            {tab === "added" && <ObjectList params={{ created_by: userId, status: "all" }} />}
-            {tab === "sold" && <ObjectList params={{ created_by: userId, status: "sold" }} />}
+            {tab === "added" && <AddedObjects userId={userId} />}
             {tab === "activity" && <ActivityLog userId={userId} />}
           </motion.div>
         </AnimatePresence>
