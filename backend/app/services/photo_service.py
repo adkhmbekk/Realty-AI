@@ -13,11 +13,14 @@ Docker-том), а метаданные — в таблице apartment_photos. 
     показывалось в списке и в карточке для отправки.
 """
 import html as html_lib
+import ipaddress
 import os
 import re
 import secrets
+import socket
 import urllib.request
 from typing import List, Optional, Tuple
+from urllib.parse import urlparse
 
 from fastapi import HTTPException, status
 
@@ -28,6 +31,64 @@ MAX_PHOTOS = 20
 MAX_BYTES = 12 * 1024 * 1024  # 12 МБ на файл
 MAX_HTML_BYTES = 4 * 1024 * 1024
 _UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+
+# Импорт фотографий разрешён только из Telegram.
+_ALLOWED_IMPORT_HOSTS = ("t.me", "telegram.me")
+
+
+def _is_telegram_url(url: str) -> bool:
+    """True, если ссылка ведёт на Telegram (t.me / telegram.me)."""
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return any(host == h or host.endswith("." + h) for h in _ALLOWED_IMPORT_HOSTS)
+
+
+def _assert_public_url(url: str) -> None:
+    """
+    Защита от SSRF (подмены адреса). Разрешаем загрузку только по http/https и
+    только с публичных адресов. Блокируем обращения во внутреннюю сеть
+    (localhost, 10.x, 192.168.x, 169.254.x и т.п.), чтобы по присланной ссылке
+    нельзя было «достучаться» до внутренних сервисов сервера.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Поддерживаются только ссылки http/https.",
+        )
+    host = parsed.hostname
+    if not host:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Некорректная ссылка.",
+        )
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:  # noqa: BLE001
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не удалось определить адрес ссылки.",
+        )
+    for info in infos:
+        ip_str = info[4][0]
+        try:
+            addr = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+        if (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_reserved
+            or addr.is_multicast
+            or addr.is_unspecified
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ссылка ведёт во внутреннюю сеть и заблокирована.",
+            )
 
 
 def _ensure_dir() -> None:
@@ -152,6 +213,7 @@ def add_blobs(
 
 
 def _fetch(url: str, max_bytes: int) -> Tuple[bytes, str]:
+    _assert_public_url(url)
     req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "*/*"})
     with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310
         data = resp.read(max_bytes + 1)
@@ -196,10 +258,12 @@ def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) -> Lis
 
     # Нормализуем ссылку и берём «встраиваемую» версию поста (там видны фото).
     base = url.split("#")[0].split("?")[0]
-    if "t.me/" in base or "telegram.me/" in base:
-        fetch_url = base + "?embed=1&mode=tme"
-    else:
-        fetch_url = base
+    if not _is_telegram_url(base):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Импорт работает только со ссылками Telegram (t.me/<канал>/<номер>).",
+        )
+    fetch_url = base + "?embed=1&mode=tme"
 
     try:
         page, _ = _fetch(fetch_url, MAX_HTML_BYTES)
