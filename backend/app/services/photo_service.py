@@ -128,7 +128,7 @@ def _process_image(data: bytes, content_type: str):
         if has_alpha:
             img.convert("RGBA").save(out, format="PNG", optimize=True)
             return out.getvalue(), "image/png"
-        img.convert("RGB").save(out, format="JPEG", quality=82, optimize=True)
+        img.convert("RGB").save(out, format="JPEG", quality=88, optimize=True)
         return out.getvalue(), "image/jpeg"
     except Exception:  # noqa: BLE001
         return data, content_type
@@ -351,6 +351,28 @@ def file_for(db, key: str) -> Optional[Tuple[str, str]]:
     if not os.path.exists(path):
         return None
     return path, photo.content_type
+
+
+def read_blobs_for_share(
+    db, agency_id: int, apartment_id: int, limit: int = 10
+) -> List[Tuple[bytes, str]]:
+    """
+    Прочитать с диска байты фотографий объекта (до limit штук) для отправки
+    альбомом через бота. Возвращает список (байты, content_type).
+    """
+    blobs: List[Tuple[bytes, str]] = []
+    for photo in apartment_photo_repo.list_for(db, agency_id, apartment_id):
+        if len(blobs) >= limit:
+            break
+        path = _path(photo.storage_key)
+        try:
+            with open(path, "rb") as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        if data:
+            blobs.append((data, photo.content_type or "image/jpeg"))
+    return blobs
 
 
 

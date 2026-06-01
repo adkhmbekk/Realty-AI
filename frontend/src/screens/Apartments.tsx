@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Camera,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   ExternalLink,
   Home as HomeIcon,
@@ -38,7 +40,7 @@ import {
 import { Badge } from "../components/ui";
 import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, SearchParams } from "../types";
 import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
-import { haptic, openLink, shareToTelegram } from "../telegram";
+import { haptic, openLink } from "../telegram";
 
 // Загрузка справочника районов (один раз на жизнь экрана).
 function useDistricts(): DictItem[] {
@@ -291,11 +293,80 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
   return lines.join("\n");
 }
 
+// ── Просмотр фото внутри приложения (увеличение, без внешнего браузера) ──
+function Lightbox({
+  urls,
+  index,
+  onClose,
+  onIndex,
+}: {
+  urls: string[];
+  index: number;
+  onClose: () => void;
+  onIndex: (i: number) => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft") onIndex((index - 1 + urls.length) % urls.length);
+      else if (e.key === "ArrowRight") onIndex((index + 1) % urls.length);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [index, urls.length, onClose, onIndex]);
+
+  if (index < 0 || index >= urls.length) return null;
+  const multi = urls.length > 1;
+  const go = (e: React.MouseEvent, i: number) => {
+    e.stopPropagation();
+    onIndex((i + urls.length) % urls.length);
+  };
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center" onClick={onClose}>
+      <button
+        className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center active:scale-90"
+        onClick={onClose}
+        aria-label="close"
+      >
+        <X size={20} />
+      </button>
+      <img
+        src={urls[index]}
+        alt=""
+        className="max-w-[94vw] max-h-[82vh] object-contain rounded-lg"
+        onClick={(e) => e.stopPropagation()}
+      />
+      {multi && (
+        <>
+          <button
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center active:scale-90"
+            onClick={(e) => go(e, index - 1)}
+            aria-label="prev"
+          >
+            <ChevronLeft size={22} />
+          </button>
+          <button
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center active:scale-90"
+            onClick={(e) => go(e, index + 1)}
+            aria-label="next"
+          >
+            <ChevronRight size={22} />
+          </button>
+          <div className="absolute bottom-4 left-0 right-0 text-center text-white/80 text-sm font-semibold">
+            {index + 1} / {urls.length}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Галерея фото объекта (загрузка/импорт/удаление) ─────────────────
 function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange?: () => void }) {
   const { t, toast } = useApp();
   const [photos, setPhotos] = useState<ApartmentPhoto[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [viewer, setViewer] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -364,11 +435,11 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
     <div className="mb-3">
       {photos && photos.length > 0 && (
         <div className="grid grid-cols-3 gap-2 mb-2.5">
-          {photos.map((p) => (
+          {photos.map((p, i) => (
             <div key={p.id} className="relative aspect-square rounded-[14px] overflow-hidden bg-[var(--soft)] border border-line">
-              <a href={p.url} target="_blank" rel="noopener noreferrer">
+              <button type="button" className="block w-full h-full active:scale-95 transition" onClick={() => setViewer(i)}>
                 <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
-              </a>
+              </button>
               <button
                 onClick={() => del(p.id)}
                 className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90"
@@ -390,6 +461,9 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
         </Button>
       </div>
       <Hint>{t("photosHint")}</Hint>
+      {viewer != null && photos && photos.length > 0 && (
+        <Lightbox urls={photos.map((p) => p.url)} index={viewer} onClose={() => setViewer(null)} onIndex={setViewer} />
+      )}
     </div>
   );
 }
@@ -599,6 +673,24 @@ export function AddObjectScreen() {
 
   async function submit(body: Record<string, unknown>) {
     setSaving(true);
+    // Предупреждаем о возможных дублях по ключевым полям (можно всё равно добавить).
+    const dq = buildQuery({
+      district: body.district as string | undefined,
+      rooms: body.rooms as number | undefined,
+      type: body.type as string | undefined,
+      price: body.price as number | undefined,
+      address: body.address as string | undefined,
+    });
+    if (dq) {
+      const sim = await api<Apartment[]>("/api/v1/apartments/similar?" + dq);
+      if (sim.ok && Array.isArray(sim.data) && sim.data.length) {
+        const ids = sim.data.map((a) => "№" + a.display_id).join(", ");
+        if (!window.confirm(t("dupFound") + " " + ids + "\n\n" + t("dupAsk"))) {
+          setSaving(false);
+          return;
+        }
+      }
+    }
     const r = await api<Apartment>("/api/v1/apartments", { method: "POST", body });
     if (!r.ok || !r.data) {
       setSaving(false);
@@ -873,9 +965,13 @@ export function ObjectDetailScreen({ id }: { id: number }) {
       nav.pop();
     } else toast(errText(r.data, r.status), "err");
   }
-  function share() {
-    const text = buildShareCard(o!, L, t, settings?.contact_phone);
-    shareToTelegram(text);
+  async function share() {
+    setBusy(true);
+    toast(t("shareSending"), "info");
+    const r = await api(`/api/v1/apartments/${id}/share`, { method: "POST" });
+    setBusy(false);
+    if (r.ok) toast(t("shareSent"), "ok");
+    else toast(errText(r.data, r.status), "err");
   }
   async function copyCard() {
     const text = buildShareCard(o!, L, t, settings?.contact_phone);
@@ -925,8 +1021,8 @@ export function ObjectDetailScreen({ id }: { id: number }) {
         <Button size="sm" variant="ghost" onClick={copyCard}>
           <Copy size={15} /> {t("shareCard")}
         </Button>
-        <Button size="sm" variant="ghost" onClick={share}>
-          <Send size={15} /> {t("shareTg")}
+        <Button size="sm" variant="ghost" disabled={busy} onClick={share}>
+          <Send size={15} /> {t("shareWithPhotos")}
         </Button>
       </div>
 

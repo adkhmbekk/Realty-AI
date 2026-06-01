@@ -176,3 +176,30 @@ class ApartmentEventOut(BaseModel):
     note: Optional[str] = None
     user_name: Optional[str] = None
     created_at: datetime
+
+
+
+class AgentActivityOut(BaseModel):
+    # Активность одного сотрудника: сколько объектов добавил и сколько продано.
+    user_id: Optional[int] = None
+    name: Optional[str] = None
+    total: int
+    sold: int
+
+
+class ApartmentAnalyticsOut(BaseModel):
+    # Аналитика для руководителя агентства.
+    active: int
+    deposit: int
+    sold: int
+    archived: int
+    total: int
+    added_this_month: int
+    sold_this_month: int
+    agents: List[AgentActivityOut]
+
+
+class ShareResultOut(BaseModel):
+    # Результат отправки объекта через бота.
+    ok: bool
+    photos: int

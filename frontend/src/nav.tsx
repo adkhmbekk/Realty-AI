@@ -15,7 +15,8 @@ export type Route =
   | { name: "objectDetail"; id: number }
   | { name: "objectEdit"; obj: Apartment }
   | { name: "team" }
-  | { name: "invites" };
+  | { name: "invites" }
+  | { name: "analytics" };
 
 interface NavCtx {
   stack: Route[];

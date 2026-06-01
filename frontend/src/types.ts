@@ -68,6 +68,24 @@ export interface ApartmentEvent {
   created_at: string;
 }
 
+export interface AgentActivity {
+  user_id?: number | null;
+  name?: string | null;
+  total: number;
+  sold: number;
+}
+
+export interface ApartmentAnalytics {
+  active: number;
+  deposit: number;
+  sold: number;
+  archived: number;
+  total: number;
+  added_this_month: number;
+  sold_this_month: number;
+  agents: AgentActivity[];
+}
+
 export interface AgencyOut {
   id: number;
   name: string;

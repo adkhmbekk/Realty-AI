@@ -82,6 +82,10 @@ export const I18N: Record<Lang, Record<string, string>> = {
     uploadingPhotos: "Загружаем фото…", importingPhotos: "Импортируем фото…",
     photoAdded: "Фото добавлены.", photoDeleted: "Фото удалено.", delPhotoQ: "Удалить это фото?",
     noPhotos: "Фотографий пока нет.", photosHint: "Можно загрузить с телефона или импортировать из поста Telegram.",
+    analytics: "Аналитика", objectsTotal: "Всего объектов", addedThisMonth: "Добавлено за месяц", soldThisMonth: "Продано за месяц",
+    agentsActivity: "Активность сотрудников", colAdded: "Добавлено", colSold: "Продано", noAnalytics: "Пока нет данных для аналитики.",
+    shareWithPhotos: "Отправить с фото", shareSending: "Отправляем…", shareSent: "Объект с фото отправлен вам в чат с ботом — перешлите его клиенту.",
+    dupFound: "Похожие объекты уже есть:", dupAsk: "Всё равно добавить?",
   },
   uz: {
     back: "Orqaga", save: "Saqlash", saveChanges: "Oʻzgarishlarni saqlash", cancel: "Bekor qilish",
@@ -161,6 +165,10 @@ export const I18N: Record<Lang, Record<string, string>> = {
     uploadingPhotos: "Foto yuklanmoqda…", importingPhotos: "Fotolar import qilinmoqda…",
     photoAdded: "Fotolar qoʻshildi.", photoDeleted: "Foto oʻchirildi.", delPhotoQ: "Bu foto oʻchirilsinmi?",
     noPhotos: "Hozircha foto yoʻq.", photosHint: "Telefondan yuklash yoki Telegram postidan import qilish mumkin.",
+    analytics: "Tahlil", objectsTotal: "Jami obyektlar", addedThisMonth: "Oy davomida qoʻshildi", soldThisMonth: "Oy davomida sotildi",
+    agentsActivity: "Xodimlar faolligi", colAdded: "Qoʻshgan", colSold: "Sotgan", noAnalytics: "Hozircha tahlil uchun maʼlumot yoʻq.",
+    shareWithPhotos: "Foto bilan yuborish", shareSending: "Yuborilmoqda…", shareSent: "Obyekt foto bilan bot chatingizga yuborildi — uni mijozga yoʻllang.",
+    dupFound: "Shunga oʻxshash obyektlar bor:", dupAsk: "Baribir qoʻshilsinmi?",
   },
   en: {
     back: "Back", save: "Save", saveChanges: "Save changes", cancel: "Cancel",
@@ -240,6 +248,10 @@ export const I18N: Record<Lang, Record<string, string>> = {
     uploadingPhotos: "Uploading photos…", importingPhotos: "Importing photos…",
     photoAdded: "Photos added.", photoDeleted: "Photo deleted.", delPhotoQ: "Delete this photo?",
     noPhotos: "No photos yet.", photosHint: "Upload from your phone or import from a Telegram post.",
+    analytics: "Analytics", objectsTotal: "Total properties", addedThisMonth: "Added this month", soldThisMonth: "Sold this month",
+    agentsActivity: "Team activity", colAdded: "Added", colSold: "Sold", noAnalytics: "No analytics data yet.",
+    shareWithPhotos: "Send with photos", shareSending: "Sending…", shareSent: "The property with photos was sent to your bot chat — forward it to the client.",
+    dupFound: "Similar properties already exist:", dupAsk: "Add anyway?",
   },
 };
 
