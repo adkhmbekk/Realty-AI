@@ -18,6 +18,18 @@ if errorlevel 1 (
   exit /b 1
 )
 
+REM Проверяем файл .env с секретами (в нём теперь хранится токен ngrok).
+if not exist ".env" (
+  echo [!] Не найден файл .env с секретами.
+  echo     Без него туннель ngrok не запустится. Сделай так:
+  echo       1^) Скопируй файл .env.example и назови копию .env
+  echo       2^) Открой .env Блокнотом и впиши строку: NGROK_AUTHTOKEN=твой_токен
+  echo          Токен бери тут: https://dashboard.ngrok.com  (Your Authtoken^)
+  echo.
+  pause
+  exit /b 1
+)
+
 echo [1/2] Собираем и запускаем проект... (первый раз дольше, дальше быстро)
 echo.
 docker compose up -d --build
