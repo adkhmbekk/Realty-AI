@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
-import { api, apiUpload, buildQuery, errText } from "../api";
+import { api, buildQuery, errText } from "../api";
 import {
   Button,
   Card,
@@ -37,7 +37,7 @@ import {
 } from "../i18n";
 import { Badge } from "../components/ui";
 import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, SearchParams } from "../types";
-import { copyText, downscaleImage, fmtDate, fmtPrice } from "../utils";
+import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
 import { haptic, openLink, shareToTelegram } from "../telegram";
 
 // Загрузка справочника районов (один раз на жизнь экрана).
@@ -67,6 +67,14 @@ const intOrNull = (v: string): number | null => {
   const n = parseInt(s, 10);
   return Number.isNaN(n) ? null : n;
 };
+
+// Отправить одно фото (data-URL) на сервер как JSON. Возвращает ответ API.
+async function uploadOnePhoto(apartmentId: number, dataUrl: string) {
+  return api<ApartmentPhoto[]>(`/api/v1/apartments/${apartmentId}/photos`, {
+    method: "POST",
+    body: { images: [dataUrl] },
+  });
+}
 
 // Форма объекта (создание и редактирование). При full=true пустые поля
 // отправляются как null (очистка).
@@ -302,21 +310,30 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
   async function onFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || !files.length) return;
-    const fd = new FormData();
-    for (const f of Array.from(files)) {
-      const blob = await downscaleImage(f);
-      fd.append("files", blob, "photo.jpg");
-    }
     setBusy(true);
     toast(t("uploadingPhotos"), "info");
-    const r = await apiUpload<ApartmentPhoto[]>(`/api/v1/apartments/${apartmentId}/photos`, fd);
+    let lastOk: ApartmentPhoto[] | null = null;
+    let failed: { data: unknown; status: number } | null = null;
+    // По одному фото за запрос (JSON), чтобы каждый запрос был лёгким.
+    for (const f of Array.from(files)) {
+      const dataUrl = await downscaleToDataUrl(f);
+      const r = await uploadOnePhoto(apartmentId, dataUrl);
+      if (r.ok && r.data) lastOk = r.data;
+      else {
+        failed = { data: r.data, status: r.status };
+        break;
+      }
+    }
     setBusy(false);
     e.target.value = "";
-    if (r.ok && r.data) {
-      setPhotos(r.data);
+    if (lastOk) setPhotos(lastOk);
+    if (lastOk && !failed) {
       toast(t("photoAdded"), "ok");
       onChange?.();
-    } else toast(errText(r.data, r.status), "err");
+    } else if (failed) {
+      onChange?.();
+      toast(errText(failed.data, failed.status), "err");
+    }
   }
 
   async function importTg() {
@@ -402,15 +419,16 @@ export function ApartmentCard({ o }: { o: Apartment }) {
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="w-11 h-11 shrink-0 rounded-[13px] bg-primary-soft text-primary flex items-center justify-center">
-          <HomeIcon size={22} />
+        <div className="w-11 h-11 shrink-0 rounded-[13px] bg-primary-soft text-primary flex items-center justify-center overflow-hidden">
+          {o.photo_url ? (
+            <img src={o.photo_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <HomeIcon size={22} />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-extrabold">
-              №{o.display_id}
-              {o.photo_url ? " 📷" : ""}
-            </span>
+            <span className="font-extrabold">№{o.display_id}</span>
             <Badge color={STATUS_BADGE[o.status] || "gray"}>{L.statusLabel(o.status)}</Badge>
           </div>
           {o.name && <div className="text-[13px] text-muted truncate">{o.name}</div>}
@@ -588,15 +606,11 @@ export function AddObjectScreen() {
       return;
     }
     const newId = r.data.id;
-    // Прикрепляем выбранные фото к уже созданному объекту.
+    // Прикрепляем выбранные фото к уже созданному объекту (по одному, JSON).
     try {
-      if (files.length) {
-        const fd = new FormData();
-        for (const f of files) {
-          const blob = await downscaleImage(f);
-          fd.append("files", blob, "photo.jpg");
-        }
-        await apiUpload(`/api/v1/apartments/${newId}/photos`, fd);
+      for (const f of files) {
+        const dataUrl = await downscaleToDataUrl(f);
+        await uploadOnePhoto(newId, dataUrl);
       }
       for (const url of tgUrls) {
         await api(`/api/v1/apartments/${newId}/photos/import-telegram`, { method: "POST", body: { url } });

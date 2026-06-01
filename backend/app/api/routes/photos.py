@@ -5,11 +5,16 @@
   сотрудника агентства (изоляция по agency_id);
 - отдача самого файла — публичная (по неугадываемому ключу), чтобы тег <img>
   мог показать картинку без заголовка авторизации.
+
+Загрузка с устройства принимает фото как JSON (base64/data-URL), а НЕ как
+multipart/form-data: обычные JSON-запросы стабильно проходят через туннель,
+а multipart с файлом — нет.
 """
 from typing import List
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_agency_member
@@ -18,6 +23,11 @@ from app.db.session import get_db
 from app.services import photo_service
 
 router = APIRouter(tags=["photos"])
+
+
+class PhotoUploadIn(BaseModel):
+    # Изображения как data-URL ("data:image/jpeg;base64,...") или чистый base64.
+    images: List[str]
 
 
 @router.get("/apartments/{apartment_id}/photos")
@@ -33,21 +43,18 @@ def list_photos(
 @router.post("/apartments/{apartment_id}/photos", status_code=201)
 def upload_photos(
     apartment_id: int,
-    files: List[UploadFile] = File(...),
+    body: PhotoUploadIn,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
-    """
-    Загрузить одно или несколько фото с устройства.
-
-    Маршрут СИНХРОННЫЙ — FastAPI выполняет его в пуле потоков и не блокирует
-    основной цикл событий. Тяжёлая обработка фото больше не «подвешивает» весь
-    backend, поэтому другие запросы (например, открытие базы) не упираются в таймаут.
-    """
+    """Загрузить фото с устройства (передаются как base64 в JSON)."""
     blobs = []
-    for f in files:
-        data = f.file.read()  # синхронное чтение уже принятого файла
-        blobs.append((data, f.content_type or "image/jpeg"))
+    for s in body.images:
+        data, ctype = photo_service.decode_data_url(s)
+        if data:
+            blobs.append((data, ctype))
+    if not blobs:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет фото для загрузки.")
     return photo_service.add_blobs(db, current_user.agency_id, apartment_id, blobs)
 
 
