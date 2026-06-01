@@ -566,7 +566,7 @@ def send_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
 # Доступные периоды для графиков: (гранулярность, сколько корзин).
 _PERIODS = {
     "week": ("day", 7),
-    "month": ("day", 30),
+    "month": ("week", 5),
     "halfyear": ("month", 6),
     "year": ("month", 12),
 }
@@ -579,6 +579,11 @@ def _bucket_starts(granularity: str, count: int):
     if granularity == "day":
         for i in range(count - 1, -1, -1):
             starts.append(today - timedelta(days=i))
+    elif granularity == "week":
+        # Начало недели — понедельник (как у Postgres date_trunc('week', ...)).
+        monday = today - timedelta(days=today.weekday())
+        for i in range(count - 1, -1, -1):
+            starts.append(monday - timedelta(weeks=i))
     else:  # month
         y, m = today.year, today.month
         for i in range(count - 1, -1, -1):
@@ -595,7 +600,7 @@ _MONTHS_RU = ["", "янв", "фев", "мар", "апр", "май", "июн", "�
 
 
 def _bucket_label(granularity: str, d) -> str:
-    if granularity == "day":
+    if granularity in ("day", "week"):
         return f"{d.day:02d}.{d.month:02d}"
     return f"{_MONTHS_RU[d.month]} {str(d.year)[2:]}"
 
