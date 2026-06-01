@@ -6,7 +6,7 @@ import { CURRENCIES, Lang } from "../i18n";
 import type { AgencySettings } from "../types";
 
 export function SettingsScreen() {
-  const { t, lang, theme, setLang, setTheme, user, settings, setSettings, clearAuth, toast } = useApp();
+  const { t, lang, theme, setLang, setTheme, user, settings, setSettings, toast } = useApp();
   const role = user?.role;
   const isOwnerAdmin = role === "agency_admin" && !!user?.is_owner;
 
@@ -31,41 +31,6 @@ export function SettingsScreen() {
     if (r.ok && r.data) {
       setSettings(r.data);
       toast(t("saved"), "ok");
-    } else toast(errText(r.data, r.status), "err");
-  }
-
-  async function transfer() {
-    const idStr = window.prompt(t("transferPrompt"), "");
-    if (idStr === null) return;
-    const tgId = parseInt(idStr.trim(), 10);
-    if (Number.isNaN(tgId)) {
-      toast(t("badId"), "warn");
-      return;
-    }
-    const username = window.prompt(t("transferUserPrompt"), "");
-    if (username === null) return;
-    const uname = username.trim();
-
-    // Шаг 1: запросить код подтверждения (придёт в чат с ботом).
-    const reqBody: Record<string, unknown> = { new_telegram_id: tgId };
-    if (uname) reqBody.new_username = uname;
-    const r1 = await api("/api/v1/platform/transfer-request", { method: "POST", body: reqBody });
-    if (!r1.ok) {
-      toast(errText(r1.data, r1.status), "err");
-      return;
-    }
-    toast(t("codeSent"), "info");
-
-    // Шаг 2: ввести код из бота и подтвердить.
-    const code = window.prompt(t("enterCode"), "");
-    if (code === null || !code.trim()) return;
-    if (!window.confirm(t("transferConfirm2"))) return;
-    const body: Record<string, unknown> = { new_telegram_id: tgId, code: code.trim() };
-    if (uname) body.new_username = uname;
-    const r = await api("/api/v1/platform/transfer-ownership", { method: "POST", body });
-    if (r.ok) {
-      toast(t("transferred"), "ok");
-      setTimeout(() => clearAuth(), 800);
     } else toast(errText(r.data, r.status), "err");
   }
 
@@ -130,15 +95,6 @@ export function SettingsScreen() {
               {t("saveSettings")}
             </Button>
           </Card>
-        </div>
-      )}
-
-      {role === "superadmin" && (
-        <div className="mt-2">
-          <SectionTitle>{t("platformSection")}</SectionTitle>
-          <Button full variant="danger" onClick={transfer}>
-            {t("transferOwnership")}
-          </Button>
         </div>
       )}
     </div>
