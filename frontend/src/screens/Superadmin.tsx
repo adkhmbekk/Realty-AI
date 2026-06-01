@@ -258,23 +258,23 @@ export function AgencyManageScreen({ id }: { id: number }) {
         <Row label={t("subUntil")} value={fmtDate(a.subscription_expires_at, lang)} />
         <Row label={t("admin")} value={adminTxt} />
       </Card>
-      <div className="mt-3 flex gap-2 flex-wrap">
-        <Button size="sm" variant="ghost" onClick={extend}>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button full size="sm" variant="ghost" onClick={extend}>
           {t("extendBtn")}
         </Button>
-        <Button size="sm" variant="ghost" onClick={changeDate}>
+        <Button full size="sm" variant="ghost" onClick={changeDate}>
           {t("changeDateBtn")}
         </Button>
-        <Button size="sm" variant={frozen ? "ghost" : "danger"} onClick={() => sub(frozen ? "activate" : "freeze")}>
-          {frozen ? t("activate") : t("freeze")}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={rename}>
+        <Button full size="sm" variant="ghost" onClick={rename}>
           {t("rename")}
         </Button>
-        <Button size="sm" variant="ghost" onClick={changeAdmin}>
+        <Button full size="sm" variant="ghost" onClick={changeAdmin}>
           {t("changeAdmin")}
         </Button>
-        <Button size="sm" variant="danger" onClick={del}>
+        <Button full size="sm" variant={frozen ? "ghost" : "danger"} onClick={() => sub(frozen ? "activate" : "freeze")}>
+          {frozen ? t("activate") : t("freeze")}
+        </Button>
+        <Button full size="sm" variant="danger" onClick={del}>
           {t("deleteAgency")}
         </Button>
       </div>

@@ -60,7 +60,7 @@ function BarChart({ data, color }: { data: { label: string; value: number }[]; c
       </div>
       <div className="flex gap-1 mt-1.5" style={{ minWidth: Math.max(0, n * 16) }}>
         {data.map((d, i) => (
-          <div key={i} className="flex-1 text-center text-[9px] text-muted min-w-[10px] truncate">
+          <div key={i} className="flex-1 text-center text-[9px] text-muted min-w-[10px] whitespace-nowrap overflow-hidden">
             {i % step === 0 ? d.label : ""}
           </div>
         ))}
