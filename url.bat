@@ -3,11 +3,23 @@ chcp 65001 >nul
 cd /d "%~dp0"
 title Realty AI - публичная ссылка
 
-echo Текущая публичная ссылка туннеля (для @BotFather):
+set "NGDOM="
+if exist ".env" (
+  for /f "usebackq tokens=1,* delims==" %%a in (".env") do (
+    if /i "%%a"=="NGROK_DOMAIN" set "NGDOM=%%b"
+  )
+)
+
+echo Постоянный адрес для @BotFather:
 echo ============================================
-docker compose logs cloudflared 2>nul | findstr /C:"trycloudflare.com"
+if defined NGDOM (
+  echo    https://%NGDOM%
+) else (
+  echo    [!] NGROK_DOMAIN не задан в .env
+)
 echo ============================================
 echo.
-echo Если пусто - подожди 10-20 секунд после запуска и запусти снова.
+echo Проверить, что туннель поднялся (последние строки ngrok):
+docker compose logs --tail=15 ngrok 2>nul
 echo.
 pause

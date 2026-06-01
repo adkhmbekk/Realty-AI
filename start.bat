@@ -12,49 +12,49 @@ REM Проверяем, запущен ли Docker.
 docker info >nul 2>&1
 if errorlevel 1 (
   echo [!] Docker Desktop не запущен.
-  echo     Открой Docker Desktop, дождись зелёного значка слева внизу,
-  echo     и запусти этот файл снова.
+  echo     Открой Docker Desktop, дождись зелёного значка и запусти этот файл снова.
   echo.
   pause
   exit /b 1
 )
 
-echo [1/3] Собираем и запускаем (первый раз дольше, потом быстро)...
+REM Читаем постоянный домен ngrok из .env.
+set "NGDOM="
+if exist ".env" (
+  for /f "usebackq tokens=1,* delims==" %%a in (".env") do (
+    if /i "%%a"=="NGROK_DOMAIN" set "NGDOM=%%b"
+  )
+)
+
+echo [1/2] Собираем и запускаем (первый раз дольше, потом быстро)...
 echo.
 docker compose up -d --build
 echo.
 
-echo [2/3] Статус контейнеров (все должны быть "running"/"Up"):
+echo [2/2] Статус контейнеров (все должны быть "running"/"Up"):
 echo --------------------------------------------
 docker compose ps
 echo --------------------------------------------
 echo.
 
-echo [3/3] Получаем публичный адрес туннеля (до ~30 сек)...
-set "FOUND="
-for /L %%i in (1,1,15) do (
-  docker compose logs cloudflared 2>nul | findstr /C:"trycloudflare.com" >nul && set "FOUND=1"
-  if defined FOUND goto :showurl
-  timeout /t 2 /nobreak >nul
+echo ============================================
+if defined NGDOM (
+  echo   ПОСТОЯННЫЙ адрес для Telegram (вставь в @BotFather ОДИН раз^):
+  echo.
+  echo        https://%NGDOM%
+  echo.
+  echo   Этот адрес НЕ меняется между запусками.
+) else (
+  echo   [!] В файле .env не задан NGROK_DOMAIN.
+  echo   Добавь в .env строки:
+  echo        NGROK_AUTHTOKEN=твой_токен
+  echo        NGROK_DOMAIN=твой-домен.ngrok-free.app
+  echo   и запусти start.bat снова.
 )
-:showurl
-echo.
 echo ============================================
-echo   ПУБЛИЧНАЯ ССЫЛКА для Telegram:
-echo ============================================
-docker compose logs cloudflared 2>nul | findstr /C:"trycloudflare.com"
-echo ============================================
-echo.
-echo   !!! ВАЖНО !!!
-echo   Этот адрес МЕНЯЕТСЯ при каждом перезапуске.
-echo   Скопируй ссылку выше (https://....trycloudflare.com) и вставь её
-echo   в @BotFather: /mybots - твой бот - Bot Settings - Menu Button / Mini App URL.
-echo   Без этого Mini App будет открывать СТАРЫЙ (мёртвый) адрес.
-echo.
-echo   (Это лечится постоянным адресом - спроси разработчика про ngrok.)
 echo.
 echo   Проверка локально (в браузере на ПК): http://localhost:8080
 echo.
-echo Команды: logs.bat (логи)  ^|  url.bat (показать ссылку)  ^|  stop.bat (стоп)
+echo Команды: logs.bat (логи)  ^|  url.bat (адрес)  ^|  stop.bat (стоп)
 echo.
 pause
