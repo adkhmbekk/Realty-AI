@@ -30,25 +30,28 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/2] Получаем публичную ссылку для Telegram (10-20 сек)...
-timeout /t 14 /nobreak >nul
+echo [2/2] Поднимаем туннель ngrok (5-10 сек)...
+timeout /t 8 /nobreak >nul
 
 echo.
 echo ============================================
-echo   ПУБЛИЧНАЯ ССЫЛКА (вставь её в @BotFather
-echo   как URL Mini App, если адрес сменился):
+echo   ПУБЛИЧНАЯ ССЫЛКА (постоянная) для Telegram.
+echo   Один раз пропиши её в @BotFather как URL
+echo   Mini App - дальше она не меняется:
 echo ============================================
-docker compose logs cloudflared 2>nul | findstr /C:"trycloudflare.com"
+echo     https://pagan-crawling-retiring.ngrok-free.dev
 echo.
 echo --------------------------------------------
 echo   Локально (на этом компьютере):
-echo     Приложение:  http://localhost:8080
-echo     API / docs:  http://localhost:8000/docs
+echo     Приложение:     http://localhost:8080
+echo     API / docs:     http://localhost:8000/docs
+echo     Панель ngrok:   http://localhost:4040
 echo --------------------------------------------
 echo.
 echo Готово. Проект работает в фоне.
-echo   - Посмотреть логи сервера:  logs.bat
-echo   - Остановить проект:        stop.bat
-echo   - Полная пересборка:        rebuild.bat
+echo   - Показать публичную ссылку снова:  url.bat
+echo   - Посмотреть логи сервера:          logs.bat
+echo   - Остановить проект:                stop.bat
+echo   - Полная пересборка:                rebuild.bat
 echo.
 pause

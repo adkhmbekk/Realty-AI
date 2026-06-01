@@ -36,7 +36,7 @@ echo.
 echo Запускаем...
 docker compose up -d
 echo.
-echo Готово. Подожди ~15 секунд и запусти start.bat, чтобы увидеть публичную ссылку,
-echo либо посмотри её командой: docker compose logs cloudflared
+echo Готово. Подожди ~10 секунд, затем покажи публичную ссылку командой url.bat
+echo (постоянный адрес: https://pagan-crawling-retiring.ngrok-free.dev).
 echo.
 pause
