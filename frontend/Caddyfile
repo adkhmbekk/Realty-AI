@@ -4,8 +4,10 @@
 :80 {
 	encode gzip
 
-	# Всё, что начинается с /api/, а также /health и документация — на backend.
-	@backend path /api/* /health /docs /docs/* /openapi.json
+	# Наружу проксируем только рабочее API и проверку здоровья.
+	# Интерактивная документация (/docs, /openapi.json) НЕ выставляется в интернет —
+	# она остаётся доступной только локально на http://localhost:8000/docs.
+	@backend path /api/* /health
 	handle @backend {
 		reverse_proxy backend:8000
 	}
