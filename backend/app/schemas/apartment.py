@@ -27,8 +27,6 @@ FurnitureAppliances = Literal[
 # Поля, общие для создания и редактирования объекта.
 class _ApartmentBase(BaseModel):
     name: Optional[str] = None
-    # Агент-источник (id из справочника agents этого агентства).
-    agent_id: Optional[int] = None
     # Номер собственника (конфиденциально — виден только команде).
     owner_phone: Optional[str] = None
     district: Optional[str] = None
@@ -100,7 +98,6 @@ class ApartmentOut(BaseModel):
     display_id: str
     status: str
     name: Optional[str] = None
-    agent_id: Optional[int] = None
     owner_phone: Optional[str] = None
     district: Optional[str] = None
     address: Optional[str] = None

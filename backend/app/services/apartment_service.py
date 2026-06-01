@@ -125,7 +125,6 @@ def create_apartment(
         agency_id=agency_id,
         display_id=display_id,
         status=new_status,
-        agent_id=None,
         created_by=created_by,
         name=payload.name,
         owner_phone=payload.owner_phone,
@@ -220,7 +219,6 @@ def search_apartments(
     floor_max: Optional[int] = None,
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
-    agent_id: Optional[int] = None,
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
@@ -239,7 +237,6 @@ def search_apartments(
         floor_max=floor_max,
         price_min=price_min,
         price_max=price_max,
-        agent_id=agent_id,
         q=q,
         rooms_min=rooms_min,
         rooms_max=rooms_max,
@@ -262,7 +259,6 @@ def update_apartment(
 
     # exclude_unset=True → меняем только присланные поля (белый список схемы).
     changes = payload.model_dump(exclude_unset=True)
-    changes.pop("agent_id", None)
     if "currency" in changes and not changes["currency"]:
         changes.pop("currency")
 

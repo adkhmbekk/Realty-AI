@@ -22,7 +22,6 @@ export interface Apartment {
   display_id: string;
   status: string;
   name?: string | null;
-  agent_id?: number | null;
   owner_phone?: string | null;
   district?: string | null;
   address?: string | null;
