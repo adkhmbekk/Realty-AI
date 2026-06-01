@@ -8,7 +8,6 @@
   - /api/v1/...  — рабочее API (см. интерактивную документацию на /docs).
 """
 import logging
-import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -18,29 +17,11 @@ from sqlalchemy.orm import Session
 from app.api.router import api_router
 from app.config import settings
 from app.db import models  # noqa: F401  — нужен, чтобы модели зарегистрировались
-from app.db.base import Base
-from app.db.session import SessionLocal, engine, get_db
+from app.db.migrate import run_migrations
+from app.db.session import SessionLocal, get_db
 from app.repositories import user_repo
 
 logger = logging.getLogger("uvicorn.error")
-
-
-def init_db_with_retry(retries: int = 12, delay_seconds: int = 3) -> None:
-    """Создать таблицы, повторяя попытки, пока база не поднимется."""
-    last_error: Exception | None = None
-    for attempt in range(1, retries + 1):
-        try:
-            Base.metadata.create_all(bind=engine)
-            logger.info("База данных готова, таблицы созданы/проверены.")
-            return
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
-            logger.warning(
-                "Не удалось подключиться к базе (попытка %s/%s): %s",
-                attempt, retries, exc,
-            )
-            time.sleep(delay_seconds)
-    raise RuntimeError(f"Не удалось инициализировать базу данных: {last_error}")
 
 
 def bootstrap_superadmin() -> None:
@@ -72,77 +53,6 @@ def bootstrap_superadmin() -> None:
         db.commit()
     finally:
         db.close()
-
-
-def ensure_schema_upgrades() -> None:
-    """
-    Лёгкие до-Alembic-миграции: добавляем недостающие колонки в существующие
-    таблицы, чтобы create_all (который НЕ умеет ALTER) не ломался на уже
-    созданной базе. Данные при этом не теряются.
-    """
-    statements = [
-        "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS project_name VARCHAR",
-        "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ",
-        # Контактный номер агентства (подставляется при «поделиться»).
-        "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS contact_phone VARCHAR",
-        # Тумблер уведомлений о новых объектах.
-        "ALTER TABLE agencies ADD COLUMN IF NOT EXISTS notify_new_objects BOOLEAN NOT NULL DEFAULT FALSE",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT FALSE",
-        # Новые поля объекта недвижимости.
-        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS owner_phone TEXT",
-        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS furniture_appliances VARCHAR",
-        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS comment TEXT",
-        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS photo_url TEXT",
-        "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS source_link TEXT",
-    ]
-
-    # Перенос данных из старой колонки phone в owner_phone (если phone ещё есть).
-    migrate_phone = """
-    DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'apartments' AND column_name = 'phone'
-        ) THEN
-            UPDATE apartments SET owner_phone = phone
-            WHERE owner_phone IS NULL AND phone IS NOT NULL;
-        END IF;
-    END $$;
-    """
-
-    # Лучшее усилие: из старых текстовых полей furniture/appliances вывести
-    # значение нового поля furniture_appliances (только для старых записей).
-    migrate_furniture = """
-    DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'apartments' AND column_name = 'furniture'
-        ) AND EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'apartments' AND column_name = 'appliances'
-        ) THEN
-            UPDATE apartments SET furniture_appliances = CASE
-                WHEN COALESCE(furniture, '') <> '' AND COALESCE(appliances, '') <> ''
-                    THEN 'furniture_and_appliances'
-                WHEN COALESCE(furniture, '') <> '' THEN 'furniture_only'
-                WHEN COALESCE(appliances, '') <> '' THEN 'appliances_only'
-                ELSE NULL
-            END
-            WHERE furniture_appliances IS NULL;
-        END IF;
-    END $$;
-    """
-
-    try:
-        with engine.begin() as conn:
-            for stmt in statements:
-                conn.execute(text(stmt))
-            conn.execute(text(migrate_phone))
-            conn.execute(text(migrate_furniture))
-        logger.info("Схема БД проверена (недостающие колонки добавлены при необходимости).")
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Не удалось выполнить до-миграции схемы: %s", exc)
 
 
 def normalize_legacy_display_ids() -> None:
@@ -234,8 +144,7 @@ def backfill_agency_owners() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db_with_retry()
-    ensure_schema_upgrades()
+    run_migrations()
     normalize_legacy_display_ids()
     backfill_agency_owners()
     bootstrap_superadmin()
