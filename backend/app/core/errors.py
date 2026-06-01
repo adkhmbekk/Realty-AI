@@ -37,6 +37,12 @@ def get_current_lang() -> str:
 
 # ─── Каталог сообщений: ключ -> {ru, uz, en} ─────────────────────────────
 MESSAGES: dict[str, dict[str, str]] = {
+    # Общая внутренняя ошибка (непредвиденный сбой, 500).
+    "internal_error": {
+        "ru": "Внутренняя ошибка сервера. Мы уже уведомлены, попробуйте позже.",
+        "uz": "Server ichki xatosi. Bizga xabar berildi, keyinroq urinib koʻring.",
+        "en": "Internal server error. We have been notified, please try again later.",
+    },
     # Доступ / авторизация
     "auth_required": {
         "ru": "Требуется авторизация.",

@@ -39,6 +39,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-}
       BOT_USERNAME: ${BOT_USERNAME:-}
       SUBSCRIPTION_WARN_DAYS: ${SUBSCRIPTION_WARN_DAYS:-3}
+      ERROR_ALERTS_ENABLED: ${ERROR_ALERTS_ENABLED:-true}
     volumes:
       # Загруженные фото объектов хранятся здесь и переживают перезапуски.
       - photos_data:/data/photos

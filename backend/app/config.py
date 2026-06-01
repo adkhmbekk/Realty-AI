@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     # агентства (бот пишет ему заранее). 0 — отключить предупреждения.
     subscription_warn_days: int = 3
 
+    # Слать ли суперадмину уведомление в бот о непредвиденных сбоях сервера
+    # (ошибки 500). По умолчанию включено; работает, только если задан BOT_TOKEN
+    # и SUPERADMIN_TELEGRAM_ID.
+    error_alerts_enabled: bool = True
+
     @field_validator("bot_token", "jwt_secret", "bot_username", mode="before")
     @classmethod
     def _empty_string_to_none(cls, value):

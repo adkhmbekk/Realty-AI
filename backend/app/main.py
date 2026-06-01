@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.api.router import api_router
 from app.config import settings
 from app.core.errors import MESSAGES, LanguageMiddleware, translate
+from app.core.monitoring import report_error
 from app.db import models  # noqa: F401  — нужен, чтобы модели зарегистрировались
 from app.db.migrate import run_migrations
 from app.db.session import SessionLocal, get_db
@@ -116,6 +117,23 @@ async def _localized_validation_handler(request, exc: RequestValidationError):
             }
         )
     return JSONResponse(status_code=422, content={"detail": out})
+
+
+@app.exception_handler(Exception)
+async def _unhandled_error_handler(request, exc: Exception):
+    """
+    Перехват НЕПРЕДВИДЕННЫХ ошибок (500): логируем и уведомляем суперадмина в
+    бот (см. app/core/monitoring.py). Пользователю отдаём аккуратное сообщение
+    на его языке. Ожидаемые ошибки (AppError/HTTPException) сюда не попадают —
+    у них свой обработчик.
+    """
+    report_error(exc, path=request.url.path, method=request.method)
+    # Язык берём прямо из заголовка запроса: обработчик 500 срабатывает выше
+    # LanguageMiddleware (вне его контекста), поэтому ContextVar тут уже сброшен.
+    lang = request.headers.get("x-lang")
+    return JSONResponse(
+        status_code=500, content={"detail": translate("internal_error", lang)}
+    )
 
 
 @app.get("/")
