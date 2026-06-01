@@ -35,42 +35,30 @@ function StatTile({
   );
 }
 
-// Простой столбчатый график (без сторонних библиотек).
+// Столбчатый график (без сторонних библиотек). Каждый период (день/месяц) —
+// отдельный столбец со своей подписью. Если столбцов много (например 30 дней),
+// график прокручивается по горизонтали — так каждый день виден по отдельности.
 function BarChart({ data, color }: { data: { label: string; value: number }[]; color: string }) {
   const max = Math.max(1, ...data.map((d) => d.value));
-  const n = data.length || 1;
-  const showValues = n <= 8; // значения над столбцами — только когда их немного
-  // Подписи по оси X: мало столбцов — показываем все; много — только опорные
-  // (начало / четверти / конец), чтобы не было «каши» и обрезок.
-  const labelIdx: number[] =
-    n <= 8
-      ? data.map((_, i) => i)
-      : Array.from(
-          new Set([0, Math.round(n * 0.25), Math.round(n * 0.5), Math.round(n * 0.75), n - 1])
-        );
   return (
-    <div>
-      <div className="flex items-end gap-[3px] h-40">
+    <div className="overflow-x-auto -mx-1 px-1 pb-1">
+      <div className="flex items-end gap-1.5" style={{ minWidth: data.length * 30 }}>
         {data.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center justify-end h-full min-w-[3px]">
-            {showValues && <div className="text-[9px] text-muted mb-0.5 h-3 leading-none">{d.value || ""}</div>}
-            <div
-              className="w-full rounded-t-md transition-all"
-              style={{
-                height: `${(d.value / max) * 100}%`,
-                background: color,
-                minHeight: d.value > 0 ? 4 : 0,
-              }}
-              title={`${d.label}: ${d.value}`}
-            />
+          <div key={i} className="flex flex-col items-center shrink-0" style={{ width: 26 }}>
+            <div className="text-[9px] text-muted mb-0.5 h-3 leading-none">{d.value || ""}</div>
+            <div className="w-full h-32 flex items-end">
+              <div
+                className="w-full rounded-t-md transition-all"
+                style={{
+                  height: `${(d.value / max) * 100}%`,
+                  background: color,
+                  minHeight: d.value > 0 ? 4 : 0,
+                }}
+                title={`${d.label}: ${d.value}`}
+              />
+            </div>
+            <div className="text-[9px] text-muted mt-1 whitespace-nowrap">{d.label}</div>
           </div>
-        ))}
-      </div>
-      <div className="flex justify-between mt-1.5 text-[10px] text-muted">
-        {labelIdx.map((i) => (
-          <span key={i} className="whitespace-nowrap">
-            {data[i]?.label}
-          </span>
         ))}
       </div>
     </div>
