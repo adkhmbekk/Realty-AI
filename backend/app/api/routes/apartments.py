@@ -60,6 +60,7 @@ def search_apartments(
     floor_max: Optional[int] = Query(None, description="Этаж до."),
     price_min: Optional[float] = Query(None, description="Цена от."),
     price_max: Optional[float] = Query(None, description="Цена до."),
+    currency: Optional[str] = Query(None, description="Валюта цены (USD/UZS/EUR). Фильтр цены — в рамках этой валюты."),
     created_by: Optional[int] = Query(None, description="Фильтр по сотруднику-создателю."),
     q: Optional[str] = Query(None, description="Текстовый поиск: наименование, адрес, номер объекта."),
     limit: int = Query(50, ge=1, le=200, description="Сколько вернуть (1–200)."),
@@ -83,6 +84,7 @@ def search_apartments(
         floor_max=floor_max,
         price_min=price_min,
         price_max=price_max,
+        currency=currency,
         created_by=created_by,
         q=q,
         limit=limit,
@@ -251,7 +253,8 @@ def change_status(
 def delete_apartment(
     apartment_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_member),
+    current_user: User = Depends(require_agency_admin),
 ):
-    """Удалить объект безвозвратно (любой сотрудник агентства)."""
+    """Удалить объект безвозвратно. Только администратор агентства (защита от
+    случайной/злонамеренной потери данных рядовыми сотрудниками)."""
     apartment_service.delete_apartment(db, current_user.agency_id, apartment_id)

@@ -56,7 +56,6 @@ export interface ApartmentStats {
   active: number;
   deposit: number;
   sold: number;
-  archived: number;
   total: number;
 }
 
@@ -78,7 +77,6 @@ export interface ApartmentAnalytics {
   active: number;
   deposit: number;
   sold: number;
-  archived: number;
   total: number;
   added_this_month: number;
   sold_this_month: number;
@@ -173,6 +171,7 @@ export interface SearchParams {
   floor_max?: string | number;
   price_min?: string | number;
   price_max?: string | number;
+  currency?: string;
   created_by?: string | number;
   q?: string;
   [k: string]: unknown;
