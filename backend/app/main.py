@@ -85,7 +85,32 @@ app = FastAPI(
     description="Backend для Telegram Mini App риелторских агентств",
     version="0.3.0",
     lifespan=lifespan,
+    # Интерактивная документация по умолчанию ВЫКЛЮЧЕНА (безопасно для прода).
+    # Включить локально: ENABLE_DOCS=true.
+    docs_url="/docs" if settings.enable_docs else None,
+    redoc_url="/redoc" if settings.enable_docs else None,
+    openapi_url="/openapi.json" if settings.enable_docs else None,
 )
+
+# Максимальный размер тела запроса (защита от исчерпания памяти/DoS). Жёсткое
+# ограничение по объёму ставится на крае (Caddy: request_body max_size); здесь —
+# дополнительный заслон по заголовку Content-Length.
+_MAX_BODY_BYTES = 25 * 1024 * 1024
+
+
+@app.middleware("http")
+async def _limit_body_size(request, call_next):
+    cl = request.headers.get("content-length")
+    if cl is not None:
+        try:
+            if int(cl) > _MAX_BODY_BYTES:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": translate("file_too_large", request.headers.get("x-lang"))},
+                )
+        except ValueError:
+            pass
+    return await call_next(request)
 
 # Подключаем рабочее API под префиксом /api/v1.
 app.include_router(api_router)

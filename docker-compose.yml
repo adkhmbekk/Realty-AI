@@ -9,17 +9,22 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: realty
-      POSTGRES_PASSWORD: realty_local_dev
-      POSTGRES_DB: realty
-    ports:
-      # Доступ к базе с компьютера (для pgAdmin4 / DBeaver): localhost:5432.
-      # Только для локальной разработки. На сервере этот порт открывать не нужно.
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-realty}
+      # Пароль ОБЯЗАТЕЛЬНО задаётся через .env (POSTGRES_PASSWORD). Значения по
+      # умолчанию НЕТ намеренно: запуск с пустым/дефолтным паролем недопустим.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задай POSTGRES_PASSWORD в .env (надёжный случайный пароль).}
+      POSTGRES_DB: ${POSTGRES_DB:-realty}
+    # Порт НАРУЖУ не публикуем: база доступна только из внутренней сети Docker
+    # (сервисам backend/backup). Если для локальной отладки нужен доступ из
+    # pgAdmin/DBeaver — добавь публикацию порта в docker-compose.override.yml
+    # (этот файл локальный и не коммитится), напр.:
+    #   services: { db: { ports: ["127.0.0.1:5432:5432"] } }
+    expose:
+      - "5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U realty -d realty"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-realty} -d ${POSTGRES_DB:-realty}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -28,21 +33,30 @@ services:
   # ─── Backend (FastAPI) ──────────────────────────────────────────────────
   backend:
     build: ./backend
-    ports:
-      # Прямой доступ к API для разработки: http://localhost:8000/docs
-      # (в обычной работе фронтенд ходит к API через веб-сервер на порту 8080).
-      - "8000:8000"
+    # Порт 8000 НАРУЖУ не публикуем: доступ к API идёт только через веб-сервер
+    # (Caddy), который выставляет наружу лишь /api/* и /health. Это убирает
+    # прямой доступ к API и интерактивной документации в обход прокси.
+    # Для локальной отладки можно опубликовать порт в docker-compose.override.yml.
+    expose:
+      - "8000"
     environment:
-      DATABASE_URL: postgresql+psycopg://realty:realty_local_dev@db:5432/realty
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-realty}:${POSTGRES_PASSWORD:?Задай POSTGRES_PASSWORD в .env.}@db:5432/${POSTGRES_DB:-realty}
       BOT_TOKEN: ${BOT_TOKEN:-}
       SUPERADMIN_TELEGRAM_ID: ${SUPERADMIN_TELEGRAM_ID:-}
       JWT_SECRET: ${JWT_SECRET:-}
       BOT_USERNAME: ${BOT_USERNAME:-}
       SUBSCRIPTION_WARN_DAYS: ${SUBSCRIPTION_WARN_DAYS:-3}
       ERROR_ALERTS_ENABLED: ${ERROR_ALERTS_ENABLED:-true}
+      # Документация (/docs) по умолчанию выключена. Включить локально: true.
+      ENABLE_DOCS: ${ENABLE_DOCS:-false}
+      # Папка секретов — отдельный том, НЕ совпадающий с папкой фото и НЕ
+      # попадающий в бэкапы (там автогенерируемый JWT_SECRET).
+      SECRET_DIR: /secrets
     volumes:
       # Загруженные фото объектов хранятся здесь и переживают перезапуски.
       - photos_data:/data/photos
+      # Секреты приложения (отдельный том, в бэкап НЕ копируется).
+      - secrets_data:/secrets
     depends_on:
       db:
         condition: service_healthy
@@ -57,10 +71,10 @@ services:
   backup:
     image: postgres:16
     environment:
-      PGPASSWORD: realty_local_dev
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Задай POSTGRES_PASSWORD в .env.}
       DB_HOST: db
-      DB_USER: realty
-      DB_NAME: realty
+      DB_USER: ${POSTGRES_USER:-realty}
+      DB_NAME: ${POSTGRES_DB:-realty}
       # Как часто делать копию (часов) и сколько последних копий хранить.
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_KEEP: ${BACKUP_KEEP:-7}
@@ -118,8 +132,9 @@ services:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Не задан NGROK_AUTHTOKEN. Создай файл .env рядом с docker-compose.yml и впиши строку NGROK_AUTHTOKEN=твой_токен (подробно в .env.example).}
     ports:
       # Локальная панель ngrok (список запросов, удобно при отладке загрузки
-      # фото): открой http://localhost:4040 в браузере.
-      - "4040:4040"
+      # фото): открой http://localhost:4040 в браузере. Привязана ТОЛЬКО к
+      # localhost (127.0.0.1), чтобы панель не была видна из локальной сети.
+      - "127.0.0.1:4040:4040"
     depends_on:
       - web
     restart: unless-stopped
@@ -127,3 +142,4 @@ services:
 volumes:
   db_data:
   photos_data:
+  secrets_data:

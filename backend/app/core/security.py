@@ -14,6 +14,7 @@ import hmac
 import json
 import os
 import secrets
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -38,46 +39,114 @@ class InitDataError(Exception):
 _JWT_ALGORITHM = "HS256"
 
 
+def _read_secret_from_dir(directory: str) -> Optional[str]:
+    """Прочитать сохранённый секрет из <directory>/.app_jwt_secret (или None)."""
+    try:
+        secret_file = os.path.join(directory, ".app_jwt_secret")
+        if os.path.exists(secret_file):
+            with open(secret_file, "r", encoding="utf-8") as fh:
+                saved = fh.read().strip()
+            return saved or None
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def _write_secret_to_dir(directory: str, value: str) -> bool:
+    """Сохранить секрет в <directory>/.app_jwt_secret с правами 0600 (True/False)."""
+    try:
+        os.makedirs(directory, exist_ok=True)
+        secret_file = os.path.join(directory, ".app_jwt_secret")
+        with open(secret_file, "w", encoding="utf-8") as fh:
+            fh.write(value)
+        try:
+            os.chmod(secret_file, 0o600)
+        except OSError:
+            pass
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _resolve_jwt_secret() -> str:
     """
     Определить секрет для подписи пропусков (JWT).
 
     Порядок выбора:
-      1) если JWT_SECRET задан в настройках/.env — используем его;
-      2) иначе берём ранее сохранённый секрет из файла на постоянном диске
-         (Docker-том с фотографиями). Благодаря этому секрет НЕ меняется
-         между перезапусками, и пользователей больше не «выкидывает» после
-         каждого рестарта сервиса;
-      3) если такого файла ещё нет — создаём новый секрет и сохраняем его туда.
+      1) если JWT_SECRET задан в настройках/.env — используем его (рекомендуется
+         для прод-развёртывания, особенно при нескольких серверах);
+      2) иначе берём ранее сохранённый секрет из ВЫДЕЛЕННОЙ папки секретов
+         (settings.secret_dir — отдельный том, НЕ совпадающий с папкой фото и
+         НЕ попадающий в бэкапы). Благодаря этому секрет не «выкидывает»
+         пользователей между перезапусками и при этом не лежит рядом с
+         пользовательским контентом и не утекает с резервными копиями;
+      3) для обратной совместимости — если в выделенной папке секрета ещё нет,
+         но он остался в старом месте (photos_dir), переносим его туда и
+         подчищаем старый файл;
+      4) если секрета нигде нет — создаём новый и сохраняем в secret_dir;
+      5) крайний случай (нет доступа к диску) — временный секрет на сессию.
 
-    Секрет наружу не попадает: файл лежит на томе и не отдаётся через веб
-    (эндпоинт фотографий отдаёт только то, что есть в базе данных).
+    Секрет наружу не попадает: папка секретов не отдаётся через веб.
     """
     if settings.jwt_secret:
         return settings.jwt_secret
-    try:
-        os.makedirs(settings.photos_dir, exist_ok=True)
-        secret_file = os.path.join(settings.photos_dir, ".app_jwt_secret")
-        if os.path.exists(secret_file):
-            with open(secret_file, "r", encoding="utf-8") as fh:
-                saved = fh.read().strip()
-            if saved:
-                return saved
-        generated = secrets.token_urlsafe(48)
-        with open(secret_file, "w", encoding="utf-8") as fh:
-            fh.write(generated)
-        try:
-            os.chmod(secret_file, 0o600)
-        except OSError:
-            pass
-        return generated
-    except Exception:  # noqa: BLE001
-        # Крайний случай (нет доступа к диску) — временный секрет на сессию.
-        return secrets.token_urlsafe(48)
+
+    secret_dir = settings.secret_dir
+    legacy_dir = settings.photos_dir
+
+    # 2) Уже сохранённый секрет в выделенной папке.
+    existing = _read_secret_from_dir(secret_dir)
+    if existing:
+        return existing
+
+    # 3) Обратная совместимость: перенос секрета из старого места (papka фото).
+    legacy = _read_secret_from_dir(legacy_dir)
+    if legacy:
+        if _write_secret_to_dir(secret_dir, legacy):
+            # Старую копию удаляем, чтобы секрет не оставался на томе фото/в бэкапах.
+            try:
+                os.remove(os.path.join(legacy_dir, ".app_jwt_secret"))
+            except OSError:
+                pass
+        return legacy
+
+    # 4) Нового секрета ещё нет — генерируем и сохраняем в выделенной папке.
+    generated = secrets.token_urlsafe(48)
+    _write_secret_to_dir(secret_dir, generated)
+    return generated
 
 
 # Секрет для подписи JWT (стабильный между перезапусками — см. функцию выше).
 _JWT_SECRET = _resolve_jwt_secret()
+
+
+# ─── Защита от повторного использования initData (anti-replay) ──────────────
+# Telegram подписывает initData, но без доп. защиты одни и те же данные можно
+# переиграть много раз, пока они «свежие» (см. init_data_max_age_seconds).
+# Здесь мы запоминаем подпись (hash) уже принятых initData до момента их
+# протухания и отклоняем повторы. Хранилище — в памяти процесса (этого
+# достаточно для однопроцессного развёртывания за туннелем).
+_replay_lock = threading.Lock()
+_seen_init_data: "dict[str, float]" = {}
+
+
+def _replay_check_and_remember(signature: str, expires_at: float) -> bool:
+    """
+    Вернуть True, если подпись ВИДЕЛИ раньше (это повтор → надо отклонить).
+    Иначе запомнить её до expires_at и вернуть False. Заодно чистим протухшие.
+    """
+    now = time.time()
+    with _replay_lock:
+        # Лёгкая периодическая чистка протухших записей.
+        if len(_seen_init_data) > 2048:
+            for key, exp in list(_seen_init_data.items()):
+                if exp <= now:
+                    _seen_init_data.pop(key, None)
+        seen_until = _seen_init_data.get(signature)
+        if seen_until is not None and seen_until > now:
+            return True
+        _seen_init_data[signature] = expires_at
+        return False
 
 
 # ─── Проверка данных Telegram (initData) ────────────────────────────────────
@@ -86,6 +155,7 @@ def validate_init_data(
     init_data: str,
     bot_token: str,
     max_age_seconds: int = 86400,
+    anti_replay: bool = True,
 ) -> dict:
     """
     Проверить подпись initData по алгоритму Telegram и вернуть данные
@@ -140,6 +210,20 @@ def validate_init_data(
 
     if max_age_seconds and (time.time() - auth_date) > max_age_seconds:
         raise InitDataError("init_data_expired", "Данные входа устарели, откройте приложение заново")
+
+    # Защита от повторного использования (anti-replay): одну и ту же подпись
+    # принимаем только один раз — до момента её естественного протухания.
+    # Это закрывает переигрывание перехваченного initData в пределах окна
+    # свежести. Проверяем только ПОСЛЕ успешной проверки подписи и срока, чтобы
+    # неудачные/просроченные попытки не засоряли хранилище.
+    if anti_replay:
+        ttl = max_age_seconds if max_age_seconds else 3600
+        expires_at = auth_date + ttl
+        if _replay_check_and_remember(received_hash, expires_at):
+            raise InitDataError(
+                "init_data_replayed",
+                "Эти данные входа уже использованы, откройте приложение заново",
+            )
 
     # Поле user — это JSON-строка с информацией о пользователе.
     try:
