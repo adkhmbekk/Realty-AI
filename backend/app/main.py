@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.router import api_router
@@ -27,6 +27,7 @@ from app.core.errors import MESSAGES, LanguageMiddleware, translate
 from app.core.monitoring import report_error
 from app.db import models  # noqa: F401  — нужен, чтобы модели зарегистрировались
 from app.db.migrate import run_migrations
+from app.db.models.user import User
 from app.db.session import SessionLocal, get_db
 from app.repositories import user_repo
 from app.services.scheduler import start_scheduler
@@ -60,6 +61,25 @@ def bootstrap_superadmin() -> None:
             existing.agency_id = None
             existing.is_active = True
             logger.info("Пользователь повышен до суперадмина.")
+
+        # Владелец платформы должен быть ОДИН. Если раньше суперадмином был
+        # другой человек (сменили SUPERADMIN_TELEGRAM_ID) — снимаем у него права,
+        # иначе суперадминов оказалось бы двое.
+        others = db.execute(
+            select(User).where(
+                User.role == "superadmin",
+                User.telegram_id != settings.superadmin_telegram_id,
+            )
+        ).scalars().all()
+        for u in others:
+            u.role = "agent"
+            u.agency_id = None
+            u.is_active = False
+            logger.info(
+                "Сняты права суперадмина с прежнего владельца (telegram_id=%s).",
+                u.telegram_id,
+            )
+
         db.commit()
     finally:
         db.close()

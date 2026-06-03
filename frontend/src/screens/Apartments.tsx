@@ -762,6 +762,7 @@ export function SearchScreen() {
   const [fmax, setFmax] = useState("");
   const [pmin, setPmin] = useState("");
   const [pmax, setPmax] = useState("");
+  const [cur, setCur] = useState("");
 
   const toggle = (arr: string[], set: (v: string[]) => void, v: string) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
@@ -777,6 +778,7 @@ export function SearchScreen() {
     if (fmax) params.floor_max = fmax;
     if (pmin) params.price_min = pmin;
     if (pmax) params.price_max = pmax;
+    if (cur) params.currency = cur;
     nav.push({ name: "objectList", params, titleKey: "findObject" });
   }
 
@@ -856,6 +858,16 @@ export function SearchScreen() {
           </Field>
         </div>
       </div>
+      <Field label={t("priceCurrency")}>
+        <Select value={cur} onChange={(e) => setCur(e.target.value)}>
+          <option value="">{t("anyCurrency")}</option>
+          {CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </Select>
+      </Field>
       <Button full className="mt-4" onClick={run}>
         <SearchIcon size={18} /> {t("searchBtn")}
       </Button>
@@ -893,7 +905,6 @@ const STATUS_TRANSITIONS: Record<string, { to: string; key: string }[]> = {
     { to: "sold", key: "toSold" },
   ],
   sold: [{ to: "active", key: "backToActive" }],
-  archived: [{ to: "active", key: "backToActive" }],
 };
 
 const EV_FIELD_KEYS: Record<string, string> = {

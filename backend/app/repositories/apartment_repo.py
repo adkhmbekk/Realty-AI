@@ -42,6 +42,7 @@ def _build_conditions(
     floor_max: Optional[int],
     price_min: Optional[float],
     price_max: Optional[float],
+    currency: Optional[str] = None,
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
@@ -73,6 +74,10 @@ def _build_conditions(
         conditions.append(Apartment.price >= price_min)
     if price_max is not None:
         conditions.append(Apartment.price <= price_max)
+    # Фильтр по валюте: «цена от/до» имеет смысл только в рамках одной валюты
+    # (нельзя сравнивать 50 000 USD и 50 000 UZS как одинаковые числа).
+    if currency:
+        conditions.append(Apartment.currency == currency)
     if created_by is not None:
         conditions.append(Apartment.created_by == created_by)
 
@@ -85,6 +90,8 @@ def _build_conditions(
                 Apartment.name.ilike(like),
                 Apartment.address.ilike(like),
                 Apartment.display_id.ilike(like),
+                # Поиск по номеру собственника (внутренний — клиентам не виден).
+                Apartment.owner_phone.ilike(like),
             ]
             # Если ввели цифры (например «№0001» или «1») — ищем и по номеру,
             # игнорируя ведущие нули и нецифровые символы.
@@ -111,6 +118,7 @@ def search(
     floor_max: Optional[int] = None,
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
+    currency: Optional[str] = None,
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
@@ -133,6 +141,7 @@ def search(
         floor_max=floor_max,
         price_min=price_min,
         price_max=price_max,
+        currency=currency,
         q=q,
         rooms_min=rooms_min,
         rooms_max=rooms_max,

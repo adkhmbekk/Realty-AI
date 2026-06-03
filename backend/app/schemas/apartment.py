@@ -16,7 +16,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 # Допустимые статусы объекта (единый список для валидации).
-ApartmentStatus = Literal["active", "deposit", "sold", "archived"]
+ApartmentStatus = Literal["active", "deposit", "sold"]
 
 # Допустимые значения поля «мебель и техника».
 FurnitureAppliances = Literal[
@@ -163,7 +163,6 @@ class ApartmentStatsOut(BaseModel):
     active: int
     deposit: int
     sold: int
-    archived: int
     total: int
 
 
@@ -189,7 +188,6 @@ class ApartmentAnalyticsOut(BaseModel):
     active: int
     deposit: int
     sold: int
-    archived: int
     total: int
     added_this_month: int
     sold_this_month: int

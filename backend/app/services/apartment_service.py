@@ -40,10 +40,9 @@ from app.services import photo_service, telegram_service
 STATUS_ACTIVE = "active"
 STATUS_DEPOSIT = "deposit"     # задаток внесён — объект «придержан»
 STATUS_SOLD = "sold"
-STATUS_ARCHIVED = "archived"
-VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD, STATUS_ARCHIVED)
+VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD)
 # Статусы, при которых объект считается снятым с продажи (фиксируем дату).
-_CLOSED_STATUSES = (STATUS_SOLD, STATUS_ARCHIVED)
+_CLOSED_STATUSES = (STATUS_SOLD,)
 
 # Поля, изменение которых отражаем в журнале (в порядке формы).
 _TRACKED_FIELDS = (
@@ -215,6 +214,7 @@ def search_apartments(
     floor_max: Optional[int] = None,
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
+    currency: Optional[str] = None,
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
@@ -233,6 +233,7 @@ def search_apartments(
         floor_max=floor_max,
         price_min=price_min,
         price_max=price_max,
+        currency=currency,
         q=q,
         rooms_min=rooms_min,
         rooms_max=rooms_max,
@@ -318,13 +319,11 @@ def get_stats(db: Session, agency_id: int) -> dict:
     active = counts.get(STATUS_ACTIVE, 0)
     deposit = counts.get(STATUS_DEPOSIT, 0)
     sold = counts.get(STATUS_SOLD, 0)
-    archived = counts.get(STATUS_ARCHIVED, 0)
-    total = active + deposit + sold + archived
+    total = active + deposit + sold
     return {
         "active": active,
         "deposit": deposit,
         "sold": sold,
-        "archived": archived,
         "total": total,
     }
 
@@ -461,8 +460,7 @@ def get_analytics(db: Session, agency_id: int) -> dict:
     active = counts.get(STATUS_ACTIVE, 0)
     deposit = counts.get(STATUS_DEPOSIT, 0)
     sold = counts.get(STATUS_SOLD, 0)
-    archived = counts.get(STATUS_ARCHIVED, 0)
-    total = active + deposit + sold + archived
+    total = active + deposit + sold
 
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -490,7 +488,6 @@ def get_analytics(db: Session, agency_id: int) -> dict:
         "active": active,
         "deposit": deposit,
         "sold": sold,
-        "archived": archived,
         "total": total,
         "added_this_month": added_this_month,
         "sold_this_month": sold_this_month,
