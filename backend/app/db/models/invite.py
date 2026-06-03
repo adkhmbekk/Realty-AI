@@ -19,12 +19,15 @@ class Invite(Base):
     # Случайный уникальный код приглашения.
     code: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     agency_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("agencies.id"), nullable=False, index=True
+        BigInteger,
+        ForeignKey("agencies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     # Какую роль получит приглашённый (по умолчанию — рядовой агент).
     role: Mapped[str] = mapped_column(String, nullable=False, default="agent")
     created_by: Mapped[Optional[int]] = mapped_column(
-        BigInteger, ForeignKey("users.id"), nullable=True
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[Optional[datetime]] = mapped_column(

@@ -42,7 +42,10 @@ class Dictionary(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     agency_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("agencies.id"), nullable=False, index=True
+        BigInteger,
+        ForeignKey("agencies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     # Категория справочника (district / property_type / condition / ...).
     category: Mapped[str] = mapped_column(String, nullable=False, index=True)

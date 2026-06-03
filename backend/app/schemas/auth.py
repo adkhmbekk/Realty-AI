@@ -12,6 +12,11 @@ class TelegramAuthRequest(BaseModel):
     init_data: str
 
 
+class RefreshRequest(BaseModel):
+    # Долгоживущий refresh-пропуск, выданный при входе.
+    refresh_token: str
+
+
 class UserProfile(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -26,6 +31,8 @@ class UserProfile(BaseModel):
 
 class AuthResponse(BaseModel):
     access_token: str
+    # Долгоживущий пропуск для тихого обновления сессии (см. /auth/refresh).
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     # Активна ли подписка агентства.
     # Для суперадмина — None (у владельца платформы подписки нет, доступ всегда полный).

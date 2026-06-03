@@ -25,6 +25,7 @@ from typing import Callable
 
 from fastapi import Request, status
 
+from app.config import settings
 from app.core.errors import AppError
 
 _lock = threading.Lock()
@@ -34,15 +35,22 @@ _hits: "dict[str, tuple[float, int]]" = {}
 
 def _client_ip(request: Request) -> str:
     """
-    Определить IP клиента. Приложение работает за обратным прокси (Caddy) и
-    туннелем (ngrok), поэтому реальный адрес — в X-Forwarded-For (берём первый,
-    самый левый — это исходный клиент). Если заголовка нет — адрес соединения.
+    Определить IP клиента ЗА доверенным прокси (Caddy/туннель).
+
+    БЕЗОПАСНОСТЬ: заголовок X-Forwarded-For клиент может прислать сам и дописать
+    в него фейковые адреса СЛЕВА. Поэтому берём НЕ самый левый элемент, а
+    отсчитываем settings.trusted_proxy_count позиций СПРАВА — это адрес, который
+    подставил наш собственный прокси, и подделать его клиент не может. Если
+    заголовка/позиции нет — используем адрес соединения.
     """
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        hops = max(1, settings.trusted_proxy_count)
+        if len(parts) >= hops:
+            return parts[-hops]
+        if parts:
+            return parts[0]
     client = request.client
     return client.host if client else "unknown"
 

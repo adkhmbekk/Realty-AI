@@ -49,7 +49,7 @@ def create_apartment(
 def search_apartments(
     status: Optional[str] = Query(
         "active",
-        description="Статус: active / deposit / sold / archived / unsold. 'all' — все статусы.",
+        description="Статус: active / deposit / sold / unsold. 'all' — все статусы.",
     ),
     districts: Optional[List[str]] = Query(None, description="Районы (можно несколько)."),
     types: Optional[List[str]] = Query(None, description="Типы (можно несколько)."),
@@ -243,7 +243,7 @@ def change_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
-    """Сменить статус объекта: active / deposit (задаток) / sold / archived."""
+    """Сменить статус объекта: active / deposit (задаток) / sold."""
     return apartment_service.set_status(
         db, current_user.agency_id, apartment_id, body.status, actor_id=current_user.id
     )

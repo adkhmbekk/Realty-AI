@@ -87,7 +87,7 @@ class ApartmentUpdate(_ApartmentBase):
 
 
 class ApartmentStatusUpdate(BaseModel):
-    # Новый статус объекта: active / deposit (задаток) / sold / archived.
+    # Новый статус объекта: active / deposit (задаток) / sold.
     status: ApartmentStatus
 
 

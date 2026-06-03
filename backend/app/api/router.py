@@ -5,7 +5,6 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     agencies,
-    agents,
     apartments,
     auth,
     dictionaries,
@@ -21,7 +20,6 @@ api_router.include_router(agencies.router)
 api_router.include_router(settings.router)
 api_router.include_router(invites.router)
 api_router.include_router(team.router)
-api_router.include_router(agents.router)
 api_router.include_router(dictionaries.router)
 api_router.include_router(apartments.router)
 api_router.include_router(photos.router)

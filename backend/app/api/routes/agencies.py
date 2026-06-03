@@ -12,8 +12,10 @@ from app.db.session import get_db
 from app.repositories import agency_repo
 from app.schemas.agency import (
     AgencyAdminUpdate,
+    AgencyAuditOut,
     AgencyCreate,
     AgencyOut,
+    AgencyPaymentOut,
     AgencySubscriptionUpdate,
     AgencyUpdate,
 )
@@ -29,9 +31,7 @@ def create_agency(
     current_user: User = Depends(require_superadmin),
 ):
     """Создать агентство и назначить ему администратора."""
-    agency = agency_service.create_agency_with_admin(
-        db, body, creator_telegram_id=current_user.telegram_id
-    )
+    agency = agency_service.create_agency_with_admin(db, body, actor=current_user)
     agency_service.attach_admins(db, [agency])
     return agency
 
@@ -55,7 +55,7 @@ def update_agency(
     current_user: User = Depends(require_superadmin),
 ):
     """Переименовать агентство."""
-    agency = agency_service.rename_agency(db, agency_id, body.name)
+    agency = agency_service.rename_agency(db, agency_id, body.name, actor=current_user)
     agency_service.attach_admins(db, [agency])
     return agency
 
@@ -67,7 +67,7 @@ def delete_agency(
     current_user: User = Depends(require_superadmin),
 ):
     """Удалить агентство со всеми его данными (необратимо)."""
-    agency_service.delete_agency(db, agency_id)
+    agency_service.delete_agency(db, agency_id, actor=current_user)
 
 
 @router.post("/{agency_id}/admin", response_model=AgencyOut)
@@ -79,7 +79,7 @@ def set_agency_admin(
 ):
     """Назначить/сменить администратора агентства."""
     agency = agency_service.set_agency_admin(
-        db, agency_id, body.admin_telegram_id, body.admin_username
+        db, agency_id, body.admin_telegram_id, body.admin_username, actor=current_user
     )
     agency_service.attach_admins(db, [agency])
     return agency
@@ -94,7 +94,36 @@ def update_subscription(
 ):
     """Управление подпиской агентства: продлить / задать дату / заморозить / активировать."""
     agency = agency_service.update_subscription(
-        db, agency_id, body.action, body.days, body.expires_at
+        db,
+        agency_id,
+        body.action,
+        body.days,
+        body.expires_at,
+        amount=body.amount,
+        currency=body.currency,
+        method=body.method,
+        note=body.note,
+        actor=current_user,
     )
     agency_service.attach_admins(db, [agency])
     return agency
+
+
+@router.get("/{agency_id}/payments", response_model=List[AgencyPaymentOut])
+def list_payments(
+    agency_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """История платежей/продлений подписки агентства."""
+    return agency_service.list_payments(db, agency_id)
+
+
+@router.get("/{agency_id}/audit", response_model=List[AgencyAuditOut])
+def list_audit(
+    agency_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Журнал действий по агентству (вход, приглашения, роли, подписка и т.д.)."""
+    return agency_service.list_audit(db, agency_id)
