@@ -25,7 +25,12 @@ def test_reactivates_deactivated_superadmin(db):
 
 
 def test_promotes_regular_user(db):
-    u = User(telegram_id=222, role="agent", agency_id=5, is_active=False)
+    from app.db.models.agency import Agency
+
+    agency = Agency(name="A", status="active", timezone="Asia/Tashkent", default_currency="USD")
+    db.add(agency)
+    db.flush()
+    u = User(telegram_id=222, role="agent", agency_id=agency.id, is_active=False)
     db.add(u)
     db.commit()
 

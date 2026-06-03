@@ -244,6 +244,21 @@ def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
     to_encode["exp"] = expire
+    to_encode["type"] = "access"
+    return jwt.encode(to_encode, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
+
+
+def create_refresh_token(data: dict) -> str:
+    """
+    Создать долгоживущий refresh-пропуск. Им можно обновить короткий access-токен
+    БЕЗ повторной проверки initData (которое Telegram «протухает» через час).
+    Это решает «тихий тупик»: сессия дольше часа больше не упирается в стену.
+    """
+    to_encode = {"user_id": data.get("user_id"), "type": "refresh"}
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.refresh_expire_minutes
+    )
+    to_encode["exp"] = expire
     return jwt.encode(to_encode, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
 
 
@@ -253,3 +268,14 @@ def decode_access_token(token: str) -> Optional[dict]:
         return jwt.decode(token, _JWT_SECRET, algorithms=[_JWT_ALGORITHM])
     except jwt.PyJWTError:
         return None
+
+
+def decode_refresh_token(token: str) -> Optional[dict]:
+    """
+    Проверить refresh-пропуск. Возвращает содержимое только если это именно
+    refresh-токен (а не access) и он не истёк. Иначе None.
+    """
+    payload = decode_access_token(token)
+    if payload is None or payload.get("type") != "refresh":
+        return None
+    return payload

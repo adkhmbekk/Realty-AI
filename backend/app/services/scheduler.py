@@ -111,12 +111,37 @@ def run_subscription_warnings(db: Session, now: datetime | None = None) -> int:
     return sent
 
 
+def expire_due_subscriptions(db: Session, now: datetime | None = None) -> int:
+    """
+    Перевести в статус 'expired' агентства, у которых срок подписки истёк, а
+    статус всё ещё trial/active. Доступ блокируется и так (agency_is_active
+    проверяет дату), но явный статус 'expired' делает панель суперадмина
+    правдивой: видно, кто реально не оплатил. Возвращает число переведённых.
+    """
+    now = now or datetime.now(timezone.utc)
+    changed = 0
+    agencies = db.execute(
+        select(Agency).where(Agency.status.in_(_ACTIVE_STATUSES))
+    ).scalars().all()
+    for agency in agencies:
+        expires = _as_utc(agency.subscription_expires_at)
+        if expires is not None and expires < now:
+            agency.status = "expired"
+            changed += 1
+    if changed:
+        db.commit()
+    return changed
+
+
 def _loop() -> None:
     logger.info("Планировщик: проверка подписок запущена (раз в %s ч).", CHECK_INTERVAL_SECONDS // 3600)
     while True:
         try:
             db = SessionLocal()
             try:
+                expired = expire_due_subscriptions(db)
+                if expired:
+                    logger.info("Планировщик: агентств переведено в 'expired': %s.", expired)
                 count = run_subscription_warnings(db)
                 if count:
                     logger.info("Планировщик: отправлено предупреждений о подписке: %s.", count)

@@ -29,10 +29,13 @@ class ApartmentPhoto(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     agency_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("agencies.id"), nullable=False, index=True
+        BigInteger,
+        ForeignKey("agencies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     apartment_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("apartments.id"), nullable=False
+        BigInteger, ForeignKey("apartments.id", ondelete="CASCADE"), nullable=False
     )
     # Случайный ключ файла в хранилище (он же часть публичной ссылки).
     storage_key: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)

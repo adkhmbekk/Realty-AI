@@ -22,14 +22,17 @@ class ApartmentEvent(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     agency_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("agencies.id"), nullable=False, index=True
+        BigInteger,
+        ForeignKey("agencies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     apartment_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("apartments.id"), nullable=False
+        BigInteger, ForeignKey("apartments.id", ondelete="CASCADE"), nullable=False
     )
     # Кто совершил действие (id пользователя). NULL — если автор неизвестен.
     user_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, ForeignKey("users.id"), nullable=True
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     # Тип действия: created / updated / status.
     action: Mapped[str] = mapped_column(String, nullable=False)

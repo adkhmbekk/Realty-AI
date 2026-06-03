@@ -5,15 +5,16 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.db.models.agency import Agency
-from app.db.models.agent import Agent
 from app.db.models.apartment import Apartment
 from app.db.models.apartment_event import ApartmentEvent
+from app.db.models.apartment_photo import ApartmentPhoto
 from app.db.models.dictionary import Dictionary
 from app.db.models.invite import Invite
+from app.db.models.subscription_payment import SubscriptionPayment
 from app.db.models.user import User
 
 
@@ -46,20 +47,42 @@ def create(
     return agency
 
 
+def next_display_number(db: Session, agency_id: int) -> Optional[int]:
+    """
+    Атомарно увеличить сквозной счётчик номеров агентства и вернуть новый номер.
+
+    Один SQL-оператор UPDATE ... RETURNING исключает гонки: два одновременных
+    создания объектов получат разные номера. Возвращает None, если агентства
+    не существует.
+    """
+    stmt = (
+        update(Agency)
+        .where(Agency.id == agency_id)
+        .values(last_display_number=Agency.last_display_number + 1)
+        .returning(Agency.last_display_number)
+        .execution_options(synchronize_session=False)
+    )
+    return db.execute(stmt).scalar_one_or_none()
+
+
 def delete_with_data(db: Session, agency: Agency) -> None:
     """
     Полностью удалить агентство и все его данные.
 
-    Порядок удаления важен из-за внешних ключей (create_all без ON DELETE
-    CASCADE): сначала строки, которые ссылаются на других, затем — на кого
-    ссылаются. Журнал действий → объекты → приглашения → агенты → справочники
-    → пользователи → само агентство.
+    Порядок удаления учитывает внешние ключи. ВАЖНО: сначала удаляем
+    apartment_photos (иначе они держат objekты ссылкой) и журнал действий, затем
+    объекты, приглашения, справочники, историю платежей, пользователей и само
+    агентство. Файлы фотографий с диска удаляются отдельно (см.
+    photo_service.purge_agency, вызывается до этого метода в agency_service).
     """
     agency_id = agency.id
+    db.execute(sa_delete(ApartmentPhoto).where(ApartmentPhoto.agency_id == agency_id))
     db.execute(sa_delete(ApartmentEvent).where(ApartmentEvent.agency_id == agency_id))
     db.execute(sa_delete(Apartment).where(Apartment.agency_id == agency_id))
     db.execute(sa_delete(Invite).where(Invite.agency_id == agency_id))
-    db.execute(sa_delete(Agent).where(Agent.agency_id == agency_id))
     db.execute(sa_delete(Dictionary).where(Dictionary.agency_id == agency_id))
+    db.execute(
+        sa_delete(SubscriptionPayment).where(SubscriptionPayment.agency_id == agency_id)
+    )
     db.execute(sa_delete(User).where(User.agency_id == agency_id))
     db.delete(agency)

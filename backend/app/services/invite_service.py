@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.core import security
 from app.core.errors import AppError
-from app.repositories import invite_repo, user_repo
+from app.repositories import audit_repo, invite_repo, user_repo
 from app.schemas.invite import InviteCreate, InviteOut
 from app.services import auth_service
 
@@ -84,6 +84,10 @@ def create_invite(
         created_by=created_by,
         expires_at=expires_at,
     )
+    audit_repo.add(
+        db, action="invite_created", agency_id=agency_id, actor_user_id=created_by,
+        target=payload.role, note=f"срок {payload.expires_in_days} дн.",
+    )
     db.commit()
     db.refresh(invite)
     return _to_out(invite)
@@ -97,6 +101,9 @@ def revoke_invite(db: Session, agency_id: int, invite_id: int) -> None:
     invite = invite_repo.get_by_id(db, agency_id, invite_id)
     if invite is None:
         raise AppError("invite_not_found", status.HTTP_404_NOT_FOUND)
+    audit_repo.add(
+        db, action="invite_revoked", agency_id=agency_id, target=invite.role
+    )
     invite_repo.delete(db, invite)
     db.commit()
 
@@ -162,6 +169,16 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
     invite.used_at = datetime.now(timezone.utc)
     invite.used_by_telegram_id = telegram_id
     user.last_login_at = datetime.now(timezone.utc)
+
+    audit_repo.add(
+        db,
+        action="member_joined",
+        agency_id=invite.agency_id,
+        actor_user_id=user.id,
+        actor_telegram_id=telegram_id,
+        actor_name=user.full_name or (("@" + username) if username else None),
+        note=f"роль: {invite.role}",
+    )
 
     db.commit()
     db.refresh(user)

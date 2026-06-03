@@ -24,6 +24,40 @@ class AgencySubscriptionUpdate(BaseModel):
     days: Optional[int] = 30
     # Для action="set": конкретная дата/время окончания подписки.
     expires_at: Optional[datetime] = None
+    # Необязательные данные платежа (для истории): сумма, валюта, способ, заметка.
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    method: Optional[str] = None
+    note: Optional[str] = None
+
+
+class AgencyPaymentOut(BaseModel):
+    # Запись истории платежей/продлений подписки.
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: str
+    days: Optional[int] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    method: Optional[str] = None
+    note: Optional[str] = None
+    expires_at_after: Optional[datetime] = None
+    created_by_telegram_id: Optional[int] = None
+    created_at: datetime
+
+
+class AgencyAuditOut(BaseModel):
+    # Запись журнала аудита (для панели суперадмина).
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: str
+    actor_name: Optional[str] = None
+    actor_telegram_id: Optional[int] = None
+    target: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime
 
 
 class AgencyUpdate(BaseModel):

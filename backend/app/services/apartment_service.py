@@ -23,12 +23,10 @@ from fastapi import status
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.core.defaults import DEFAULT_AGENT_CODE, DEFAULT_AGENT_NAME
 from app.core.errors import AppError
 from app.db.models.apartment import Apartment
 from app.repositories import (
     agency_repo,
-    agent_repo,
     apartment_event_repo,
     apartment_repo,
     user_repo,
@@ -63,14 +61,9 @@ FURNITURE_APPLIANCES_LABELS = {
 def _next_display_id(db: Session, agency_id: int) -> str:
     """
     Сгенерировать сквозной номер объекта агентства, например «0001».
-    Номер берётся из атомарного служебного счётчика агентства.
+    Номер берётся из атомарного счётчика агентства (agencies.last_display_number).
     """
-    counter = agent_repo.get_by_code(db, agency_id, DEFAULT_AGENT_CODE)
-    if counter is None:
-        counter = agent_repo.create(
-            db, agency_id, name=DEFAULT_AGENT_NAME, code=DEFAULT_AGENT_CODE
-        )
-    number = agent_repo.next_number(db, agency_id, counter.id)
+    number = agency_repo.next_display_number(db, agency_id)
     if number is None:
         raise AppError("display_id_generation_failed", status.HTTP_400_BAD_REQUEST)
     return f"{number:04d}"
@@ -115,6 +108,17 @@ def _values_differ(old, new) -> bool:
 def create_apartment(
     db: Session, agency_id: int, created_by: Optional[int], payload: ApartmentCreate
 ) -> Apartment:
+    # Запрет на полностью пустой объект: должно быть заполнено хотя бы одно
+    # значимое поле (иначе база засоряется «пустышками» без какой-либо пользы).
+    meaningful = (
+        payload.name, payload.district, payload.address, payload.type,
+        payload.rooms, payload.floor, payload.total_floors, payload.area,
+        payload.price, payload.owner_phone, payload.condition,
+        payload.description, payload.photo_url, payload.source_link,
+    )
+    if not any(v not in (None, "") for v in meaningful):
+        raise AppError("empty_apartment", status.HTTP_400_BAD_REQUEST)
+
     display_id = _next_display_id(db, agency_id)
 
     new_status = payload.status or STATUS_ACTIVE
@@ -285,7 +289,7 @@ def set_status(
     new_status: str,
     actor_id: Optional[int] = None,
 ) -> Apartment:
-    """Сменить статус объекта (active / deposit / sold / archived)."""
+    """Сменить статус объекта (active / deposit / sold)."""
     if new_status not in VALID_STATUSES:
         raise AppError("invalid_apartment_status", status.HTTP_400_BAD_REQUEST)
     apartment = get_apartment(db, agency_id, apartment_id)

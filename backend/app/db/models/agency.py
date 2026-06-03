@@ -5,7 +5,16 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String, func, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Integer,
+    String,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -13,6 +22,13 @@ from app.db.base import Base
 
 class Agency(Base):
     __tablename__ = "agencies"
+    __table_args__ = (
+        # Допустимые статусы подписки агентства (защита целостности на уровне БД).
+        CheckConstraint(
+            "status IN ('trial','active','frozen','expired')",
+            name="ck_agencies_status",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     # name — внутреннее имя, которое задаёт суперадмин (обычно имя человека,
@@ -47,6 +63,12 @@ class Agency(Base):
     )
     # telegram_id суперадмина, который создал агентство.
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    # Сквозной счётчик номеров объектов агентства (display_id «0001», «0002», …).
+    # Раньше эту роль играл «служебный агент» в таблице agents; теперь счётчик
+    # живёт прямо в агентстве и увеличивается атомарно (см. agency_repo).
+    last_display_number: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

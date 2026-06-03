@@ -11,7 +11,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -19,6 +19,12 @@ from app.db.base import Base
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        # Роль ограничена известным набором (целостность на уровне БД).
+        CheckConstraint(
+            "role IN ('superadmin','agency_admin','agent')", name="ck_users_role"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     # Идентификатор пользователя в Telegram — наш главный способ узнать человека.
@@ -29,7 +35,10 @@ class User(Base):
     full_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # NULL только у суперадмина. У остальных — id их агентства.
     agency_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, ForeignKey("agencies.id"), nullable=True, index=True
+        BigInteger,
+        ForeignKey("agencies.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
     # Главный администратор агентства (тот, кого назначил суперадмин). Имеет

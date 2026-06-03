@@ -27,3 +27,15 @@ class MemberUpdate(BaseModel):
     # Роль сотрудника внутри агентства: "agency_admin" или "agent".
     # Менять на "superadmin" нельзя — это владелец платформы, не сотрудник.
     role: Optional[str] = None
+
+
+class MemberAuditOut(BaseModel):
+    # Запись журнала действий по агентству (для администратора).
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: str
+    actor_name: Optional[str] = None
+    target: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime

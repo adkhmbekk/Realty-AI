@@ -364,6 +364,22 @@ def purge_apartment(db, agency_id: int, apartment_id: int) -> None:
             pass
 
 
+def purge_agency(db, agency_id: int) -> None:
+    """
+    Удалить ВСЕ фото агентства (файлы с диска + строки в БД). Вызывается при
+    удалении агентства, чтобы не оставлять «осиротевшие» файлы на диске и не
+    держать объекты ссылками (что раньше ломало удаление агентства с фото).
+    """
+    keys = apartment_photo_repo.list_keys_for_agency(db, agency_id)
+    apartment_photo_repo.delete_for_agency(db, agency_id)
+    db.flush()
+    for key in keys:
+        try:
+            os.remove(_path(key))
+        except OSError:
+            pass
+
+
 def file_for(db, key: str) -> Optional[Tuple[str, str]]:
     """Вернуть (путь_к_файлу, content_type) для отдачи, либо None."""
     photo = apartment_photo_repo.get_by_key(db, key)

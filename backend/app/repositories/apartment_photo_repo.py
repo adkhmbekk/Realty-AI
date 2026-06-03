@@ -94,3 +94,21 @@ def list_keys_for_apartment(db: Session, apartment_id: int) -> List[str]:
         .scalars()
         .all()
     )
+
+
+def list_keys_for_agency(db: Session, agency_id: int) -> List[str]:
+    """Ключи файлов всех фото агентства (для удаления файлов с диска)."""
+    return list(
+        db.execute(
+            select(ApartmentPhoto.storage_key).where(ApartmentPhoto.agency_id == agency_id)
+        )
+        .scalars()
+        .all()
+    )
+
+
+def delete_for_agency(db: Session, agency_id: int) -> None:
+    """Удалить все строки фото агентства (файлы удаляются отдельно)."""
+    from sqlalchemy import delete as sa_delete
+
+    db.execute(sa_delete(ApartmentPhoto).where(ApartmentPhoto.agency_id == agency_id))

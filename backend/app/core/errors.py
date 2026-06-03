@@ -123,17 +123,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Bu foydalanuvchi allaqachon boshqa agentlikda.",
         "en": "This user already belongs to another agency.",
     },
-    # Агенты (справочник)
-    "agent_code_exists": {
-        "ru": "Агент с кодом «{code}» уже существует в этом агентстве.",
-        "uz": "«{code}» kodli agent bu agentlikda allaqachon mavjud.",
-        "en": "An agent with code “{code}” already exists in this agency.",
-    },
-    "agent_not_found": {
-        "ru": "Агент не найден.",
-        "uz": "Agent topilmadi.",
-        "en": "Agent not found.",
-    },
     # Объекты
     "display_id_generation_failed": {
         "ru": "Не удалось сгенерировать номер объекта.",
@@ -149,6 +138,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Недопустимый статус объекта.",
         "uz": "Obyektning yaroqsiz holati.",
         "en": "Invalid property status.",
+    },
+    "empty_apartment": {
+        "ru": "Заполните хотя бы одно поле объекта (например, наименование, район или цену).",
+        "uz": "Obyektning kamida bitta maydonini toʻldiring (masalan, nomi, tuman yoki narx).",
+        "en": "Fill in at least one property field (e.g. title, district or price).",
     },
     # Отправка / шаринг
     "share_via_bot_not_configured": {
@@ -237,6 +231,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Главного администратора агентства изменить нельзя.",
         "uz": "Agentlikning bosh administratorini oʻzgartirib boʻlmaydi.",
         "en": "The agency main admin cannot be changed.",
+    },
+    "cannot_remove_self": {
+        "ru": "Нельзя исключить самого себя из агентства.",
+        "uz": "Oʻzingizni agentlikdan chiqarib boʻlmaydi.",
+        "en": "You cannot remove yourself from the agency.",
     },
     "invalid_role": {
         "ru": "Недопустимая роль. Доступно: администратор агентства или агент.",
@@ -386,26 +385,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Login data has no user identifier.",
     },
     # Валидация форм (pydantic, 422)
-    "agent_name_empty": {
-        "ru": "Имя агента не может быть пустым.",
-        "uz": "Agent ismi boʻsh boʻlishi mumkin emas.",
-        "en": "Agent name cannot be empty.",
-    },
-    "agent_code_empty": {
-        "ru": "Код агента не может быть пустым.",
-        "uz": "Agent kodi boʻsh boʻlishi mumkin emas.",
-        "en": "Agent code cannot be empty.",
-    },
-    "agent_code_too_long": {
-        "ru": "Код агента не длиннее 5 символов.",
-        "uz": "Agent kodi 5 belgidan oshmasligi kerak.",
-        "en": "Agent code must be at most 5 characters.",
-    },
-    "agent_code_alnum": {
-        "ru": "Код агента может содержать только буквы и цифры.",
-        "uz": "Agent kodi faqat harf va raqamlardan iborat boʻlishi mumkin.",
-        "en": "Agent code may contain only letters and digits.",
-    },
     "value_negative": {
         "ru": "Значение не может быть отрицательным.",
         "uz": "Qiymat manfiy boʻlishi mumkin emas.",
