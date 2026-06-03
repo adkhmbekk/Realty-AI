@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_agency_owner
+from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.auth import AuthResponse
@@ -51,7 +52,11 @@ def revoke_invite(
     invite_service.revoke_invite(db, current_user.agency_id, invite_id)
 
 
-@router.post("/redeem", response_model=AuthResponse)
+@router.post(
+    "/redeem",
+    response_model=AuthResponse,
+    dependencies=[Depends(rate_limit(15, 60, "invite_redeem"))],
+)
 def redeem_invite(body: InviteRedeem, db: Session = Depends(get_db)):
     """
     Вступить в агентство по коду приглашения.

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
+from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.auth import AuthResponse, TelegramAuthRequest, UserProfile
@@ -14,7 +15,11 @@ from app.services import auth_service
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/telegram", response_model=AuthResponse)
+@router.post(
+    "/telegram",
+    response_model=AuthResponse,
+    dependencies=[Depends(rate_limit(15, 60, "auth_telegram"))],
+)
 def telegram_login(body: TelegramAuthRequest, db: Session = Depends(get_db)):
     """Принять данные входа от Telegram, проверить и выдать пропуск."""
     return auth_service.login_with_init_data(db, body.init_data)

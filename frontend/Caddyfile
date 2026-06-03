@@ -4,11 +4,34 @@
 :80 {
 	encode gzip
 
+	# ─── Заголовки безопасности (применяются ко всем ответам) ───────────────
+	header {
+		# Не раскрываем сервер.
+		-Server
+		# Заставляем HTTPS на год (туннель отдаёт HTTPS).
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# Запрет «угадывания» типа содержимого (защита от MIME-sniffing).
+		X-Content-Type-Options "nosniff"
+		# Меньше утечки реферера на сторонние ресурсы.
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Ограничиваем доступ к мощным API браузера.
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# CSP: какие источники разрешены. Mini App грузит официальный скрипт
+		# Telegram (telegram.org), остальное — только со своего origin.
+		# frame-ancestors разрешает встраивание лишь в клиентах Telegram
+		# (защита от clickjacking). object-src/base-uri закрыты.
+		Content-Security-Policy "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors https://*.telegram.org https://telegram.org; script-src 'self' https://telegram.org; connect-src 'self' https://telegram.org; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; form-action 'self'"
+	}
+
 	# Наружу проксируем только рабочее API и проверку здоровья.
-	# Интерактивная документация (/docs, /openapi.json) НЕ выставляется в интернет —
-	# она остаётся доступной только локально на http://localhost:8000/docs.
+	# Интерактивная документация (/docs, /openapi.json) НЕ выставляется в интернет
+	# и по умолчанию отключена в самом backend (ENABLE_DOCS=false).
 	@backend path /api/* /health
 	handle @backend {
+		# Ограничение размера тела запроса (защита от DoS большими телами).
+		request_body {
+			max_size 25MB
+		}
 		reverse_proxy backend:8000
 	}
 

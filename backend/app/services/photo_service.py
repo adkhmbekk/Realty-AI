@@ -91,36 +91,50 @@ def _path(key: str) -> str:
 # Максимальный размер стороны изображения после сжатия (px).
 MAX_DIM = 2048
 
+# Допустимые типы итогового (сохраняемого и отдаваемого) изображения.
+_OUTPUT_IMAGE_TYPES = {"image/jpeg", "image/png"}
+
 
 def _process_image(data: bytes, content_type: str):
     """
-    Сжать изображение: повернуть по EXIF, уменьшить до MAX_DIM по большей стороне,
-    перекодировать в JPEG (или PNG при наличии прозрачности). Это резко уменьшает
-    вес фото — важно для быстрой загрузки и отдачи через туннель/мобильный интернет.
-    При любой ошибке возвращаем исходные байты без изменений.
+    Привести изображение к безопасному виду: открыть растровым декодером
+    (Pillow), повернуть по EXIF, уменьшить до MAX_DIM по большей стороне и
+    ПЕРЕКОДИРОВАТЬ в JPEG (или PNG при наличии прозрачности).
+
+    Перекодирование — это и оптимизация (меньше вес), и ЗАЩИТА: то, что Pillow
+    не может декодировать как растровое изображение (SVG со скриптом, HTML,
+    произвольные файлы), сюда не пройдёт — мы поднимаем ошибку «только
+    изображения». Тем самым исключаем сохранение активного содержимого (SVG/
+    HTML), которое потом могло бы исполниться в браузере (Stored XSS).
     """
+    import io
+
+    from PIL import Image, ImageOps
+
+    # Ограничение на число пикселей — защита от «декомпрессионных бомб»
+    # (маленький файл, разворачивающийся в гигантское изображение → OOM).
+    Image.MAX_IMAGE_PIXELS = 40_000_000
+
     try:
-        import io
-
-        from PIL import Image, ImageOps
-
         img = Image.open(io.BytesIO(data))
         img.load()
-        try:
-            img = ImageOps.exif_transpose(img)
-        except Exception:  # noqa: BLE001
-            pass
-        if max(img.size) > MAX_DIM:
-            img.thumbnail((MAX_DIM, MAX_DIM))
-        has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
-        out = io.BytesIO()
-        if has_alpha:
-            img.convert("RGBA").save(out, format="PNG", optimize=True)
-            return out.getvalue(), "image/png"
-        img.convert("RGB").save(out, format="JPEG", quality=92, optimize=True)
-        return out.getvalue(), "image/jpeg"
+    except Exception as exc:  # noqa: BLE001
+        # Не растровое изображение (SVG/HTML/мусор) — отклоняем.
+        raise AppError("only_images", status.HTTP_400_BAD_REQUEST) from exc
+
+    try:
+        img = ImageOps.exif_transpose(img)
     except Exception:  # noqa: BLE001
-        return data, content_type
+        pass
+    if max(img.size) > MAX_DIM:
+        img.thumbnail((MAX_DIM, MAX_DIM))
+    has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+    out = io.BytesIO()
+    if has_alpha:
+        img.convert("RGBA").save(out, format="PNG", optimize=True)
+        return out.getvalue(), "image/png"
+    img.convert("RGB").save(out, format="JPEG", quality=92, optimize=True)
+    return out.getvalue(), "image/jpeg"
 
 
 def public_url(key: str) -> str:
@@ -154,12 +168,15 @@ def list_photos(db, agency_id: int, apartment_id: int) -> List[dict]:
 
 def _save_one(db, agency_id: int, apartment_id: int, data: bytes, content_type: str, order: int):
     _ensure_dir()
-    # Сжимаем перед сохранением (уменьшение размера + перекодирование).
+    # Перекодируем перед сохранением (оптимизация + защита: только растровые
+    # изображения; SVG/HTML/мусор будут отклонены внутри _process_image).
     data, content_type = _process_image(data, content_type or "image/jpeg")
     key = secrets.token_urlsafe(16)
     with open(_path(key), "wb") as f:
         f.write(data)
-    ctype = content_type if content_type and content_type.startswith("image/") else "image/jpeg"
+    # Тип всегда из белого списка (image/jpeg | image/png) — на всякий случай
+    # подстраховываемся явной проверкой.
+    ctype = content_type if content_type in _OUTPUT_IMAGE_TYPES else "image/jpeg"
     return apartment_photo_repo.create(db, agency_id, apartment_id, key, ctype, order)
 
 
@@ -183,7 +200,13 @@ def add_blobs(
                 status.HTTP_400_BAD_REQUEST,
                 mb=MAX_BYTES // (1024 * 1024),
             )
-        if ctype and not ctype.startswith("image/"):
+        # Быстрый отбой по типу: только растровые изображения. SVG (image/svg+xml)
+        # и прочий «активный» контент отклоняем явно (он может нести скрипт).
+        # Окончательная проверка — перекодирование растровым декодером в _save_one.
+        ctype_l = (ctype or "").lower()
+        if ctype_l and (
+            not ctype_l.startswith("image/") or "svg" in ctype_l or "xml" in ctype_l
+        ):
             raise AppError("only_images", status.HTTP_400_BAD_REQUEST)
         _save_one(db, agency_id, apartment_id, data, ctype or "image/jpeg", order)
         order += 1
@@ -196,10 +219,32 @@ def add_blobs(
     return [to_out(p) for p in apartment_photo_repo.list_for(db, agency_id, apartment_id)]
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """
+    Запрещает переходы по редиректам. Это закрывает обход SSRF-защиты: без
+    этого сервер по присланной ссылке мог ответить «302 → http://127.0.0.1/…»
+    или «→ http://169.254.169.254/…», и urllib послушно сходил бы во внутреннюю
+    сеть уже БЕЗ повторной проверки адреса. Любой редирект считаем ошибкой.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
+        raise AppError("link_open_failed", status.HTTP_400_BAD_REQUEST)
+
+
+# Опенер без следования за редиректами (используем вместо urlopen по умолчанию).
+_no_redirect_opener = urllib.request.build_opener(_NoRedirectHandler)
+
+
 def _fetch(url: str, max_bytes: int) -> Tuple[bytes, str]:
+    # Проверяем, что хост резолвится только в публичные адреса (анти-SSRF).
     _assert_public_url(url)
     req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310
+    # Важно: используем опенер, который НЕ следует за редиректами (см. выше),
+    # иначе проверку адреса можно обойти через Location-редирект.
+    with _no_redirect_opener.open(req, timeout=8) as resp:  # noqa: S310
+        # Любой 3xx без перехода трактуем как неуспех (редиректы запрещены).
+        if getattr(resp, "status", 200) and 300 <= resp.status < 400:
+            raise AppError("link_open_failed", status.HTTP_400_BAD_REQUEST)
         data = resp.read(max_bytes + 1)
         ctype = resp.headers.get("Content-Type", "") or ""
     if len(data) > max_bytes:
@@ -270,11 +315,16 @@ def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) -> Lis
             continue
         if not data:
             continue
-        if ctype and not ctype.startswith("image/"):
-            # Telegram-CDN иногда не указывает тип — пропускаем только если явно не картинка.
-            if ctype.startswith("text/") or ctype.startswith("application/"):
-                continue
-        _save_one(db, agency_id, apartment_id, data, ctype or "image/jpeg", order)
+        ctype_l = (ctype or "").lower()
+        if ctype_l and (not ctype_l.startswith("image/") or "svg" in ctype_l or "xml" in ctype_l):
+            # Явно не растровое изображение (HTML/SVG/прочее) — пропускаем.
+            continue
+        try:
+            _save_one(db, agency_id, apartment_id, data, ctype or "image/jpeg", order)
+        except Exception:  # noqa: BLE001
+            # Файл не удалось декодировать как изображение — просто пропускаем,
+            # чтобы один плохой файл не срывал импорт остальных.
+            continue
         order += 1
         saved += 1
 

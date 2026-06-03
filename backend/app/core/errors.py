@@ -49,6 +49,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Avtorizatsiya talab qilinadi.",
         "en": "Authorization required.",
     },
+    "rate_limited": {
+        "ru": "Слишком много запросов. Подождите немного и попробуйте снова.",
+        "uz": "Soʻrovlar juda koʻp. Biroz kuting va qayta urinib koʻring.",
+        "en": "Too many requests. Please wait a moment and try again.",
+    },
     "auth_invalid_token": {
         "ru": "Недействительный или истёкший пропуск. Войдите заново.",
         "uz": "Yaroqsiz yoki muddati oʻtgan kirish. Qaytadan kiring.",
@@ -364,6 +369,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Данные входа устарели, откройте приложение заново.",
         "uz": "Kirish maʼlumotlari eskirgan, ilovani qaytadan oching.",
         "en": "Login data has expired, please reopen the app.",
+    },
+    "init_data_replayed": {
+        "ru": "Эти данные входа уже использованы. Откройте приложение заново.",
+        "uz": "Bu kirish maʼlumotlari allaqachon ishlatilgan. Ilovani qaytadan oching.",
+        "en": "These login data have already been used. Please reopen the app.",
     },
     "init_data_bad_user": {
         "ru": "Некорректные данные пользователя.",

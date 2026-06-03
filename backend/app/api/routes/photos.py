@@ -10,25 +10,38 @@
 multipart/form-data: обычные JSON-запросы стабильно проходят через туннель,
 а multipart с файлом — нет.
 """
-from typing import List
-
 from fastapi import APIRouter, Body, Depends, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, conlist, constr
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_agency_member
 from app.core.errors import AppError
+from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
 from app.services import photo_service
 
 router = APIRouter(tags=["photos"])
 
+# Допустимые типы для безопасной отдачи файла как изображения. Всё остальное
+# отдаём как «скачиваемый» поток (attachment) — чтобы браузер НЕ интерпретировал
+# содержимое как HTML/SVG со скриптом (защита от Stored XSS).
+_SAFE_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+# Ограничения на входной JSON с фото (защита от чрезмерного расхода памяти):
+#   - не более MAX_PHOTOS изображений за один запрос;
+#   - каждая строка base64/data-URL — не длиннее ~15 МБ в бинарном виде.
+_MAX_IMAGE_CHARS = 20_000_000
+
 
 class PhotoUploadIn(BaseModel):
     # Изображения как data-URL ("data:image/jpeg;base64,...") или чистый base64.
-    images: List[str]
+    images: conlist(
+        constr(max_length=_MAX_IMAGE_CHARS),
+        min_length=1,
+        max_length=photo_service.MAX_PHOTOS,
+    )
 
 
 @router.get("/apartments/{apartment_id}/photos")
@@ -41,7 +54,11 @@ def list_photos(
     return photo_service.list_photos(db, current_user.agency_id, apartment_id)
 
 
-@router.post("/apartments/{apartment_id}/photos", status_code=201)
+@router.post(
+    "/apartments/{apartment_id}/photos",
+    status_code=201,
+    dependencies=[Depends(rate_limit(30, 60, "photo_upload"))],
+)
 def upload_photos(
     apartment_id: int,
     body: PhotoUploadIn,
@@ -59,7 +76,11 @@ def upload_photos(
     return photo_service.add_blobs(db, current_user.agency_id, apartment_id, blobs)
 
 
-@router.post("/apartments/{apartment_id}/photos/import-telegram", status_code=201)
+@router.post(
+    "/apartments/{apartment_id}/photos/import-telegram",
+    status_code=201,
+    dependencies=[Depends(rate_limit(20, 60, "photo_import"))],
+)
 def import_telegram(
     apartment_id: int,
     url: str = Body(..., embed=True),
@@ -88,4 +109,19 @@ def serve_photo(key: str, db: Session = Depends(get_db)):
     if found is None:
         raise AppError("photo_not_found", status.HTTP_404_NOT_FOUND)
     path, content_type = found
-    return FileResponse(path, media_type=content_type, headers={"Cache-Control": "public, max-age=86400"})
+
+    # Безопасная отдача: запрещаем браузеру «угадывать» тип (nosniff). Если тип
+    # не входит в белый список изображений (например, оставшийся с прошлых
+    # версий SVG), отдаём как вложение-поток, чтобы содержимое НЕ исполнялось
+    # как HTML/скрипт в нашем домене (защита от Stored XSS).
+    headers = {
+        "Cache-Control": "public, max-age=86400",
+        "X-Content-Type-Options": "nosniff",
+    }
+    if content_type in _SAFE_IMAGE_TYPES:
+        headers["Content-Disposition"] = "inline"
+        media_type = content_type
+    else:
+        headers["Content-Disposition"] = "attachment; filename=download"
+        media_type = "application/octet-stream"
+    return FileResponse(path, media_type=media_type, headers=headers)

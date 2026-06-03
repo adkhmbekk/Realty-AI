@@ -38,7 +38,17 @@ jobs:
       - name: Run tests
         env:
           PHOTOS_DIR: /tmp/realty_test_photos
+          SECRET_DIR: /tmp/realty_test_secrets
         run: pytest -q
+
+      # Скан зависимостей на известные уязвимости (CVE). Не блокирует сборку
+      # (continue-on-error), но подсвечивает проблемные пакеты в логе CI, чтобы
+      # их можно было вовремя обновить.
+      - name: Audit dependencies (pip-audit)
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
 
   # ─── Проверка фронтенда (React): типизация + сборка ─────────────────────
   frontend:
