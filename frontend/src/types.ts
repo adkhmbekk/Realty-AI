@@ -122,7 +122,6 @@ export interface AgencySettings {
   timezone: string;
   default_currency: string;
   contact_phone?: string | null;
-  notify_new_objects?: boolean;
 }
 
 export interface Member {

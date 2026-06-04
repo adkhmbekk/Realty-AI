@@ -13,7 +13,6 @@ export function SettingsScreen() {
   const [projectName, setProjectName] = useState(settings?.project_name || "");
   const [contactPhone, setContactPhone] = useState(settings?.contact_phone || "");
   const [currency, setCurrency] = useState(settings?.default_currency || "USD");
-  const [notify, setNotify] = useState<"on" | "off">(settings?.notify_new_objects ? "on" : "off");
   const [saving, setSaving] = useState(false);
 
   async function saveAgency() {
@@ -24,7 +23,6 @@ export function SettingsScreen() {
         project_name: projectName.trim(),
         contact_phone: contactPhone.trim(),
         default_currency: currency,
-        notify_new_objects: notify === "on",
       },
     });
     setSaving(false);
@@ -79,18 +77,6 @@ export function SettingsScreen() {
                 ))}
               </Select>
             </Field>
-            <div className="mt-3">
-              <Label>{t("notifyNewObjects")}</Label>
-              <Segmented
-                value={notify}
-                onChange={(v) => setNotify(v)}
-                options={[
-                  { value: "off", label: t("notifyOff") },
-                  { value: "on", label: t("notifyOn") },
-                ]}
-              />
-              <Hint>{t("notifyNewObjectsHint")}</Hint>
-            </div>
             <Button full className="mt-4" disabled={saving} onClick={saveAgency}>
               {t("saveSettings")}
             </Button>

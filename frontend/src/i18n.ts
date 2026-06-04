@@ -90,8 +90,6 @@ export const I18N: Record<Lang, Record<string, string>> = {
     shareAlbumSent: "Альбом со всеми фото отправлен вам в чат с ботом — откройте его и перешлите клиенту.",
     shareToClient: "Отправить клиенту", shareAllPhotos: "Все фото (альбом)",
     buildVersion: "Версия",
-    notifyNewObjects: "Уведомления о новых объектах", notifyOn: "Вкл", notifyOff: "Выкл",
-    notifyNewObjectsHint: "Если включено — бот пишет руководителям о каждом новом объекте. По умолчанию выключено, чтобы не засорять чат.",
   },
   uz: {
     back: "Orqaga", saveChanges: "Oʻzgarishlarni saqlash", 
@@ -179,8 +177,6 @@ export const I18N: Record<Lang, Record<string, string>> = {
     shareAlbumSent: "Barcha fotolar albom shaklida bot bilan chatingizga yuborildi — uni ochib mijozga yoʻllang.",
     shareToClient: "Mijozga yuborish", shareAllPhotos: "Barcha foto (albom)",
     buildVersion: "Versiya",
-    notifyNewObjects: "Yangi obyektlar haqida bildirishnoma", notifyOn: "Yoq", notifyOff: "Oʻchiq",
-    notifyNewObjectsHint: "Yoqilsa — bot rahbarlarga har bir yangi obyekt haqida yozadi. Standart holatda oʻchiq.",
   },
   en: {
     back: "Back", saveChanges: "Save changes", 
@@ -268,8 +264,6 @@ export const I18N: Record<Lang, Record<string, string>> = {
     shareAlbumSent: "An album with all photos was sent to your chat with the bot — open it and forward to the client.",
     shareToClient: "Send to client", shareAllPhotos: "All photos (album)",
     buildVersion: "Version",
-    notifyNewObjects: "New-object notifications", notifyOn: "On", notifyOff: "Off",
-    notifyNewObjectsHint: "When on, the bot messages managers about each new property. Off by default to avoid clutter.",
   },
 };
 

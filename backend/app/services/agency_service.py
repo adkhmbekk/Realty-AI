@@ -335,7 +335,6 @@ def update_settings(
     timezone_value: Optional[str] = None,
     default_currency: Optional[str] = None,
     contact_phone: Optional[str] = None,
-    notify_new_objects: Optional[bool] = None,
 ) -> Agency:
     """Обновить настройки агентства (название проекта, часовой пояс, валюта, контакт)."""
     agency = _get_agency_or_404(db, agency_id)
@@ -353,8 +352,6 @@ def update_settings(
     if contact_phone is not None:
         # Пустая строка очищает контактный номер.
         agency.contact_phone = contact_phone.strip() or None
-    if notify_new_objects is not None:
-        agency.notify_new_objects = notify_new_objects
     db.commit()
     db.refresh(agency)
     return agency
