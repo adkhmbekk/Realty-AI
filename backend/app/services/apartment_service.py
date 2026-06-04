@@ -151,51 +151,7 @@ def create_apartment(
     db.commit()
     db.refresh(apartment)
     _attach_creators(db, [apartment])
-    _notify_new_apartment(db, agency_id, apartment, created_by)
     return apartment
-
-
-def _notify_new_apartment(db: Session, agency_id: int, apartment: Apartment, creator_id) -> None:
-    """
-    Уведомить руководителей агентства (главного админа и админов) о новом
-    объекте. Создателя самого себя не уведомляем. Best-effort: любые ошибки
-    глушим, рассылка идёт в фоне и не задерживает ответ.
-    """
-    try:
-        if not telegram_service.is_configured():
-            return
-        agency = agency_repo.get_by_id(db, agency_id)
-        # Уведомления отключены в настройках агентства — ничего не делаем.
-        if agency is None or not getattr(agency, "notify_new_objects", False):
-            return
-        recipients = []
-        creator_name = None
-        for u in user_repo.get_by_agency(db, agency_id):
-            if u.id == creator_id:
-                creator_name = _display_name(u)
-            if (
-                u.role == "agency_admin"
-                and u.is_active
-                and u.telegram_id
-                and u.id != creator_id
-            ):
-                recipients.append(u.telegram_id)
-        if not recipients:
-            return
-        parts = [f"🏠 Новый объект №{apartment.display_id}"]
-        if apartment.name:
-            parts.append(apartment.name)
-        loc = " · ".join(x for x in [apartment.type, apartment.district] if x)
-        if loc:
-            parts.append(loc)
-        price = _format_price(apartment)
-        if price:
-            parts.append(f"Цена: {price}")
-        if creator_name:
-            parts.append(f"Добавил: {creator_name}")
-        telegram_service.notify_async(recipients, "\n".join(parts))
-    except Exception:  # noqa: BLE001
-        pass
 
 
 def get_apartment(db: Session, agency_id: int, apartment_id: int) -> Apartment:
