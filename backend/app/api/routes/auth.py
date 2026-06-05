@@ -2,11 +2,11 @@
 Эндпоинты входа и профиля.
 Роуты не содержат бизнес-логику — они вызывают сервисы.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
-from app.core.ratelimit import rate_limit
+from app.core.ratelimit import rate_limit, _client_ip
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.auth import (
@@ -25,9 +25,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     response_model=AuthResponse,
     dependencies=[Depends(rate_limit(15, 60, "auth_telegram"))],
 )
-def telegram_login(body: TelegramAuthRequest, db: Session = Depends(get_db)):
+def telegram_login(body: TelegramAuthRequest, request: Request, db: Session = Depends(get_db)):
     """Принять данные входа от Telegram, проверить и выдать пропуск."""
-    return auth_service.login_with_init_data(db, body.init_data)
+    return auth_service.login_with_init_data(db, body.init_data, ip=_client_ip(request))
 
 
 @router.post(

@@ -20,7 +20,7 @@
 		# Telegram (telegram.org), остальное — только со своего origin.
 		# frame-ancestors разрешает встраивание лишь в клиентах Telegram
 		# (защита от clickjacking). object-src/base-uri закрыты.
-		Content-Security-Policy "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors https://*.telegram.org https://telegram.org; script-src 'self' https://telegram.org; connect-src 'self' https://telegram.org; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; form-action 'self'"
+		Content-Security-Policy "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors https://*.telegram.org https://telegram.org; script-src 'self' https://telegram.org; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; form-action 'self'"
 	}
 
 	# Наружу проксируем только рабочее API и проверку здоровья.

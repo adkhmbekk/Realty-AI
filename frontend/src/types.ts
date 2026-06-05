@@ -12,6 +12,7 @@ export interface UserProfile {
 
 export interface AuthResponse {
   access_token: string;
+  refresh_token?: string | null;
   token_type: string;
   subscription_active?: boolean | null;
   user: UserProfile;

@@ -23,6 +23,7 @@ def add(
     actor_name: Optional[str] = None,
     target: Optional[str] = None,
     note: Optional[str] = None,
+    ip: Optional[str] = None,
 ) -> AuditLog:
     entry = AuditLog(
         action=action,
@@ -32,6 +33,7 @@ def add(
         actor_name=actor_name,
         target=target,
         note=note,
+        ip=ip,
     )
     db.add(entry)
     return entry

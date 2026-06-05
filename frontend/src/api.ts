@@ -42,18 +42,30 @@ function tryReauth(): Promise<string | null> {
   return reauthInFlight;
 }
 
+// Таймаут запроса: на медленном/зависшем туннеле fetch может висеть вечно,
+// подвешивая UI без снятия спиннера (находка M12). Ограничиваем время и
+// даём отмену через AbortController.
+const DEFAULT_TIMEOUT_MS = 20000;
+
+function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
 export async function api<T = any>(
   path: string,
-  opts: { method?: string; body?: unknown } = {}
+  opts: { method?: string; body?: unknown; timeoutMs?: number } = {}
 ): Promise<ApiResult<T>> {
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const doFetch = (token: string | null): Promise<Response> => {
     const headers: Record<string, string> = { "Content-Type": "application/json", "X-Lang": langGetter() };
     if (token) headers["Authorization"] = "Bearer " + token;
-    return fetch(path, {
+    return fetchWithTimeout(path, {
       method: opts.method || "GET",
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    });
+    }, timeoutMs);
   };
 
   let res: Response;
@@ -90,37 +102,8 @@ export function errText(data: any, status: number, fallback = "—"): string {
   return "" + status;
 }
 
-// Загрузка файлов (multipart/form-data). Content-Type выставляет браузер сам.
-export async function apiUpload<T = any>(path: string, formData: FormData): Promise<ApiResult<T>> {
-  const doFetch = (token: string | null): Promise<Response> => {
-    const headers: Record<string, string> = { "X-Lang": langGetter() };
-    if (token) headers["Authorization"] = "Bearer " + token;
-    return fetch(path, { method: "POST", headers, body: formData });
-  };
-  let res: Response;
-  try {
-    res = await doFetch(tokenGetter());
-  } catch {
-    return { ok: false, status: 0, data: null };
-  }
-  if (res.status === 401) {
-    const fresh = await tryReauth();
-    if (fresh) {
-      try {
-        res = await doFetch(fresh);
-      } catch {
-        return { ok: false, status: 0, data: null };
-      }
-    }
-  }
-  let data: any = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
-  }
-  return { ok: res.ok, status: res.status, data };
-}
+// Примечание: multipart-загрузка (apiUpload) удалена как мёртвый код —
+// фото отправляются как data-URL в JSON через api() (см. downscaleToDataUrl).
 
 // Построение query-строки из объекта параметров (массивы повторяются).
 export function buildQuery(params: Record<string, unknown>): string {

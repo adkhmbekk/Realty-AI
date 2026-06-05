@@ -355,8 +355,12 @@ export function App() {
     }
   }
 
+  // refresh-пропуск держим только в памяти (не в localStorage) — как и access-токен.
+  const refreshTokenRef = useRef<string | null>(null);
+
   async function applyAuth(data: AuthResponse) {
     setAuth(data.access_token, data.user, data.subscription_active ?? null);
+    refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;
     await loadSettingsIfNeeded(data.user.role);
     if ((data.user.role === "agency_admin" || data.user.role === "agent") && data.subscription_active === false) {
       setPhase("suspended");
@@ -375,6 +379,29 @@ export function App() {
     // запросит новый через Telegram и повторит запрос (см. api.ts). Прямой
     // fetch (без обёртки api) — чтобы не было зацикливания на 401.
     setReauthHandler(async () => {
+      // Сначала пробуем тихо продлить сессию по refresh-пропуску (сервер умеет
+      // это через /auth/refresh, без повторной проверки initData). Это и есть
+      // починка «вылетов» каждые 1–2 часа (находка H7).
+      const rt = refreshTokenRef.current;
+      if (rt) {
+        try {
+          const res = await fetch("/api/v1/auth/refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: rt }),
+          });
+          if (res.ok) {
+            const data: AuthResponse = await res.json();
+            setAuth(data.access_token, data.user, data.subscription_active ?? null);
+            refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;
+            return data.access_token;
+          }
+        } catch {
+          // упадём в запасной путь ниже
+        }
+      }
+      // Запасной путь: повторный вход по initData (если refresh-пропуска нет
+      // или он больше не действует).
       const fresh = getInitData();
       if (!fresh) return null;
       try {
@@ -386,6 +413,7 @@ export function App() {
         if (!res.ok) return null;
         const data: AuthResponse = await res.json();
         setAuth(data.access_token, data.user, data.subscription_active ?? null);
+        refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;
         return data.access_token;
       } catch {
         return null;

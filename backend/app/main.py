@@ -14,6 +14,7 @@
 """
 import logging
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -205,13 +206,19 @@ def root():
 
 @app.get("/health")
 def health(db: Session = Depends(get_db)):
-    """Проверка: жив ли сервис и доступна ли база данных."""
+    """Проверка: жив ли сервис, доступна ли база и доступно ли хранилище фото."""
     try:
         db.execute(text("SELECT 1"))
         db_ok = True
     except Exception:  # noqa: BLE001
         db_ok = False
+    # Хранилище фото должно существовать и быть доступно на запись (L6) —
+    # иначе загрузка/отдача фото молча сломается, а /health бы об этом не сказал.
+    storage_ok = os.path.isdir(settings.photos_dir) and os.access(settings.photos_dir, os.W_OK)
+    ok = db_ok and storage_ok
     return {
-        "status": "healthy" if db_ok else "degraded",
+        "status": "healthy" if ok else "degraded",
         "database": "connected" if db_ok else "unavailable",
+        "storage": "writable" if storage_ok else "unavailable",
+        "version": settings.app_version,
     }

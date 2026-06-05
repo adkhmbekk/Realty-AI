@@ -39,6 +39,8 @@ class AuditLog(Base):
     actor_telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     # Имя автора на момент действия (чтобы не делать join при показе журнала).
     actor_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # IP-адрес источника действия (например, при входе) — для разбора инцидентов (L8).
+    ip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Машиночитаемый код действия (login / invite_created / member_role_changed / ...).
     action: Mapped[str] = mapped_column(String, nullable=False, index=True)
     # На что направлено действие (например, имя/ID сотрудника, № объекта).

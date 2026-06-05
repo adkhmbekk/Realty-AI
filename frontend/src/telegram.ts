@@ -70,6 +70,16 @@ export function openTelegramLink(url: string) {
 }
 
 export function openLink(url: string) {
+  // source_link приходит из пользовательского поля → пускаем только http(s)/tg,
+  // чтобы не открыть javascript:/data: и т.п. (находка L10).
+  let safe = false;
+  try {
+    const scheme = new URL(url, window.location.href).protocol;
+    safe = scheme === "http:" || scheme === "https:" || scheme === "tg:";
+  } catch {
+    safe = false;
+  }
+  if (!safe) return;
   try {
     if (tg?.openLink) tg.openLink(url);
     else window.open(url, "_blank");

@@ -58,6 +58,7 @@ class Apartment(Base):
         Index("ix_apartments_agency_rooms", "agency_id", "rooms"),
         Index("ix_apartments_agency_price", "agency_id", "price"),
         Index("ix_apartments_agency_created", "agency_id", "created_at"),
+        Index("ix_apartments_agency_created_by", "agency_id", "created_by"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

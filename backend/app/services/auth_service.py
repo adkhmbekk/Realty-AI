@@ -9,6 +9,7 @@
 если это суперадмин платформы.
 """
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import status
 from sqlalchemy.orm import Session
@@ -20,7 +21,7 @@ from app.core.subscription import agency_is_active
 from app.repositories import agency_repo, audit_repo, user_repo
 
 
-def login_with_init_data(db: Session, init_data: str) -> dict:
+def login_with_init_data(db: Session, init_data: str, ip: Optional[str] = None) -> dict:
     # 1. Без токена бота проверить подлинность входа невозможно.
     if not settings.bot_token:
         raise AppError(
@@ -65,6 +66,7 @@ def login_with_init_data(db: Session, init_data: str) -> dict:
             actor_user_id=user.id,
             actor_telegram_id=user.telegram_id,
             actor_name=user.full_name or (("@" + user.username) if user.username else None),
+            ip=ip,
         )
 
     db.commit()
