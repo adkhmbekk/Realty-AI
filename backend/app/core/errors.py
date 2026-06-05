@@ -108,6 +108,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Obuna tugash sanasi koʻrsatilmagan.",
         "en": "Subscription end date is not specified.",
     },
+    "subscription_amount_required": {
+        "ru": "Укажите сумму оплаты при продлении (0 — если бесплатно).",
+        "uz": "Uzaytirishda toʻlov summasini koʻrsating (bepul boʻlsa 0).",
+        "en": "Specify the payment amount when extending (0 if free).",
+    },
+    "subscription_currency_required": {
+        "ru": "Укажите валюту оплаты.",
+        "uz": "Toʻlov valyutasini koʻrsating.",
+        "en": "Specify the payment currency.",
+    },
     "unknown_action": {
         "ru": "Неизвестное действие.",
         "uz": "Nomaʼlum amal.",

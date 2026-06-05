@@ -128,3 +128,29 @@ def test_client_ip_takes_rightmost_trusted(monkeypatch):
     assert ratelimit._client_ip(_Req("8.8.8.8")) == "8.8.8.8"
     # Нет заголовка — адрес соединения.
     assert ratelimit._client_ip(_Req("")) == "10.0.0.1"
+
+
+# ── QW23: продление подписки требует явную сумму ─────────────────────────
+def test_extend_requires_explicit_amount(db):
+    # Без суммы — отказ (честный учёт выручки).
+    a1 = _agency(db, "A1")
+    db.commit()
+    with pytest.raises(AppError) as ei:
+        agency_service.update_subscription(db, a1.id, "extend", days=30)
+    assert ei.value.status_code == 400
+
+    # Ненулевая сумма без валюты — отказ.
+    a2 = _agency(db, "A2")
+    db.commit()
+    with pytest.raises(AppError):
+        agency_service.update_subscription(db, a2.id, "extend", days=30, amount=50)
+
+    # Сумма 0 (бесплатное продление) — допустимо.
+    a3 = _agency(db, "A3")
+    db.commit()
+    agency_service.update_subscription(db, a3.id, "extend", days=30, amount=0)
+
+    # Ненулевая сумма с валютой — ок.
+    a4 = _agency(db, "A4")
+    db.commit()
+    agency_service.update_subscription(db, a4.id, "extend", days=30, amount=50, currency="usd")

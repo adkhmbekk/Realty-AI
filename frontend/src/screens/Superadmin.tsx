@@ -165,10 +165,12 @@ export function AgencyManageScreen({ id }: { id: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  async function sub(action: string, days?: number, expiresAt?: string) {
+  async function sub(action: string, days?: number, expiresAt?: string, amount?: number, currency?: string) {
     const body: Record<string, unknown> = { action };
     if (days != null) body.days = days;
     if (expiresAt) body.expires_at = expiresAt;
+    if (amount != null) body.amount = amount;
+    if (currency) body.currency = currency;
     const r = await api("/api/v1/agencies/" + id + "/subscription", { method: "POST", body });
     if (r.ok) {
       toast(t("subUpdated"), "ok");
@@ -191,7 +193,24 @@ export function AgencyManageScreen({ id }: { id: number }) {
       toast(t("badDate"), "warn");
       return;
     }
-    sub("extend", d);
+    const av = window.prompt(t("amountPrompt"), "0");
+    if (av === null) return;
+    const amount = parseFloat((av || "").trim().replace(",", "."));
+    if (Number.isNaN(amount) || amount < 0) {
+      toast(t("badAmount"), "warn");
+      return;
+    }
+    let currency = "";
+    if (amount > 0) {
+      const cv = window.prompt(t("currencyPrompt"), "USD");
+      if (cv === null) return;
+      currency = (cv || "").trim().toUpperCase();
+      if (!currency) {
+        toast(t("badCurrency"), "warn");
+        return;
+      }
+    }
+    sub("extend", d, undefined, amount, currency || undefined);
   }
   function changeDate() {
     const v = window.prompt(t("setDatePrompt"), "");

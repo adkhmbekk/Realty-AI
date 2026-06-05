@@ -151,6 +151,12 @@ def update_subscription(
     payment_days: Optional[int] = None
 
     if action == "extend":
+        # Честный учёт выручки: при продлении сумма указывается явно (0 — если
+        # бесплатно), валюта обязательна при ненулевой сумме (QW23 / M19).
+        if amount is None:
+            raise AppError("subscription_amount_required", status.HTTP_400_BAD_REQUEST)
+        if amount > 0 and not (currency and currency.strip()):
+            raise AppError("subscription_currency_required", status.HTTP_400_BAD_REQUEST)
         add_days = days if (days and days > 0) else 30
         # Продлеваем от текущей даты окончания (если она в будущем) или от сейчас.
         base = agency.subscription_expires_at
