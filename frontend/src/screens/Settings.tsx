@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useApp } from "../store";
 import { api, errText } from "../api";
-import { Button, Card, Field, Hint, Input, Label, Segmented, SectionTitle, Select } from "../components/ui";
-import { CURRENCIES, Lang } from "../i18n";
+import { Button, Card, Field, Hint, Input, Label, Segmented, SectionTitle } from "../components/ui";
+import { Lang } from "../i18n";
 import type { AgencySettings } from "../types";
 
 export function SettingsScreen() {
@@ -12,7 +12,6 @@ export function SettingsScreen() {
 
   const [projectName, setProjectName] = useState(settings?.project_name || "");
   const [contactPhone, setContactPhone] = useState(settings?.contact_phone || "");
-  const [currency, setCurrency] = useState(settings?.default_currency || "USD");
   const [saving, setSaving] = useState(false);
 
   async function saveAgency() {
@@ -22,7 +21,6 @@ export function SettingsScreen() {
       body: {
         project_name: projectName.trim(),
         contact_phone: contactPhone.trim(),
-        default_currency: currency,
       },
     });
     setSaving(false);
@@ -68,15 +66,6 @@ export function SettingsScreen() {
               <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
             </Field>
             <Hint>{t("contactPhoneHint")}</Hint>
-            <Field label={t("defaultCurrency")}>
-              <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </Select>
-            </Field>
             <Button full className="mt-4" disabled={saving} onClick={saveAgency}>
               {t("saveSettings")}
             </Button>

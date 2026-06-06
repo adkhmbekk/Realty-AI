@@ -50,6 +50,8 @@ def _build_conditions(
 ) -> list:
     # Первое и главное условие — принадлежность агентству.
     conditions = [Apartment.agency_id == agency_id]
+    # Архивные («удалённые») объекты не показываются в базе и поиске.
+    conditions.append(Apartment.deleted_at.is_(None))
 
     if status == "unsold":
         # Всё, кроме проданных (для раздела «Моя база»).
@@ -166,11 +168,33 @@ def search(
     return items, total
 
 
+def list_archived(
+    db: Session, agency_id: int, *, limit: int = 50, offset: int = 0
+) -> Tuple[List[Apartment], int]:
+    """Объекты в архиве (deleted_at IS NOT NULL), новые сверху. С общим числом."""
+    cond = [Apartment.agency_id == agency_id, Apartment.deleted_at.is_not(None)]
+    total = db.execute(
+        select(func.count()).select_from(Apartment).where(*cond)
+    ).scalar_one()
+    items = list(
+        db.execute(
+            select(Apartment)
+            .where(*cond)
+            .order_by(Apartment.deleted_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        .scalars()
+        .all()
+    )
+    return items, total
+
+
 def count_by_status(db: Session, agency_id: int) -> dict:
     """Вернуть количество объектов агентства по каждому статусу."""
     rows = db.execute(
         select(Apartment.status, func.count())
-        .where(Apartment.agency_id == agency_id)
+        .where(Apartment.agency_id == agency_id, Apartment.deleted_at.is_(None))
         .group_by(Apartment.status)
     ).all()
     return {row[0]: row[1] for row in rows}
@@ -275,6 +299,7 @@ def find_similar(
     base = [
         Apartment.agency_id == agency_id,
         Apartment.status.in_(["active", "deposit"]),
+        Apartment.deleted_at.is_(None),
     ]
     if exclude_id is not None:
         base.append(Apartment.id != exclude_id)

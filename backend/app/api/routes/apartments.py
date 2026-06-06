@@ -10,7 +10,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_agency_admin, require_agency_member
+from app.core.dependencies import (
+    require_agency_admin,
+    require_agency_member,
+    require_agency_owner,
+)
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.apartment import (
@@ -89,6 +93,21 @@ def search_apartments(
         q=q,
         limit=limit,
         offset=offset,
+    )
+    return ApartmentListOut(items=items, total=total, limit=limit, offset=offset)
+
+
+# ВНИМАНИЕ: /archived объявлен ДО /{apartment_id}, иначе "archived" попадёт в id.
+@router.get("/archived", response_model=ApartmentListOut)
+def list_archived(
+    limit: int = Query(50, ge=1, le=200, description="Сколько вернуть (1–200)."),
+    offset: int = Query(0, ge=0, description="Смещение для пагинации."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Список объектов в архиве своего агентства (видят все сотрудники)."""
+    items, total = apartment_service.list_archived_apartments(
+        db, current_user.agency_id, limit=limit, offset=offset
     )
     return ApartmentListOut(items=items, total=total, limit=limit, offset=offset)
 
@@ -253,8 +272,28 @@ def change_status(
 def delete_apartment(
     apartment_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_admin),
+    current_user: User = Depends(require_agency_owner),
 ):
-    """Удалить объект безвозвратно. Только администратор агентства (защита от
-    случайной/злонамеренной потери данных рядовыми сотрудниками)."""
+    """Переместить объект в архив (мягкое удаление). Только владелец агентства."""
     apartment_service.delete_apartment(db, current_user.agency_id, apartment_id)
+
+
+@router.post("/{apartment_id}/restore", response_model=ApartmentOut)
+def restore_apartment(
+    apartment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_owner),
+):
+    """Вернуть объект из архива обратно в базу. Только владелец агентства."""
+    apartment_service.restore_apartment(db, current_user.agency_id, apartment_id)
+    return apartment_service.get_apartment(db, current_user.agency_id, apartment_id)
+
+
+@router.delete("/{apartment_id}/permanent", status_code=204)
+def purge_apartment(
+    apartment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_owner),
+):
+    """Удалить объект НАВСЕГДА (вместе с фото). Необратимо. Только владелец агентства."""
+    apartment_service.purge_apartment(db, current_user.agency_id, apartment_id)

@@ -9,6 +9,14 @@ export function tgReady() {
     if (tg) {
       tg.ready();
       tg.expand();
+      // Полноэкранный режим (Telegram 8.0+): открываемся сразу на весь экран,
+      // чтобы случайный свайп вниз не сворачивал приложение. На старых клиентах
+      // метода нет — тихо пропускаем, остаётся обычный развёрнутый режим.
+      try {
+        if (typeof tg.requestFullscreen === "function") tg.requestFullscreen();
+      } catch {
+        /* noop */
+      }
     }
   } catch {
     /* noop */

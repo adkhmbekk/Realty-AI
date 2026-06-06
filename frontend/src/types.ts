@@ -123,6 +123,7 @@ export interface AgencySettings {
   timezone: string;
   default_currency: string;
   contact_phone?: string | null;
+  contact_username?: string | null;
 }
 
 export interface Member {
@@ -175,4 +176,29 @@ export interface SearchParams {
   created_by?: string | number;
   q?: string;
   [k: string]: unknown;
+}
+
+// История платежей/продлений подписки агентства (для владельца платформы).
+export interface AgencyPayment {
+  id: number;
+  action: string;
+  days?: number | null;
+  amount?: number | null;
+  currency?: string | null;
+  method?: string | null;
+  note?: string | null;
+  created_at: string;
+}
+
+export interface CurrencyTotal {
+  currency: string;
+  amount: number;
+  count: number;
+}
+
+// Свод платежей по всем агентствам.
+export interface PaymentsSummary {
+  all_time: CurrencyTotal[];
+  this_month: CurrencyTotal[];
+  total_records: number;
 }

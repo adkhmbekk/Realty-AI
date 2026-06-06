@@ -59,6 +59,7 @@ class Apartment(Base):
         Index("ix_apartments_agency_price", "agency_id", "price"),
         Index("ix_apartments_agency_created", "agency_id", "created_at"),
         Index("ix_apartments_agency_created_by", "agency_id", "created_by"),
+        Index("ix_apartments_agency_deleted", "agency_id", "deleted_at"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -108,5 +109,9 @@ class Apartment(Base):
     )
     # Когда объект снят с продажи (продан). NULL — пока активен.
     archived_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Когда объект перемещён в архив («корзину») — мягкое удаление. NULL — в базе.
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

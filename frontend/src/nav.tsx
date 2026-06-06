@@ -14,6 +14,7 @@ export type Route =
   | { name: "objectList"; params: SearchParams; titleKey: string }
   | { name: "objectDetail"; id: number }
   | { name: "objectEdit"; obj: Apartment }
+  | { name: "archive" }
   | { name: "team" }
   | { name: "invites" }
   | { name: "analytics" }

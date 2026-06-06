@@ -11,7 +11,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     profile: "Профиль", myAgencies: "Мои агентства", settings: "Настройки",
     addObject: "Добавить объект", findObject: "Найти объект", myDatabase: "Моя база", team: "Команда", invites: "Приглашения",
     name: "Имя", username: "Username", roleLbl: "Роль", tgId: "Telegram ID", agencyLbl: "Агентство",
-    role_superadmin: "Владелец платформы", role_agency_admin: "Администратор агентства", role_agent: "Агент",
+    role_superadmin: "Владелец платформы", role_agency_admin: "Администратор", role_agency_owner: "Главный администратор", role_agent: "Агент",
     language: "Язык", theme: "Тема", themeLight: "Светлая", themeDark: "Тёмная",
     lang_ru: "Русский", lang_uz: "Oʻzbekcha", lang_en: "English",
     defaultCurrency: "Валюта по умолчанию", 
@@ -35,8 +35,11 @@ export const I18N: Record<Lang, Record<string, string>> = {
     floorFrom: "Этаж от", to: "до", priceFrom: "Цена от", priceCurrency: "Валюта цены", anyCurrency: "Любая",
     searchText: "Поиск (наименование, адрес, № объекта, телефон)", searchBtn: "Найти", showMore: "Показать ещё",
     found: "Найдено", addedBy: "Добавил", shareCard: "Скопировать карточку", 
-    saveObject: "Сохранить объект", objCreated: "Объект создан: №", clearHint: "Чтобы очистить поле — сотрите его содержимое и сохраните.",
-    delObjQ: "Удалить объект безвозвратно?", objDeleted: "Объект удалён.",
+    saveObject: "Сохранить объект", photoPartialFail: "Объект создан, но некоторые фото не загрузились — откройте карточку и добавьте их.", objCreated: "Объект создан: №", clearHint: "Чтобы очистить поле — сотрите его содержимое и сохраните.",
+    delObjQ: "Переместить объект в архив? Его можно будет восстановить.", objDeleted: "Объект перемещён в архив.",
+    archive: "Архив", archiveHint: "Удалённые объекты. Они скрыты из базы и поиска, но сохранены вместе с фото.",
+    archiveEmpty: "В архиве пока нет объектов.", restore: "Восстановить", restored: "Объект восстановлен.",
+    deleteForever: "Удалить навсегда", deleteForeverQ: "Удалить объект НАВСЕГДА вместе с фото? Это действие необратимо.", deletedForever: "Объект удалён навсегда.",
     statusActive: "Активен", statusDeposit: "Задаток", statusSold: "Продан",
     toDeposit: "Задаток", toSold: "Продан", removeDeposit: "Снять задаток",
     backToActive: "Вернуть в активные", 
@@ -64,6 +67,9 @@ export const I18N: Record<Lang, Record<string, string>> = {
     amountPrompt: "Сколько денег получено за продление? (0 — если бесплатно)", badAmount: "Неверная сумма. Введите число, например 50 или 0.",
     currencyPrompt: "Валюта оплаты (например, USD или UZS):", badCurrency: "Укажите валюту, например USD.",
     changeDateBtn: "Изменить дату", notSold: "Не проданные", mainAdmin: "Главный",
+    revenue: "Выручка", revenueAllTime: "Всего", revenueMonth: "За этот месяц", paymentsCount: "Записей о платежах",
+    paymentHistory: "История платежей", noPayments: "Платежей пока нет.", daysShort: "дн.",
+    payExtend: "Продление", paySet: "Изменение даты", payFreeze: "Заморозка", payActivate: "Активация",
     makeOwner: "Сделать главным", makeOwnerQ: "Передать роль главного администратора этому сотруднику? Вы станете обычным админом.", ownerTransferred: "Роль главного передана.",
     soldDate: "Дата продажи", history: "История", ev_created: "создал объект", ev_updated: "изменил", ev_status: "статус", daysLeft: "осталось дней", stats: "Статистика",
     f_owner_phone: "Номер собственника", ownerPhoneHint: "Виден только вашей команде. Клиентам не отправляется.",
@@ -100,7 +106,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     profile: "Profil", myAgencies: "Mening agentliklarim", settings: "Sozlamalar",
     addObject: "Obyekt qoʻshish", findObject: "Obyekt qidirish", myDatabase: "Mening bazam", team: "Jamoa", invites: "Takliflar",
     name: "Ism", username: "Username", roleLbl: "Rol", tgId: "Telegram ID", agencyLbl: "Agentlik",
-    role_superadmin: "Platforma egasi", role_agency_admin: "Agentlik administratori", role_agent: "Agent",
+    role_superadmin: "Platforma egasi", role_agency_admin: "Administrator", role_agency_owner: "Bosh administrator", role_agent: "Agent",
     language: "Til", theme: "Mavzu", themeLight: "Yorugʻ", themeDark: "Tungi",
     lang_ru: "Русский", lang_uz: "Oʻzbekcha", lang_en: "English",
     defaultCurrency: "Standart valyuta", 
@@ -124,8 +130,11 @@ export const I18N: Record<Lang, Record<string, string>> = {
     floorFrom: "Qavat (dan)", to: "gacha", priceFrom: "Narx (dan)", priceCurrency: "Narx valyutasi", anyCurrency: "Istalgan",
     searchText: "Qidiruv (nomi, manzil, obyekt №, telefon)", searchBtn: "Qidirish", showMore: "Yana koʻrsatish",
     found: "Topildi", addedBy: "Qoʻshdi", shareCard: "Kartochkani nusxalash", 
-    saveObject: "Obyektni saqlash", objCreated: "Obyekt yaratildi: №", clearHint: "Maydonni tozalash uchun — matnini oʻchirib saqlang.",
-    delObjQ: "Obyekt butunlay oʻchirilsinmi?", objDeleted: "Obyekt oʻchirildi.",
+    saveObject: "Obyektni saqlash", photoPartialFail: "Obyekt yaratildi, lekin baʼzi suratlar yuklanmadi — kartochkani ochib qoʻshing.", objCreated: "Obyekt yaratildi: №", clearHint: "Maydonni tozalash uchun — matnini oʻchirib saqlang.",
+    delObjQ: "Obyekt arxivga koʻchirilsinmi? Uni keyin tiklash mumkin.", objDeleted: "Obyekt arxivga koʻchirildi.",
+    archive: "Arxiv", archiveHint: "Oʻchirilgan obyektlar. Ular bazadan va qidiruvdan yashirilgan, lekin fotosuratlari bilan saqlanadi.",
+    archiveEmpty: "Arxiv hozircha boʻsh.", restore: "Tiklash", restored: "Obyekt tiklandi.",
+    deleteForever: "Butunlay oʻchirish", deleteForeverQ: "Obyekt fotosuratlari bilan BUTUNLAY oʻchirilsinmi? Buni ortga qaytarib boʻlmaydi.", deletedForever: "Obyekt butunlay oʻchirildi.",
     statusActive: "Faol", statusDeposit: "Zakalat", statusSold: "Sotilgan",
     toDeposit: "Zakalat", toSold: "Sotilgan", removeDeposit: "Zakalatni olib tashlash",
     backToActive: "Faolga qaytarish", 
@@ -153,6 +162,9 @@ export const I18N: Record<Lang, Record<string, string>> = {
     amountPrompt: "Uzaytirish uchun qancha pul olindi? (bepul boʻlsa 0)", badAmount: "Summa notoʻgʻri. Masalan, 50 yoki 0 kiriting.",
     currencyPrompt: "Toʻlov valyutasi (masalan, USD yoki UZS):", badCurrency: "Valyutani koʻrsating, masalan USD.",
     changeDateBtn: "Sanani oʻzgartirish", notSold: "Sotilmagan", mainAdmin: "Bosh admin",
+    revenue: "Tushum", revenueAllTime: "Jami", revenueMonth: "Shu oyda", paymentsCount: "Toʻlov yozuvlari",
+    paymentHistory: "Toʻlovlar tarixi", noPayments: "Hozircha toʻlovlar yoʻq.", daysShort: "kun",
+    payExtend: "Uzaytirish", paySet: "Sana oʻzgartirildi", payFreeze: "Muzlatish", payActivate: "Faollashtirish",
     makeOwner: "Bosh admin qilish", makeOwnerQ: "Bosh administrator rolini shu xodimga berasizmi? Siz oddiy admin boʻlasiz.", ownerTransferred: "Bosh admin roli berildi.",
     soldDate: "Sotilgan sana", history: "Tarix", ev_created: "obyekt yaratdi", ev_updated: "oʻzgartirdi", ev_status: "holat", daysLeft: "kun qoldi", stats: "Statistika",
     f_owner_phone: "Egasining raqami", ownerPhoneHint: "Faqat sizning jamoangizga koʻrinadi. Mijozlarga yuborilmaydi.",
@@ -189,7 +201,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     profile: "Profile", myAgencies: "My agencies", settings: "Settings",
     addObject: "Add property", findObject: "Find property", myDatabase: "My database", team: "Team", invites: "Invites",
     name: "Name", username: "Username", roleLbl: "Role", tgId: "Telegram ID", agencyLbl: "Agency",
-    role_superadmin: "Platform owner", role_agency_admin: "Agency admin", role_agent: "Agent",
+    role_superadmin: "Platform owner", role_agency_admin: "Admin", role_agency_owner: "Main admin", role_agent: "Agent",
     language: "Language", theme: "Theme", themeLight: "Light", themeDark: "Dark",
     lang_ru: "Русский", lang_uz: "Oʻzbekcha", lang_en: "English",
     defaultCurrency: "Default currency", 
@@ -213,8 +225,11 @@ export const I18N: Record<Lang, Record<string, string>> = {
     floorFrom: "Floor from", to: "to", priceFrom: "Price from", priceCurrency: "Price currency", anyCurrency: "Any",
     searchText: "Search (title, address, property №, phone)", searchBtn: "Search", showMore: "Show more",
     found: "Found", addedBy: "Added by", shareCard: "Copy card", 
-    saveObject: "Save property", objCreated: "Property created: №", clearHint: "To clear a field — erase its content and save.",
-    delObjQ: "Delete property permanently?", objDeleted: "Property deleted.",
+    saveObject: "Save property", photoPartialFail: "Property created, but some photos failed to upload — open the card and add them.", objCreated: "Property created: №", clearHint: "To clear a field — erase its content and save.",
+    delObjQ: "Move the property to the archive? You can restore it later.", objDeleted: "Property moved to archive.",
+    archive: "Archive", archiveHint: "Deleted properties. Hidden from the base and search, but kept together with their photos.",
+    archiveEmpty: "The archive is empty for now.", restore: "Restore", restored: "Property restored.",
+    deleteForever: "Delete forever", deleteForeverQ: "Delete the property FOREVER along with its photos? This cannot be undone.", deletedForever: "Property permanently deleted.",
     statusActive: "Active", statusDeposit: "Deposit", statusSold: "Sold",
     toDeposit: "Deposit", toSold: "Sold", removeDeposit: "Remove deposit",
     backToActive: "Back to active", 
@@ -242,6 +257,9 @@ export const I18N: Record<Lang, Record<string, string>> = {
     amountPrompt: "How much was received for the extension? (0 if free)", badAmount: "Invalid amount. Enter a number, e.g. 50 or 0.",
     currencyPrompt: "Payment currency (e.g., USD or UZS):", badCurrency: "Specify a currency, e.g. USD.",
     changeDateBtn: "Change date", notSold: "Not sold", mainAdmin: "Main",
+    revenue: "Revenue", revenueAllTime: "All time", revenueMonth: "This month", paymentsCount: "Payment records",
+    paymentHistory: "Payment history", noPayments: "No payments yet.", daysShort: "d.",
+    payExtend: "Extension", paySet: "Date change", payFreeze: "Freeze", payActivate: "Activation",
     makeOwner: "Make main", makeOwnerQ: "Transfer the main admin role to this member? You will become a regular admin.", ownerTransferred: "Main admin role transferred.",
     soldDate: "Sold date", history: "History", ev_created: "created the property", ev_updated: "edited", ev_status: "status", daysLeft: "days left", stats: "Statistics",
     f_owner_phone: "Owner's phone", ownerPhoneHint: "Visible only to your team. Not sent to clients.",
@@ -330,7 +348,12 @@ export function labelHelpers(lang: Lang, t: (k: string) => string) {
       };
       return map[s] || s;
     },
-    roleLabel(role?: string | null) {
+    roleLabel(role?: string | null, isOwner?: boolean | null) {
+      // Владелец агентства (главный администратор) отображается отдельной подписью.
+      if (role === "agency_admin" && isOwner) {
+        const lo = I18N[lang];
+        return (lo && lo["role_agency_owner"]) || "role_agency_owner";
+      }
       const k = "role_" + role;
       const l = I18N[lang];
       return l && l[k] ? l[k] : role || t("notSet");

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Archive as ArchiveIcon,
   Camera,
   ChevronLeft,
   ChevronRight,
@@ -9,6 +10,7 @@ import {
   Home as HomeIcon,
   Image as ImageIcon,
   Pencil,
+  RotateCcw,
   Search as SearchIcon,
   Send,
   Trash2,
@@ -109,7 +111,7 @@ function ObjectForm({
     total_floors: o.total_floors != null ? String(o.total_floors) : "",
     area: o.area != null ? String(o.area) : "",
     price: o.price != null ? String(o.price) : "",
-    currency: o.currency || settings?.default_currency || "USD",
+    currency: o.currency || "USD",
     condition: o.condition ?? "",
     furniture_appliances: o.furniture_appliances ?? "",
     owner_phone: o.owner_phone ?? "",
@@ -273,7 +275,7 @@ function ObjectForm({
 
 // Текст карточки для отправки клиенту (эмодзи, без номера собственника и
 // комментария; вместо номера — контактный телефон агентства).
-function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: string) => string, contactPhone?: string | null): string {
+function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: string) => string, contactPhone?: string | null, contactUsername?: string | null): string {
   const lines: string[] = [];
   lines.push("🏠 " + t("apartment") + " №" + (o.display_id || ""));
   if (o.name) lines.push("📋 " + o.name);
@@ -291,6 +293,7 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
   if (o.source_link) lines.push("🔗 " + o.source_link);
   if (o.description) lines.push("📝 " + o.description);
   if (contactPhone) lines.push("📞 " + contactPhone);
+  if (contactUsername) lines.push("✈️ " + contactUsername);
   return lines.join("\n");
 }
 
@@ -700,19 +703,28 @@ export function AddObjectScreen() {
     }
     const newId = r.data.id;
     // Прикрепляем выбранные фото к уже созданному объекту (по одному, JSON).
-    try {
-      for (const f of files) {
+    // Каждое фото — отдельно: одна ошибка не должна срывать остальные.
+    let photoFail = 0;
+    for (const f of files) {
+      try {
         const dataUrl = await downscaleToDataUrl(f);
-        await uploadOnePhoto(newId, dataUrl);
+        const up = await uploadOnePhoto(newId, dataUrl);
+        if (!up.ok) photoFail++;
+      } catch {
+        photoFail++;
       }
-      for (const url of tgUrls) {
-        await api(`/api/v1/apartments/${newId}/photos/import-telegram`, { method: "POST", body: { url } });
+    }
+    for (const url of tgUrls) {
+      try {
+        const up = await api(`/api/v1/apartments/${newId}/photos/import-telegram`, { method: "POST", body: { url } });
+        if (!up.ok) photoFail++;
+      } catch {
+        photoFail++;
       }
-    } catch {
-      /* фото не критичны — объект уже создан */
     }
     setSaving(false);
     toast(t("objCreated") + r.data.display_id, "ok");
+    if (photoFail > 0) toast(t("photoPartialFail"), "warn");
     // Открываем карточку нового объекта (там видно фото и можно дозагрузить).
     nav.pop();
     nav.push({ name: "objectDetail", id: newId });
@@ -878,6 +890,7 @@ export function SearchScreen() {
 // ── Экран: «Моя база» (не проданные / проданные) ────────────────────
 export function DatabaseScreen() {
   const { t } = useApp();
+  const nav = useNav();
   const [view, setView] = useState<"unsold" | "sold">("unsold");
   return (
     <div>
@@ -889,7 +902,119 @@ export function DatabaseScreen() {
           { value: "sold", label: t("statusSold") },
         ]}
       />
+      <div className="flex justify-end mt-2">
+        <Button size="sm" variant="ghost" onClick={() => nav.push({ name: "archive" })}>
+          <ArchiveIcon size={15} /> {t("archive")}
+        </Button>
+      </div>
       <ObjectList params={{ status: view }} />
+    </div>
+  );
+}
+
+// ── Экран: архив (удалённые объекты) ────────────────────────────────
+// Видят все сотрудники. Восстанавливать и удалять навсегда может только
+// владелец агентства (главный администратор).
+function ArchiveCard({ o, canManage, onChanged }: { o: Apartment; canManage: boolean; onChanged: () => void }) {
+  const { t, L, toast } = useApp();
+  const [busy, setBusy] = useState(false);
+  const parts = [L.typeLabel(o.type), o.district, o.rooms != null ? `${o.rooms} ${t("f_rooms").toLowerCase()}` : null]
+    .filter(Boolean)
+    .join(" · ");
+
+  async function restore() {
+    setBusy(true);
+    const r = await api<Apartment>("/api/v1/apartments/" + o.id + "/restore", { method: "POST" });
+    setBusy(false);
+    if (r.ok) {
+      toast(t("restored"), "ok");
+      onChanged();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  async function purge() {
+    if (!window.confirm(t("deleteForeverQ"))) return;
+    setBusy(true);
+    const r = await api("/api/v1/apartments/" + o.id + "/permanent", { method: "DELETE" });
+    setBusy(false);
+    if (r.ok) {
+      toast(t("deletedForever"), "ok");
+      onChanged();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  return (
+    <div className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 border-l-[3px] border-l-slate-400">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-extrabold">№{o.display_id}</span>
+        <Badge color="gray">{L.statusLabel(o.status)}</Badge>
+      </div>
+      {o.name && <div className="text-[13px] text-muted truncate">{o.name}</div>}
+      <div className="text-[13px] text-muted">{parts || t("notSet")}</div>
+      <div className="text-[13px] text-muted">
+        {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency) || t("notSet")}</span>
+      </div>
+      {canManage && (
+        <div className="flex gap-2 mt-2.5">
+          <Button size="sm" className="flex-1" variant="soft" disabled={busy} onClick={restore}>
+            <RotateCcw size={15} /> {t("restore")}
+          </Button>
+          <Button size="sm" className="flex-1" variant="danger" disabled={busy} onClick={purge}>
+            <Trash2 size={15} /> {t("deleteForever")}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ArchiveScreen() {
+  const { t, user } = useApp();
+  const canManage = user?.role === "agency_admin" && !!user?.is_owner;
+  const [items, setItems] = useState<Apartment[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function load(reset: boolean) {
+    setLoading(true);
+    const off = reset ? 0 : offset;
+    const r = await api<ApartmentList>("/api/v1/apartments/archived?" + buildQuery({ limit: 20, offset: off }));
+    setLoading(false);
+    if (!r.ok || !r.data) {
+      setErr(`${t("notFound")} (${r.status})`);
+      return;
+    }
+    setErr(null);
+    const newItems = r.data.items || [];
+    setTotal(r.data.total || 0);
+    setItems((prev) => (reset ? newItems : [...prev, ...newItems]));
+    setOffset(off + newItems.length);
+  }
+
+  useEffect(() => {
+    load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (loading && !items.length) return <Spinner />;
+  if (err) return <Empty>{err}</Empty>;
+  if (!items.length) return <Empty>{t("archiveEmpty")}</Empty>;
+  const left = total - items.length;
+  return (
+    <div>
+      <Hint>{t("archiveHint")}</Hint>
+      <div className="text-[13px] text-muted my-1.5">
+        {t("found")}: {total}
+      </div>
+      {items.map((o) => (
+        <ArchiveCard key={o.id} o={o} canManage={canManage} onChanged={() => load(true)} />
+      ))}
+      {left > 0 && (
+        <Button variant="ghost" full className="mt-3" onClick={() => load(false)}>
+          {t("showMore")} ({left})
+        </Button>
+      )}
     </div>
   );
 }
@@ -915,8 +1040,9 @@ const EV_FIELD_KEYS: Record<string, string> = {
 };
 
 export function ObjectDetailScreen({ id }: { id: number }) {
-  const { t, L, lang, settings, toast } = useApp();
+  const { t, L, lang, settings, toast, user } = useApp();
   const nav = useNav();
+  const isOwner = user?.role === "agency_admin" && !!user?.is_owner;
   const [o, setO] = useState<Apartment | null>(null);
   const [events, setEvents] = useState<ApartmentEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1007,7 +1133,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     if (sent) toast(t("shareDone"), "ok");
   }
   async function copyCard() {
-    const text = buildShareCard(o!, L, t, settings?.contact_phone);
+    const text = buildShareCard(o!, L, t, settings?.contact_phone, settings?.contact_username);
     const ok = await copyText(text);
     toast(ok ? t("copied") : t("copy"), ok ? "ok" : "info");
   }
@@ -1098,9 +1224,11 @@ export function ObjectDetailScreen({ id }: { id: number }) {
             >
               <Pencil size={15} /> {t("edit")}
             </Button>
-            <Button size="sm" className="flex-1" variant="danger" onClick={del}>
-              <Trash2 size={15} /> {t("del")}
-            </Button>
+            {isOwner && (
+              <Button size="sm" className="flex-1" variant="danger" onClick={del}>
+                <Trash2 size={15} /> {t("del")}
+              </Button>
+            )}
           </div>
         </div>
       </div>

@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models.subscription_payment import SubscriptionPayment
@@ -52,3 +52,31 @@ def list_for_agency(db: Session, agency_id: int, limit: int = 100) -> List[Subsc
         .scalars()
         .all()
     )
+
+
+def totals_by_currency(db: Session, *, since: Optional[datetime] = None):
+    """
+    Суммарные поступления по валютам (по всем агентствам).
+    Возвращает список (currency, сумма, количество записей с суммой).
+    since — если задано, учитываются только платежи с этой даты (например, месяц).
+    """
+    conds = [SubscriptionPayment.amount.is_not(None)]
+    if since is not None:
+        conds.append(SubscriptionPayment.created_at >= since)
+    rows = db.execute(
+        select(
+            SubscriptionPayment.currency,
+            func.sum(SubscriptionPayment.amount),
+            func.count(),
+        )
+        .where(*conds)
+        .group_by(SubscriptionPayment.currency)
+    ).all()
+    return [(row[0], row[1], int(row[2])) for row in rows]
+
+
+def count_all(db: Session) -> int:
+    """Всего записей в истории платежей (по всем агентствам)."""
+    return db.execute(
+        select(func.count()).select_from(SubscriptionPayment)
+    ).scalar_one()

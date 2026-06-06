@@ -16,6 +16,7 @@ from app.schemas.agency import (
     AgencyCreate,
     AgencyOut,
     AgencyPaymentOut,
+    PaymentsSummaryOut,
     AgencySubscriptionUpdate,
     AgencyUpdate,
 )
@@ -107,6 +108,16 @@ def update_subscription(
     )
     agency_service.attach_admins(db, [agency])
     return agency
+
+
+# ВНИМАНИЕ: /payments/summary объявлен ДО /{agency_id}/payments.
+@router.get("/payments/summary", response_model=PaymentsSummaryOut)
+def payments_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Свод платежей по всем агентствам: итоги по валютам (всего и за месяц)."""
+    return agency_service.payments_summary(db)
 
 
 @router.get("/{agency_id}/payments", response_model=List[AgencyPaymentOut])

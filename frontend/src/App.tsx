@@ -17,6 +17,7 @@ import { AgentDetailScreen } from "./screens/AgentDetail";
 import { AgenciesScreen, AgencyCreateScreen, AgencyManageScreen } from "./screens/Superadmin";
 import {
   AddObjectScreen,
+  ArchiveScreen,
   DatabaseScreen,
   ObjectDetailScreen,
   ObjectEditScreen,
@@ -78,6 +79,8 @@ function titleKeyFor(route: Route): string | null {
       return "apartment";
     case "objectEdit":
       return "edit";
+    case "archive":
+      return "archive";
     case "team":
       return "team";
     case "invites":
@@ -113,6 +116,8 @@ function RouteView({ route }: { route: Route }) {
       return <ObjectDetailScreen id={route.id} />;
     case "objectEdit":
       return <ObjectEditScreen obj={route.obj} />;
+    case "archive":
+      return <ArchiveScreen />;
     case "team":
       return <TeamScreen />;
     case "invites":

@@ -4,7 +4,7 @@ import { useApp } from "../store";
 import { useNav } from "../nav";
 import { api, errText } from "../api";
 import { Badge, Button, Card, Empty, Field, Input, Row, Spinner } from "../components/ui";
-import type { AgencyOut } from "../types";
+import type { AgencyOut, AgencyPayment, PaymentsSummary } from "../types";
 import { fmtDate } from "../utils";
 
 function effectiveStatus(a: AgencyOut): string {
@@ -22,6 +22,79 @@ function statusBadge(a: AgencyOut, t: (k: string) => string) {
   };
   const m = map[eff] || { c: "gray" as const, k: eff };
   return <Badge color={m.c}>{map[eff] ? t(m.k) : eff}</Badge>;
+}
+
+function payActionLabel(action: string, t: (k: string) => string): string {
+  const map: Record<string, string> = {
+    extend: t("payExtend"),
+    set: t("paySet"),
+    freeze: t("payFreeze"),
+    activate: t("payActivate"),
+  };
+  return map[action] || action;
+}
+
+function fmtTotals(arr: { currency: string; amount: number }[]): string {
+  if (!arr.length) return "—";
+  return arr.map((c) => `${c.amount} ${c.currency}`).join(" · ");
+}
+
+// Свод по платежам всех агентств (общий итог + статистика).
+function RevenuePanel() {
+  const { t } = useApp();
+  const [s, setS] = useState<PaymentsSummary | null>(null);
+  useEffect(() => {
+    api<PaymentsSummary>("/api/v1/agencies/payments/summary").then((r) => {
+      if (r.ok && r.data) setS(r.data);
+    });
+  }, []);
+  if (!s) return null;
+  return (
+    <Card className="mt-3">
+      <div className="font-extrabold mb-1">{t("revenue")}</div>
+      <Row label={t("revenueAllTime")} value={fmtTotals(s.all_time)} />
+      <Row label={t("revenueMonth")} value={fmtTotals(s.this_month)} />
+      <Row label={t("paymentsCount")} value={String(s.total_records)} />
+    </Card>
+  );
+}
+
+// История платежей конкретного агентства.
+function PaymentHistory({ id, refresh }: { id: number; refresh: number }) {
+  const { t, lang } = useApp();
+  const [items, setItems] = useState<AgencyPayment[] | null>(null);
+  useEffect(() => {
+    api<AgencyPayment[]>("/api/v1/agencies/" + id + "/payments").then((r) => {
+      setItems(r.ok && Array.isArray(r.data) ? r.data : []);
+    });
+  }, [id, refresh]);
+  if (!items) return null;
+  return (
+    <div className="mt-4">
+      <div className="text-[13px] font-extrabold uppercase tracking-wider text-muted mx-0.5 mb-2">
+        {t("paymentHistory")}
+      </div>
+      {!items.length ? (
+        <Empty>{t("noPayments")}</Empty>
+      ) : (
+        items.map((p) => (
+          <Card key={p.id} className="mt-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-bold">
+                {payActionLabel(p.action, t)}
+                {p.days ? ` · +${p.days} ${t("daysShort")}` : ""}
+              </span>
+              <span className="font-extrabold text-primary">
+                {p.amount != null ? `${p.amount} ${p.currency || ""}` : "—"}
+              </span>
+            </div>
+            <div className="text-[12px] text-muted">{fmtDate(p.created_at, lang)}</div>
+            {p.note && <div className="text-[12px] text-muted">{p.note}</div>}
+          </Card>
+        ))
+      )}
+    </div>
+  );
 }
 
 export function AgenciesScreen() {
@@ -47,6 +120,7 @@ export function AgenciesScreen() {
       <Button full onClick={() => nav.push({ name: "agencyCreate" })}>
         <Plus size={18} /> {t("createAgency")}
       </Button>
+      <RevenuePanel />
       <div className="mt-3">
         {err ? (
           <Empty>{err}</Empty>
@@ -150,6 +224,7 @@ export function AgencyManageScreen({ id }: { id: number }) {
   const nav = useNav();
   const [a, setA] = useState<AgencyOut | null>(null);
   const [loading, setLoading] = useState(true);
+  const [payKey, setPayKey] = useState(0);
 
   async function load() {
     setLoading(true);
@@ -174,6 +249,7 @@ export function AgencyManageScreen({ id }: { id: number }) {
     const r = await api("/api/v1/agencies/" + id + "/subscription", { method: "POST", body });
     if (r.ok) {
       toast(t("subUpdated"), "ok");
+      setPayKey((k) => k + 1);
       load();
     } else toast(errText(r.data, r.status), "err");
   }
@@ -297,6 +373,7 @@ export function AgencyManageScreen({ id }: { id: number }) {
           {t("deleteAgency")}
         </Button>
       </div>
+      <PaymentHistory id={id} refresh={payKey} />
     </div>
   );
 }

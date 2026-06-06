@@ -328,6 +328,32 @@ def list_payments(db: Session, agency_id: int) -> list:
     return payment_repo.list_for_agency(db, agency_id)
 
 
+def payments_summary(db: Session) -> dict:
+    """
+    Свод по платежам для владельца платформы: итоги по валютам за всё время и
+    за текущий месяц, плюс общее число записей. Суммы группируются по валюте,
+    так как складывать разные валюты в одно число нельзя.
+    """
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    def _fmt(rows):
+        return [
+            {
+                "currency": cur or "—",
+                "amount": float(total) if total is not None else 0.0,
+                "count": cnt,
+            }
+            for cur, total, cnt in rows
+        ]
+
+    return {
+        "all_time": _fmt(payment_repo.totals_by_currency(db)),
+        "this_month": _fmt(payment_repo.totals_by_currency(db, since=month_start)),
+        "total_records": payment_repo.count_all(db),
+    }
+
+
 def list_audit(db: Session, agency_id: int) -> list:
     """Журнал действий по агентству (для суперадмина)."""
     _get_agency_or_404(db, agency_id)

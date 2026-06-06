@@ -2,7 +2,7 @@
 Схемы для агентств.
 """
 from datetime import datetime
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -47,6 +47,20 @@ class AgencyPaymentOut(BaseModel):
     created_at: datetime
 
 
+class CurrencyTotalOut(BaseModel):
+    # Итог по одной валюте.
+    currency: str
+    amount: float
+    count: int
+
+
+class PaymentsSummaryOut(BaseModel):
+    # Свод платежей по всем агентствам (для владельца платформы).
+    all_time: List[CurrencyTotalOut]
+    this_month: List[CurrencyTotalOut]
+    total_records: int
+
+
 class AgencyAuditOut(BaseModel):
     # Запись журнала аудита (для панели суперадмина).
     model_config = ConfigDict(from_attributes=True)
@@ -85,6 +99,8 @@ class AgencySettingsOut(BaseModel):
     # Контактный номер агентства (подставляется при «поделиться» вместо
     # номера собственника). Виден сотрудникам, чтобы понимать, что уйдёт клиенту.
     contact_phone: Optional[str] = None
+    # Telegram-логин владельца агентства (@username), показывается клиентам в карточке.
+    contact_username: Optional[str] = None
 
 
 class AgencySettingsUpdate(BaseModel):

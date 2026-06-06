@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import require_agency_member, require_agency_owner
 from app.db.models.user import User
 from app.db.session import get_db
-from app.repositories import agency_repo
+from app.repositories import agency_repo, user_repo
 from app.schemas.agency import AgencySettingsOut, AgencySettingsUpdate
 from app.services import agency_service
 
@@ -23,8 +23,13 @@ def get_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
-    """Текущие настройки своего агентства (валюта по умолчанию, часовой пояс)."""
-    return agency_repo.get_by_id(db, current_user.agency_id)
+    """Текущие настройки своего агентства (контактный номер, @username владельца, часовой пояс)."""
+    agency = agency_repo.get_by_id(db, current_user.agency_id)
+    out = AgencySettingsOut.model_validate(agency)
+    owner = user_repo.get_owner(db, current_user.agency_id)
+    if owner is not None and getattr(owner, "username", None):
+        out.contact_username = "@" + owner.username
+    return out
 
 
 @router.patch("/settings", response_model=AgencySettingsOut)

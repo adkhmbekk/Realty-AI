@@ -146,6 +146,7 @@ class ApartmentShareOut(BaseModel):
     source_link: Optional[str] = None
     # Контактный телефон агентства (номер главного админа).
     contact_phone: Optional[str] = None
+    contact_username: Optional[str] = None
     # Текстовое представление карточки для копирования/отправки.
     share_text: str
 

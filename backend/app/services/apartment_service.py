@@ -265,8 +265,29 @@ def set_status(
 
 
 def delete_apartment(db: Session, agency_id: int, apartment_id: int) -> None:
+    """«Удалить» = переместить в архив (мягкое удаление). Только владелец агентства."""
     apartment = get_apartment(db, agency_id, apartment_id)
-    # Сначала удаляем фото (файлы + строки) и журнал — на них ссылается объект.
+    if apartment.deleted_at is None:
+        apartment.deleted_at = datetime.now(timezone.utc)
+        db.commit()
+
+
+def restore_apartment(db: Session, agency_id: int, apartment_id: int) -> None:
+    """Вернуть объект из архива обратно в базу. Только владелец агентства."""
+    apartment = get_apartment(db, agency_id, apartment_id)
+    if apartment.deleted_at is not None:
+        apartment.deleted_at = None
+        db.commit()
+
+
+def list_archived_apartments(db: Session, agency_id: int, *, limit: int = 50, offset: int = 0):
+    """Список объектов в архиве агентства (видят все сотрудники)."""
+    return apartment_repo.list_archived(db, agency_id, limit=limit, offset=offset)
+
+
+def purge_apartment(db: Session, agency_id: int, apartment_id: int) -> None:
+    """Удалить объект НАВСЕГДА (фото, журнал, строку). Необратимо. Только владелец."""
+    apartment = get_apartment(db, agency_id, apartment_id)
     photo_service.purge_apartment(db, agency_id, apartment.id)
     apartment_event_repo.delete_for_apartment(db, apartment.id)
     db.delete(apartment)
@@ -301,6 +322,19 @@ def _agency_contact_phone(db: Session, agency_id: int) -> Optional[str]:
     return None
 
 
+def _agency_contact_username(db: Session, agency_id: int) -> Optional[str]:
+    """
+    Telegram-логин владельца агентства (@username) для связи клиентов.
+
+    Берётся у главного администратора (владельца). Если у него не задан
+    username в Telegram — возвращаем None (тогда в карточке покажем только телефон).
+    """
+    owner = user_repo.get_owner(db, agency_id)
+    if owner is not None and getattr(owner, "username", None):
+        return "@" + owner.username
+    return None
+
+
 def _format_price(apartment: Apartment) -> Optional[str]:
     if apartment.price is None:
         return None
@@ -324,6 +358,7 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
     """
     apartment = get_apartment(db, agency_id, apartment_id)
     contact_phone = _agency_contact_phone(db, agency_id)
+    contact_username = _agency_contact_username(db, agency_id)
 
     # Собираем текстовое представление карточки (без конфиденциальных полей).
     lines = []
@@ -363,6 +398,11 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
     if contact_phone:
         lines.append("")
         lines.append(f"☎️ Контакт: {contact_phone}")
+    if contact_username:
+        # @username владельца агентства — кликабельный логин в Telegram.
+        if not contact_phone:
+            lines.append("")
+        lines.append(f"✈️ Telegram: {contact_username}")
 
     share_text = "\n".join(lines)
 
@@ -385,6 +425,7 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
         "photo_url": apartment.photo_url,
         "source_link": apartment.source_link,
         "contact_phone": contact_phone,
+        "contact_username": contact_username,
         "share_text": share_text,
     }
 

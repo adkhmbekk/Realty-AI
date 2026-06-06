@@ -33,6 +33,20 @@ def get_by_agency(db: Session, agency_id: int) -> List[User]:
     )
 
 
+def get_owner(db: Session, agency_id: int) -> Optional[User]:
+    """Владелец агентства (главный администратор, is_owner=True). Может быть None."""
+    return db.execute(
+        select(User)
+        .where(
+            User.agency_id == agency_id,
+            User.role == "agency_admin",
+            User.is_owner.is_(True),
+        )
+        .order_by(User.created_at)
+        .limit(1)
+    ).scalar_one_or_none()
+
+
 def get_member(db: Session, agency_id: int, user_id: int) -> Optional[User]:
     """Сотрудник по id, но только в пределах своего агентства (изоляция)."""
     return db.execute(
