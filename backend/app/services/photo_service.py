@@ -12,21 +12,27 @@ Docker-том), а метаданные — в таблице apartment_photos. 
   - синхронизация «обложки» (apartment.photo_url = первое фото) — чтобы фото
     показывалось в списке и в карточке для отправки.
 """
+import asyncio
 import html as html_lib
 import ipaddress
+import logging
 import os
 import re
 import secrets
 import socket
-import urllib.request
+import time
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
+import httpx
 from fastapi import status
+from fastapi.concurrency import run_in_threadpool
 
 from app.config import settings
 from app.core.errors import AppError
 from app.repositories import apartment_photo_repo, apartment_repo
+
+logger = logging.getLogger("uvicorn.error")
 
 MAX_PHOTOS = 20
 MAX_BYTES = 12 * 1024 * 1024  # 12 МБ на файл
@@ -219,37 +225,38 @@ def add_blobs(
     return [to_out(p) for p in apartment_photo_repo.list_for(db, agency_id, apartment_id)]
 
 
-class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+# Таймаут на сетевые операции импорта (на соединение и на чтение).
+_IMPORT_TIMEOUT = httpx.Timeout(8.0, connect=8.0)
+# Сколько фото качаем одновременно (ограничение, чтобы не раздувать память/сеть).
+_IMPORT_CONCURRENCY = 5
+
+
+async def _afetch(client: httpx.AsyncClient, url: str, max_bytes: int) -> Tuple[bytes, str]:
     """
-    Запрещает переходы по редиректам. Это закрывает обход SSRF-защиты: без
-    этого сервер по присланной ссылке мог ответить «302 → http://127.0.0.1/…»
-    или «→ http://169.254.169.254/…», и urllib послушно сходил бы во внутреннюю
-    сеть уже БЕЗ повторной проверки адреса. Любой редирект считаем ошибкой.
+    Скачать содержимое по ссылке с защитой от SSRF и без следования редиректам.
+
+    - _assert_public_url (резолв только в публичные адреса) выполняем в пуле
+      потоков, т.к. getaddrinfo блокирующий;
+    - httpx-клиент создаётся с follow_redirects=False, поэтому Location-редирект
+      НЕ выполняется автоматически (иначе проверку адреса можно было бы обойти);
+      любой ответ 3xx трактуем как ошибку;
+    - читаем потоково и обрываемся при превышении max_bytes (защита памяти).
     """
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
-        raise AppError("link_open_failed", status.HTTP_400_BAD_REQUEST)
-
-
-# Опенер без следования за редиректами (используем вместо urlopen по умолчанию).
-_no_redirect_opener = urllib.request.build_opener(_NoRedirectHandler)
-
-
-def _fetch(url: str, max_bytes: int) -> Tuple[bytes, str]:
-    # Проверяем, что хост резолвится только в публичные адреса (анти-SSRF).
-    _assert_public_url(url)
-    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "*/*"})
-    # Важно: используем опенер, который НЕ следует за редиректами (см. выше),
-    # иначе проверку адреса можно обойти через Location-редирект.
-    with _no_redirect_opener.open(req, timeout=8) as resp:  # noqa: S310
-        # Любой 3xx без перехода трактуем как неуспех (редиректы запрещены).
-        if getattr(resp, "status", 200) and 300 <= resp.status < 400:
+    await run_in_threadpool(_assert_public_url, url)
+    async with client.stream(
+        "GET", url, headers={"User-Agent": _UA, "Accept": "*/*"}
+    ) as resp:
+        if 300 <= resp.status_code < 400:
             raise AppError("link_open_failed", status.HTTP_400_BAD_REQUEST)
-        data = resp.read(max_bytes + 1)
         ctype = resp.headers.get("Content-Type", "") or ""
-    if len(data) > max_bytes:
-        raise AppError("file_too_large", status.HTTP_400_BAD_REQUEST)
-    return data, ctype
+        chunks: List[bytes] = []
+        total = 0
+        async for chunk in resp.aiter_bytes():
+            total += len(chunk)
+            if total > max_bytes:
+                raise AppError("file_too_large", status.HTTP_400_BAD_REQUEST)
+            chunks.append(chunk)
+    return b"".join(chunks), ctype
 
 
 def _extract_image_urls(page_html: str) -> List[str]:
@@ -275,12 +282,47 @@ def _extract_image_urls(page_html: str) -> List[str]:
     return result
 
 
-def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) -> List[dict]:
+def _save_downloaded(
+    db, agency_id: int, apartment_id: int, items: List[Tuple[bytes, str]], slots: int
+) -> int:
+    """
+    Сохранить уже скачанные изображения (синхронно, в одном потоке — Session не
+    потокобезопасна). Возвращает число фактически сохранённых.
+    """
+    order = apartment_photo_repo.max_sort_order(db, agency_id, apartment_id) + 1
+    saved = 0
+    for data, ctype in items:
+        if saved >= slots:
+            break
+        if not data:
+            continue
+        ctype_l = (ctype or "").lower()
+        if ctype_l and (not ctype_l.startswith("image/") or "svg" in ctype_l or "xml" in ctype_l):
+            # Явно не растровое изображение (HTML/SVG/прочее) — пропускаем.
+            continue
+        try:
+            _save_one(db, agency_id, apartment_id, data, ctype or "image/jpeg", order)
+        except Exception:  # noqa: BLE001
+            # Не удалось декодировать как изображение — пропускаем, чтобы один
+            # плохой файл не срывал импорт остальных.
+            continue
+        order += 1
+        saved += 1
+    if saved:
+        _sync_cover(db, agency_id, apartment_id)
+        db.commit()
+    return saved
+
+
+async def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) -> List[dict]:
     """
     Импортировать все фото из поста открытого Telegram-канала по ссылке.
     Поддерживает ссылки вида https://t.me/<канал>/<номер>.
+
+    Фотографии скачиваются ПАРАЛЛЕЛЬНО (быстрее и не «висит»), а сохранение в БД
+    идёт в одном потоке. Защита от SSRF и запрет редиректов сохранены.
     """
-    _require_apartment(db, agency_id, apartment_id)
+    await run_in_threadpool(_require_apartment, db, agency_id, apartment_id)
     url = (url or "").strip()
     if not url:
         raise AppError("empty_link", status.HTTP_400_BAD_REQUEST)
@@ -291,48 +333,56 @@ def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) -> Lis
         raise AppError("import_only_telegram", status.HTTP_400_BAD_REQUEST)
     fetch_url = base + "?embed=1&mode=tme"
 
-    try:
-        page, _ = _fetch(fetch_url, MAX_HTML_BYTES)
-        page_html = page.decode("utf-8", errors="ignore")
-    except AppError:
-        raise
-    except Exception:  # noqa: BLE001
-        raise AppError("link_open_failed", status.HTTP_400_BAD_REQUEST)
+    existing = await run_in_threadpool(
+        apartment_photo_repo.count_for, db, agency_id, apartment_id
+    )
+    slots = MAX_PHOTOS - existing
+    if slots <= 0:
+        raise AppError("no_photos_or_limit", status.HTTP_400_BAD_REQUEST)
 
-    image_urls = _extract_image_urls(page_html)
-    if not image_urls:
-        raise AppError("no_photos_in_post", status.HTTP_400_BAD_REQUEST)
-
-    existing = apartment_photo_repo.count_for(db, agency_id, apartment_id)
-    order = apartment_photo_repo.max_sort_order(db, agency_id, apartment_id) + 1
-    saved = 0
-    for img in image_urls:
-        if existing + saved >= MAX_PHOTOS:
-            break
+    async with httpx.AsyncClient(
+        follow_redirects=False, timeout=_IMPORT_TIMEOUT
+    ) as client:
         try:
-            data, ctype = _fetch(img, MAX_BYTES)
+            page, _ = await _afetch(client, fetch_url, MAX_HTML_BYTES)
+            page_html = page.decode("utf-8", errors="ignore")
+        except AppError:
+            raise
         except Exception:  # noqa: BLE001
-            continue
-        if not data:
-            continue
-        ctype_l = (ctype or "").lower()
-        if ctype_l and (not ctype_l.startswith("image/") or "svg" in ctype_l or "xml" in ctype_l):
-            # Явно не растровое изображение (HTML/SVG/прочее) — пропускаем.
-            continue
-        try:
-            _save_one(db, agency_id, apartment_id, data, ctype or "image/jpeg", order)
-        except Exception:  # noqa: BLE001
-            # Файл не удалось декодировать как изображение — просто пропускаем,
-            # чтобы один плохой файл не срывал импорт остальных.
-            continue
-        order += 1
-        saved += 1
+            raise AppError("link_open_failed", status.HTTP_400_BAD_REQUEST)
 
+        image_urls = _extract_image_urls(page_html)
+        if not image_urls:
+            raise AppError("no_photos_in_post", status.HTTP_400_BAD_REQUEST)
+
+        # Качаем кандидатов параллельно (с ограничением одновременности).
+        candidates = image_urls[:MAX_PHOTOS]
+        sem = asyncio.Semaphore(_IMPORT_CONCURRENCY)
+
+        async def _download(u: str) -> Optional[Tuple[bytes, str]]:
+            async with sem:
+                try:
+                    data, ctype = await _afetch(client, u, MAX_BYTES)
+                except Exception:  # noqa: BLE001
+                    return None
+                return (data, ctype) if data else None
+
+        # gather сохраняет порядок кандидатов → порядок фото в карточке стабилен.
+        results = await asyncio.gather(*[_download(u) for u in candidates])
+
+    downloaded = [r for r in results if r is not None]
+    if not downloaded:
+        raise AppError("photo_download_failed", status.HTTP_400_BAD_REQUEST)
+
+    saved = await run_in_threadpool(
+        _save_downloaded, db, agency_id, apartment_id, downloaded, slots
+    )
     if saved == 0:
         raise AppError("photo_download_failed", status.HTTP_400_BAD_REQUEST)
-    _sync_cover(db, agency_id, apartment_id)
-    db.commit()
-    return [to_out(p) for p in apartment_photo_repo.list_for(db, agency_id, apartment_id)]
+
+    return await run_in_threadpool(
+        lambda: [to_out(p) for p in apartment_photo_repo.list_for(db, agency_id, apartment_id)]
+    )
 
 
 def delete_photo(db, agency_id: int, apartment_id: int, photo_id: int) -> None:
@@ -435,3 +485,38 @@ def decode_data_url(s: str) -> Tuple[bytes, str]:
     except Exception:  # noqa: BLE001
         data = b""
     return data, ctype
+
+
+def sweep_orphan_photos(db, grace_hours: int = 24) -> int:
+    """
+    Удалить «осиротевшие» файлы фото: те, что лежат в photos_dir, но не имеют
+    строки в БД (storage_key), И старше grace_hours.
+
+    Такие файлы могут появиться, если процесс прервался между записью файла на
+    диск и фиксацией строки в БД (порядок создания: файл → строка → commit, см.
+    M4). У РЕАЛЬНОГО фото строка в БД всегда есть после commit, а commit
+    происходит в рамках того же запроса — поэтому при grace_hours=24 файл с
+    «незавершённой» загрузкой не может оказаться свежее суток. Ложных удалений
+    нет. Возвращает число удалённых файлов.
+    """
+    d = settings.photos_dir
+    if not os.path.isdir(d):
+        return 0
+    known = set(apartment_photo_repo.all_storage_keys(db))
+    cutoff = time.time() - grace_hours * 3600
+    removed = 0
+    for name in os.listdir(d):
+        if name in known:
+            continue  # есть строка в БД — это настоящее фото, не трогаем
+        path = os.path.join(d, name)
+        try:
+            if not os.path.isfile(path):
+                continue
+            if os.path.getmtime(path) > cutoff:
+                continue  # слишком свежий — мог быть в процессе загрузки
+            os.remove(path)
+            removed += 1
+            logger.info("Подчистка: удалён осиротевший файл фото %s", name)
+        except Exception:  # noqa: BLE001
+            pass
+    return removed

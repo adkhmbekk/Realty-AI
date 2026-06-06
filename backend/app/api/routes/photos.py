@@ -81,14 +81,14 @@ def upload_photos(
     status_code=201,
     dependencies=[Depends(rate_limit(20, 60, "photo_import"))],
 )
-def import_telegram(
+async def import_telegram(
     apartment_id: int,
     url: str = Body(..., embed=True),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
     """Импортировать все фото из поста открытого Telegram-канала по ссылке."""
-    return photo_service.import_from_telegram(db, current_user.agency_id, apartment_id, url)
+    return await photo_service.import_from_telegram(db, current_user.agency_id, apartment_id, url)
 
 
 @router.delete("/apartments/{apartment_id}/photos/{photo_id}", status_code=204)

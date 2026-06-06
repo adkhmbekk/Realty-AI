@@ -107,6 +107,12 @@ def list_keys_for_agency(db: Session, agency_id: int) -> List[str]:
     )
 
 
+def all_storage_keys(db: Session) -> List[str]:
+    """Все ключи файлов фото (по всем агентствам) — для обслуживания: поиск
+    «осиротевших» файлов на диске, у которых нет строки в БД (см. M4)."""
+    return list(db.execute(select(ApartmentPhoto.storage_key)).scalars().all())
+
+
 def delete_for_agency(db: Session, agency_id: int) -> None:
     """Удалить все строки фото агентства (файлы удаляются отдельно)."""
     from sqlalchemy import delete as sa_delete

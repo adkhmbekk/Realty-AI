@@ -23,6 +23,7 @@ from app.db.models.agency import Agency
 from app.db.models.user import User
 from app.db.session import SessionLocal
 from app.services import telegram_service
+from app.services import photo_service
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -32,6 +33,9 @@ CHECK_INTERVAL_SECONDS = 6 * 3600
 # Не слать одному агентству предупреждение чаще, чем раз в ~сутки.
 _WARN_THROTTLE = timedelta(hours=20)
 _ACTIVE_STATUSES = ("trial", "active")
+# Подчистку осиротевших файлов фото запускаем не чаще раза в сутки (M4).
+_SWEEP_INTERVAL = timedelta(hours=24)
+_last_sweep: datetime | None = None
 
 
 def _as_utc(dt: datetime | None) -> datetime | None:
@@ -145,6 +149,17 @@ def _loop() -> None:
                 count = run_subscription_warnings(db)
                 if count:
                     logger.info("Планировщик: отправлено предупреждений о подписке: %s.", count)
+                # Подчистка осиротевших файлов фото — не чаще раза в сутки (M4).
+                global _last_sweep
+                now_ts = datetime.now(timezone.utc)
+                if _last_sweep is None or (now_ts - _last_sweep) >= _SWEEP_INTERVAL:
+                    try:
+                        removed = photo_service.sweep_orphan_photos(db)
+                        if removed:
+                            logger.info("Планировщик: удалено осиротевших файлов фото: %s.", removed)
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("Планировщик: ошибка подчистки фото: %s", exc)
+                    _last_sweep = now_ts
             finally:
                 db.close()
         except Exception as exc:  # noqa: BLE001
