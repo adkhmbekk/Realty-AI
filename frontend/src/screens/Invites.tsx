@@ -4,9 +4,20 @@ import { api, errText } from "../api";
 import { Badge, Button, Card, Empty, Field, Input, Select, SectionTitle, Spinner } from "../components/ui";
 import type { Invite } from "../types";
 import { copyText } from "../utils";
+import { haptic, shareToTelegram } from "../telegram";
+import { Send } from "lucide-react";
 
 export function InvitesScreen() {
   const { t, L, toast } = useApp();
+
+  // Поделиться приглашением: открывает родной диалог Telegram — пользователь
+  // выбирает ОДНОГО получателя. Отправляем готовую ссылку + код.
+  function shareInvite(inv: { join_link?: string | null; code: string }) {
+    haptic();
+    const link = inv.join_link || "";
+    const txt = t("inviteShareText") + (link ? "\n" + link : "") + "\n" + t("codeLbl") + ": " + inv.code;
+    shareToTelegram(txt);
+  }
   const [role, setRole] = useState("agent");
   const [days, setDays] = useState("7");
   const [creating, setCreating] = useState(false);
@@ -75,6 +86,9 @@ export function InvitesScreen() {
           <div className="mt-1 rounded-[12px] bg-slate-900 text-slate-100 px-3 py-2.5 text-[13px] font-mono break-all">
             {created.code}
           </div>
+          <Button full className="mt-3" onClick={() => shareInvite(created)}>
+            <Send size={16} /> {t("shareInviteBtn")}
+          </Button>
           <div className="mt-2 flex gap-1.5 flex-wrap">
             {created.join_link && (
               <Button size="sm" variant="ghost" onClick={async () => toast((await copyText(created.join_link!)) ? t("copied") : t("copy"), "ok")}>
@@ -106,7 +120,10 @@ export function InvitesScreen() {
                 <div className="text-[13px] text-muted mt-1 break-all">
                   {t("codeLbl")}: {inv.code}
                 </div>
-                <div className="mt-2">
+                <div className="mt-2 flex gap-1.5">
+                  <Button size="sm" variant="ghost" onClick={() => shareInvite(inv)}>
+                    <Send size={14} /> {t("shareInviteBtn")}
+                  </Button>
                   <Button size="sm" variant="danger" onClick={() => revoke(inv)}>
                     {t("revoke")}
                   </Button>

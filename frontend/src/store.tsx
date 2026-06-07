@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { Lang, makeT, labelHelpers } from "./i18n";
 import { setTokenGetter, setLangGetter } from "./api";
-import { colorScheme, setChromeColors } from "./telegram";
+import { colorScheme, setChromeColors, hapticNotify } from "./telegram";
 import type { AgencySettings, UserProfile } from "./types";
 
 type Theme = "light" | "dark";
@@ -116,6 +116,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toast = useCallback((text: string, kind: ToastKind = "info") => {
+    if (kind === "ok") hapticNotify("success");
+    else if (kind === "err") hapticNotify("error");
+    else if (kind === "warn") hapticNotify("warning");
     const id = toastId.current++;
     setToasts((prev) => [...prev, { id, text, kind }]);
     window.setTimeout(() => {

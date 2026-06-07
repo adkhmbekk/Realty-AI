@@ -13,9 +13,9 @@ function Hero() {
   const nav = useNav();
   const role = user?.role;
   let bigName = user?.full_name || (user?.username ? "@" + user.username : t("notSet"));
-  let sub = L.roleLabel(role);
+  let sub = L.roleLabel(role, user?.is_owner);
   if (role === "agency_admin" && settings?.project_name) {
-    sub = user?.full_name ? `${L.roleLabel(role)} · ${user.full_name}` : L.roleLabel(role);
+    sub = user?.full_name ? `${L.roleLabel(role, user?.is_owner)} · ${user.full_name}` : L.roleLabel(role, user?.is_owner);
     bigName = settings.project_name;
   }
   return (
@@ -66,7 +66,7 @@ function Stats() {
     <div className="mb-4">
       <div className="flex items-center justify-between mt-1 mx-0.5 mb-2.5">
         <span className="text-[14px] font-extrabold tracking-tight">{t("stats")}</span>
-        <button className="text-[13px] font-bold text-primary" onClick={() => nav.push({ name: "objectList", params: { status: "all" }, titleKey: "myDatabase" })}>
+        <button className="text-[13px] font-bold text-primary" onClick={() => nav.push({ name: "database" })}>
           {t("myDatabase")} ›
         </button>
       </div>

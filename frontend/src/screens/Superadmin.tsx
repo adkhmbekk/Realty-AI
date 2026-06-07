@@ -1,3 +1,4 @@
+import { confirmDialog } from "../telegram";
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { useApp } from "../store";
@@ -5,7 +6,7 @@ import { useNav } from "../nav";
 import { api, errText } from "../api";
 import { Badge, Button, Card, Empty, Field, Input, Row, Spinner } from "../components/ui";
 import type { AgencyOut, AgencyPayment, PaymentsSummary } from "../types";
-import { fmtDate } from "../utils";
+import { fmtAmount, fmtDate } from "../utils";
 
 function effectiveStatus(a: AgencyOut): string {
   if (a.status === "frozen") return "frozen";
@@ -36,7 +37,7 @@ function payActionLabel(action: string, t: (k: string) => string): string {
 
 function fmtTotals(arr: { currency: string; amount: number }[]): string {
   if (!arr.length) return "—";
-  return arr.map((c) => `${c.amount} ${c.currency}`).join(" · ");
+  return arr.map((c) => `${fmtAmount(c.amount)} ${c.currency}`).join(" · ");
 }
 
 // Свод по платежам всех агентств (общий итог + статистика).
@@ -85,7 +86,7 @@ function PaymentHistory({ id, refresh }: { id: number; refresh: number }) {
                 {p.days ? ` · +${p.days} ${t("daysShort")}` : ""}
               </span>
               <span className="font-extrabold text-primary">
-                {p.amount != null ? `${p.amount} ${p.currency || ""}` : "—"}
+                {p.amount != null ? `${fmtAmount(p.amount)} ${p.currency || ""}` : "—"}
               </span>
             </div>
             <div className="text-[12px] text-muted">{fmtDate(p.created_at, lang)}</div>
@@ -331,8 +332,8 @@ export function AgencyManageScreen({ id }: { id: number }) {
     } else toast(errText(r.data, r.status), "err");
   }
   async function del() {
-    if (!window.confirm(t("delAgQ1"))) return;
-    if (!window.confirm(t("delAgQ2"))) return;
+    if (!(await confirmDialog(t("delAgQ1")))) return;
+    if (!(await confirmDialog(t("delAgQ2")))) return;
     const r = await api("/api/v1/agencies/" + id, { method: "DELETE" });
     if (r.ok) {
       toast(t("agDeleted"), "ok");

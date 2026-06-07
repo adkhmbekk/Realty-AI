@@ -174,6 +174,8 @@ export interface SearchParams {
   price_max?: string | number;
   currency?: string;
   created_by?: string | number;
+  created_from?: string;
+  created_to?: string;
   q?: string;
   [k: string]: unknown;
 }

@@ -180,6 +180,62 @@ export function Spinner() {
   );
 }
 
+// Скелетоны загрузки: показываем «каркас» списка вместо спиннера — ощущается
+// быстрее и аккуратнее.
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cx("animate-pulse rounded-lg bg-line/70", className)} />;
+}
+
+export function ListSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="space-y-2.5 mt-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="rounded-xl2 bg-card border border-line shadow-soft p-4 flex gap-3">
+          <Skeleton className="w-12 h-12 shrink-0 rounded-xl" />
+          <div className="flex-1 space-y-2 py-0.5">
+            <Skeleton className="h-3.5 w-1/3" />
+            <Skeleton className="h-3 w-2/3" />
+            <Skeleton className="h-3 w-1/4" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Swipeable({
+  onSwipe,
+  children,
+  className,
+}: {
+  onSwipe: (dir: 1 | -1) => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const touch = React.useRef<{ x: number; y: number } | null>(null);
+  return (
+    <div
+      className={className}
+      onTouchStart={(e) => {
+        const p = e.touches[0];
+        touch.current = { x: p.clientX, y: p.clientY };
+      }}
+      onTouchEnd={(e) => {
+        const s = touch.current;
+        touch.current = null;
+        if (!s) return;
+        const p = e.changedTouches[0];
+        const dx = p.clientX - s.x;
+        const dy = p.clientY - s.y;
+        if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+        onSwipe(dx < 0 ? 1 : -1);
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function Empty({ children }: { children: React.ReactNode }) {
   return <div className="text-center text-muted text-sm py-7">{children}</div>;
 }

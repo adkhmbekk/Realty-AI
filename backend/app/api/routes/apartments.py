@@ -5,6 +5,7 @@
 агентства (агент или админ). Все операции изолированы по агентству: agency_id
 берётся из текущего пользователя (из его пропуска), а не из параметров запроса.
 """
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -49,6 +50,16 @@ def create_apartment(
     )
 
 
+def _parse_day(s: Optional[str]):
+    """YYYY-MM-DD → datetime в UTC (начало дня). Неверный формат → None."""
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
 @router.get("", response_model=ApartmentListOut)
 def search_apartments(
     status: Optional[str] = Query(
@@ -66,6 +77,8 @@ def search_apartments(
     price_max: Optional[float] = Query(None, description="Цена до."),
     currency: Optional[str] = Query(None, description="Валюта цены (USD/UZS/EUR). Фильтр цены — в рамках этой валюты."),
     created_by: Optional[int] = Query(None, description="Фильтр по сотруднику-создателю."),
+    created_from: Optional[str] = Query(None, description="Дата добавления от (YYYY-MM-DD)."),
+    created_to: Optional[str] = Query(None, description="Дата добавления до включительно (YYYY-MM-DD)."),
     q: Optional[str] = Query(None, description="Текстовый поиск: наименование, адрес, номер объекта."),
     limit: int = Query(50, ge=1, le=200, description="Сколько вернуть (1–200)."),
     offset: int = Query(0, ge=0, description="Смещение для пагинации."),
@@ -73,12 +86,20 @@ def search_apartments(
     current_user: User = Depends(require_agency_member),
 ):
     """Поиск/список объектов своего агентства с фильтрами и пагинацией."""
-    # 'all' → показать все статусы (передаём None в сервис).
-    status_filter = None if status == "all" else status
+    # 'all' → показать все статусы; 'archived' → только архив (deleted_at задан).
+    status_filter = None if status in ("all", "archived") else status
+    archived = status == "archived"
+    cf = _parse_day(created_from)
+    ct = _parse_day(created_to)
+    if ct is not None:
+        ct = ct + timedelta(days=1)  # верхняя граница — включительно по дню
     items, total = apartment_service.search_apartments(
         db,
         current_user.agency_id,
         status_filter=status_filter,
+        archived=archived,
+        created_from=cf,
+        created_to=ct,
         districts=districts,
         types=types,
         rooms=rooms,
@@ -102,12 +123,18 @@ def search_apartments(
 def list_archived(
     limit: int = Query(50, ge=1, le=200, description="Сколько вернуть (1–200)."),
     offset: int = Query(0, ge=0, description="Смещение для пагинации."),
+    created_from: Optional[str] = Query(None, description="Дата добавления от (YYYY-MM-DD)."),
+    created_to: Optional[str] = Query(None, description="Дата добавления до включительно (YYYY-MM-DD)."),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
     """Список объектов в архиве своего агентства (видят все сотрудники)."""
+    ct = _parse_day(created_to)
+    if ct is not None:
+        ct = ct + timedelta(days=1)
     items, total = apartment_service.list_archived_apartments(
-        db, current_user.agency_id, limit=limit, offset=offset
+        db, current_user.agency_id, limit=limit, offset=offset,
+        created_from=_parse_day(created_from), created_to=ct,
     )
     return ApartmentListOut(items=items, total=total, limit=limit, offset=offset)
 

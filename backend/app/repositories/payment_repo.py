@@ -60,7 +60,7 @@ def totals_by_currency(db: Session, *, since: Optional[datetime] = None):
     Возвращает список (currency, сумма, количество записей с суммой).
     since — если задано, учитываются только платежи с этой даты (например, месяц).
     """
-    conds = [SubscriptionPayment.amount.is_not(None)]
+    conds = [SubscriptionPayment.amount > 0, SubscriptionPayment.currency.is_not(None)]
     if since is not None:
         conds.append(SubscriptionPayment.created_at >= since)
     rows = db.execute(

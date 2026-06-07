@@ -43,6 +43,13 @@ export function initials(name?: string | null): string {
   return (a + b).toUpperCase();
 }
 
+// Сумма с разделителем тысяч точкой и без дробной части: 1500 → "1.500",
+// 200000 → "200.000". Для отображения оплаченных сумм в панели владельца.
+export function fmtAmount(n?: number | null): string {
+  if (n == null) return "";
+  return Math.round(Number(n)).toLocaleString("de-DE", { maximumFractionDigits: 0 });
+}
+
 export function fmtPrice(price?: number | null, currency?: string | null): string | null {
   if (price == null) return null;
   let str: string;

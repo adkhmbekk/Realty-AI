@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Building2, Database, Home, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
+import { Building2, Database, Home, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
 import { NavProvider, Route, useNav } from "./nav";
 import { api, errText, setReauthHandler } from "./api";
@@ -75,6 +75,8 @@ function titleKeyFor(route: Route): string | null {
       return "findObject";
     case "objectList":
       return route.titleKey;
+    case "database":
+      return "myDatabase";
     case "objectDetail":
       return "apartment";
     case "objectEdit":
@@ -112,6 +114,8 @@ function RouteView({ route }: { route: Route }) {
       return <SearchScreen />;
     case "objectList":
       return <ObjectList params={route.params} />;
+    case "database":
+      return <DatabaseScreen />;
     case "objectDetail":
       return <ObjectDetailScreen id={route.id} />;
     case "objectEdit":
@@ -158,7 +162,7 @@ function BottomTabs() {
     { route: { name: "search" }, icon: <Search size={22} />, label: t("findObject") },
   ];
   const right: { route: Route; icon: JSX.Element; label: string }[] = [
-    { route: { name: "objectList", params: { status: "unsold" }, titleKey: "myDatabase" }, icon: <Database size={22} />, label: t("myDatabase") },
+    { route: { name: "database" }, icon: <Database size={22} />, label: t("myDatabase") },
     { route: { name: "profile" }, icon: <User size={22} />, label: t("profile") },
   ];
   return (
@@ -232,15 +236,7 @@ function Shell() {
         {/* Шапка */}
         <header className="flex items-center gap-3 min-h-[40px] mb-3">
           {showBack ? (
-            <>
-              <button
-                onClick={() => nav.pop()}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-card border border-line shadow-soft px-3 py-2 text-sm font-bold active:scale-95 transition"
-              >
-                <ArrowLeft size={16} /> {t("back")}
-              </button>
-              <span className="text-[19px] font-extrabold tracking-tight">{tkey ? t(tkey) : ""}</span>
-            </>
+            <span className="text-[19px] font-extrabold tracking-tight">{tkey ? t(tkey) : ""}</span>
           ) : (
             <div className="flex items-center gap-2.5">
               <span className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>

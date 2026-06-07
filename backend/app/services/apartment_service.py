@@ -179,6 +179,9 @@ def search_apartments(
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
     created_by: Optional[int] = None,
+    archived: bool = False,
+    created_from=None,
+    created_to=None,
     limit: int = 50,
     offset: int = 0,
 ) -> Tuple[list, int]:
@@ -198,6 +201,9 @@ def search_apartments(
         rooms_min=rooms_min,
         rooms_max=rooms_max,
         created_by=created_by,
+        archived=archived,
+        created_from=created_from,
+        created_to=created_to,
         limit=limit,
         offset=offset,
     )
@@ -280,9 +286,13 @@ def restore_apartment(db: Session, agency_id: int, apartment_id: int) -> None:
         db.commit()
 
 
-def list_archived_apartments(db: Session, agency_id: int, *, limit: int = 50, offset: int = 0):
+def list_archived_apartments(db: Session, agency_id: int, *, limit: int = 50, offset: int = 0,
+                             created_from=None, created_to=None):
     """Список объектов в архиве агентства (видят все сотрудники)."""
-    return apartment_repo.list_archived(db, agency_id, limit=limit, offset=offset)
+    return apartment_repo.list_archived(
+        db, agency_id, limit=limit, offset=offset,
+        created_from=created_from, created_to=created_to,
+    )
 
 
 def purge_apartment(db: Session, agency_id: int, apartment_id: int) -> None:

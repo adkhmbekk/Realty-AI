@@ -47,11 +47,18 @@ def _build_conditions(
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
     created_by: Optional[int] = None,
+    archived: bool = False,
+    created_from=None,
+    created_to=None,
 ) -> list:
     # Первое и главное условие — принадлежность агентству.
     conditions = [Apartment.agency_id == agency_id]
-    # Архивные («удалённые») объекты не показываются в базе и поиске.
-    conditions.append(Apartment.deleted_at.is_(None))
+    # Архивные («удалённые») объекты по умолчанию скрыты; archived=True — наоборот,
+    # показываем ТОЛЬКО архив (для раздела «Архив»).
+    if archived:
+        conditions.append(Apartment.deleted_at.is_not(None))
+    else:
+        conditions.append(Apartment.deleted_at.is_(None))
 
     if status == "unsold":
         # Всё, кроме проданных (для раздела «Моя база»).
@@ -82,6 +89,11 @@ def _build_conditions(
         conditions.append(Apartment.currency == currency)
     if created_by is not None:
         conditions.append(Apartment.created_by == created_by)
+    # Фильтр по дате добавления (created_to — верхняя граница, не включая).
+    if created_from is not None:
+        conditions.append(Apartment.created_at >= created_from)
+    if created_to is not None:
+        conditions.append(Apartment.created_at < created_to)
 
     # Текстовый поиск по наименованию, адресу и номеру объекта (display_id).
     if q:
@@ -125,6 +137,9 @@ def search(
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
     created_by: Optional[int] = None,
+    archived: bool = False,
+    created_from=None,
+    created_to=None,
     limit: int = 50,
     offset: int = 0,
 ) -> Tuple[List[Apartment], int]:
@@ -148,6 +163,9 @@ def search(
         rooms_min=rooms_min,
         rooms_max=rooms_max,
         created_by=created_by,
+        archived=archived,
+        created_from=created_from,
+        created_to=created_to,
     )
 
     total = db.execute(
@@ -169,10 +187,15 @@ def search(
 
 
 def list_archived(
-    db: Session, agency_id: int, *, limit: int = 50, offset: int = 0
+    db: Session, agency_id: int, *, limit: int = 50, offset: int = 0,
+    created_from=None, created_to=None,
 ) -> Tuple[List[Apartment], int]:
     """Объекты в архиве (deleted_at IS NOT NULL), новые сверху. С общим числом."""
     cond = [Apartment.agency_id == agency_id, Apartment.deleted_at.is_not(None)]
+    if created_from is not None:
+        cond.append(Apartment.created_at >= created_from)
+    if created_to is not None:
+        cond.append(Apartment.created_at < created_to)
     total = db.execute(
         select(func.count()).select_from(Apartment).where(*cond)
     ).scalar_one()

@@ -60,6 +60,28 @@ body {
   padding: 0;
 }
 
+/* Безопасный отступ сверху в полноэкранном режиме Telegram: контент не должен
+   заезжать под шапку Telegram и вырез/часы телефона. Значение задаётся из
+   telegram.ts (--tg-top-inset); вне полного экрана/на старых клиентах = 0. */
+#root {
+  padding-top: var(--tg-top-inset, 0px);
+}
+
+/* Сплошная полоса под кнопками Telegram: при прокрутке контент уходит за неё,
+   а не просвечивает под плавающими кнопками. Высота = верхний безопасный отступ
+   (вне полного экрана = 0, полоса не видна). */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--tg-top-inset, 0px);
+  background: var(--bg);
+  z-index: 30;
+  pointer-events: none;
+}
+
 body {
   background:
     radial-gradient(1100px 420px at 12% -12%, rgba(37, 99, 235, 0.16), transparent 60%),

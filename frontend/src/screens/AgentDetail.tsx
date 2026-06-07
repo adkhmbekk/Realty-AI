@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "../store";
 import { api } from "../api";
-import { Card, Empty, Segmented, Spinner } from "../components/ui";
+import { Card, Empty, Segmented, Spinner, Swipeable } from "../components/ui";
 import { fmtDate } from "../utils";
 import { haptic } from "../telegram";
 import { ObjectList } from "./Apartments";
@@ -33,20 +33,38 @@ function ActivityLog({ userId }: { userId: number }) {
 
   if (activity === null) return <Spinner />;
   if (activity.length === 0) return <Empty>{t("noActivity")}</Empty>;
+  const loc = lang === "ru" ? "ru-RU" : lang === "uz" ? "uz-UZ" : "en-US";
+  const dayLabel = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(+d) ? iso : d.toLocaleDateString(loc, { day: "2-digit", month: "long", year: "numeric" });
+  };
+  const timeOnly = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(+d) ? "" : d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
+  };
   return (
     <Card className="py-1">
-      {activity.map((e, i) => (
-        <div
-          key={i}
-          className="flex items-center justify-between gap-2 py-2.5 text-sm border-t border-[var(--border)] first:border-t-0"
-        >
-          <span className="font-semibold">
-            №{e.display_id}{" "}
-            <span className="text-muted font-normal">{t(ACTION_KEY[e.action] || "evUpdated")}</span>
-          </span>
-          <span className="text-[12px] text-muted shrink-0">{fmtDate(e.created_at, lang)}</span>
-        </div>
-      ))}
+      {activity.map((e, i) => {
+        const day = (e.created_at || "").slice(0, 10);
+        const prevDay = i > 0 ? (activity[i - 1].created_at || "").slice(0, 10) : null;
+        const showHeader = day !== prevDay;
+        return (
+          <React.Fragment key={i}>
+            {showHeader && (
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted pt-3 pb-1 mt-1 border-t border-[var(--border)] first:border-t-0 first:mt-0 first:pt-1.5">
+                {dayLabel(e.created_at)}
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2 py-2 text-sm">
+              <span className="font-semibold">
+                №{e.display_id}{" "}
+                <span className="text-muted font-normal">{t(ACTION_KEY[e.action] || "evUpdated")}</span>
+              </span>
+              <span className="text-[12px] text-muted shrink-0">{timeOnly(e.created_at)}</span>
+            </div>
+          </React.Fragment>
+        );
+      })}
     </Card>
   );
 }
@@ -56,9 +74,23 @@ function ActivityLog({ userId }: { userId: number }) {
 //   sold    — добавленные им и уже проданные (status=sold).
 function AddedObjects({ userId }: { userId: number }) {
   const { t } = useApp();
-  const [sub, setSub] = useState<"in_work" | "sold">("in_work");
+  const subs = ["in_work", "sold", "archived"] as const;
+  const [sub, setSub] = useState<(typeof subs)[number]>("in_work");
+
+  // Свайп переключает ТОЛЬКО подвкладки (в работе / проданные / архив).
+  function swipeSub(d: 1 | -1) {
+    const i = subs.indexOf(sub);
+    const n = i + d;
+    if (n >= 0 && n < subs.length) {
+      haptic();
+      setSub(subs[n]);
+    }
+  }
+
+  const status = sub === "sold" ? "sold" : sub === "archived" ? "archived" : "unsold";
+
   return (
-    <div>
+    <Swipeable onSwipe={swipeSub}>
       <Segmented
         value={sub}
         onChange={(v) => {
@@ -68,6 +100,7 @@ function AddedObjects({ userId }: { userId: number }) {
         options={[
           { value: "in_work", label: t("agentInWork") },
           { value: "sold", label: t("soldObjects") },
+          { value: "archived", label: t("archive") },
         ]}
       />
       <div className="mt-2 relative">
@@ -79,13 +112,11 @@ function AddedObjects({ userId }: { userId: number }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
           >
-            <ObjectList
-              params={{ created_by: userId, status: sub === "sold" ? "sold" : "unsold" }}
-            />
+            <ObjectList params={{ created_by: userId, status }} />
           </motion.div>
         </AnimatePresence>
       </div>
-    </div>
+    </Swipeable>
   );
 }
 
@@ -103,30 +134,10 @@ export function AgentDetailScreen({ userId, agentName }: { userId: number; agent
     setTab(next);
   }
 
-  // Переключение основных вкладок свайпом. Вертикальные жесты игнорируем.
-  const touch = useRef<{ x: number; y: number } | null>(null);
-  function onTouchStart(e: React.TouchEvent) {
-    const p = e.touches[0];
-    touch.current = { x: p.clientX, y: p.clientY };
-  }
-  function onTouchEnd(e: React.TouchEvent) {
-    const s = touch.current;
-    touch.current = null;
-    if (!s) return;
-    const p = e.changedTouches[0];
-    const dx = p.clientX - s.x;
-    const dy = p.clientY - s.y;
-    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
-    const idx = TABS.indexOf(tab);
-    const next = dx < 0 ? idx + 1 : idx - 1;
-    if (next >= 0 && next < TABS.length) {
-      haptic();
-      goTab(TABS[next]);
-    }
-  }
-
+  // Внешние вкладки («Добавленные» / «Действия») переключаются ТОЛЬКО нажатием.
+  // Свайп работает внутри «Добавленных» и переключает лишь подвкладки.
   return (
-    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="min-h-[70vh] overflow-x-hidden">
+    <div className="min-h-[70vh] overflow-x-hidden">
       <div className="text-[15px] font-extrabold mb-2 mx-0.5">{agentName}</div>
 
       <Segmented

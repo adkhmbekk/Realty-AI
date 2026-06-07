@@ -1,3 +1,4 @@
+import { confirmDialog } from "../telegram";
 import { useEffect, useState } from "react";
 import { useApp } from "../store";
 import { api, errText } from "../api";
@@ -32,7 +33,7 @@ export function TeamScreen() {
   async function changeRole(m: Member) {
     const next = m.role === "agency_admin" ? "agent" : "agency_admin";
     const roleName = next === "agency_admin" ? t("role_agency_admin") : t("role_agent");
-    if (!window.confirm(t("roleQ") + roleName + "»?")) return;
+    if (!(await confirmDialog(t("roleQ") + roleName + "»?"))) return;
     const r = await api("/api/v1/team/" + m.id, { method: "PATCH", body: { role: next } });
     if (r.ok) {
       toast(t("roleChanged"), "ok");
@@ -40,7 +41,7 @@ export function TeamScreen() {
     } else toast(errText(r.data, r.status), "err");
   }
   async function makeOwner(m: Member) {
-    if (!window.confirm(t("makeOwnerQ"))) return;
+    if (!(await confirmDialog(t("makeOwnerQ")))) return;
     const r = await api("/api/v1/team/" + m.id + "/owner", { method: "POST" });
     if (r.ok) {
       toast(t("ownerTransferred"), "ok");

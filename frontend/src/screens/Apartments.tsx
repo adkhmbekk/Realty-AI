@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
-  Archive as ArchiveIcon,
   Camera,
   ChevronLeft,
   ChevronRight,
@@ -12,6 +11,7 @@ import {
   Pencil,
   RotateCcw,
   Search as SearchIcon,
+  SlidersHorizontal,
   Send,
   Trash2,
   X,
@@ -31,8 +31,7 @@ import {
   Select,
   Segmented,
   Spinner,
-  Textarea,
-} from "../components/ui";
+  Textarea, ListSkeleton, Swipeable } from "../components/ui";
 import {
   CURRENCIES,
   FA_VALUES,
@@ -43,7 +42,7 @@ import {
 import { Badge } from "../components/ui";
 import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, SearchParams } from "../types";
 import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
-import { canShareMessage, haptic, openLink, shareMessage } from "../telegram";
+import { canShareMessage, haptic, openLink, shareMessage, confirmDialog } from "../telegram";
 
 // Загрузка справочника районов (один раз на жизнь экрана).
 function useDistricts(): DictItem[] {
@@ -370,6 +369,7 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
   const { t, toast } = useApp();
   const [photos, setPhotos] = useState<ApartmentPhoto[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [prog, setProg] = useState<{ cur: number; total: number } | null>(null);
   const [viewer, setViewer] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -389,9 +389,11 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
     toast(t("uploadingPhotos"), "info");
     let lastOk: ApartmentPhoto[] | null = null;
     let failed: { data: unknown; status: number } | null = null;
+    const arr = Array.from(files);
     // По одному фото за запрос (JSON), чтобы каждый запрос был лёгким.
-    for (const f of Array.from(files)) {
-      const dataUrl = await downscaleToDataUrl(f);
+    for (let i = 0; i < arr.length; i++) {
+      setProg({ cur: i + 1, total: arr.length });
+      const dataUrl = await downscaleToDataUrl(arr[i]);
       const r = await uploadOnePhoto(apartmentId, dataUrl);
       if (r.ok && r.data) lastOk = r.data;
       else {
@@ -399,6 +401,7 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
         break;
       }
     }
+    setProg(null);
     setBusy(false);
     e.target.value = "";
     if (lastOk) setPhotos(lastOk);
@@ -426,7 +429,7 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
   }
 
   async function del(id: number) {
-    if (!window.confirm(t("delPhotoQ"))) return;
+    if (!(await confirmDialog(t("delPhotoQ")))) return;
     const r = await api(`/api/v1/apartments/${apartmentId}/photos/${id}`, { method: "DELETE" });
     if (r.ok) {
       toast(t("photoDeleted"), "ok");
@@ -464,6 +467,16 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
           <Send size={15} /> {t("importTg")}
         </Button>
       </div>
+      {prog && (
+        <div className="mt-2">
+          <div className="text-[12px] font-bold text-muted mb-1">
+            {t("uploadingPhotos")} {prog.cur}/{prog.total}
+          </div>
+          <div className="h-1.5 rounded-full bg-[var(--soft)] overflow-hidden">
+            <div className="h-full bg-primary transition-all" style={{ width: `${(prog.cur / prog.total) * 100}%` }} />
+          </div>
+        </div>
+      )}
       <Hint>{t("photosHint")}</Hint>
       {viewer != null && photos && photos.length > 0 && (
         <Lightbox urls={photos.map((p) => p.url)} index={viewer} onClose={() => setViewer(null)} onIndex={setViewer} />
@@ -512,7 +525,13 @@ export function ApartmentCard({ o }: { o: Apartment }) {
           {o.name && <div className="text-[13px] text-muted truncate">{o.name}</div>}
           <div className="text-[13px] text-muted">{parts || t("notSet")}</div>
           <div className="text-[13px] text-muted">
-            {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency) || t("notSet")}</span>
+            {fmtPrice(o.price, o.currency) ? (
+              <>
+                {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency)}</span>
+              </>
+            ) : (
+              <span className="text-muted">{t("priceNotSet")}</span>
+            )}
           </div>
           {o.created_by_name && (
             <div className="text-[13px] text-muted">
@@ -560,7 +579,7 @@ export function ObjectList({ params }: { params: SearchParams }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(params)]);
 
-  if (loading && !items.length) return <Spinner />;
+  if (loading && !items.length) return <ListSkeleton />;
   if (err) return <Empty>{err}</Empty>;
   if (!items.length) return <Empty>{t("notFound")}</Empty>;
   const left = total - items.length;
@@ -689,7 +708,7 @@ export function AddObjectScreen() {
       const sim = await api<Apartment[]>("/api/v1/apartments/similar?" + dq);
       if (sim.ok && Array.isArray(sim.data) && sim.data.length) {
         const ids = sim.data.map((a) => "№" + a.display_id).join(", ");
-        if (!window.confirm(t("dupFound") + " " + ids + "\n\n" + t("dupAsk"))) {
+        if (!(await confirmDialog(t("dupFound") + " " + ids + "\n\n" + t("dupAsk")))) {
           setSaving(false);
           return;
         }
@@ -890,24 +909,100 @@ export function SearchScreen() {
 // ── Экран: «Моя база» (не проданные / проданные) ────────────────────
 export function DatabaseScreen() {
   const { t } = useApp();
-  const nav = useNav();
-  const [view, setView] = useState<"unsold" | "sold">("unsold");
+  const views = ["unsold", "sold", "archived"] as const;
+  const [view, setView] = useState<(typeof views)[number]>("unsold");
+  const [showFilter, setShowFilter] = useState(false);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const hasFilter = !!(from || to);
+
+  function swipe(d: 1 | -1) {
+    const i = views.indexOf(view);
+    const n = i + d;
+    if (n >= 0 && n < views.length) {
+      haptic();
+      setView(views[n]);
+    }
+  }
+
   return (
     <div>
+      <div className="flex justify-end mb-1.5">
+        <button
+          onClick={() => {
+            haptic();
+            setShowFilter((v) => !v);
+          }}
+          className={cx2(
+            "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12px] font-bold transition active:scale-95",
+            hasFilter || showFilter
+              ? "bg-primary-soft border-primary/40 text-primary"
+              : "bg-card border-line text-muted",
+          )}
+        >
+          <SlidersHorizontal size={14} /> {t("filterBtn")}
+          {hasFilter && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+        </button>
+      </div>
+
       <Segmented
         value={view}
-        onChange={(v) => setView(v)}
+        onChange={(v) => {
+          haptic();
+          setView(v);
+        }}
         options={[
-          { value: "unsold", label: t("notSold") },
+          { value: "unsold", label: t("tabWorking") },
           { value: "sold", label: t("statusSold") },
+          { value: "archived", label: t("archive") },
         ]}
       />
-      <div className="flex justify-end mt-2">
-        <Button size="sm" variant="ghost" onClick={() => nav.push({ name: "archive" })}>
-          <ArchiveIcon size={15} /> {t("archive")}
-        </Button>
-      </div>
-      <ObjectList params={{ status: view }} />
+
+      {showFilter && (
+        <div className="mt-2 rounded-xl2 bg-card border border-line shadow-soft p-3">
+          <div className="flex gap-2">
+            <label className="flex-1 text-[12px] font-bold text-muted">
+              {t("dateFrom")}
+              <input
+                type="date"
+                value={from}
+                max={to || undefined}
+                onChange={(e) => setFrom(e.target.value)}
+                className="mt-1 w-full rounded-xl bg-[var(--soft)] border border-line px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <label className="flex-1 text-[12px] font-bold text-muted">
+              {t("dateTo")}
+              <input
+                type="date"
+                value={to}
+                min={from || undefined}
+                onChange={(e) => setTo(e.target.value)}
+                className="mt-1 w-full rounded-xl bg-[var(--soft)] border border-line px-3 py-2 text-sm text-text"
+              />
+            </label>
+          </div>
+          {hasFilter && (
+            <button
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+              className="mt-2 text-[12px] font-bold text-primary active:scale-95 transition"
+            >
+              {t("filterReset")}
+            </button>
+          )}
+        </div>
+      )}
+
+      <Swipeable onSwipe={swipe} className="mt-1">
+        {view === "archived" ? (
+          <ArchiveScreen createdFrom={from || undefined} createdTo={to || undefined} />
+        ) : (
+          <ObjectList params={{ status: view, created_from: from || undefined, created_to: to || undefined }} />
+        )}
+      </Swipeable>
     </div>
   );
 }
@@ -932,7 +1027,7 @@ function ArchiveCard({ o, canManage, onChanged }: { o: Apartment; canManage: boo
     } else toast(errText(r.data, r.status), "err");
   }
   async function purge() {
-    if (!window.confirm(t("deleteForeverQ"))) return;
+    if (!(await confirmDialog(t("deleteForeverQ")))) return;
     setBusy(true);
     const r = await api("/api/v1/apartments/" + o.id + "/permanent", { method: "DELETE" });
     setBusy(false);
@@ -951,7 +1046,13 @@ function ArchiveCard({ o, canManage, onChanged }: { o: Apartment; canManage: boo
       {o.name && <div className="text-[13px] text-muted truncate">{o.name}</div>}
       <div className="text-[13px] text-muted">{parts || t("notSet")}</div>
       <div className="text-[13px] text-muted">
-        {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency) || t("notSet")}</span>
+        {fmtPrice(o.price, o.currency) ? (
+              <>
+                {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency)}</span>
+              </>
+            ) : (
+              <span className="text-muted">{t("priceNotSet")}</span>
+            )}
       </div>
       {canManage && (
         <div className="flex gap-2 mt-2.5">
@@ -967,7 +1068,7 @@ function ArchiveCard({ o, canManage, onChanged }: { o: Apartment; canManage: boo
   );
 }
 
-export function ArchiveScreen() {
+export function ArchiveScreen({ createdFrom, createdTo }: { createdFrom?: string; createdTo?: string } = {}) {
   const { t, user } = useApp();
   const canManage = user?.role === "agency_admin" && !!user?.is_owner;
   const [items, setItems] = useState<Apartment[]>([]);
@@ -979,7 +1080,10 @@ export function ArchiveScreen() {
   async function load(reset: boolean) {
     setLoading(true);
     const off = reset ? 0 : offset;
-    const r = await api<ApartmentList>("/api/v1/apartments/archived?" + buildQuery({ limit: 20, offset: off }));
+    const r = await api<ApartmentList>(
+      "/api/v1/apartments/archived?" +
+        buildQuery({ limit: 20, offset: off, created_from: createdFrom || undefined, created_to: createdTo || undefined }),
+    );
     setLoading(false);
     if (!r.ok || !r.data) {
       setErr(`${t("notFound")} (${r.status})`);
@@ -995,9 +1099,9 @@ export function ArchiveScreen() {
   useEffect(() => {
     load(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [createdFrom, createdTo]);
 
-  if (loading && !items.length) return <Spinner />;
+  if (loading && !items.length) return <ListSkeleton />;
   if (err) return <Empty>{err}</Empty>;
   if (!items.length) return <Empty>{t("archiveEmpty")}</Empty>;
   const left = total - items.length;
@@ -1047,6 +1151,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
   const [events, setEvents] = useState<ApartmentEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   async function load(silent?: boolean) {
     if (!silent) setLoading(true);
@@ -1096,7 +1201,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     } else toast(errText(r.data, r.status), "err");
   }
   async function del() {
-    if (!window.confirm(t("delObjQ"))) return;
+    if (!(await confirmDialog(t("delObjQ")))) return;
     const r = await api("/api/v1/apartments/" + id, { method: "DELETE" });
     if (r.ok) {
       toast(t("objDeleted"), "ok");
@@ -1197,17 +1302,34 @@ export function ObjectDetailScreen({ id }: { id: number }) {
           <div className="text-[11px] font-bold uppercase tracking-wider text-muted mx-0.5 mb-1.5">
             {t("secShare")}
           </div>
-          <Button full variant="primary" disabled={busy} onClick={shareDirect}>
-            <Send size={16} /> {t("shareToClient")}
-          </Button>
-          <div className="flex gap-2 mt-2">
-            <Button size="sm" className="flex-1" variant="ghost" disabled={busy} onClick={share}>
-              <ImageIcon size={15} /> {t("shareAllPhotos")}
+          {!shareOpen ? (
+            <Button
+              full
+              variant="primary"
+              disabled={busy}
+              onClick={() => {
+                haptic();
+                setShareOpen(true);
+              }}
+            >
+              <Send size={16} /> {t("shareBtn")}
             </Button>
-            <Button size="sm" className="flex-1" variant="ghost" onClick={copyCard}>
-              <Copy size={15} /> {t("shareCard")}
-            </Button>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Button full variant="primary" disabled={busy} onClick={shareDirect}>
+                <Send size={16} /> {t("shareToClient")}
+              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" className="flex-1" variant="ghost" disabled={busy} onClick={share}>
+                  <ImageIcon size={15} /> {t("shareAllPhotos")}
+                </Button>
+                <Button size="sm" className="flex-1" variant="ghost" onClick={copyCard}>
+                  <Copy size={15} /> {t("shareCard")}
+                </Button>
+              </div>
+            </div>
+          )}
+          <Hint>{t("shareDirectHint")}</Hint>
         </div>
 
         {/* Управление */}
