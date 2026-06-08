@@ -230,13 +230,17 @@ function Shell() {
     };
   }, [showBack, nav]);
 
-  // Жест «назад»: свайп от левого края экрана вправо возвращает на шаг назад.
-  // Старт засекаем только у самого края (≤28px), чтобы не конфликтовать с
-  // горизонтальными свайпами внутри контента (переключение вкладок в «Базе»).
-  const edgeSwipe = useRef<{ x: number; y: number; t: number } | null>(null);
+  // Жест «назад»: свайп от КРАЯ экрана внутрь возвращает на шаг назад.
+  // От левого края — вправо, от правого края — влево. Старт засекаем только у
+  // самого края (≤28px), чтобы не конфликтовать с горизонтальными свайпами
+  // внутри контента (переключение вкладок в «Базе»).
+  const edgeSwipe = useRef<{ x: number; y: number; t: number; edge: "left" | "right" } | null>(null);
   const onTouchStart = (e: React.TouchEvent) => {
     const p = e.touches[0];
-    edgeSwipe.current = p.clientX <= 28 ? { x: p.clientX, y: p.clientY, t: Date.now() } : null;
+    const w = window.innerWidth;
+    const edge: "left" | "right" | null =
+      p.clientX <= 28 ? "left" : p.clientX >= w - 28 ? "right" : null;
+    edgeSwipe.current = edge ? { x: p.clientX, y: p.clientY, t: Date.now(), edge } : null;
   };
   const onTouchEnd = (e: React.TouchEvent) => {
     const s = edgeSwipe.current;
@@ -245,7 +249,9 @@ function Shell() {
     const p = e.changedTouches[0];
     const dx = p.clientX - s.x;
     const dy = p.clientY - s.y;
-    if (dx > 65 && dx > Math.abs(dy) * 1.8 && Date.now() - s.t < 700) {
+    if (Date.now() - s.t >= 700 || Math.abs(dx) < 65 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+    // От левого края тянем вправо (dx>0), от правого — влево (dx<0).
+    if ((s.edge === "left" && dx > 0) || (s.edge === "right" && dx < 0)) {
       haptic();
       nav.pop();
     }

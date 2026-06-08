@@ -35,7 +35,7 @@ import {
 import {
   CURRENCIES,
   FA_VALUES,
-  LAND_TYPE,
+  isLandType,
   OBJ_COND_VALUES,
   OBJ_TYPE_VALUES,
   STATUS_BADGE,
@@ -121,11 +121,11 @@ function ObjectForm({
     comment: o.comment ?? "",
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
-  // Для участка вместо этажа/этажности показываем «Соток».
-  const isLand = f.type === LAND_TYPE;
+  // Для земли/участка вместо этажа/этажности показываем «Соток».
+  const isLand = isLandType(f.type);
 
   function submit() {
-    const land = f.type === LAND_TYPE;
+    const land = isLandType(f.type);
     const fields: Record<string, unknown> = {
       name: f.name.trim() || null,
       type: f.type || null,
@@ -299,7 +299,7 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
   if (o.district) lines.push("📍 " + t("f_district") + ": " + o.district);
   if (o.address) lines.push("🗺 " + t("f_address") + ": " + o.address);
   if (o.rooms != null) lines.push("🚪 " + t("f_rooms") + ": " + o.rooms);
-  if (o.type === LAND_TYPE) {
+  if (isLandType(o.type)) {
     if (o.land_area != null) lines.push("🌳 " + t("f_land_area") + ": " + o.land_area);
   } else {
     const fl = o.floor != null && o.total_floors != null ? `${o.floor}/${o.total_floors}` : o.floor != null ? String(o.floor) : null;
@@ -821,8 +821,8 @@ export function SearchScreen() {
   const toggle = (arr: string[], set: (v: string[]) => void, v: string) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
-  // Если среди выбранных типов есть «Участок» — вместо этажа фильтруем по соткам.
-  const landSelected = types.includes(LAND_TYPE);
+  // Если среди выбранных типов есть земля/участок — вместо этажа фильтруем по соткам.
+  const landSelected = types.some(isLandType);
 
   function run() {
     const params: SearchParams = { status };
@@ -1195,7 +1195,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
 
   if (loading || !o) return <Spinner />;
 
-  const isLand = o.type === LAND_TYPE;
+  const isLand = isLandType(o.type);
   const floorTxt =
     o.floor != null && o.total_floors != null ? `${o.floor} / ${o.total_floors}` : o.floor != null ? String(o.floor) : null;
   const rows: [string | null, React.ReactNode][] = [

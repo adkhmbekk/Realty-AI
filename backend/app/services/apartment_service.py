@@ -42,8 +42,8 @@ VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD)
 # Статусы, при которых объект считается снятым с продажи (фиксируем дату).
 _CLOSED_STATUSES = (STATUS_SOLD,)
 
-# Тип объекта «Участок»: для него вместо этажа/этажности — площадь в сотках.
-LAND_TYPE = "Участок"
+# Типы «Земля» и «Участок»: для них вместо этажа/этажности — площадь в сотках.
+LAND_TYPES = ("Земля", "Участок")
 
 # Поля, изменение которых отражаем в журнале (в порядке формы).
 _TRACKED_FIELDS = (
@@ -393,7 +393,7 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
         lines.append(f"Адрес: {apartment.address}")
     if apartment.rooms is not None:
         lines.append(f"Комнат: {apartment.rooms}")
-    is_land = apartment.type == LAND_TYPE
+    is_land = apartment.type in LAND_TYPES
     if is_land:
         if apartment.land_area is not None:
             lines.append(f"Соток: {apartment.land_area}")
