@@ -98,9 +98,21 @@ def export_sheet(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_owner),
 ):
-    """Перевыгрузить все объекты в уже созданную таблицу."""
+    """Перевыгрузить все объекты в уже созданную таблицу (одностороннее обновление)."""
     url = sheets_service.export_now(db, current_user.agency_id)
     return {"spreadsheet_url": url}
+
+
+@router.post(
+    "/sync",
+    dependencies=[Depends(rate_limit(10, 60, "sheets_sync"))],
+)
+def sync_sheet(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_owner),
+):
+    """Двусторонняя синхронизация: правки из таблицы → база и обратно (LWW)."""
+    return sheets_service.sync_agency(db, current_user.agency_id)
 
 
 @router.post("/disconnect", status_code=status.HTTP_204_NO_CONTENT)

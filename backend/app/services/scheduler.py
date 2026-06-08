@@ -167,6 +167,28 @@ def _loop() -> None:
         time.sleep(CHECK_INTERVAL_SECONDS)
 
 
+# Как часто синхронизировать Google-таблицы (двусторонне). Частый цикл сужает
+# окно одновременных правок (вариант A разрешения конфликтов по времени).
+SHEETS_SYNC_INTERVAL_SECONDS = 45
+
+
+def _sheets_loop() -> None:
+    from app.services import sheets_service  # ленивый импорт (без круговых зависимостей)
+
+    logger.info("Планировщик: синхронизация Google Sheets (раз в %s с).", SHEETS_SYNC_INTERVAL_SECONDS)
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                sheets_service.sync_all_connected(db)
+            finally:
+                db.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Планировщик: ошибка синхронизации Google Sheets: %s", exc)
+        time.sleep(SHEETS_SYNC_INTERVAL_SECONDS)
+
+
 def start_scheduler() -> None:
-    """Запустить фоновые задачи (демон-поток). Безопасно при любом окружении."""
+    """Запустить фоновые задачи (демон-потоки). Безопасно при любом окружении."""
     threading.Thread(target=_loop, name="realty-scheduler", daemon=True).start()
+    threading.Thread(target=_sheets_loop, name="realty-sheets-sync", daemon=True).start()

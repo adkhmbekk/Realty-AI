@@ -12,7 +12,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -33,7 +33,10 @@ class AgencySheet(Base):
     # connected (подключено) / disconnected (нет) / error.
     status: Mapped[str] = mapped_column(String, nullable=False, default="disconnected")
     error_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    # Метки для будущей двусторонней синхронизации (Этап 3).
+    # Снимок последней синхронизации: {"<id>": {field: value, ...}} — базовая точка
+    # для 3-стороннего merge (понять, с какой стороны пришло изменение).
+    snapshot: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Метки двусторонней синхронизации.
     last_modified_time: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_sync_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

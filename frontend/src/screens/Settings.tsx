@@ -37,11 +37,11 @@ function GoogleSheetsCard() {
       load();
     } else toast(errText(r.data, r.status), "err");
   }
-  async function exportNow() {
+  async function syncNow() {
     setBusy(true);
-    const r = await api("/api/v1/sheets/export", { method: "POST" });
+    const r = await api("/api/v1/sheets/sync", { method: "POST" });
     setBusy(false);
-    if (r.ok) toast(t("sheetsExported"), "ok");
+    if (r.ok) toast(t("sheetsSynced"), "ok");
     else toast(errText(r.data, r.status), "err");
   }
   async function disconnect() {
@@ -91,9 +91,10 @@ function GoogleSheetsCard() {
             <Button full onClick={() => st.spreadsheet_url && openLink(st.spreadsheet_url)}>
               {t("sheetsOpen")}
             </Button>
-            <Button full variant="ghost" className="mt-2" disabled={busy} onClick={exportNow}>
-              {busy ? t("sheetsExporting") : t("sheetsExport")}
+            <Button full variant="ghost" className="mt-2" disabled={busy} onClick={syncNow}>
+              {busy ? t("sheetsSyncing") : t("sheetsSync")}
             </Button>
+            <Hint>{t("sheetsSyncHint")}</Hint>
             <Button full variant="ghost" className="mt-2" onClick={disconnect}>
               {t("sheetsDisconnect")}
             </Button>
