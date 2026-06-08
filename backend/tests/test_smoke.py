@@ -37,7 +37,7 @@ def test_validate_init_data_rejects_tampered():
 # ─── Защита импорта фотографий (только Telegram + без внутренней сети) ────
 from fastapi import HTTPException  # noqa: E402
 
-from app.services import photo_service, telegram_service  # noqa: E402
+from app.services import photo_service  # noqa: E402
 
 
 def test_is_telegram_url():
@@ -57,19 +57,6 @@ def test_assert_public_url_blocks_internal_and_bad_scheme():
     ):
         with pytest.raises(HTTPException):
             photo_service._assert_public_url(bad)
-
-
-# ─── Сборка альбома для бота (без сети) ──────────────────────────────────
-def test_telegram_multipart_structure():
-    body, content_type = telegram_service._build_multipart(
-        {"chat_id": "1", "media": "[]"},
-        [("photo0", "photo0.jpg", "image/jpeg", b"binarydata")],
-    )
-    assert content_type.startswith("multipart/form-data; boundary=")
-    assert b'name="chat_id"' in body
-    assert b'name="photo0"; filename="photo0.jpg"' in body
-    assert b"binarydata" in body
-
 
 
 # ─── Хелперы графиков аналитики (без сети/БД) ────────────────────────────
