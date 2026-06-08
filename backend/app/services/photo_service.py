@@ -16,7 +16,6 @@ import asyncio
 import html as html_lib
 import ipaddress
 import logging
-import os
 import re
 import secrets
 import socket
@@ -28,9 +27,9 @@ import httpx
 from fastapi import status
 from fastapi.concurrency import run_in_threadpool
 
-from app.config import settings
 from app.core.errors import AppError
 from app.repositories import apartment_photo_repo, apartment_repo
+from app.services.storage import storage
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -84,14 +83,6 @@ def _assert_public_url(url: str) -> None:
             or addr.is_unspecified
         ):
             raise AppError("link_internal_blocked", status.HTTP_400_BAD_REQUEST)
-
-
-def _ensure_dir() -> None:
-    os.makedirs(settings.photos_dir, exist_ok=True)
-
-
-def _path(key: str) -> str:
-    return os.path.join(settings.photos_dir, key)
 
 
 # Максимальный размер стороны изображения после сжатия (px).
@@ -173,13 +164,11 @@ def list_photos(db, agency_id: int, apartment_id: int) -> List[dict]:
 
 
 def _save_one(db, agency_id: int, apartment_id: int, data: bytes, content_type: str, order: int):
-    _ensure_dir()
     # Перекодируем перед сохранением (оптимизация + защита: только растровые
     # изображения; SVG/HTML/мусор будут отклонены внутри _process_image).
     data, content_type = _process_image(data, content_type or "image/jpeg")
     key = secrets.token_urlsafe(16)
-    with open(_path(key), "wb") as f:
-        f.write(data)
+    storage.save(key, data)
     # Тип всегда из белого списка (image/jpeg | image/png) — на всякий случай
     # подстраховываемся явной проверкой.
     ctype = content_type if content_type in _OUTPUT_IMAGE_TYPES else "image/jpeg"
@@ -440,10 +429,7 @@ def delete_photo(db, agency_id: int, apartment_id: int, photo_id: int) -> None:
     _sync_cover(db, agency_id, apartment_id)
     db.commit()
     # Файл удаляем после коммита (если не вышло — не критично, метаданных уже нет).
-    try:
-        os.remove(_path(key))
-    except OSError:
-        pass
+    storage.delete(key)
 
 
 def purge_apartment(db, agency_id: int, apartment_id: int) -> None:
@@ -453,10 +439,7 @@ def purge_apartment(db, agency_id: int, apartment_id: int) -> None:
         apartment_photo_repo.delete(db, p)
     db.flush()
     for key in keys:
-        try:
-            os.remove(_path(key))
-        except OSError:
-            pass
+        storage.delete(key)
 
 
 def purge_agency(db, agency_id: int) -> None:
@@ -469,19 +452,21 @@ def purge_agency(db, agency_id: int) -> None:
     apartment_photo_repo.delete_for_agency(db, agency_id)
     db.flush()
     for key in keys:
-        try:
-            os.remove(_path(key))
-        except OSError:
-            pass
+        storage.delete(key)
 
 
 def file_for(db, key: str) -> Optional[Tuple[str, str]]:
-    """Вернуть (путь_к_файлу, content_type) для отдачи, либо None."""
+    """Вернуть (путь_к_файлу, content_type) для отдачи, либо None.
+
+    Для локального хранилища возвращает путь к файлу (быстрая отдача через
+    FileResponse). Когда появится S3-бэкенд, отдачу можно будет дополнить
+    чтением байтов через storage.read() — ссылки на фото при этом не меняются.
+    """
     photo = apartment_photo_repo.get_by_key(db, key)
     if photo is None:
         return None
-    path = _path(key)
-    if not os.path.exists(path):
+    path = storage.local_path(key)
+    if path is None:
         return None
     return path, photo.content_type
 
@@ -497,12 +482,7 @@ def read_blobs_for_share(
     for photo in apartment_photo_repo.list_for(db, agency_id, apartment_id):
         if len(blobs) >= limit:
             break
-        path = _path(photo.storage_key)
-        try:
-            with open(path, "rb") as fh:
-                data = fh.read()
-        except OSError:
-            continue
+        data = storage.read(photo.storage_key)
         if data:
             blobs.append((data, photo.content_type or "image/jpeg"))
     return blobs
@@ -544,24 +524,16 @@ def sweep_orphan_photos(db, grace_hours: int = 24) -> int:
     «незавершённой» загрузкой не может оказаться свежее суток. Ложных удалений
     нет. Возвращает число удалённых файлов.
     """
-    d = settings.photos_dir
-    if not os.path.isdir(d):
-        return 0
     known = set(apartment_photo_repo.all_storage_keys(db))
     cutoff = time.time() - grace_hours * 3600
     removed = 0
-    for name in os.listdir(d):
+    for name in storage.list_keys():
         if name in known:
             continue  # есть строка в БД — это настоящее фото, не трогаем
-        path = os.path.join(d, name)
-        try:
-            if not os.path.isfile(path):
-                continue
-            if os.path.getmtime(path) > cutoff:
-                continue  # слишком свежий — мог быть в процессе загрузки
-            os.remove(path)
-            removed += 1
-            logger.info("Подчистка: удалён осиротевший файл фото %s", name)
-        except Exception:  # noqa: BLE001
-            pass
+        mt = storage.mtime(name)
+        if mt is None or mt > cutoff:
+            continue  # нет файла или слишком свежий — мог быть в процессе загрузки
+        storage.delete(name)
+        removed += 1
+        logger.info("Подчистка: удалён осиротевший файл фото %s", name)
     return removed
