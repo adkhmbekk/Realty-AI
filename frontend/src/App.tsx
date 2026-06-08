@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Building2, Database, Home, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
 import { NavProvider, Route, useNav } from "./nav";
 import { api, errText, setReauthHandler } from "./api";
-import { tg, tgReady, getInitData, getStartParam } from "./telegram";
+import { tg, tgReady, getInitData, getStartParam, haptic } from "./telegram";
 import type { AuthResponse, AgencySettings } from "./types";
 import { Button, Card, Field, Input, Spinner } from "./components/ui";
 import { HomeScreen } from "./screens/Home";
@@ -230,8 +230,29 @@ function Shell() {
     };
   }, [showBack, nav]);
 
+  // Жест «назад»: свайп от левого края экрана вправо возвращает на шаг назад.
+  // Старт засекаем только у самого края (≤28px), чтобы не конфликтовать с
+  // горизонтальными свайпами внутри контента (переключение вкладок в «Базе»).
+  const edgeSwipe = useRef<{ x: number; y: number; t: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    const p = e.touches[0];
+    edgeSwipe.current = p.clientX <= 28 ? { x: p.clientX, y: p.clientY, t: Date.now() } : null;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const s = edgeSwipe.current;
+    edgeSwipe.current = null;
+    if (!s || !showBack) return;
+    const p = e.changedTouches[0];
+    const dx = p.clientX - s.x;
+    const dy = p.clientY - s.y;
+    if (dx > 65 && dx > Math.abs(dy) * 1.8 && Date.now() - s.t < 700) {
+      haptic();
+      nav.pop();
+    }
+  };
+
   return (
-    <div className="min-h-screen pb-28">
+    <div className="min-h-screen pb-28" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="max-w-[560px] mx-auto px-3.5 pt-3.5">
         {/* Шапка */}
         <header className="flex items-center gap-3 min-h-[40px] mb-3">

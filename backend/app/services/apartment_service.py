@@ -42,10 +42,13 @@ VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD)
 # Статусы, при которых объект считается снятым с продажи (фиксируем дату).
 _CLOSED_STATUSES = (STATUS_SOLD,)
 
+# Тип объекта «Участок»: для него вместо этажа/этажности — площадь в сотках.
+LAND_TYPE = "Участок"
+
 # Поля, изменение которых отражаем в журнале (в порядке формы).
 _TRACKED_FIELDS = (
     "name", "type", "district", "address", "rooms", "floor", "total_floors",
-    "area", "condition", "furniture_appliances", "price", "currency",
+    "area", "land_area", "condition", "furniture_appliances", "price", "currency",
     "owner_phone", "description", "comment", "photo_url", "source_link",
 )
 
@@ -113,7 +116,7 @@ def create_apartment(
     meaningful = (
         payload.name, payload.district, payload.address, payload.type,
         payload.rooms, payload.floor, payload.total_floors, payload.area,
-        payload.price, payload.owner_phone, payload.condition,
+        payload.land_area, payload.price, payload.owner_phone, payload.condition,
         payload.description, payload.photo_url, payload.source_link,
     )
     if not any(v not in (None, "") for v in meaningful):
@@ -136,6 +139,7 @@ def create_apartment(
         floor=payload.floor,
         total_floors=payload.total_floors,
         area=payload.area,
+        land_area=payload.land_area,
         condition=payload.condition,
         furniture_appliances=payload.furniture_appliances,
         price=payload.price,
@@ -172,6 +176,8 @@ def search_apartments(
     rooms: Optional[Sequence[int]] = None,
     floor_min: Optional[int] = None,
     floor_max: Optional[int] = None,
+    land_area_min: Optional[float] = None,
+    land_area_max: Optional[float] = None,
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
     currency: Optional[str] = None,
@@ -194,6 +200,8 @@ def search_apartments(
         rooms=rooms,
         floor_min=floor_min,
         floor_max=floor_max,
+        land_area_min=land_area_min,
+        land_area_max=land_area_max,
         price_min=price_min,
         price_max=price_max,
         currency=currency,
@@ -385,7 +393,11 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
         lines.append(f"Адрес: {apartment.address}")
     if apartment.rooms is not None:
         lines.append(f"Комнат: {apartment.rooms}")
-    if apartment.floor is not None:
+    is_land = apartment.type == LAND_TYPE
+    if is_land:
+        if apartment.land_area is not None:
+            lines.append(f"Соток: {apartment.land_area}")
+    elif apartment.floor is not None:
         floor_line = f"Этаж: {apartment.floor}"
         if apartment.total_floors is not None:
             floor_line += f"/{apartment.total_floors}"
@@ -427,6 +439,7 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
         "floor": apartment.floor,
         "total_floors": apartment.total_floors,
         "area": float(apartment.area) if apartment.area is not None else None,
+        "land_area": float(apartment.land_area) if apartment.land_area is not None else None,
         "condition": apartment.condition,
         "furniture_appliances": apartment.furniture_appliances,
         "price": float(apartment.price) if apartment.price is not None else None,

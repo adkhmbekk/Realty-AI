@@ -36,6 +36,8 @@ class _ApartmentBase(BaseModel):
     floor: Optional[int] = None
     total_floors: Optional[int] = None
     area: Optional[float] = None
+    # Площадь участка в сотках (для типа «Участок»).
+    land_area: Optional[float] = None
     condition: Optional[str] = None
     # Мебель и техника (один параметр с вариантами).
     furniture_appliances: Optional[FurnitureAppliances] = None
@@ -56,7 +58,7 @@ class _ApartmentBase(BaseModel):
             raise ValueError("value_negative")
         return value
 
-    @field_validator("area", "price")
+    @field_validator("area", "land_area", "price")
     @classmethod
     def _non_negative_num(cls, value: Optional[float]) -> Optional[float]:
         if value is not None and value < 0:
@@ -106,6 +108,7 @@ class ApartmentOut(BaseModel):
     floor: Optional[int] = None
     total_floors: Optional[int] = None
     area: Optional[float] = None
+    land_area: Optional[float] = None
     condition: Optional[str] = None
     furniture_appliances: Optional[str] = None
     price: Optional[float] = None
@@ -119,6 +122,8 @@ class ApartmentOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     archived_at: Optional[datetime] = None
+    # Когда объект перемещён в архив (мягкое удаление). NULL — в базе.
+    deleted_at: Optional[datetime] = None
 
 
 class ApartmentShareOut(BaseModel):
@@ -137,6 +142,7 @@ class ApartmentShareOut(BaseModel):
     floor: Optional[int] = None
     total_floors: Optional[int] = None
     area: Optional[float] = None
+    land_area: Optional[float] = None
     condition: Optional[str] = None
     furniture_appliances: Optional[str] = None
     price: Optional[float] = None

@@ -31,6 +31,7 @@ export interface Apartment {
   floor?: number | null;
   total_floors?: number | null;
   area?: number | null;
+  land_area?: number | null;
   condition?: string | null;
   furniture_appliances?: string | null;
   price?: number | null;
@@ -44,6 +45,7 @@ export interface Apartment {
   created_at: string;
   updated_at: string;
   archived_at?: string | null;
+  deleted_at?: string | null;
 }
 
 export interface ApartmentList {
@@ -170,6 +172,8 @@ export interface SearchParams {
   rooms_max?: string | number;
   floor_min?: string | number;
   floor_max?: string | number;
+  land_area_min?: string | number;
+  land_area_max?: string | number;
   price_min?: string | number;
   price_max?: string | number;
   currency?: string;

@@ -84,6 +84,8 @@ class Apartment(Base):
     floor: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     total_floors: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     area: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
+    # Площадь участка в сотках (для типа «Участок»; для квартир/домов — NULL).
+    land_area: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     condition: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Мебель и техника: furniture_and_appliances / furniture_only / appliances_only / none
     furniture_appliances: Mapped[Optional[str]] = mapped_column(String, nullable=True)

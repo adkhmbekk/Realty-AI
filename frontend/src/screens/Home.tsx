@@ -122,13 +122,11 @@ export function HomeScreen() {
 
   // Быстрые действия НЕ дублируют нижнюю панель (там уже есть «Добавить» и «Найти»).
   // Главный админ: аналитика, команда, приглашения, настройки (4).
-  // Обычный админ: аналитика, команда, настройки (3).
+  // Обычный админ: аналитика, команда, приглашения, настройки (4) — может звать агентов.
   // Агент: добавить, найти, настройки (3).
   let actions: { icon: React.ReactNode; label: string; route: Route }[];
-  if (role === "agency_admin" && user?.is_owner) {
+  if (role === "agency_admin") {
     actions = [analytics, team, invites, settings];
-  } else if (role === "agency_admin") {
-    actions = [analytics, team, settings];
   } else {
     actions = [add, search, settings];
   }

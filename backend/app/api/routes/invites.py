@@ -1,7 +1,9 @@
 """
 Эндпоинты приглашений сотрудников (Этап 2).
 
-Создание / список / отзыв — только администратор агентства.
+Создание / список / отзыв — администратор агентства. Главный админ (владелец)
+может приглашать и админов, и агентов; обычный админ — только агентов
+(ограничение проверяется в invite_service по флагу is_owner).
 Вступление по коду (redeem) — публичный эндпоинт: личность подтверждается
 не пропуском (его у нового сотрудника ещё нет), а подписью Telegram (initData).
 """
@@ -10,7 +12,7 @@ from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_agency_owner
+from app.core.dependencies import require_agency_admin
 from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
@@ -25,20 +27,27 @@ router = APIRouter(prefix="/invites", tags=["invites"])
 def create_invite(
     body: InviteCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_owner),
+    current_user: User = Depends(require_agency_admin),
 ):
-    """Создать приглашение сотрудника (роль + срок). Вернёт код и ссылку. Только главный админ."""
+    """Создать приглашение сотрудника (роль + срок). Вернёт код и ссылку.
+
+    Главный админ может приглашать админов и агентов; обычный админ — только агентов.
+    """
     return invite_service.create_invite(
-        db, current_user.agency_id, created_by=current_user.id, payload=body
+        db,
+        current_user.agency_id,
+        created_by=current_user.id,
+        payload=body,
+        is_owner=bool(current_user.is_owner),
     )
 
 
 @router.get("", response_model=List[InviteOut])
 def list_invites(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_owner),
+    current_user: User = Depends(require_agency_admin),
 ):
-    """Список приглашений своего агентства (с их статусом). Только главный админ."""
+    """Список приглашений своего агентства (с их статусом)."""
     return invite_service.list_invites(db, current_user.agency_id)
 
 
@@ -46,9 +55,9 @@ def list_invites(
 def revoke_invite(
     invite_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_owner),
+    current_user: User = Depends(require_agency_admin),
 ):
-    """Отозвать (удалить) приглашение. Только главный админ."""
+    """Отозвать (удалить) приглашение."""
     invite_service.revoke_invite(db, current_user.agency_id, invite_id)
 
 

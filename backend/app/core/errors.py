@@ -420,6 +420,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Taklif kodi boʻsh boʻlishi mumkin emas.",
         "en": "Invite code cannot be empty.",
     },
+    "invite_role_forbidden": {
+        "ru": "Обычный администратор может приглашать только агентов.",
+        "uz": "Oddiy administrator faqat agentlarni taklif qila oladi.",
+        "en": "A regular admin can only invite agents.",
+    },
 }
 
 

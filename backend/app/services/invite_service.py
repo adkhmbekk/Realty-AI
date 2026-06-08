@@ -72,8 +72,13 @@ def _to_out(invite) -> InviteOut:
 
 
 def create_invite(
-    db: Session, agency_id: int, created_by: int, payload: InviteCreate
+    db: Session, agency_id: int, created_by: int, payload: InviteCreate,
+    is_owner: bool = False,
 ) -> InviteOut:
+    # Обычный админ (не владелец) может приглашать только агентов.
+    # Право выдавать роль администратора есть лишь у главного админа.
+    if not is_owner and payload.role != "agent":
+        raise AppError("invite_role_forbidden", status.HTTP_403_FORBIDDEN)
     code = _generate_unique_code(db)
     expires_at = datetime.now(timezone.utc) + timedelta(days=payload.expires_in_days)
     invite = invite_repo.create(

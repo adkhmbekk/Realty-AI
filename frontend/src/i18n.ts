@@ -31,8 +31,8 @@ export const I18N: Record<Lang, Record<string, string>> = {
     st_active: "Активна", st_trial: "Пробная", st_frozen: "Заморожена", st_expired: "Просрочена",
     f_name: "Наименование", f_type: "Тип объекта", f_status: "Статус", f_district: "Район", f_address: "Адрес",
     f_rooms: "Комнат", f_floor: "Этаж", f_tfloors: "Этажей", f_area: "Площадь, м²", f_price: "Цена",
-    f_currency: "Валюта", f_condition: "Состояние объекта", f_desc: "Описание",
-    floorFrom: "Этаж от", to: "до", priceFrom: "Цена от", priceCurrency: "Валюта цены", anyCurrency: "Любая",
+    f_land_area: "Соток", f_currency: "Валюта", f_condition: "Состояние объекта", f_desc: "Описание",
+    floorFrom: "Этаж от", landFrom: "Соток от", to: "до", priceFrom: "Цена от", priceCurrency: "Валюта цены", anyCurrency: "Любая",
     searchText: "Поиск (наименование, адрес, № объекта, телефон)", searchBtn: "Найти", showMore: "Показать ещё",
     found: "Найдено", addedBy: "Добавил", shareCard: "Скопировать карточку", 
     saveObject: "Сохранить объект", photoPartialFail: "Объект создан, но некоторые фото не загрузились — откройте карточку и добавьте их.", objCreated: "Объект создан: №", clearHint: "Чтобы очистить поле — сотрите его содержимое и сохраните.",
@@ -126,8 +126,8 @@ export const I18N: Record<Lang, Record<string, string>> = {
     st_active: "Faol", st_trial: "Sinov", st_frozen: "Muzlatilgan", st_expired: "Muddati oʻtgan",
     f_name: "Nomi", f_type: "Obyekt turi", f_status: "Holat", f_district: "Tuman", f_address: "Manzil",
     f_rooms: "Xonalar", f_floor: "Qavat", f_tfloors: "Qavatlar soni", f_area: "Maydon, m²", f_price: "Narx",
-    f_currency: "Valyuta", f_condition: "Holati", f_desc: "Tavsif",
-    floorFrom: "Qavat (dan)", to: "gacha", priceFrom: "Narx (dan)", priceCurrency: "Narx valyutasi", anyCurrency: "Istalgan",
+    f_land_area: "Sotix", f_currency: "Valyuta", f_condition: "Holati", f_desc: "Tavsif",
+    floorFrom: "Qavat (dan)", landFrom: "Sotix (dan)", to: "gacha", priceFrom: "Narx (dan)", priceCurrency: "Narx valyutasi", anyCurrency: "Istalgan",
     searchText: "Qidiruv (nomi, manzil, obyekt №, telefon)", searchBtn: "Qidirish", showMore: "Yana koʻrsatish",
     found: "Topildi", addedBy: "Qoʻshdi", shareCard: "Kartochkani nusxalash", 
     saveObject: "Obyektni saqlash", photoPartialFail: "Obyekt yaratildi, lekin baʼzi suratlar yuklanmadi — kartochkani ochib qoʻshing.", objCreated: "Obyekt yaratildi: №", clearHint: "Maydonni tozalash uchun — matnini oʻchirib saqlang.",
@@ -221,8 +221,8 @@ export const I18N: Record<Lang, Record<string, string>> = {
     st_active: "Active", st_trial: "Trial", st_frozen: "Frozen", st_expired: "Expired",
     f_name: "Title", f_type: "Property type", f_status: "Status", f_district: "District", f_address: "Address",
     f_rooms: "Rooms", f_floor: "Floor", f_tfloors: "Total floors", f_area: "Area, m²", f_price: "Price",
-    f_currency: "Currency", f_condition: "Condition", f_desc: "Description",
-    floorFrom: "Floor from", to: "to", priceFrom: "Price from", priceCurrency: "Price currency", anyCurrency: "Any",
+    f_land_area: "Sotka", f_currency: "Currency", f_condition: "Condition", f_desc: "Description",
+    floorFrom: "Floor from", landFrom: "Sotka from", to: "to", priceFrom: "Price from", priceCurrency: "Price currency", anyCurrency: "Any",
     searchText: "Search (title, address, property №, phone)", searchBtn: "Search", showMore: "Show more",
     found: "Found", addedBy: "Added by", shareCard: "Copy card", 
     saveObject: "Save property", photoPartialFail: "Property created, but some photos failed to upload — open the card and add them.", objCreated: "Property created: №", clearHint: "To clear a field — erase its content and save.",
@@ -299,11 +299,14 @@ export function makeT(lang: Lang) {
 }
 
 // ── Фиксированные справочники значений ──────────────────────────────
-export const OBJ_TYPE_VALUES = ["Квартира", "Дом", "Коммерция", "Земля"];
+// Тип «Участок» — особый: для него вместо этажа/этажности показывается
+// поле «Соток» (площадь участка). См. LAND_TYPE и логику в форме/поиске.
+export const LAND_TYPE = "Участок";
+export const OBJ_TYPE_VALUES = ["Квартира", "Дом", "Коммерция", "Земля", "Участок"];
 export const OBJ_TYPE_LABELS: Record<Lang, string[]> = {
-  ru: ["Квартира", "Дом", "Коммерция", "Земля"],
-  uz: ["Kvartira", "Uy", "Tijorat", "Yer"],
-  en: ["Apartment", "House", "Commercial", "Land"],
+  ru: ["Квартира", "Дом", "Коммерция", "Земля", "Участок"],
+  uz: ["Kvartira", "Uy", "Tijorat", "Yer", "Uchastka"],
+  en: ["Apartment", "House", "Commercial", "Land", "Plot"],
 };
 export const OBJ_COND_VALUES = ["Без ремонта", "Черновая", "White box", "Средний ремонт", "Новый ремонт", "Дизайнерский ремонт"];
 export const OBJ_COND_LABELS: Record<Lang, string[]> = {

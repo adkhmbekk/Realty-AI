@@ -8,7 +8,10 @@ import { haptic, shareToTelegram } from "../telegram";
 import { Send } from "lucide-react";
 
 export function InvitesScreen() {
-  const { t, L, toast } = useApp();
+  const { t, L, toast, user } = useApp();
+  // Обычный админ (не владелец) может приглашать только агентов; роль админа
+  // в приглашении доступна лишь главному админу.
+  const canInviteAdmin = !!user?.is_owner;
 
   // Поделиться приглашением: открывает родной диалог Telegram — пользователь
   // выбирает ОДНОГО получателя. Отправляем готовую ссылку + код.
@@ -60,12 +63,20 @@ export function InvitesScreen() {
   return (
     <div>
       <Card>
-        <Field label={t("inviteRole")}>
-          <Select value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="agent">{t("role_agent")}</option>
-            <option value="agency_admin">{t("role_agency_admin")}</option>
-          </Select>
-        </Field>
+        {canInviteAdmin ? (
+          <Field label={t("inviteRole")}>
+            <Select value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="agent">{t("role_agent")}</option>
+              <option value="agency_admin">{t("role_agency_admin")}</option>
+            </Select>
+          </Field>
+        ) : (
+          <Field label={t("inviteRole")}>
+            <div className="px-3.5 py-3 rounded-[14px] bg-[var(--soft)] border border-line text-[15px] text-muted">
+              {t("role_agent")}
+            </div>
+          </Field>
+        )}
         <Field label={t("inviteDays")}>
           <Input inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
         </Field>

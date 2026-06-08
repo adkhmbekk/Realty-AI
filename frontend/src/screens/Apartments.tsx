@@ -35,6 +35,7 @@ import {
 import {
   CURRENCIES,
   FA_VALUES,
+  LAND_TYPE,
   OBJ_COND_VALUES,
   OBJ_TYPE_VALUES,
   STATUS_BADGE,
@@ -108,6 +109,7 @@ function ObjectForm({
     rooms: o.rooms != null ? String(o.rooms) : "",
     floor: o.floor != null ? String(o.floor) : "",
     total_floors: o.total_floors != null ? String(o.total_floors) : "",
+    land_area: o.land_area != null ? String(o.land_area) : "",
     area: o.area != null ? String(o.area) : "",
     price: o.price != null ? String(o.price) : "",
     currency: o.currency || "USD",
@@ -119,16 +121,21 @@ function ObjectForm({
     comment: o.comment ?? "",
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
+  // Для участка вместо этажа/этажности показываем «Соток».
+  const isLand = f.type === LAND_TYPE;
 
   function submit() {
+    const land = f.type === LAND_TYPE;
     const fields: Record<string, unknown> = {
       name: f.name.trim() || null,
       type: f.type || null,
       district: f.district || null,
       address: f.address.trim() || null,
       rooms: intOrNull(f.rooms),
-      floor: intOrNull(f.floor),
-      total_floors: intOrNull(f.total_floors),
+      // Участок не имеет этажности; квартира/дом не имеет соток.
+      floor: land ? null : intOrNull(f.floor),
+      total_floors: land ? null : intOrNull(f.total_floors),
+      land_area: land ? numOrNull(f.land_area) : null,
       area: numOrNull(f.area),
       price: numOrNull(f.price),
       currency: f.currency,
@@ -185,21 +192,31 @@ function ObjectForm({
 
       <Sec>{t("sectionDetails")}</Sec>
       <div className="flex gap-2">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <Field label={t("f_rooms")}>
             <Input inputMode="numeric" value={f.rooms} onChange={(e) => set("rooms", e.target.value)} />
           </Field>
         </div>
-        <div className="flex-1">
-          <Field label={t("f_floor")}>
-            <Input inputMode="numeric" value={f.floor} onChange={(e) => set("floor", e.target.value)} />
-          </Field>
-        </div>
-        <div className="flex-1">
-          <Field label={t("f_tfloors")}>
-            <Input inputMode="numeric" value={f.total_floors} onChange={(e) => set("total_floors", e.target.value)} />
-          </Field>
-        </div>
+        {isLand ? (
+          <div className="flex-1 min-w-0">
+            <Field label={t("f_land_area")}>
+              <Input inputMode="decimal" value={f.land_area} onChange={(e) => set("land_area", e.target.value)} />
+            </Field>
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 min-w-0">
+              <Field label={t("f_floor")}>
+                <Input inputMode="numeric" value={f.floor} onChange={(e) => set("floor", e.target.value)} />
+              </Field>
+            </div>
+            <div className="flex-1 min-w-0">
+              <Field label={t("f_tfloors")}>
+                <Input inputMode="numeric" value={f.total_floors} onChange={(e) => set("total_floors", e.target.value)} />
+              </Field>
+            </div>
+          </>
+        )}
       </div>
       <div className="flex gap-2">
         <div className="flex-1">
@@ -282,8 +299,12 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
   if (o.district) lines.push("📍 " + t("f_district") + ": " + o.district);
   if (o.address) lines.push("🗺 " + t("f_address") + ": " + o.address);
   if (o.rooms != null) lines.push("🚪 " + t("f_rooms") + ": " + o.rooms);
-  const fl = o.floor != null && o.total_floors != null ? `${o.floor}/${o.total_floors}` : o.floor != null ? String(o.floor) : null;
-  if (fl) lines.push("🏢 " + t("f_floor") + ": " + fl);
+  if (o.type === LAND_TYPE) {
+    if (o.land_area != null) lines.push("🌳 " + t("f_land_area") + ": " + o.land_area);
+  } else {
+    const fl = o.floor != null && o.total_floors != null ? `${o.floor}/${o.total_floors}` : o.floor != null ? String(o.floor) : null;
+    if (fl) lines.push("🏢 " + t("f_floor") + ": " + fl);
+  }
   if (o.area != null) lines.push("📐 " + o.area + " m²");
   if (o.condition) lines.push("🔧 " + L.condLabel(o.condition));
   const fa = L.faLabel(o.furniture_appliances);
@@ -791,12 +812,17 @@ export function SearchScreen() {
   const [rmax, setRmax] = useState("");
   const [fmin, setFmin] = useState("");
   const [fmax, setFmax] = useState("");
+  const [lamin, setLamin] = useState("");
+  const [lamax, setLamax] = useState("");
   const [pmin, setPmin] = useState("");
   const [pmax, setPmax] = useState("");
   const [cur, setCur] = useState("");
 
   const toggle = (arr: string[], set: (v: string[]) => void, v: string) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+
+  // Если среди выбранных типов есть «Участок» — вместо этажа фильтруем по соткам.
+  const landSelected = types.includes(LAND_TYPE);
 
   function run() {
     const params: SearchParams = { status };
@@ -805,8 +831,13 @@ export function SearchScreen() {
     if (q.trim()) params.q = q.trim();
     if (rmin) params.rooms_min = rmin;
     if (rmax) params.rooms_max = rmax;
-    if (fmin) params.floor_min = fmin;
-    if (fmax) params.floor_max = fmax;
+    if (landSelected) {
+      if (lamin) params.land_area_min = lamin;
+      if (lamax) params.land_area_max = lamax;
+    } else {
+      if (fmin) params.floor_min = fmin;
+      if (fmax) params.floor_max = fmax;
+    }
     if (pmin) params.price_min = pmin;
     if (pmax) params.price_max = pmax;
     if (cur) params.currency = cur;
@@ -866,16 +897,33 @@ export function SearchScreen() {
         </div>
       </div>
       <div className="flex gap-2">
-        <div className="flex-1">
-          <Field label={t("floorFrom")}>
-            <Input inputMode="numeric" value={fmin} onChange={(e) => setFmin(e.target.value)} />
-          </Field>
-        </div>
-        <div className="flex-1">
-          <Field label={t("to")}>
-            <Input inputMode="numeric" value={fmax} onChange={(e) => setFmax(e.target.value)} />
-          </Field>
-        </div>
+        {landSelected ? (
+          <>
+            <div className="flex-1 min-w-0">
+              <Field label={t("landFrom")}>
+                <Input inputMode="decimal" value={lamin} onChange={(e) => setLamin(e.target.value)} />
+              </Field>
+            </div>
+            <div className="flex-1 min-w-0">
+              <Field label={t("to")}>
+                <Input inputMode="decimal" value={lamax} onChange={(e) => setLamax(e.target.value)} />
+              </Field>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex-1 min-w-0">
+              <Field label={t("floorFrom")}>
+                <Input inputMode="numeric" value={fmin} onChange={(e) => setFmin(e.target.value)} />
+              </Field>
+            </div>
+            <div className="flex-1 min-w-0">
+              <Field label={t("to")}>
+                <Input inputMode="numeric" value={fmax} onChange={(e) => setFmax(e.target.value)} />
+              </Field>
+            </div>
+          </>
+        )}
       </div>
       <div className="flex gap-2">
         <div className="flex-1">
@@ -961,24 +1009,24 @@ export function DatabaseScreen() {
       {showFilter && (
         <div className="mt-2 rounded-xl2 bg-card border border-line shadow-soft p-3">
           <div className="flex gap-2">
-            <label className="flex-1 text-[12px] font-bold text-muted">
+            <label className="flex-1 min-w-0 text-[12px] font-bold text-muted">
               {t("dateFrom")}
               <input
                 type="date"
                 value={from}
                 max={to || undefined}
                 onChange={(e) => setFrom(e.target.value)}
-                className="mt-1 w-full rounded-xl bg-[var(--soft)] border border-line px-3 py-2 text-sm text-text"
+                className="mt-1 block w-full min-w-0 box-border appearance-none rounded-xl bg-[var(--soft)] border border-line px-3 py-2 text-sm text-text"
               />
             </label>
-            <label className="flex-1 text-[12px] font-bold text-muted">
+            <label className="flex-1 min-w-0 text-[12px] font-bold text-muted">
               {t("dateTo")}
               <input
                 type="date"
                 value={to}
                 min={from || undefined}
                 onChange={(e) => setTo(e.target.value)}
-                className="mt-1 w-full rounded-xl bg-[var(--soft)] border border-line px-3 py-2 text-sm text-text"
+                className="mt-1 block w-full min-w-0 box-border appearance-none rounded-xl bg-[var(--soft)] border border-line px-3 py-2 text-sm text-text"
               />
             </label>
           </div>
@@ -1008,37 +1056,24 @@ export function DatabaseScreen() {
 }
 
 // ── Экран: архив (удалённые объекты) ────────────────────────────────
-// Видят все сотрудники. Восстанавливать и удалять навсегда может только
-// владелец агентства (главный администратор).
-function ArchiveCard({ o, canManage, onChanged }: { o: Apartment; canManage: boolean; onChanged: () => void }) {
-  const { t, L, toast } = useApp();
-  const [busy, setBusy] = useState(false);
+// Видят все сотрудники. Карточка кликабельна → открывается просмотр объекта,
+// и уже внутри (для владельца агентства) доступны «Восстановить» и
+// «Удалить навсегда».
+function ArchiveCard({ o }: { o: Apartment }) {
+  const { t, L } = useApp();
+  const nav = useNav();
   const parts = [L.typeLabel(o.type), o.district, o.rooms != null ? `${o.rooms} ${t("f_rooms").toLowerCase()}` : null]
     .filter(Boolean)
     .join(" · ");
 
-  async function restore() {
-    setBusy(true);
-    const r = await api<Apartment>("/api/v1/apartments/" + o.id + "/restore", { method: "POST" });
-    setBusy(false);
-    if (r.ok) {
-      toast(t("restored"), "ok");
-      onChanged();
-    } else toast(errText(r.data, r.status), "err");
-  }
-  async function purge() {
-    if (!(await confirmDialog(t("deleteForeverQ")))) return;
-    setBusy(true);
-    const r = await api("/api/v1/apartments/" + o.id + "/permanent", { method: "DELETE" });
-    setBusy(false);
-    if (r.ok) {
-      toast(t("deletedForever"), "ok");
-      onChanged();
-    } else toast(errText(r.data, r.status), "err");
-  }
-
   return (
-    <div className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 border-l-[3px] border-l-slate-400">
+    <button
+      onClick={() => {
+        haptic();
+        nav.push({ name: "objectDetail", id: o.id });
+      }}
+      className="w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 transition active:scale-[.99] hover:shadow-lg2 border-l-[3px] border-l-slate-400"
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="font-extrabold">№{o.display_id}</span>
         <Badge color="gray">{L.statusLabel(o.status)}</Badge>
@@ -1054,23 +1089,12 @@ function ArchiveCard({ o, canManage, onChanged }: { o: Apartment; canManage: boo
               <span className="text-muted">{t("priceNotSet")}</span>
             )}
       </div>
-      {canManage && (
-        <div className="flex gap-2 mt-2.5">
-          <Button size="sm" className="flex-1" variant="soft" disabled={busy} onClick={restore}>
-            <RotateCcw size={15} /> {t("restore")}
-          </Button>
-          <Button size="sm" className="flex-1" variant="danger" disabled={busy} onClick={purge}>
-            <Trash2 size={15} /> {t("deleteForever")}
-          </Button>
-        </div>
-      )}
-    </div>
+    </button>
   );
 }
 
 export function ArchiveScreen({ createdFrom, createdTo }: { createdFrom?: string; createdTo?: string } = {}) {
-  const { t, user } = useApp();
-  const canManage = user?.role === "agency_admin" && !!user?.is_owner;
+  const { t } = useApp();
   const [items, setItems] = useState<Apartment[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -1112,7 +1136,7 @@ export function ArchiveScreen({ createdFrom, createdTo }: { createdFrom?: string
         {t("found")}: {total}
       </div>
       {items.map((o) => (
-        <ArchiveCard key={o.id} o={o} canManage={canManage} onChanged={() => load(true)} />
+        <ArchiveCard key={o.id} o={o} />
       ))}
       {left > 0 && (
         <Button variant="ghost" full className="mt-3" onClick={() => load(false)}>
@@ -1171,6 +1195,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
 
   if (loading || !o) return <Spinner />;
 
+  const isLand = o.type === LAND_TYPE;
   const floorTxt =
     o.floor != null && o.total_floors != null ? `${o.floor} / ${o.total_floors}` : o.floor != null ? String(o.floor) : null;
   const rows: [string | null, React.ReactNode][] = [
@@ -1179,7 +1204,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     [t("f_district"), o.district],
     [t("f_address"), o.address],
     [t("f_rooms"), o.rooms],
-    [t("f_floor"), floorTxt],
+    isLand ? [t("f_land_area"), o.land_area] : [t("f_floor"), floorTxt],
     [t("f_area"), o.area],
     [t("f_price"), fmtPrice(o.price, o.currency)],
     [t("f_condition"), o.condition ? L.condLabel(o.condition) : null],
@@ -1205,6 +1230,27 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     const r = await api("/api/v1/apartments/" + id, { method: "DELETE" });
     if (r.ok) {
       toast(t("objDeleted"), "ok");
+      nav.pop();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  // Восстановить объект из архива (только владелец агентства).
+  async function restore() {
+    setBusy(true);
+    const r = await api("/api/v1/apartments/" + id + "/restore", { method: "POST" });
+    setBusy(false);
+    if (r.ok) {
+      toast(t("restored"), "ok");
+      nav.pop();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  // Удалить объект навсегда вместе с фото (необратимо; только владелец).
+  async function purge() {
+    if (!(await confirmDialog(t("deleteForeverQ")))) return;
+    setBusy(true);
+    const r = await api("/api/v1/apartments/" + id + "/permanent", { method: "DELETE" });
+    setBusy(false);
+    if (r.ok) {
+      toast(t("deletedForever"), "ok");
       nav.pop();
     } else toast(errText(r.data, r.status), "err");
   }
@@ -1273,6 +1319,26 @@ export function ObjectDetailScreen({ id }: { id: number }) {
         </div>
       )}
 
+      {o.deleted_at ? (
+        /* Объект в архиве: только просмотр данных и действия восстановления. */
+        <div className="mt-4">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted mx-0.5 mb-1.5">
+            {t("secManage")}
+          </div>
+          {isOwner ? (
+            <div className="flex gap-2">
+              <Button size="sm" className="flex-1" variant="soft" disabled={busy} onClick={restore}>
+                <RotateCcw size={15} /> {t("restore")}
+              </Button>
+              <Button size="sm" className="flex-1" variant="danger" disabled={busy} onClick={purge}>
+                <Trash2 size={15} /> {t("deleteForever")}
+              </Button>
+            </div>
+          ) : (
+            <Hint>{t("archiveHint")}</Hint>
+          )}
+        </div>
+      ) : (
       <div className="mt-4 space-y-3.5">
         {/* Статус объекта */}
         {(STATUS_TRANSITIONS[o.status] || []).length > 0 && (
@@ -1354,6 +1420,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
           </div>
         </div>
       </div>
+      )}
 
       {events.length > 0 && (
         <div className="mt-4">

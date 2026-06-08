@@ -42,6 +42,8 @@ def _build_conditions(
     floor_max: Optional[int],
     price_min: Optional[float],
     price_max: Optional[float],
+    land_area_min: Optional[float] = None,
+    land_area_max: Optional[float] = None,
     currency: Optional[str] = None,
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
@@ -79,6 +81,10 @@ def _build_conditions(
         conditions.append(Apartment.floor >= floor_min)
     if floor_max is not None:
         conditions.append(Apartment.floor <= floor_max)
+    if land_area_min is not None:
+        conditions.append(Apartment.land_area >= land_area_min)
+    if land_area_max is not None:
+        conditions.append(Apartment.land_area <= land_area_max)
     if price_min is not None:
         conditions.append(Apartment.price >= price_min)
     if price_max is not None:
@@ -130,6 +136,8 @@ def search(
     rooms: Optional[Sequence[int]] = None,
     floor_min: Optional[int] = None,
     floor_max: Optional[int] = None,
+    land_area_min: Optional[float] = None,
+    land_area_max: Optional[float] = None,
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
     currency: Optional[str] = None,
@@ -156,6 +164,8 @@ def search(
         rooms=rooms,
         floor_min=floor_min,
         floor_max=floor_max,
+        land_area_min=land_area_min,
+        land_area_max=land_area_max,
         price_min=price_min,
         price_max=price_max,
         currency=currency,
