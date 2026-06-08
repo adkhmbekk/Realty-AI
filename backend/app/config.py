@@ -86,7 +86,13 @@ class Settings(BaseSettings):
     # и SUPERADMIN_TELEGRAM_ID.
     error_alerts_enabled: bool = True
 
-    @field_validator("bot_token", "jwt_secret", "bot_username", mode="before")
+    # ─── Импорт объявления по ссылке (AI-разбор) ────────────────────────
+    # Ключ OpenAI API. Если не задан — импорт по ссылке вернёт понятную ошибку.
+    openai_api_key: Optional[str] = None
+    # Модель OpenAI для извлечения полей объекта из текста объявления.
+    import_ai_model: str = "gpt-4o-mini"
+
+    @field_validator("bot_token", "jwt_secret", "bot_username", "openai_api_key", mode="before")
     @classmethod
     def _empty_string_to_none(cls, value):
         # Пустая строка в .env (например BOT_TOKEN=) трактуется как "не задано".

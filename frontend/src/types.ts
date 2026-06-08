@@ -150,6 +150,28 @@ export interface Invite {
   created_at: string;
 }
 
+// Результат предпросмотра импорта объявления по ссылке (AI-разбор).
+export interface ListingImport {
+  name?: string | null;
+  type?: string | null;
+  district?: string | null;
+  address?: string | null;
+  rooms?: number | null;
+  floor?: number | null;
+  total_floors?: number | null;
+  land_area?: number | null;
+  area?: number | null;
+  condition?: string | null;
+  furniture_appliances?: string | null;
+  price?: number | null;
+  currency?: string | null;
+  owner_phone?: string | null;
+  description?: string | null;
+  source_link?: string | null;
+  photo_urls: string[];
+  warnings: string[];
+}
+
 export interface DictItem {
   id: number;
   category: string;

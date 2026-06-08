@@ -13,6 +13,7 @@ import {
   Search as SearchIcon,
   SlidersHorizontal,
   Send,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -41,7 +42,7 @@ import {
   STATUS_BADGE,
 } from "../i18n";
 import { Badge } from "../components/ui";
-import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, SearchParams } from "../types";
+import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, ListingImport, SearchParams } from "../types";
 import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
 import { canShareMessage, haptic, openLink, shareMessage, confirmDialog } from "../telegram";
 
@@ -627,11 +628,15 @@ function PendingPhotos({
   setFiles,
   tgUrls,
   setTgUrls,
+  imgUrls = [],
+  setImgUrls,
 }: {
   files: File[];
   setFiles: (f: File[]) => void;
   tgUrls: string[];
   setTgUrls: (u: string[]) => void;
+  imgUrls?: string[];
+  setImgUrls?: (u: string[]) => void;
 }) {
   const { t } = useApp();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -647,8 +652,20 @@ function PendingPhotos({
       <div className="text-[12px] font-extrabold uppercase tracking-wider text-primary mt-5 mb-1 pt-3 border-t border-[var(--border)]">
         {t("photos")}
       </div>
-      {(previews.length > 0 || tgUrls.length > 0) && (
+      {(previews.length > 0 || tgUrls.length > 0 || imgUrls.length > 0) && (
         <div className="grid grid-cols-3 gap-2 mb-2.5">
+          {imgUrls.map((u, i) => (
+            <div key={"i" + i} className="relative aspect-square rounded-[14px] overflow-hidden bg-[var(--soft)] border border-line">
+              <img src={u} alt="" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => setImgUrls?.(imgUrls.filter((_, idx) => idx !== i))}
+                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          ))}
           {previews.map((src, i) => (
             <div key={"f" + i} className="relative aspect-square rounded-[14px] overflow-hidden bg-[var(--soft)] border border-line">
               <img src={src} alt="" className="w-full h-full object-cover" />
@@ -707,6 +724,42 @@ function PendingPhotos({
   );
 }
 
+// ── Импорт объявления по ссылке (AI-разбор) ─────────────────────────
+function ImportFromLink({ onImported }: { onImported: (r: ListingImport) => void }) {
+  const { t, toast } = useApp();
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    const v = url.trim();
+    if (!v) return;
+    setBusy(true);
+    toast(t("importing"), "info");
+    const r = await api<ListingImport>("/api/v1/apartments/import-preview", { method: "POST", body: { url: v } });
+    setBusy(false);
+    if (r.ok && r.data) {
+      onImported(r.data);
+      const warns = r.data.warnings || [];
+      toast(warns.includes("few_fields") ? t("importFewFields") : t("importDone"), warns.includes("few_fields") ? "warn" : "ok");
+      if (warns.includes("no_photos")) toast(t("importNoPhotos"), "warn");
+    } else {
+      toast(errText(r.data, r.status), "err");
+    }
+  }
+
+  return (
+    <Card className="mb-3">
+      <Field label={t("importLinkLabel")}>
+        <Input inputMode="url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
+      </Field>
+      <Button full className="mt-3" disabled={busy} onClick={run}>
+        <Sparkles size={16} /> {busy ? t("importing") : t("importBtn")}
+      </Button>
+      <Hint>{t("importHint")}</Hint>
+    </Card>
+  );
+}
+
 // ── Экран: добавить объект ──────────────────────────────────────────
 export function AddObjectScreen() {
   const { t, toast } = useApp();
@@ -714,6 +767,33 @@ export function AddObjectScreen() {
   const [saving, setSaving] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [tgUrls, setTgUrls] = useState<string[]>([]);
+  // Импорт по ссылке: подставленные поля и найденные фото.
+  const [imgUrls, setImgUrls] = useState<string[]>([]);
+  const [imported, setImported] = useState<Partial<Apartment> | null>(null);
+  const [formKey, setFormKey] = useState(0);
+
+  function applyImport(r: ListingImport) {
+    setImported({
+      name: r.name ?? null,
+      type: r.type ?? null,
+      district: r.district ?? null,
+      address: r.address ?? null,
+      rooms: r.rooms ?? null,
+      floor: r.floor ?? null,
+      total_floors: r.total_floors ?? null,
+      land_area: r.land_area ?? null,
+      area: r.area ?? null,
+      condition: r.condition ?? null,
+      furniture_appliances: r.furniture_appliances ?? null,
+      price: r.price ?? null,
+      currency: r.currency || "USD",
+      owner_phone: r.owner_phone ?? null,
+      description: r.description ?? null,
+      source_link: r.source_link ?? null,
+    });
+    setImgUrls(r.photo_urls || []);
+    setFormKey((k) => k + 1); // перемонтировать форму, чтобы поля перечитались
+  }
 
   async function submit(body: Record<string, unknown>) {
     setSaving(true);
@@ -762,6 +842,15 @@ export function AddObjectScreen() {
         photoFail++;
       }
     }
+    // Фото, найденные при импорте объявления (прямые ссылки) — одним запросом.
+    if (imgUrls.length) {
+      try {
+        const up = await api(`/api/v1/apartments/${newId}/photos/import-urls`, { method: "POST", body: { urls: imgUrls } });
+        if (!up.ok) photoFail++;
+      } catch {
+        photoFail++;
+      }
+    }
     setSaving(false);
     toast(t("objCreated") + r.data.display_id, "ok");
     if (photoFail > 0) toast(t("photoPartialFail"), "warn");
@@ -771,9 +860,19 @@ export function AddObjectScreen() {
   }
 
   return (
-    <ObjectForm onSubmit={submit} submitLabel={t("saveObject")} saving={saving}>
-      <PendingPhotos files={files} setFiles={setFiles} tgUrls={tgUrls} setTgUrls={setTgUrls} />
-    </ObjectForm>
+    <>
+      <ImportFromLink onImported={applyImport} />
+      <ObjectForm key={formKey} initial={imported || undefined} onSubmit={submit} submitLabel={t("saveObject")} saving={saving}>
+        <PendingPhotos
+          files={files}
+          setFiles={setFiles}
+          tgUrls={tgUrls}
+          setTgUrls={setTgUrls}
+          imgUrls={imgUrls}
+          setImgUrls={setImgUrls}
+        />
+      </ObjectForm>
+    </>
   );
 }
 

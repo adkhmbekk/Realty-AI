@@ -425,6 +425,27 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Oddiy administrator faqat agentlarni taklif qila oladi.",
         "en": "A regular admin can only invite agents.",
     },
+    # Импорт объявления по ссылке (AI-разбор)
+    "import_ai_not_configured": {
+        "ru": "Импорт по ссылке не настроен: не задан ключ OpenAI. Обратитесь к владельцу платформы.",
+        "uz": "Havola orqali import sozlanmagan: OpenAI kaliti yoʻq. Platforma egasiga murojaat qiling.",
+        "en": "Link import is not configured: OpenAI key is missing. Contact the platform owner.",
+    },
+    "import_fetch_failed": {
+        "ru": "Не удалось открыть ссылку. Проверьте, что она правильная и страница доступна.",
+        "uz": "Havolani ochib boʻlmadi. Toʻgʻri va sahifa ochiqligini tekshiring.",
+        "en": "Could not open the link. Check that it is correct and the page is public.",
+    },
+    "import_no_data": {
+        "ru": "Со страницы не удалось извлечь данные объявления. Заполните поля вручную.",
+        "uz": "Sahifadan eʼlon maʼlumotlarini ajratib boʻlmadi. Maydonlarni qoʻlda toʻldiring.",
+        "en": "Could not extract listing data from the page. Fill in the fields manually.",
+    },
+    "import_ai_failed": {
+        "ru": "Не удалось разобрать объявление (AI). Попробуйте ещё раз или заполните вручную.",
+        "uz": "Eʼlonni tahlil qilib boʻlmadi (AI). Qayta urinib koʻring yoki qoʻlda toʻldiring.",
+        "en": "Failed to analyze the listing (AI). Try again or fill in manually.",
+    },
 }
 
 

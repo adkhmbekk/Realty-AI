@@ -20,6 +20,7 @@ from app.core.errors import AppError
 from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
+from app.schemas.apartment import PhotoImportUrlsIn
 from app.services import photo_service
 
 router = APIRouter(tags=["photos"])
@@ -89,6 +90,23 @@ async def import_telegram(
 ):
     """Импортировать все фото из поста открытого Telegram-канала по ссылке."""
     return await photo_service.import_from_telegram(db, current_user.agency_id, apartment_id, url)
+
+
+@router.post(
+    "/apartments/{apartment_id}/photos/import-urls",
+    status_code=201,
+    dependencies=[Depends(rate_limit(20, 60, "photo_import_urls"))],
+)
+async def import_photo_urls(
+    apartment_id: int,
+    body: PhotoImportUrlsIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Прикрепить фото по прямым ссылкам на изображения (из импорта объявления)."""
+    return await photo_service.import_from_image_urls(
+        db, current_user.agency_id, apartment_id, body.urls
+    )
 
 
 @router.delete("/apartments/{apartment_id}/photos/{photo_id}", status_code=204)

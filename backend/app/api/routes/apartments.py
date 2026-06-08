@@ -29,11 +29,14 @@ from app.schemas.apartment import (
     ApartmentStatsOut,
     ApartmentStatusUpdate,
     ApartmentUpdate,
+    ListingImportIn,
+    ListingImportOut,
     SharePrepareOut,
     ShareResultOut,
     TimeseriesOut,
 )
-from app.services import apartment_service
+from app.core.ratelimit import rate_limit
+from app.services import apartment_service, dictionary_service, listing_import_service
 
 router = APIRouter(prefix="/apartments", tags=["apartments"])
 
@@ -205,6 +208,29 @@ def find_similar(
         address=address,
         exclude_id=exclude_id,
     )
+
+
+# ВНИМАНИЕ: /import-preview объявлен ДО /{apartment_id}, иначе слово попадёт в id.
+@router.post(
+    "/import-preview",
+    response_model=ListingImportOut,
+    dependencies=[Depends(rate_limit(10, 60, "listing_import"))],
+)
+def import_listing_preview(
+    body: ListingImportIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """
+    Разобрать объявление по ссылке (AI) и вернуть поля + ссылки на фото для
+    подстановки в форму. Ничего не сохраняет — пользователь правит и сохраняет сам.
+    """
+    districts = [
+        d.value for d in dictionary_service.list_dictionaries(
+            db, current_user.agency_id, category="district"
+        )
+    ]
+    return listing_import_service.import_preview(body.url, districts)
 
 
 @router.get("/{apartment_id}", response_model=ApartmentOut)

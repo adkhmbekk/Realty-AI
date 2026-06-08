@@ -230,3 +230,51 @@ class AgentEventOut(BaseModel):
 class SharePrepareOut(BaseModel):
     # id подготовленного сообщения для Telegram.WebApp.shareMessage.
     prepared_message_id: str
+
+
+# ── Импорт объявления по ссылке (AI-разбор) ──────────────────────────
+class ListingImportIn(BaseModel):
+    # Ссылка на объявление (Telegram, OLX, Joymee и любые другие площадки).
+    url: str
+
+    @field_validator("url")
+    @classmethod
+    def _strip_url(cls, value: str) -> str:
+        value = (value or "").strip()
+        if not value:
+            raise ValueError("empty_link")
+        return value
+
+
+class ListingImportOut(BaseModel):
+    """
+    Результат предпросмотра импорта: извлечённые поля объекта (для подстановки
+    в форму) + найденные ссылки на фото (прикрепятся при сохранении) +
+    предупреждения (что не удалось определить).
+    Ничего на этом шаге НЕ сохраняется.
+    """
+    name: Optional[str] = None
+    type: Optional[str] = None
+    district: Optional[str] = None
+    address: Optional[str] = None
+    rooms: Optional[int] = None
+    floor: Optional[int] = None
+    total_floors: Optional[int] = None
+    land_area: Optional[float] = None
+    area: Optional[float] = None
+    condition: Optional[str] = None
+    furniture_appliances: Optional[str] = None
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    owner_phone: Optional[str] = None
+    description: Optional[str] = None
+    source_link: Optional[str] = None
+    # Ссылки на фотографии, найденные на странице (прямые URL картинок).
+    photo_urls: List[str] = []
+    # Предупреждения для пользователя (например, «фото не найдены»).
+    warnings: List[str] = []
+
+
+class PhotoImportUrlsIn(BaseModel):
+    # Прямые ссылки на изображения для прикрепления к уже созданному объекту.
+    urls: List[str] = []

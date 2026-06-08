@@ -385,6 +385,51 @@ async def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) 
     )
 
 
+async def import_from_image_urls(
+    db, agency_id: int, apartment_id: int, urls: List[str]
+) -> List[dict]:
+    """
+    Скачать и прикрепить фотографии по ПРЯМЫМ ссылкам на изображения (например,
+    найденным при импорте объявления). Защита от SSRF и запрет редиректов — как
+    при импорте из Telegram. Невалидные/недоступные ссылки пропускаются.
+    """
+    await run_in_threadpool(_require_apartment, db, agency_id, apartment_id)
+    clean = [u.strip() for u in (urls or []) if u and u.strip()][:MAX_PHOTOS]
+    if not clean:
+        raise AppError("no_photos_to_upload", status.HTTP_400_BAD_REQUEST)
+
+    existing = await run_in_threadpool(
+        apartment_photo_repo.count_for, db, agency_id, apartment_id
+    )
+    slots = MAX_PHOTOS - existing
+    if slots <= 0:
+        raise AppError("no_photos_or_limit", status.HTTP_400_BAD_REQUEST)
+
+    async with httpx.AsyncClient(follow_redirects=False, timeout=_IMPORT_TIMEOUT) as client:
+        sem = asyncio.Semaphore(_IMPORT_CONCURRENCY)
+
+        async def _download(u: str) -> Optional[Tuple[bytes, str]]:
+            async with sem:
+                try:
+                    data, ctype = await _afetch(client, u, MAX_BYTES)
+                except Exception:  # noqa: BLE001
+                    return None
+                return (data, ctype) if data else None
+
+        results = await asyncio.gather(*[_download(u) for u in clean])
+
+    downloaded = [r for r in results if r is not None]
+    if not downloaded:
+        raise AppError("photo_download_failed", status.HTTP_400_BAD_REQUEST)
+
+    await run_in_threadpool(
+        _save_downloaded, db, agency_id, apartment_id, downloaded, slots
+    )
+    return await run_in_threadpool(
+        lambda: [to_out(p) for p in apartment_photo_repo.list_for(db, agency_id, apartment_id)]
+    )
+
+
 def delete_photo(db, agency_id: int, apartment_id: int, photo_id: int) -> None:
     photo = apartment_photo_repo.get(db, agency_id, apartment_id, photo_id)
     if photo is None:
