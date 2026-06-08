@@ -147,6 +147,10 @@ services:
       - "--domain=${NGROK_DOMAIN:-pagan-crawling-retiring.ngrok-free.dev}"
       - "--request-header-add"
       - "ngrok-skip-browser-warning:true"
+      # --pooling-enabled позволяет новому туннелю занять адрес, даже если
+      # предыдущая сессия ещё не закрылась (бывает после перезагрузки сервера).
+      # Без него ngrok падал с ошибкой ERR_NGROK_334 при автозапуске.
+      - "--pooling-enabled"
       - "web:80"
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Не задан NGROK_AUTHTOKEN. Создай файл .env рядом с docker-compose.yml и впиши строку NGROK_AUTHTOKEN=твой_токен (подробно в .env.example).}
