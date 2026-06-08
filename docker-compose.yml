@@ -49,10 +49,10 @@ services:
       BOT_USERNAME: ${BOT_USERNAME:-}
       SUBSCRIPTION_WARN_DAYS: ${SUBSCRIPTION_WARN_DAYS:-3}
       ERROR_ALERTS_ENABLED: ${ERROR_ALERTS_ENABLED:-true}
-      # Импорт объявления по ссылке (AI-разбор через OpenAI). Без ключа функция
-      # просто вернёт понятную ошибку.
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      IMPORT_AI_MODEL: ${IMPORT_AI_MODEL:-gpt-4o-mini}
+      # Импорт объявления по ссылке (AI-разбор через Google Gemini). Без ключа
+      # функция просто вернёт понятную ошибку.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      IMPORT_AI_MODEL: ${IMPORT_AI_MODEL:-gemini-1.5-flash}
       # Документация (/docs) по умолчанию выключена. Включить локально: true.
       ENABLE_DOCS: ${ENABLE_DOCS:-false}
       # Папка секретов — отдельный том, НЕ совпадающий с папкой фото и НЕ

@@ -427,9 +427,9 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     # Импорт объявления по ссылке (AI-разбор)
     "import_ai_not_configured": {
-        "ru": "Импорт по ссылке не настроен: не задан ключ OpenAI. Обратитесь к владельцу платформы.",
-        "uz": "Havola orqali import sozlanmagan: OpenAI kaliti yoʻq. Platforma egasiga murojaat qiling.",
-        "en": "Link import is not configured: OpenAI key is missing. Contact the platform owner.",
+        "ru": "Импорт по ссылке не настроен: не задан ключ Gemini. Обратитесь к владельцу платформы.",
+        "uz": "Havola orqali import sozlanmagan: Gemini kaliti yoʻq. Platforma egasiga murojaat qiling.",
+        "en": "Link import is not configured: Gemini key is missing. Contact the platform owner.",
     },
     "import_fetch_failed": {
         "ru": "Не удалось открыть ссылку. Проверьте, что она правильная и страница доступна.",

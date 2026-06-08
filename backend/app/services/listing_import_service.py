@@ -220,91 +220,67 @@ def _fetch_listing(url: str) -> Tuple[str, List[str]]:
     return _build_ai_text(html), _extract_images_generic(html, final_url)
 
 
-# ── AI-извлечение полей ──────────────────────────────────────────────
-def _ai_schema() -> dict:
-    """JSON-схема ответа модели (строгий режим OpenAI)."""
-    def nullable(types):
-        return types + ["null"]
-
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
-            "name": {"type": nullable(["string"])},
-            "type": {"type": nullable(["string"]), "enum": OBJ_TYPE_VALUES + [None]},
-            "district": {"type": nullable(["string"])},
-            "address": {"type": nullable(["string"])},
-            "rooms": {"type": nullable(["integer"])},
-            "floor": {"type": nullable(["integer"])},
-            "total_floors": {"type": nullable(["integer"])},
-            "land_area": {"type": nullable(["number"])},
-            "area": {"type": nullable(["number"])},
-            "condition": {"type": nullable(["string"]), "enum": OBJ_COND_VALUES + [None]},
-            "furniture_appliances": {"type": nullable(["string"]), "enum": FA_VALUES + [None]},
-            "price": {"type": nullable(["number"])},
-            "currency": {"type": nullable(["string"]), "enum": CURRENCIES + [None]},
-            "owner_phone": {"type": nullable(["string"])},
-            "description": {"type": nullable(["string"])},
-        },
-        "required": [
-            "name", "type", "district", "address", "rooms", "floor", "total_floors",
-            "land_area", "area", "condition", "furniture_appliances", "price",
-            "currency", "owner_phone", "description",
-        ],
-    }
+# ── AI-извлечение полей (Google Gemini) ──────────────────────────────
+_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
 def _system_prompt(districts: List[str]) -> str:
     district_line = ", ".join(districts) if districts else "(список районов пуст)"
     return (
         "Ты — помощник агента недвижимости. Из текста объявления извлеки данные "
-        "объекта и верни строго по схеме. Правила:\n"
-        f"- type: выбери ближайшее из списка {OBJ_TYPE_VALUES}. Если объект — земельный "
+        "объекта. Правила:\n"
+        f"- type: выбери РОВНО одно из списка {OBJ_TYPE_VALUES}. Если объект — земельный "
         "участок, выбирай «Участок» (или «Земля»).\n"
-        f"- Для типа «Земля»/«Участок» заполни land_area (площадь в сотках), а floor и "
+        "- Для типа «Земля»/«Участок» заполни land_area (площадь в сотках), а floor и "
         "total_floors оставь null. Для квартир/домов наоборот: floor/total_floors, а "
         "land_area = null.\n"
         f"- district: выбери из районов агентства, если явно совпадает: [{district_line}]. "
         "Если не совпадает — null, а район/местоположение впиши в address или description.\n"
-        f"- condition: ближайшее из {OBJ_COND_VALUES} или null.\n"
-        f"- furniture_appliances: одно из {FA_VALUES} (есть мебель и техника / только мебель "
-        "/ только техника / ничего) или null.\n"
-        "- price: только число без пробелов и валюты. currency: USD (доллары, $, у.е.), "
-        "UZS (сум, сўм) или EUR (евро, €).\n"
+        f"- condition: РОВНО одно из {OBJ_COND_VALUES} или null.\n"
+        f"- furniture_appliances: РОВНО одно из {FA_VALUES} (есть мебель и техника / только "
+        "мебель / только техника / ничего) или null.\n"
+        "- price: только число без пробелов и валюты. currency: \"USD\" (доллары, $, у.е.), "
+        "\"UZS\" (сум, сўм) или \"EUR\" (евро, €).\n"
         "- owner_phone: телефон из объявления, если есть.\n"
         "- description: на русском, кратко собери ВСЮ полезную информацию, которая не "
         "попала в отдельные поля (особенности, инфраструктура, условия и т.п.). Не "
         "выдумывай факты.\n"
-        "- Чего в тексте нет — ставь null. Ничего не придумывай."
+        "- Чего в тексте нет — ставь null. Ничего не придумывай.\n\n"
+        "Верни ТОЛЬКО JSON-объект (без пояснений) с ключами: name (строка), type (строка), "
+        "district (строка), address (строка), rooms (целое), floor (целое), total_floors "
+        "(целое), land_area (число), area (число), condition (строка), furniture_appliances "
+        "(строка), price (число), currency (строка), owner_phone (строка), description "
+        "(строка). Любое неизвестное значение — null."
     )
 
 
 def _extract_with_ai(text: str, districts: List[str]) -> dict:
-    """Вызвать OpenAI и получить структурированные поля объекта."""
-    if not settings.openai_api_key:
+    """Вызвать Google Gemini и получить структурированные поля объекта."""
+    if not settings.gemini_api_key:
         raise AppError("import_ai_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE)
-    try:
-        from openai import OpenAI
 
-        client = OpenAI(api_key=settings.openai_api_key, timeout=40.0)
-        resp = client.chat.completions.create(
-            model=settings.import_ai_model,
-            temperature=0,
-            messages=[
-                {"role": "system", "content": _system_prompt(districts)},
-                {"role": "user", "content": "Текст объявления:\n\n" + text},
-            ],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {"name": "listing", "strict": True, "schema": _ai_schema()},
-            },
+    url = _GEMINI_URL.format(model=settings.import_ai_model)
+    payload = {
+        "system_instruction": {"parts": [{"text": _system_prompt(districts)}]},
+        "contents": [{"role": "user", "parts": [{"text": "Текст объявления:\n\n" + text}]}],
+        "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
+    }
+    try:
+        resp = httpx.post(
+            url, params={"key": settings.gemini_api_key}, json=payload, timeout=45.0
         )
-        content = resp.choices[0].message.content or "{}"
+        resp.raise_for_status()
+        data = resp.json()
+        cands = data.get("candidates") or []
+        if not cands:
+            raise AppError("import_ai_failed", status.HTTP_502_BAD_GATEWAY)
+        parts = (cands[0].get("content") or {}).get("parts") or []
+        content = "".join(p.get("text", "") for p in parts).strip() or "{}"
         return json.loads(content)
     except AppError:
         raise
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Импорт: ошибка AI-разбора: %s", exc)
+        logger.warning("Импорт: ошибка AI-разбора (Gemini): %s", exc)
         raise AppError("import_ai_failed", status.HTTP_502_BAD_GATEWAY) from exc
 
 

@@ -87,12 +87,12 @@ class Settings(BaseSettings):
     error_alerts_enabled: bool = True
 
     # ─── Импорт объявления по ссылке (AI-разбор) ────────────────────────
-    # Ключ OpenAI API. Если не задан — импорт по ссылке вернёт понятную ошибку.
-    openai_api_key: Optional[str] = None
-    # Модель OpenAI для извлечения полей объекта из текста объявления.
-    import_ai_model: str = "gpt-4o-mini"
+    # Ключ Google AI Studio (Gemini). Если не задан — импорт вернёт понятную ошибку.
+    gemini_api_key: Optional[str] = None
+    # Модель Gemini для извлечения полей объекта из текста объявления.
+    import_ai_model: str = "gemini-1.5-flash"
 
-    @field_validator("bot_token", "jwt_secret", "bot_username", "openai_api_key", mode="before")
+    @field_validator("bot_token", "jwt_secret", "bot_username", "gemini_api_key", mode="before")
     @classmethod
     def _empty_string_to_none(cls, value):
         # Пустая строка в .env (например BOT_TOKEN=) трактуется как "не задано".
