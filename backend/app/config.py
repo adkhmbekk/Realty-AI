@@ -90,7 +90,8 @@ class Settings(BaseSettings):
     # Ключ Google AI Studio (Gemini). Если не задан — импорт вернёт понятную ошибку.
     gemini_api_key: Optional[str] = None
     # Модель Gemini для извлечения полей объекта из текста объявления.
-    import_ai_model: str = "gemini-1.5-flash"
+    # gemini-1.5-* на новых ключах недоступна — используем актуальную 2.5-flash.
+    import_ai_model: str = "gemini-2.5-flash"
 
     @field_validator("bot_token", "jwt_secret", "bot_username", "gemini_api_key", mode="before")
     @classmethod

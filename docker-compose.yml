@@ -52,7 +52,7 @@ services:
       # Импорт объявления по ссылке (AI-разбор через Google Gemini). Без ключа
       # функция просто вернёт понятную ошибку.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      IMPORT_AI_MODEL: ${IMPORT_AI_MODEL:-gemini-1.5-flash}
+      IMPORT_AI_MODEL: ${IMPORT_AI_MODEL:-gemini-2.5-flash}
       # Документация (/docs) по умолчанию выключена. Включить локально: true.
       ENABLE_DOCS: ${ENABLE_DOCS:-false}
       # Папка секретов — отдельный том, НЕ совпадающий с папкой фото и НЕ
