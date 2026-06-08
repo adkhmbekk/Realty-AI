@@ -446,6 +446,27 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Eʼlonni tahlil qilib boʻlmadi (AI). Qayta urinib koʻring yoki qoʻlda toʻldiring.",
         "en": "Failed to analyze the listing (AI). Try again or fill in manually.",
     },
+    # Синхронизация с Google Sheets
+    "sheets_not_configured": {
+        "ru": "Google Sheets не настроены на платформе. Обратитесь к владельцу платформы.",
+        "uz": "Google Sheets platformada sozlanmagan. Platforma egasiga murojaat qiling.",
+        "en": "Google Sheets is not configured on the platform. Contact the platform owner.",
+    },
+    "sheets_not_connected": {
+        "ru": "Google-таблица не подключена. Сначала нажмите «Подключить Google Sheets».",
+        "uz": "Google jadval ulanmagan. Avval «Google Sheets'ni ulash» tugmasini bosing.",
+        "en": "Google Sheet is not connected. Press “Connect Google Sheets” first.",
+    },
+    "sheets_oauth_failed": {
+        "ru": "Не удалось подключить Google. Попробуйте ещё раз и подтвердите доступ.",
+        "uz": "Google'ni ulab boʻlmadi. Qayta urinib koʻring va ruxsatni tasdiqlang.",
+        "en": "Could not connect Google. Try again and confirm access.",
+    },
+    "sheets_api_error": {
+        "ru": "Ошибка обращения к Google Sheets. Попробуйте позже.",
+        "uz": "Google Sheets'ga murojaatda xatolik. Keyinroq urinib koʻring.",
+        "en": "Error talking to Google Sheets. Please try again later.",
+    },
 }
 
 

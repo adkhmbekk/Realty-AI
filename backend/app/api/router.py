@@ -11,6 +11,7 @@ from app.api.routes import (
     invites,
     photos,
     settings,
+    sheets,
     team,
 )
 
@@ -23,3 +24,4 @@ api_router.include_router(team.router)
 api_router.include_router(dictionaries.router)
 api_router.include_router(apartments.router)
 api_router.include_router(photos.router)
+api_router.include_router(sheets.router)

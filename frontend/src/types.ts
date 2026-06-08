@@ -172,6 +172,16 @@ export interface ListingImport {
   warnings: string[];
 }
 
+// Статус подключения Google-таблицы агентства.
+export interface SheetStatus {
+  connected: boolean;
+  status: string;
+  has_spreadsheet: boolean;
+  spreadsheet_url?: string | null;
+  sheet_title?: string | null;
+  error_note?: string | null;
+}
+
 export interface DictItem {
   id: number;
   category: string;

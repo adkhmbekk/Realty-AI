@@ -97,7 +97,15 @@ class Settings(BaseSettings):
     # gemini-1.5-* на новых ключах недоступна — используем актуальную 2.5-flash.
     import_ai_model: str = "gemini-2.5-flash"
 
-    @field_validator("bot_token", "jwt_secret", "bot_username", "gemini_api_key", mode="before")
+    # ─── Синхронизация с Google Sheets (OAuth) ──────────────────────────
+    # Учётные данные OAuth-приложения платформы (одни на всех клиентов).
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+
+    @field_validator(
+        "bot_token", "jwt_secret", "bot_username", "gemini_api_key",
+        "google_client_id", "google_client_secret", mode="before",
+    )
     @classmethod
     def _empty_string_to_none(cls, value):
         # Пустая строка в .env (например BOT_TOKEN=) трактуется как "не задано".
