@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { User } from "lucide-react";
 import { useApp } from "../store";
 import { api } from "../api";
 import { Card, Empty, Segmented, Spinner, Swipeable } from "../components/ui";
-import { fmtDate } from "../utils";
+import { fmtDate, initials } from "../utils";
 import { haptic } from "../telegram";
 import { ObjectList } from "./Apartments";
 import type { AgentEvent } from "../types";
@@ -138,7 +139,15 @@ export function AgentDetailScreen({ userId, agentName }: { userId: number; agent
   // Свайп работает внутри «Добавленных» и переключает лишь подвкладки.
   return (
     <div className="min-h-[70vh] overflow-x-hidden">
-      <div className="text-[15px] font-extrabold mb-2 mx-0.5">{agentName}</div>
+      <div className="flex items-center gap-3 mb-3 mx-0.5">
+        <span
+          className="w-11 h-11 shrink-0 rounded-xl flex items-center justify-center text-white text-[15px] font-extrabold"
+          style={{ background: "var(--grad)" }}
+        >
+          {initials(agentName) || <User size={20} />}
+        </span>
+        <div className="text-[17px] font-extrabold truncate">{agentName}</div>
+      </div>
 
       <Segmented
         value={tab}

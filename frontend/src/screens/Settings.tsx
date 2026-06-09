@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { useApp } from "../store";
 import { api, errText } from "../api";
 import { Button, Card, Field, Hint, Input, Label, Segmented, SectionTitle } from "../components/ui";
@@ -72,8 +73,8 @@ function GoogleSheetsCard() {
           </>
         ) : !st?.has_spreadsheet ? (
           <>
-            <div className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400 mb-1">
-              ✅ {t("sheetsConnected")}
+            <div className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1.5">
+              <CheckCircle2 size={15} /> {t("sheetsConnected")}
             </div>
             <Field label={t("sheetsCreateTitle")}>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />

@@ -1,16 +1,29 @@
+import { User } from "lucide-react";
 import { useApp } from "../store";
 import { Card, Row, Hint } from "../components/ui";
-import { fmtDate, daysLeft } from "../utils";
+import { fmtDate, daysLeft, initials } from "../utils";
 
 export function ProfileScreen() {
   const { t, L, lang, user, settings } = useApp();
   if (!user) return null;
+  const displayName = user.full_name || (user.username ? "@" + user.username : t("notSet"));
   return (
     <div>
+      {/* Личная шапка с аватаром-инициалами */}
+      <div
+        className="flex items-center gap-3.5 rounded-xl3 p-4 mb-3 text-white overflow-hidden"
+        style={{ background: "var(--grad)", boxShadow: "0 16px 40px rgba(67,56,202,.34)" }}
+      >
+        <div className="w-14 h-14 shrink-0 rounded-2xl bg-white/20 border border-white/40 flex items-center justify-center text-xl font-extrabold backdrop-blur">
+          {initials(user.full_name || user.username) || <User size={24} />}
+        </div>
+        <div className="min-w-0">
+          <div className="text-[20px] font-extrabold leading-tight truncate">{displayName}</div>
+          <div className="text-[13px] opacity-90 mt-0.5">{L.roleLabel(user.role)}</div>
+        </div>
+      </div>
       <Card>
-        <Row label={t("name")} value={user.full_name || t("notSet")} />
         <Row label={t("username")} value={user.username ? "@" + user.username : t("notSet")} />
-        <Row label={t("roleLbl")} value={L.roleLabel(user.role)} />
         <Row label={t("tgId")} value={user.telegram_id} />
       </Card>
       {settings?.project_name && (

@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Home as HomeIcon,
   Image as ImageIcon,
+  Lock,
   Pencil,
   RotateCcw,
   Search as SearchIcon,
@@ -1413,7 +1414,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
 
       {o.comment && (
         <div className="mt-2.5 rounded-[14px] px-3.5 py-3 text-sm leading-relaxed border border-dashed border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-300 whitespace-pre-wrap">
-          <div className="font-bold text-[12px] mb-1 opacity-90">🔒 {t("f_comment")}</div>
+          <div className="font-bold text-[12px] mb-1 opacity-90 flex items-center gap-1"><Lock size={12} /> {t("f_comment")}</div>
           {o.comment}
         </div>
       )}

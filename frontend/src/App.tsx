@@ -189,8 +189,10 @@ function BottomTabs() {
 
 function TabButton({ active, icon, label, onClick }: { active: boolean; icon: JSX.Element; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={"flex flex-col items-center gap-1 px-2 py-1 min-w-[58px] transition " + (active ? "text-primary" : "text-muted")}>
-      {icon}
+    <button onClick={onClick} className={"flex flex-col items-center gap-1 px-2 py-1 min-w-[58px] cursor-pointer transition-colors duration-200 " + (active ? "text-primary" : "text-muted")}>
+      <span className={"flex items-center justify-center w-11 h-7 rounded-full transition-colors duration-200 " + (active ? "bg-primary-soft" : "")}>
+        {icon}
+      </span>
       <span className="text-[10.5px] font-bold leading-none truncate max-w-[64px]">{label}</span>
     </button>
   );
