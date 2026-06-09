@@ -216,11 +216,16 @@ export function Swipeable({
   return (
     <div
       className={className}
+      // stopPropagation: горизонтальный свайп здесь — это переключение вкладок.
+      // Без этого жест «назад» из края экрана (Shell) перехватывал свайп ВПРАВО
+      // и переключение работало только в одну сторону (вперёд).
       onTouchStart={(e) => {
+        e.stopPropagation();
         const p = e.touches[0];
         touch.current = { x: p.clientX, y: p.clientY };
       }}
       onTouchEnd={(e) => {
+        e.stopPropagation();
         const s = touch.current;
         touch.current = null;
         if (!s) return;

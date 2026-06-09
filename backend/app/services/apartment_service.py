@@ -379,44 +379,54 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
     contact_username = _agency_contact_username(db, agency_id)
 
     # Собираем текстовое представление карточки (без конфиденциальных полей).
+    # Порядок: [наименование, если задано вручную] → описание → остальные данные.
+    # У каждой строки — подходящий эмодзи в начале.
     lines = []
-    title = apartment.name or f"Объект №{apartment.display_id}"
-    lines.append(f"🏠 {title}")
+    if apartment.name:
+        lines.append(f"🏠 {apartment.name}")
     lines.append(f"№ {apartment.display_id}")
-    lines.append("")
 
+    # Описание — сразу после наименования (или первым, если наименования нет).
+    if apartment.description:
+        lines.append("")
+        lines.append(f"📝 {apartment.description}")
+
+    # Остальные данные по порядку.
+    details = []
     if apartment.type:
-        lines.append(f"Тип: {apartment.type}")
+        details.append(f"🏗 Тип: {apartment.type}")
     if apartment.district:
-        lines.append(f"Район: {apartment.district}")
+        details.append(f"📍 Район: {apartment.district}")
     if apartment.address:
-        lines.append(f"Адрес: {apartment.address}")
+        details.append(f"🗺 Адрес: {apartment.address}")
     if apartment.rooms is not None:
-        lines.append(f"Комнат: {apartment.rooms}")
+        details.append(f"🚪 Комнат: {apartment.rooms}")
     is_land = apartment.type in LAND_TYPES
     if is_land:
         if apartment.land_area is not None:
-            lines.append(f"Соток: {apartment.land_area}")
-    elif apartment.floor is not None:
-        floor_line = f"Этаж: {apartment.floor}"
+            details.append(f"🌳 Соток: {apartment.land_area}")
+    else:
+        # Этаж и этажность — отдельными строками (не «5/9»).
+        if apartment.floor is not None:
+            details.append(f"🏢 Этаж: {apartment.floor}")
         if apartment.total_floors is not None:
-            floor_line += f"/{apartment.total_floors}"
-        lines.append(floor_line)
+            details.append(f"🏢 Этажность: {apartment.total_floors}")
     if apartment.area is not None:
-        lines.append(f"Площадь: {apartment.area} м²")
+        details.append(f"📐 Площадь: {apartment.area} м²")
     if apartment.condition:
-        lines.append(f"Состояние: {apartment.condition}")
+        details.append(f"🔧 Состояние: {apartment.condition}")
     if apartment.furniture_appliances:
         label = FURNITURE_APPLIANCES_LABELS.get(
             apartment.furniture_appliances, apartment.furniture_appliances
         )
-        lines.append(f"Мебель/техника: {label}")
+        details.append(f"🛋 Мебель/техника: {label}")
     price_str = _format_price(apartment)
     if price_str:
-        lines.append(f"Цена: {price_str}")
-    if apartment.description:
+        details.append(f"💵 Цена: {price_str}")
+    if details:
         lines.append("")
-        lines.append(apartment.description)
+        lines.extend(details)
+
     if contact_phone:
         lines.append("")
         lines.append(f"☎️ Контакт: {contact_phone}")

@@ -295,26 +295,41 @@ function ObjectForm({
 // комментария; вместо номера — контактный телефон агентства).
 function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: string) => string, contactPhone?: string | null, contactUsername?: string | null): string {
   const lines: string[] = [];
-  lines.push("🏠 " + t("apartment") + " №" + (o.display_id || ""));
-  if (o.name) lines.push("📋 " + o.name);
-  if (o.type) lines.push("🏗 " + t("f_type") + ": " + L.typeLabel(o.type));
-  if (o.district) lines.push("📍 " + t("f_district") + ": " + o.district);
-  if (o.address) lines.push("🗺 " + t("f_address") + ": " + o.address);
-  if (o.rooms != null) lines.push("🚪 " + t("f_rooms") + ": " + o.rooms);
-  if (isLandType(o.type)) {
-    if (o.land_area != null) lines.push("🌳 " + t("f_land_area") + ": " + o.land_area);
-  } else {
-    const fl = o.floor != null && o.total_floors != null ? `${o.floor}/${o.total_floors}` : o.floor != null ? String(o.floor) : null;
-    if (fl) lines.push("🏢 " + t("f_floor") + ": " + fl);
+  // Наименование (если задано вручную) — первым.
+  if (o.name) lines.push("🏠 " + o.name);
+  lines.push("№ " + (o.display_id || ""));
+  // Описание — сразу после наименования (или первым, если наименования нет).
+  if (o.description) {
+    lines.push("");
+    lines.push("📝 " + o.description);
   }
-  if (o.area != null) lines.push("📐 " + o.area + " m²");
-  if (o.condition) lines.push("🔧 " + L.condLabel(o.condition));
+  // Остальные данные по порядку.
+  const d: string[] = [];
+  if (o.type) d.push("🏗 " + t("f_type") + ": " + L.typeLabel(o.type));
+  if (o.district) d.push("📍 " + t("f_district") + ": " + o.district);
+  if (o.address) d.push("🗺 " + t("f_address") + ": " + o.address);
+  if (o.rooms != null) d.push("🚪 " + t("f_rooms") + ": " + o.rooms);
+  if (isLandType(o.type)) {
+    if (o.land_area != null) d.push("🌳 " + t("f_land_area") + ": " + o.land_area);
+  } else {
+    // Этаж и этажность — отдельными строками (не «5/9»).
+    if (o.floor != null) d.push("🏢 " + t("f_floor") + ": " + o.floor);
+    if (o.total_floors != null) d.push("🏢 " + t("f_tfloors") + ": " + o.total_floors);
+  }
+  if (o.area != null) d.push("📐 " + t("f_area") + ": " + o.area);
+  if (o.condition) d.push("🔧 " + L.condLabel(o.condition));
   const fa = L.faLabel(o.furniture_appliances);
-  if (fa) lines.push("🛋 " + fa);
-  if (o.price != null) lines.push("💵 " + o.price + " " + (o.currency || ""));
-  if (o.source_link) lines.push("🔗 " + o.source_link);
-  if (o.description) lines.push("📝 " + o.description);
-  if (contactPhone) lines.push("📞 " + contactPhone);
+  if (fa) d.push("🛋 " + fa);
+  if (o.price != null) d.push("💵 " + t("f_price") + ": " + o.price + " " + (o.currency || ""));
+  if (o.source_link) d.push("🔗 " + o.source_link);
+  if (d.length) {
+    lines.push("");
+    lines.push(...d);
+  }
+  if (contactPhone) {
+    lines.push("");
+    lines.push("📞 " + contactPhone);
+  }
   if (contactUsername) lines.push("✈️ " + contactUsername);
   return lines.join("\n");
 }
@@ -775,7 +790,9 @@ export function AddObjectScreen() {
 
   function applyImport(r: ListingImport) {
     setImported({
-      name: r.name ?? null,
+      // Наименование намеренно НЕ заполняем из ИИ — пользователь вводит его сам
+      // (или оставляет пустым). См. пожелание заказчика.
+      name: null,
       type: r.type ?? null,
       district: r.district ?? null,
       address: r.address ?? null,
@@ -1296,15 +1313,15 @@ export function ObjectDetailScreen({ id }: { id: number }) {
   if (loading || !o) return <Spinner />;
 
   const isLand = isLandType(o.type);
-  const floorTxt =
-    o.floor != null && o.total_floors != null ? `${o.floor} / ${o.total_floors}` : o.floor != null ? String(o.floor) : null;
   const rows: [string | null, React.ReactNode][] = [
     [t("f_name"), o.name],
     [t("f_type"), o.type ? L.typeLabel(o.type) : null],
     [t("f_district"), o.district],
     [t("f_address"), o.address],
     [t("f_rooms"), o.rooms],
-    isLand ? [t("f_land_area"), o.land_area] : [t("f_floor"), floorTxt],
+    // Этаж и этажность — отдельными строками (не «5/9»).
+    isLand ? [t("f_land_area"), o.land_area] : [t("f_floor"), o.floor],
+    isLand ? [null, null] : [t("f_tfloors"), o.total_floors],
     [t("f_area"), o.area],
     [t("f_price"), fmtPrice(o.price, o.currency)],
     [t("f_condition"), o.condition ? L.condLabel(o.condition) : null],
