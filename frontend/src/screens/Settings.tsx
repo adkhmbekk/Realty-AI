@@ -45,6 +45,13 @@ function GoogleSheetsCard() {
     if (r.ok) toast(t("sheetsSynced"), "ok");
     else toast(errText(r.data, r.status), "err");
   }
+  async function exportNow() {
+    setBusy(true);
+    const r = await api("/api/v1/sheets/export", { method: "POST" });
+    setBusy(false);
+    if (r.ok) toast(t("sheetsExported"), "ok");
+    else toast(errText(r.data, r.status), "err");
+  }
   async function disconnect() {
     if (!(await confirmDialog(t("sheetsDisconnectQ")))) return;
     setBusy(true);
@@ -96,6 +103,9 @@ function GoogleSheetsCard() {
               {busy ? t("sheetsSyncing") : t("sheetsSync")}
             </Button>
             <Hint>{t("sheetsSyncHint")}</Hint>
+            <Button full variant="ghost" className="mt-2" disabled={busy} onClick={exportNow}>
+              {busy ? t("sheetsExporting") : t("sheetsExport")}
+            </Button>
             <Button full variant="ghost" className="mt-2" onClick={disconnect}>
               {t("sheetsDisconnect")}
             </Button>

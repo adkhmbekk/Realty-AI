@@ -82,26 +82,26 @@ def _columns(districts: List[str]) -> List[dict]:
     """Описание колонок: заголовок, поле объекта, (необязательно) выпадающий список."""
     return [
         {"h": "ID", "f": "id"},
-        {"h": "№", "f": "display_id"},
-        {"h": "Статус", "f": "status", "dd": list(STATUS_LABELS.values())},
-        {"h": "Наименование", "f": "name"},
-        {"h": "Тип объекта", "f": "type", "dd": OBJ_TYPE_VALUES},
-        {"h": "Район", "f": "district", "dd": districts},
-        {"h": "Адрес", "f": "address"},
-        {"h": "Комнат", "f": "rooms"},
-        {"h": "Этаж", "f": "floor"},
-        {"h": "Этажей", "f": "total_floors"},
-        {"h": "Соток", "f": "land_area"},
-        {"h": "Площадь, м²", "f": "area"},
-        {"h": "Цена", "f": "price"},
-        {"h": "Валюта", "f": "currency", "dd": CURRENCIES},
-        {"h": "Состояние", "f": "condition", "dd": OBJ_COND_VALUES},
-        {"h": "Мебель/техника", "f": "furniture_appliances", "dd": list(FA_LABELS.values())},
-        {"h": "Телефон собственника", "f": "owner_phone"},
-        {"h": "Описание", "f": "description"},
-        {"h": "Комментарий", "f": "comment"},
-        {"h": "Ссылка-источник", "f": "source_link"},
-        {"h": "Фото", "f": "photo_urls"},
+        {"h": "№", "f": "display_id", "w": 55},
+        {"h": "Статус", "f": "status", "dd": list(STATUS_LABELS.values()), "w": 95},
+        {"h": "Наименование", "f": "name", "w": 200},
+        {"h": "Тип объекта", "f": "type", "dd": OBJ_TYPE_VALUES, "w": 115},
+        {"h": "Район", "f": "district", "dd": districts, "w": 120},
+        {"h": "Адрес", "f": "address", "w": 200},
+        {"h": "Комнат", "f": "rooms", "w": 70},
+        {"h": "Этаж", "f": "floor", "w": 60},
+        {"h": "Этажей", "f": "total_floors", "w": 70},
+        {"h": "Соток", "f": "land_area", "w": 70},
+        {"h": "Площадь, м²", "f": "area", "w": 90},
+        {"h": "Цена", "f": "price", "w": 100},
+        {"h": "Валюта", "f": "currency", "dd": CURRENCIES, "w": 80},
+        {"h": "Состояние", "f": "condition", "dd": OBJ_COND_VALUES, "w": 130},
+        {"h": "Мебель/техника", "f": "furniture_appliances", "dd": list(FA_LABELS.values()), "w": 150},
+        {"h": "Телефон собственника", "f": "owner_phone", "w": 150},
+        {"h": "Описание", "f": "description", "w": 260},
+        {"h": "Комментарий", "f": "comment", "w": 200},
+        {"h": "Ссылка-источник", "f": "source_link", "w": 160},
+        {"h": "Фото", "f": "photo_urls", "w": 160},
         {"h": "Изменено", "f": "updated_at"},
     ]
 
@@ -240,6 +240,18 @@ def _gpost(url: str, token: str, body: dict) -> dict:
     return _grequest("POST", url, token, json=body)
 
 
+def _first_sheet_id(token: str, spreadsheet_id: str) -> int | None:
+    """sheetId первого листа существующей таблицы (для переприменения оформления)."""
+    data = _grequest(
+        "GET", f"{_SHEETS_URL}/{spreadsheet_id}", token,
+        params={"fields": "sheets.properties.sheetId"},
+    )
+    sheets = data.get("sheets") or []
+    if not sheets:
+        return None
+    return sheets[0]["properties"]["sheetId"]
+
+
 def _grequest(method: str, url: str, token: str, **kw) -> dict:
     try:
         r = httpx.request(method, url, headers={"Authorization": "Bearer " + token}, timeout=30, **kw)
@@ -311,7 +323,10 @@ def create_spreadsheet(db: Session, agency_id: int, title: str) -> str:
     return spreadsheet_url
 
 
-def _apply_formatting(token: str, spreadsheet_id: str, sheet_id: int, cols: List[dict]) -> None:
+def _apply_formatting(
+    token: str, spreadsheet_id: str, sheet_id: int, cols: List[dict],
+    with_protection: bool = True,
+) -> None:
     reqs: List[dict] = []
     # Жирная шапка.
     reqs.append({"repeatCell": {
@@ -334,15 +349,43 @@ def _apply_formatting(token: str, spreadsheet_id: str, sheet_id: int, cols: List
                     "strict": False, "showCustomUi": True,
                 },
             }})
-    # Защита шапки и колонки ID (предупреждение при правке).
-    reqs.append({"addProtectedRange": {"protectedRange": {
+    # Защита шапки и колонки ID (предупреждение при правке). При повторном
+    # применении к существующей таблице пропускаем, чтобы не плодить дубли.
+    if with_protection:
+      reqs.append({"addProtectedRange": {"protectedRange": {
         "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1},
         "description": "Шапка — не редактировать", "warningOnly": True,
-    }}})
-    reqs.append({"addProtectedRange": {"protectedRange": {
+      }}})
+      reqs.append({"addProtectedRange": {"protectedRange": {
         "range": {"sheetId": sheet_id, "startColumnIndex": 0, "endColumnIndex": 1},
         "description": "Технический ID — не редактировать", "warningOnly": True,
-    }}})
+      }}})
+    # Ширина колонок — чтобы короткие значения не висели в гигантских ячейках.
+    for idx, c in enumerate(cols):
+        w = c.get("w")
+        if w:
+            reqs.append({"updateDimensionProperties": {
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS",
+                          "startIndex": idx, "endIndex": idx + 1},
+                "properties": {"pixelSize": w}, "fields": "pixelSize",
+            }})
+    # Длинный текст (описание, список фото) обрезаем по ячейке, а не растягиваем
+    # строку: полное значение видно при клике/в строке формул. Текст — по центру.
+    reqs.append({"repeatCell": {
+        "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": _MAX_ROWS},
+        "cell": {"userEnteredFormat": {"wrapStrategy": "CLIP", "verticalAlignment": "MIDDLE"}},
+        "fields": "userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment",
+    }})
+    # Компактная фиксированная высота строк данных — таблица выглядит аккуратно.
+    reqs.append({"updateDimensionProperties": {
+        "range": {"sheetId": sheet_id, "dimension": "ROWS", "startIndex": 1, "endIndex": _MAX_ROWS},
+        "properties": {"pixelSize": 24}, "fields": "pixelSize",
+    }})
+    # Закрепить шапку, чтобы не терялась при прокрутке.
+    reqs.append({"updateSheetProperties": {
+        "properties": {"sheetId": sheet_id, "gridProperties": {"frozenRowCount": 1}},
+        "fields": "gridProperties.frozenRowCount",
+    }})
     # Прячем служебные колонки: ID (0) и «Изменено» (последняя).
     for col_idx in (0, len(cols) - 1):
         reqs.append({"updateDimensionProperties": {
@@ -364,6 +407,11 @@ def export_now(db: Session, agency_id: int) -> str:
     ]
     cols = _columns(districts)
     _write_values(token, row.spreadsheet_id, _build_values(db, agency_id, cols))
+    # Переприменяем оформление (ширины, высоты, обрезку) — чтобы починить и
+    # уже существующие таблицы, созданные до этого улучшения.
+    sheet_id = _first_sheet_id(token, row.spreadsheet_id)
+    if sheet_id is not None:
+        _apply_formatting(token, row.spreadsheet_id, sheet_id, cols, with_protection=False)
     row.snapshot = _snapshot_now(db, agency_id)
     db.commit()
     return row.spreadsheet_url or ""
