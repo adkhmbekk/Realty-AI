@@ -37,13 +37,13 @@ export function Button({
   ...rest
 }: BtnProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 font-bold rounded-xl transition active:scale-[.97] disabled:opacity-50 disabled:active:scale-100";
+    "inline-flex items-center justify-center gap-2 font-bold tracking-[-.01em] rounded-xl cursor-pointer select-none transition-all duration-200 active:scale-[.97] disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed";
   const sizes = size === "sm" ? "px-3 py-2 text-[13px] rounded-[11px]" : "px-4 py-3 text-[15px]";
   const variants: Record<BtnVariant, string> = {
-    primary: "text-white shadow-[0_12px_26px_rgba(37,99,235,.32)]",
-    ghost: "bg-[var(--soft)] text-text border border-line",
-    soft: "bg-primary-soft text-primary",
-    danger: "bg-[var(--danger-soft)] text-[var(--danger)]",
+    primary: "text-white shadow-[0_10px_24px_rgba(79,70,229,.34)] hover:shadow-[0_14px_30px_rgba(79,70,229,.42)]",
+    ghost: "bg-[var(--soft)] text-text border border-line hover:border-primary/40",
+    soft: "bg-primary-soft text-primary hover:bg-primary/10",
+    danger: "bg-[var(--danger-soft)] text-[var(--danger)] hover:brightness-95",
   };
   const style = variant === "primary" ? { background: "var(--grad)" } : undefined;
   return (
@@ -128,8 +128,8 @@ export function Segmented<T extends string>({
           key={o.value}
           onClick={() => onChange(o.value)}
           className={cx(
-            "flex-1 px-3 py-2.5 rounded-[10px] text-[13px] font-bold transition",
-            value === o.value ? "bg-card text-text shadow-soft" : "text-muted"
+            "flex-1 px-3 py-2.5 rounded-[10px] text-[13px] font-bold cursor-pointer transition-all duration-200",
+            value === o.value ? "bg-card text-text shadow-soft" : "text-muted hover:text-text"
           )}
         >
           {o.label}
@@ -158,10 +158,10 @@ export function Chips({
             key={o.value}
             onClick={() => onToggle(o.value)}
             className={cx(
-              "px-3.5 py-2 rounded-full text-[13px] font-bold border transition active:scale-95",
+              "px-3.5 py-2 rounded-full text-[13px] font-bold border cursor-pointer transition-all duration-200 active:scale-95",
               active
-                ? "text-white border-transparent shadow-[0_6px_16px_rgba(37,99,235,.3)]"
-                : "bg-card text-text border-line"
+                ? "text-white border-transparent shadow-[0_6px_16px_rgba(79,70,229,.32)]"
+                : "bg-card text-text border-line hover:border-primary/40"
             )}
             style={active ? { background: "var(--grad)" } : undefined}
           >

@@ -23,10 +23,11 @@ export default {
       boxShadow: {
         soft: "var(--shadow)",
         lg2: "var(--shadow-lg)",
-        glow: "0 14px 34px rgba(37,99,235,.35)",
+        glow: "0 12px 30px rgba(79,70,229,.38)",
       },
       fontFamily: {
         sans: [
+          "Manrope",
           "-apple-system",
           "BlinkMacSystemFont",
           "system-ui",

@@ -147,7 +147,7 @@ export function AnalyticsScreen() {
           {chartData.length === 0 ? (
             <Empty>{t("noAnalytics")}</Empty>
           ) : (
-            <BarChart data={chartData} color={metric === "added" ? "#2563eb" : "#10b981"} />
+            <BarChart data={chartData} color={metric === "added" ? "#4f46e5" : "#10b981"} />
           )}
         </div>
       </Card>

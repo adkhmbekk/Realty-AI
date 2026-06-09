@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { BarChart3, Mail, Plus, Search, Settings as SettingsIcon, Users } from "lucide-react";
+import { BarChart3, Mail, Plus, Search, Settings as SettingsIcon, User, Users } from "lucide-react";
 import { useApp } from "../store";
 import { useNav, Route } from "../nav";
 import { api } from "../api";
@@ -26,15 +26,15 @@ function Hero() {
       }}
       className="relative w-full text-left overflow-hidden rounded-xl3 p-5 mb-4 text-white"
       style={{
-        background: "radial-gradient(140% 130% at 0% 0%, #3b82f6 0%, #2563eb 42%, #1d4ed8 100%)",
-        boxShadow: "0 20px 46px rgba(29,78,216,.42)",
+        background: "radial-gradient(140% 130% at 0% 0%, #818cf8 0%, #4f46e5 44%, #4338ca 100%)",
+        boxShadow: "0 20px 46px rgba(67,56,202,.42)",
       }}
     >
       <div className="absolute -right-12 -top-16 w-52 h-52 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,.2), transparent 65%)" }} />
-      <div className="absolute -left-8 -bottom-20 w-52 h-52 rounded-full" style={{ background: "radial-gradient(circle, rgba(125,211,252,.22), transparent 66%)" }} />
+      <div className="absolute -left-8 -bottom-20 w-52 h-52 rounded-full" style={{ background: "radial-gradient(circle, rgba(165,180,252,.26), transparent 66%)" }} />
       <div className="relative flex items-center gap-4">
         <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/40 flex items-center justify-center text-xl font-extrabold backdrop-blur">
-          {initials(user?.full_name || settings?.project_name) || "👤"}
+          {initials(user?.full_name || settings?.project_name) || <User size={24} />}
         </div>
         <div className="min-w-0">
           <div className="text-[12px] opacity-90">{t("greeting")}</div>
