@@ -184,6 +184,10 @@ export function SettingsScreen() {
           <GoogleSheetsCard />
         </div>
       )}
+
+      <div className="mt-6 text-center text-[11px] text-muted/70 select-text">
+        {t("version")}: {__BUILD_ID__}
+      </div>
     </div>
   );
 }
