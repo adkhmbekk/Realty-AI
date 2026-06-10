@@ -102,8 +102,43 @@ export function errText(data: any, status: number, fallback = "—"): string {
   return "" + status;
 }
 
-// Примечание: multipart-загрузка (apiUpload) удалена как мёртвый код —
-// фото отправляются как data-URL в JSON через api() (см. downscaleToDataUrl).
+// Загрузка файла (multipart/form-data) — для импорта готовой базы клиента
+// (.xlsx/.csv). Content-Type НЕ ставим: браузер сам проставит boundary.
+export async function apiUpload<T = any>(
+  path: string,
+  form: FormData,
+  opts: { timeoutMs?: number } = {}
+): Promise<ApiResult<T>> {
+  const timeoutMs = opts.timeoutMs ?? 60000;
+  const doFetch = (token: string | null): Promise<Response> => {
+    const headers: Record<string, string> = { "X-Lang": langGetter() };
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetchWithTimeout(path, { method: "POST", headers, body: form }, timeoutMs);
+  };
+  let res: Response;
+  try {
+    res = await doFetch(tokenGetter());
+  } catch {
+    return { ok: false, status: 0, data: null };
+  }
+  if (res.status === 401) {
+    const fresh = await tryReauth();
+    if (fresh) {
+      try {
+        res = await doFetch(fresh);
+      } catch {
+        return { ok: false, status: 0, data: null };
+      }
+    }
+  }
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  return { ok: res.ok, status: res.status, data };
+}
 
 // Построение query-строки из объекта параметров (массивы повторяются).
 export function buildQuery(params: Record<string, unknown>): string {

@@ -446,6 +446,32 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Eʼlonni tahlil qilib boʻlmadi (AI). Qayta urinib koʻring yoki qoʻlda toʻldiring.",
         "en": "Failed to analyze the listing (AI). Try again or fill in manually.",
     },
+    # Импорт готовой базы клиента (файл .xlsx/.csv)
+    "import_file_empty": {
+        "ru": "Файл пустой или в нём нет данных. Проверьте таблицу и попробуйте снова.",
+        "uz": "Fayl boʻsh yoki maʼlumot yoʻq. Jadvalni tekshirib, qayta urinib koʻring.",
+        "en": "The file is empty or has no data. Check the table and try again.",
+    },
+    "import_file_too_big": {
+        "ru": "Файл слишком большой (до 8 МБ). Разбейте базу на части и загрузите по очереди.",
+        "uz": "Fayl juda katta (8 MB gacha). Bazani qismlarga boʻlib yuklang.",
+        "en": "The file is too large (up to 8 MB). Split the base into parts and upload them.",
+    },
+    "import_file_unreadable": {
+        "ru": "Не удалось прочитать файл. Сохраните таблицу как .xlsx или .csv и попробуйте снова.",
+        "uz": "Faylni oʻqib boʻlmadi. Jadvalni .xlsx yoki .csv qilib saqlab, qayta urinib koʻring.",
+        "en": "Could not read the file. Save the table as .xlsx or .csv and try again.",
+    },
+    "import_xlsx_unsupported": {
+        "ru": "Чтение .xlsx временно недоступно. Сохраните файл как .csv и попробуйте снова.",
+        "uz": ".xlsx oʻqish vaqtincha mavjud emas. Faylni .csv qilib saqlang.",
+        "en": "Reading .xlsx is temporarily unavailable. Save the file as .csv and try again.",
+    },
+    "import_no_mapping": {
+        "ru": "Не выбрано ни одной колонки для импорта. Сопоставьте хотя бы одно поле.",
+        "uz": "Import uchun birorta ustun tanlanmadi. Kamida bitta maydonni moslang.",
+        "en": "No columns selected for import. Map at least one field.",
+    },
     # Синхронизация с Google Sheets
     "sheets_not_configured": {
         "ru": "Google Sheets не настроены на платформе. Обратитесь к владельцу платформы.",
