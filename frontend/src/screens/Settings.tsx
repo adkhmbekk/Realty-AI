@@ -325,6 +325,10 @@ function TelegramImportCard() {
   // Предохранители от бесконечного цикла на гигантских каналах.
   const HARD_CAP = 1000; // обработанных постов за один запуск
   const MAX_REQ = 400; // запросов за один запуск
+  // Сколько раз подряд переживаем разовый сбой сети/туннеля (ngrok моргнул,
+  // идёт деплой, прокси отдал 502) прежде чем сдаться. Повтор безопасен:
+  // курсор не двигаем, дедуп по source_link не создаёт дублей.
+  const MAX_NET_RETRIES = 8;
 
   async function start() {
     if (!channel.trim() || running) return;
@@ -340,6 +344,7 @@ function TelegramImportCard() {
     let totalFailed = 0;
     let requests = 0;
     let stuck = 0;
+    let netRetries = 0;
     let errored = false;
     while (!stopRef.current && totalProcessed < HARD_CAP && requests < MAX_REQ) {
       requests++;
@@ -349,10 +354,23 @@ function TelegramImportCard() {
         timeoutMs: 180000,
       });
       if (!r.ok || !r.data) {
+        // Разовый сбой сети/туннеля (status 0 = таймаут/обрыв, 502/503/504 —
+        // прокси, 429 — лимит): ждём и повторяем ТУ ЖЕ страницу, а не рушим
+        // импорт. before не сдвигаем; дедуп по source_link исключает дубли.
+        const transient =
+          r.status === 0 || r.status === 429 ||
+          r.status === 502 || r.status === 503 || r.status === 504;
+        if (transient && netRetries < MAX_NET_RETRIES) {
+          netRetries++;
+          setRateNote(true);
+          await sleep(8000);
+          continue;
+        }
         toast(errText(r.data, r.status) || t("tgImportError"), "err");
         errored = true;
         break;
       }
+      netRetries = 0;
       const d = r.data;
       const processed = d.created + d.skipped + d.failed;
       totalProcessed += processed;
