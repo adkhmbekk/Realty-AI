@@ -446,6 +446,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Eʼlonni tahlil qilib boʻlmadi (AI). Qayta urinib koʻring yoki qoʻlda toʻldiring.",
         "en": "Failed to analyze the listing (AI). Try again or fill in manually.",
     },
+    "import_ai_rate_limited": {
+        "ru": "Бесплатный лимит ИИ исчерпан (слишком часто). Подождите минуту и попробуйте снова.",
+        "uz": "AI bepul limiti tugadi (juda tez-tez). Bir daqiqa kuting va qayta urinib koʻring.",
+        "en": "Free AI limit reached (too many requests). Wait a minute and try again.",
+    },
     # Импорт готовой базы клиента (файл .xlsx/.csv)
     "import_file_empty": {
         "ru": "Файл пустой или в нём нет данных. Проверьте таблицу и попробуйте снова.",

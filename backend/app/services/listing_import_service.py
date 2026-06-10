@@ -20,6 +20,7 @@ import html as html_lib
 import json
 import logging
 import re
+import time
 from typing import List, Optional, Tuple
 from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
@@ -323,6 +324,41 @@ def _system_prompt(districts: List[str]) -> str:
     )
 
 
+# Паузы (сек) перед повторными попытками при ответе «слишком часто» (429) или
+# временной недоступности (503). Бесплатный Gemini жёстко лимитирует частоту —
+# без повторов почти все запросы при массовом импорте отбивались бы (429).
+_RETRY_BACKOFF = (3, 8, 18)
+
+
+def _retry_after_seconds(resp: "httpx.Response", default: float) -> float:
+    """Сколько ждать перед повтором: из заголовка Retry-After, иначе default."""
+    ra = resp.headers.get("Retry-After")
+    if ra:
+        try:
+            return min(float(ra), 30.0)
+        except ValueError:
+            pass
+    return default
+
+
+def _gemini_generate(url: str, payload: dict) -> dict:
+    """POST в Gemini с повторами при 429/503. Возвращает JSON ответа."""
+    for attempt in range(len(_RETRY_BACKOFF) + 1):
+        resp = httpx.post(
+            url, params={"key": settings.gemini_api_key}, json=payload, timeout=45.0
+        )
+        if resp.status_code in (429, 503):
+            if attempt < len(_RETRY_BACKOFF):
+                time.sleep(_retry_after_seconds(resp, _RETRY_BACKOFF[attempt]))
+                continue
+            # Повторы исчерпаны — это именно лимит частоты (важно отличать от
+            # обычной ошибки разбора, чтобы притормозить массовый импорт).
+            raise AppError("import_ai_rate_limited", status.HTTP_429_TOO_MANY_REQUESTS)
+        resp.raise_for_status()
+        return resp.json()
+    raise AppError("import_ai_rate_limited", status.HTTP_429_TOO_MANY_REQUESTS)
+
+
 def _extract_with_ai(text: str, districts: List[str]) -> dict:
     """Вызвать Google Gemini и получить структурированные поля объекта."""
     if not settings.gemini_api_key:
@@ -335,11 +371,7 @@ def _extract_with_ai(text: str, districts: List[str]) -> dict:
         "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
     }
     try:
-        resp = httpx.post(
-            url, params={"key": settings.gemini_api_key}, json=payload, timeout=45.0
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        data = _gemini_generate(url, payload)
         cands = data.get("candidates") or []
         if not cands:
             raise AppError("import_ai_failed", status.HTTP_502_BAD_GATEWAY)

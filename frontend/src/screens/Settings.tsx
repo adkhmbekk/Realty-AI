@@ -304,10 +304,13 @@ type TgScanOut = {
   channel: string;
   created: number;
   skipped: number;
-  scanned: number;
+  failed: number;
   next_before: number | null;
+  rate_limited: boolean;
   done: boolean;
 };
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function TelegramImportCard() {
   const { t, toast } = useApp();
@@ -315,10 +318,13 @@ function TelegramImportCard() {
   const [running, setRunning] = useState(false);
   const [scanned, setScanned] = useState(0);
   const [created, setCreated] = useState(0);
+  const [failed, setFailed] = useState(0);
+  const [rateNote, setRateNote] = useState(false);
   const stopRef = useRef(false);
 
-  // Предохранитель: не уходим в бесконечность на гигантских каналах.
-  const HARD_CAP = 600;
+  // Предохранители от бесконечного цикла на гигантских каналах.
+  const HARD_CAP = 1000; // обработанных постов за один запуск
+  const MAX_REQ = 400; // запросов за один запуск
 
   async function start() {
     if (!channel.trim() || running) return;
@@ -326,30 +332,51 @@ function TelegramImportCard() {
     setRunning(true);
     setScanned(0);
     setCreated(0);
+    setFailed(0);
+    setRateNote(false);
     let before: number | null = null;
-    let totalScanned = 0;
+    let totalProcessed = 0;
     let totalCreated = 0;
-    let failed = false;
-    while (!stopRef.current && totalScanned < HARD_CAP) {
+    let totalFailed = 0;
+    let requests = 0;
+    let stuck = 0;
+    let errored = false;
+    while (!stopRef.current && totalProcessed < HARD_CAP && requests < MAX_REQ) {
+      requests++;
       const r: ApiResult<TgScanOut> = await api<TgScanOut>("/api/v1/imports/telegram/scan", {
         method: "POST",
         body: { channel: channel.trim(), before },
-        timeoutMs: 120000,
+        timeoutMs: 180000,
       });
       if (!r.ok || !r.data) {
         toast(errText(r.data, r.status) || t("tgImportError"), "err");
-        failed = true;
+        errored = true;
         break;
       }
-      totalScanned += r.data.scanned;
-      totalCreated += r.data.created;
-      setScanned(totalScanned);
+      const d = r.data;
+      const processed = d.created + d.skipped + d.failed;
+      totalProcessed += processed;
+      totalCreated += d.created;
+      totalFailed += d.failed;
+      setScanned(totalProcessed);
       setCreated(totalCreated);
-      if (r.data.done || r.data.next_before == null) break;
-      before = r.data.next_before;
+      setFailed(totalFailed);
+      setRateNote(d.rate_limited);
+      if (d.done) break;
+      // Курсор не сдвинулся и ничего не обработали — застряли (обычно лимит ИИ).
+      if (d.next_before === before && processed === 0) {
+        stuck++;
+        if (stuck >= 4) break;
+      } else {
+        stuck = 0;
+      }
+      before = d.next_before;
+      // Упёрлись в лимит бесплатного Gemini — даём квоте восстановиться.
+      if (d.rate_limited) await sleep(30000);
     }
     setRunning(false);
-    if (!failed) toast(`${t("tgImportDoneMsg")}: ${totalCreated}`, totalCreated > 0 ? "ok" : "err");
+    setRateNote(false);
+    if (!errored) toast(`${t("tgImportDoneMsg")}: ${totalCreated}`, totalCreated > 0 ? "ok" : "err");
   }
 
   return (
@@ -367,8 +394,14 @@ function TelegramImportCard() {
         {(running || scanned > 0) && (
           <div className="mt-3 text-[13px] text-muted">
             {t("tgImportScanned")}: <b>{scanned}</b> · {t("tgImportCreated")}: <b>{created}</b>
+            {failed > 0 && (
+              <>
+                {" "}· {t("tgImportFailed")}: <b>{failed}</b>
+              </>
+            )}
           </div>
         )}
+        {rateNote && <Hint>{t("tgImportRateNote")}</Hint>}
         {!running ? (
           <Button full className="mt-3" disabled={!channel.trim()} onClick={start}>
             {t("tgImportStart")}

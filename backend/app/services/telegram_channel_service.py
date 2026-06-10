@@ -14,7 +14,6 @@
 Защита от дублей: пост, уже импортированный ранее (совпал source_link), пропускаем
 — поэтому повторный проход не плодит копии.
 """
-import asyncio
 import html as html_lib
 import logging
 import re
@@ -40,7 +39,10 @@ logger = logging.getLogger("uvicorn.error")
 _FEED_URL = "https://t.me/s/{channel}"
 _UA = photo_service._UA
 _FETCH_TIMEOUT = httpx.Timeout(15.0, connect=8.0)
-_AI_CONCURRENCY = 5          # сколько постов разбираем ИИ одновременно
+# Сколько постов разбираем ИИ за ОДИН запрос (одну страницу). Бесплатный Gemini
+# жёстко лимитирует частоту, поэтому шлём ПОСЛЕДОВАТЕЛЬНО и небольшими порциями —
+# так каждый HTTP-запрос остаётся коротким, а фронтенд идёт страницами с паузами.
+_MAX_AI_PER_PAGE = 6
 _MAX_PHOTOS_PER_OBJ = 10     # столько фото на объект при массовом импорте
 # Структурные поля: если ни одного нет — это, скорее всего, не объявление
 # (приветствие, реклама и т.п.), такой пост пропускаем.
@@ -129,15 +131,21 @@ async def scan_page(
     channel_raw: str, before: Optional[int],
 ) -> dict:
     """
-    Обработать одну страницу ленты канала: разобрать посты, извлечь поля ИИ,
-    создать объекты + прикрепить фото. Вернуть статистику и курсор next_before.
+    Обработать порцию ленты канала: разобрать посты, извлечь поля ИИ (строго
+    ПОСЛЕДОВАТЕЛЬНО, не более _MAX_AI_PER_PAGE за запрос), создать объекты +
+    прикрепить фото. Вернуть статистику и курсор next_before для продолжения.
+
+    Курсор продвигается только по «финализированным» постам (созданным, явно
+    пропущенным или с ошибкой ИИ). Если упёрлись в лимит частоты Gemini (429),
+    помечаем rate_limited и НЕ двигаем курсор за необработанный пост — фронтенд
+    сделает паузу и повторит этот же пост позже.
     """
     channel = normalize_channel(channel_raw)
     html = await run_in_threadpool(_fetch_feed, channel, before)
     posts = parse_feed(html)
     if not posts:
-        return {"channel": channel, "created": 0, "skipped": 0, "scanned": 0,
-                "next_before": before, "done": True}
+        return {"channel": channel, "created": 0, "skipped": 0, "failed": 0,
+                "next_before": before, "rate_limited": False, "done": True}
 
     districts = [
         d.value for d in dictionary_service.list_dictionaries(db, agency_id, category="district")
@@ -151,30 +159,44 @@ async def scan_page(
         .all()
     }
 
-    # Кандидаты: ещё не импортированные посты с текстом.
-    todo = [p for p in posts if urls[p["id"]] not in existing and p["text"]]
+    created = skipped = failed = ai_done = 0
+    rate_limited = False
+    advanced_to: Optional[int] = None  # самый старый пост, который мы «закрыли»
 
-    # Параллельный разбор текста постов через ИИ (с ограничением одновременности).
-    sem = asyncio.Semaphore(_AI_CONCURRENCY)
+    # От новых к старым.
+    for p in sorted(posts, key=lambda x: x["id"], reverse=True):
+        # Дубль или пост без текста — закрываем сразу (двигаем курсор).
+        if urls[p["id"]] in existing or not p["text"]:
+            skipped += 1
+            advanced_to = p["id"]
+            continue
+        # Лимит на запрос исчерпан — остальное оставим следующему проходу.
+        if ai_done >= _MAX_AI_PER_PAGE:
+            break
+        try:
+            fields = await run_in_threadpool(
+                listing_import_service.extract_fields_from_text, p["text"], districts
+            )
+        except AppError as exc:
+            if exc.status_code == http_status.HTTP_429_TOO_MANY_REQUESTS:
+                # Лимит частоты: НЕ закрываем пост (повторим позже), тормозим.
+                rate_limited = True
+                break
+            failed += 1
+            ai_done += 1
+            advanced_to = p["id"]
+            continue
+        except Exception as exc:  # noqa: BLE001
+            logger.info("TG-импорт: ИИ-разбор поста %s: %s", p["id"], exc)
+            failed += 1
+            ai_done += 1
+            advanced_to = p["id"]
+            continue
 
-    async def _extract(p: dict) -> tuple:
-        async with sem:
-            try:
-                fields = await run_in_threadpool(
-                    listing_import_service.extract_fields_from_text, p["text"], districts
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.info("TG-импорт: ИИ-разбор поста %s: %s", p["id"], exc)
-                fields = None
-            return p, fields
-
-    results = await asyncio.gather(*[_extract(p) for p in todo])
-
-    created = 0
-    skipped = len(posts) - len(todo)  # дубли и посты без текста
-    for p, fields in results:
+        ai_done += 1
         if not fields or not any(fields.get(k) is not None for k in _STRUCTURAL):
             skipped += 1
+            advanced_to = p["id"]
             continue
         body = {k: v for k, v in fields.items() if v is not None and k != "warnings"}
         body.pop("photo_urls", None)
@@ -186,8 +208,10 @@ async def scan_page(
             )
         except AppError:
             skipped += 1
+            advanced_to = p["id"]
             continue
         created += 1
+        advanced_to = p["id"]
         if p["images"]:
             try:
                 await photo_service.import_from_image_urls(
@@ -196,12 +220,13 @@ async def scan_page(
             except Exception as exc:  # noqa: BLE001
                 logger.info("TG-импорт: фото поста %s не прикреплены: %s", p["id"], exc)
 
-    next_before = min(p["id"] for p in posts)
+    next_before = advanced_to if advanced_to is not None else before
     return {
         "channel": channel,
         "created": created,
         "skipped": skipped,
-        "scanned": len(posts),
+        "failed": failed,
         "next_before": next_before,
+        "rate_limited": rate_limited,
         "done": False,
     }
