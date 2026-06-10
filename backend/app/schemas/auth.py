@@ -15,6 +15,9 @@ class TelegramAuthRequest(BaseModel):
 class RefreshRequest(BaseModel):
     # Долгоживущий refresh-пропуск, выданный при входе.
     refresh_token: str
+    # Если суперадмин сейчас работает внутри своего личного агентства —
+    # его id (чтобы тихое продление сессии не выкидывало из агентства).
+    act_as_agency_id: Optional[int] = None
 
 
 class UserProfile(BaseModel):
@@ -27,6 +30,12 @@ class UserProfile(BaseModel):
     role: str
     is_owner: bool = False
     agency_id: Optional[int] = None
+    # Acting-контекст (суперадмин внутри своего личного агентства). У обычных
+    # пользователей эти поля пустые. real_role показывает истинную роль, чтобы
+    # UI знал, что под капотом владелец платформы, и показал кнопку «Выйти».
+    acting_as_agency_id: Optional[int] = None
+    acting_as_agency_name: Optional[str] = None
+    real_role: Optional[str] = None
 
 
 class AuthResponse(BaseModel):

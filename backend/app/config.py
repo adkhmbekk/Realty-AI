@@ -44,8 +44,14 @@ class Settings(BaseSettings):
     # подделать свой адрес, дописав фейковые значения слева (обход rate limit).
     trusted_proxy_count: int = 1
     # Telegram ID владельца платформы. Этот человек станет суперадмином
-    # автоматически при запуске.
+    # автоматически при запуске. (Совместимость: одиночный владелец.)
     superadmin_telegram_id: Optional[int] = None
+    # Несколько владельцев платформы: Telegram ID через запятую
+    # (SUPERADMIN_TELEGRAM_IDS="111,222"). Объединяется с superadmin_telegram_id.
+    # Все перечисленные становятся равноправными суперадминами; суперадмины НЕ из
+    # списка при старте теряют права (см. ensure_superadmins в main.py).
+    # Храним строкой и парсим сами — так надёжнее, чем list через pydantic-env.
+    superadmin_telegram_ids: Optional[str] = None
     # Имя бота без @ (например "my_realty_bot"). Нужно только для красивой
     # ссылки-приглашения вида https://t.me/<bot>?startapp=<код>. Если не задано —
     # приглашение всё равно работает, просто сотрудник вводит код вручную.
@@ -126,6 +132,22 @@ class Settings(BaseSettings):
         if value is None or (isinstance(value, str) and value.strip() == ""):
             return None
         return value
+
+    def superadmin_ids(self) -> set[int]:
+        """Все Telegram ID владельцев платформы (из обоих источников настроек)."""
+        ids: set[int] = set()
+        if self.superadmin_telegram_id:
+            ids.add(int(self.superadmin_telegram_id))
+        if self.superadmin_telegram_ids:
+            for part in str(self.superadmin_telegram_ids).split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    ids.add(int(part))
+                except ValueError:
+                    pass
+        return ids
 
 
 settings = Settings()

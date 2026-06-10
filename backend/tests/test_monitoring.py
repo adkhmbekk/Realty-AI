@@ -11,6 +11,8 @@ def _patch(monkeypatch, *, enabled=True, superadmin=12345, configured=True):
     sent = []
     monkeypatch.setattr(settings, "error_alerts_enabled", enabled)
     monkeypatch.setattr(settings, "superadmin_telegram_id", superadmin)
+    # Второй источник (список) держим пустым — тесты детерминированы.
+    monkeypatch.setattr(settings, "superadmin_telegram_ids", None)
     monkeypatch.setattr(telegram_service, "is_configured", lambda: configured)
     monkeypatch.setattr(telegram_service, "notify_async",
                         lambda chat_ids, text: sent.append((list(chat_ids), text)))

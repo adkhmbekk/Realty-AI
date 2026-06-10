@@ -48,7 +48,8 @@ def report_error(
 
     if not settings.error_alerts_enabled:
         return False
-    if not settings.superadmin_telegram_id or not telegram_service.is_configured():
+    superadmin_ids = settings.superadmin_ids()
+    if not superadmin_ids or not telegram_service.is_configured():
         return False
 
     now = now if now is not None else time.time()
@@ -67,5 +68,5 @@ def report_error(
     parts.append(summary)
     text = "\n".join(parts)[:_MAX_MESSAGE]
 
-    telegram_service.notify_async([settings.superadmin_telegram_id], text)
+    telegram_service.notify_async(sorted(superadmin_ids), text)
     return True

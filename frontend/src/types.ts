@@ -8,6 +8,11 @@ export interface UserProfile {
   role: Role;
   is_owner: boolean;
   agency_id?: number | null;
+  // Acting-контекст: суперадмин работает внутри своего личного агентства.
+  // real_role === "superadmin" + acting_as_agency_id → показываем баннер «Выйти».
+  acting_as_agency_id?: number | null;
+  acting_as_agency_name?: string | null;
+  real_role?: string | null;
 }
 
 export interface AuthResponse {
@@ -112,6 +117,8 @@ export interface AgencyOut {
   subscription_expires_at?: string | null;
   activated_at?: string | null;
   created_at: string;
+  // Личное агентство владельца платформы (если задано — это «моё»).
+  owner_telegram_id?: number | null;
   admin_telegram_id?: number | null;
   admin_name?: string | null;
 }

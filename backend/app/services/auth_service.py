@@ -76,11 +76,17 @@ def login_with_init_data(db: Session, init_data: str, ip: Optional[str] = None) 
     return build_auth_response(db, user)
 
 
-def refresh_session(db: Session, refresh_token: str) -> dict:
+def refresh_session(
+    db: Session, refresh_token: str, act_as_agency_id: Optional[int] = None
+) -> dict:
     """
     Обновить сессию по refresh-пропуску: выдать новый access (+ refresh) без
     повторной проверки initData. Так длинная сессия не упирается в «тихий
     тупик» после истечения короткого пропуска.
+
+    act_as_agency_id (необязательно): если суперадмин сейчас работает ВНУТРИ
+    своего личного агентства, фронтенд передаёт его id — чтобы тихое продление
+    токена не выкидывало владельца из агентства обратно на платформу.
     """
     payload = security.decode_refresh_token(refresh_token)
     if payload is None:
@@ -88,14 +94,57 @@ def refresh_session(db: Session, refresh_token: str) -> dict:
     user = user_repo.get_by_id(db, payload.get("user_id"))
     if user is None or not user.is_active:
         raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
-    return build_auth_response(db, user)
+    return build_auth_response(db, user, act_as_agency_id=act_as_agency_id)
 
 
-def build_auth_response(db: Session, user) -> dict:
+def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = None) -> dict:
     """
     Собрать ответ авторизации: пропуск (JWT), refresh-пропуск, статус подписки и
-    профиль. Используется при входе, вступлении по приглашению и обновлении сессии.
+    профиль. Используется при входе, вступлении по приглашению, обновлении сессии
+    и при «входе» суперадмина в своё личное агентство (acting-контекст).
+
+    Если задан act_as_agency_id и текущий user — суперадмин, владеющий этим
+    личным агентством, выдаём сессию, оформленную как главный админ этого
+    агентства (role=agency_admin, is_owner). Владение перепроверяем из БД; если
+    не подтвердилось — молча отдаём обычную сессию (acting «отвалился»).
     """
+    acting_agency = None
+    if act_as_agency_id is not None and getattr(user, "role", None) == "superadmin":
+        agency = agency_repo.get_by_id(db, act_as_agency_id)
+        if agency is not None and agency.owner_telegram_id == user.telegram_id:
+            acting_agency = agency
+
+    if acting_agency is not None:
+        token = security.create_access_token(
+            {
+                "user_id": user.id,
+                "telegram_id": user.telegram_id,
+                "agency_id": acting_agency.id,
+                "role": "agency_admin",
+                "act_as_agency_id": acting_agency.id,
+            }
+        )
+        refresh_token = security.create_refresh_token({"user_id": user.id})
+        return {
+            "access_token": token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            # Личное агентство подписке не подчиняется — доступ всегда полный.
+            "subscription_active": True,
+            "user": {
+                "id": user.id,
+                "telegram_id": user.telegram_id,
+                "username": user.username,
+                "full_name": user.full_name,
+                "role": "agency_admin",
+                "is_owner": True,
+                "agency_id": acting_agency.id,
+                "acting_as_agency_id": acting_agency.id,
+                "acting_as_agency_name": acting_agency.name,
+                "real_role": "superadmin",
+            },
+        }
+
     # У суперадмина (владельца платформы) подписки нет — оставляем None,
     # чтобы фронтенд не показывал ему строку про подписку.
     subscription_active = None

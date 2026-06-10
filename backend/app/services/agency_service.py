@@ -46,6 +46,13 @@ def attach_admins(db: Session, agencies: List[Agency]) -> None:
     агентства (agency_admin). Эти атрибуты только для вывода, в БД их нет.
     """
     for agency in agencies:
+        # Личное агентство: «админ» — сам владелец платформы (отдельной строки
+        # участника у него нет, он работает через acting-контекст).
+        if agency.owner_telegram_id is not None:
+            owner = user_repo.get_by_telegram_id(db, agency.owner_telegram_id)
+            agency.admin_telegram_id = agency.owner_telegram_id
+            agency.admin_name = _admin_display_name(owner)
+            continue
         admin = None
         for member in user_repo.get_by_agency(db, agency.id):
             if member.role == "agency_admin":
@@ -111,6 +118,46 @@ def create_agency_with_admin(
         note=f"admin telegram_id={payload.admin_telegram_id}, "
              f"подписка на {payload.subscription_days} дн.",
         **_actor_fields(actor),
+    )
+
+    db.commit()
+    db.refresh(agency)
+    return agency
+
+
+def list_personal_agencies(db: Session, owner_telegram_id: int) -> List[Agency]:
+    """Личные агентства владельца платформы (где owner_telegram_id == его id)."""
+    return agency_repo.get_by_owner(db, owner_telegram_id)
+
+
+def create_personal_agency(db: Session, name: str, owner: User) -> Agency:
+    """
+    Создать ЛИЧНОЕ агентство владельца платформы (суперадмина). В отличие от
+    обычного: внешний админ не назначается — владелец сам работает в нём как
+    главный админ через acting-контекст; подписка не действует (всегда активно).
+    Помечается agencies.owner_telegram_id = telegram_id владельца.
+    """
+    clean = (name or "").strip()
+    if not clean:
+        raise AppError("personal_agency_name_required", status.HTTP_400_BAD_REQUEST)
+
+    # Срок подписки тут роли не играет (личное всегда активно), но колонки
+    # заполняем валидно через общий конструктор.
+    agency = agency_repo.create(
+        db, name=clean, created_by=owner.telegram_id, subscription_days=3650
+    )
+    agency.owner_telegram_id = owner.telegram_id
+
+    # Наполняем значениями по умолчанию (районы, типы), как у обычного агентства.
+    seeding_service.seed_agency_defaults(db, agency.id)
+
+    audit_repo.add(
+        db,
+        action="agency_created",
+        agency_id=agency.id,
+        target=agency.name,
+        note="личное агентство владельца платформы",
+        **_actor_fields(owner),
     )
 
     db.commit()

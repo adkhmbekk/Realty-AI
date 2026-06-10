@@ -16,6 +16,12 @@ class AgencyCreate(BaseModel):
     subscription_days: int = 30
 
 
+class PersonalAgencyCreate(BaseModel):
+    # Личное агентство владельца платформы: нужно только название. Админ —
+    # сам владелец (через acting-контекст), подписки нет.
+    name: str
+
+
 class AgencySubscriptionUpdate(BaseModel):
     # extend — продлить на N дней (и сделать активной);
     # set — задать дату окончания вручную (и активировать);
@@ -122,6 +128,8 @@ class AgencyOut(BaseModel):
     subscription_expires_at: Optional[datetime] = None
     activated_at: Optional[datetime] = None
     created_at: datetime
+    # Личное агентство владельца платформы (если задано — это «моё» агентство).
+    owner_telegram_id: Optional[int] = None
     # Текущий администратор агентства (для панели суперадмина).
     # Заполняется сервисом; в самой модели Agency этих полей нет.
     admin_telegram_id: Optional[int] = None

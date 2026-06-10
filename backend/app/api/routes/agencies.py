@@ -3,10 +3,12 @@
 """
 from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
+
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_superadmin
+from app.core.errors import AppError
 from app.db.models.user import User
 from app.db.session import get_db
 from app.repositories import agency_repo
@@ -19,8 +21,10 @@ from app.schemas.agency import (
     PaymentsSummaryOut,
     AgencySubscriptionUpdate,
     AgencyUpdate,
+    PersonalAgencyCreate,
 )
-from app.services import agency_service
+from app.schemas.auth import AuthResponse
+from app.services import agency_service, auth_service
 
 router = APIRouter(prefix="/agencies", tags=["agencies"])
 
@@ -46,6 +50,51 @@ def list_agencies(
     agencies = agency_repo.get_all(db)
     agency_service.attach_admins(db, agencies)
     return agencies
+
+
+# ── Личные агентства владельца платформы ────────────────────────────────────
+# ВНИМАНИЕ: /mine объявлены ДО /{agency_id}/..., иначе "mine" примут за id.
+
+@router.get("/mine", response_model=List[AgencyOut])
+def my_agencies(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Список ЛИЧНЫХ агентств текущего владельца платформы."""
+    agencies = agency_service.list_personal_agencies(db, current_user.telegram_id)
+    agency_service.attach_admins(db, agencies)
+    return agencies
+
+
+@router.post("/mine", response_model=AgencyOut)
+def create_my_agency(
+    body: PersonalAgencyCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Создать личное агентство (владелец сам станет его главным админом)."""
+    agency = agency_service.create_personal_agency(db, body.name, current_user)
+    agency_service.attach_admins(db, [agency])
+    return agency
+
+
+@router.post("/{agency_id}/enter", response_model=AuthResponse)
+def enter_agency(
+    agency_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """
+    «Войти» в своё личное агентство: выдать сессию главного админа этого
+    агентства (acting-контекст). Войти можно только в агентство, которым
+    владеешь (owner_telegram_id == telegram_id).
+    """
+    agency = agency_repo.get_by_id(db, agency_id)
+    if agency is None or agency.owner_telegram_id != current_user.telegram_id:
+        raise AppError("agency_not_owned", status.HTTP_403_FORBIDDEN)
+    return auth_service.build_auth_response(
+        db, current_user, act_as_agency_id=agency_id
+    )
 
 
 @router.patch("/{agency_id}", response_model=AgencyOut)

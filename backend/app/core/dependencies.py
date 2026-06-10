@@ -5,6 +5,9 @@
   что он существует и активен.
 - require_superadmin — пускает дальше только суперадмина.
 """
+from dataclasses import dataclass
+from typing import Optional
+
 from fastapi import Depends, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -18,6 +21,32 @@ from app.repositories import agency_repo, user_repo
 
 # auto_error=False — сами решаем, как реагировать на отсутствие токена.
 _bearer = HTTPBearer(auto_error=False)
+
+
+@dataclass
+class ActingUser:
+    """
+    «Эффективный» пользователь: владелец платформы (суперадмин), работающий
+    ВНУТРИ своего личного агентства (acting-контекст). Для всех агентских
+    эндпоинтов он выглядит как главный админ (agency_admin, is_owner=True).
+
+    ВАЖНО: это НЕ ORM-объект. Его НЕЛЬЗЯ добавлять/коммитить/refresh'ить в
+    сессию БД — иначе можно затереть настоящую строку суперадмина (у которой
+    agency_id всегда NULL). Только чтение полей (.id, .agency_id, .role и т.п.).
+    """
+    id: int
+    telegram_id: int
+    username: Optional[str]
+    full_name: Optional[str]
+    agency_id: int
+    role: str = "agency_admin"
+    is_owner: bool = True
+    is_active: bool = True
+    # Признаки acting-режима (уезжают в профиль и в UI).
+    acting: bool = True
+    real_role: str = "superadmin"
+    acting_as_agency_id: Optional[int] = None
+    acting_as_agency_name: Optional[str] = None
 
 
 def get_current_user(
@@ -35,6 +64,22 @@ def get_current_user(
     user = user_repo.get_by_id(db, user_id) if user_id is not None else None
     if user is None or not user.is_active:
         raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+
+    # Acting-контекст: суперадмин «вошёл» в СВОЁ личное агентство. Владение
+    # перепроверяем из БД на КАЖДОМ запросе — claim'у из токена не доверяем.
+    act_as = payload.get("act_as_agency_id")
+    if act_as is not None and user.role == "superadmin":
+        agency = agency_repo.get_by_id(db, act_as)
+        if agency is not None and agency.owner_telegram_id == user.telegram_id:
+            return ActingUser(
+                id=user.id,
+                telegram_id=user.telegram_id,
+                username=user.username,
+                full_name=user.full_name,
+                agency_id=agency.id,
+                acting_as_agency_id=agency.id,
+                acting_as_agency_name=agency.name,
+            )
     return user
 
 
@@ -50,6 +95,9 @@ def _ensure_subscription_active(db: Session, user: User) -> None:
     закрываем доступ к рабочим эндпоинтам (данные при этом не трогаем).
     """
     agency = agency_repo.get_by_id(db, user.agency_id)
+    # Личное агентство владельца платформы подписке не подчиняется — всегда активно.
+    if agency is not None and agency.owner_telegram_id is not None:
+        return
     if not agency_is_active(agency):
         raise AppError("subscription_suspended", status.HTTP_403_FORBIDDEN)
 

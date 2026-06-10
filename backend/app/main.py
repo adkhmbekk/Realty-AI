@@ -36,38 +36,46 @@ from app.services.scheduler import start_scheduler
 logger = logging.getLogger("uvicorn.error")
 
 
-def ensure_superadmin(db: Session, telegram_id: int) -> None:
+def ensure_superadmins(db: Session, telegram_ids) -> None:
     """
-    Гарантировать, что владелец платформы — РОВНО ОДИН: пользователь с заданным
-    telegram_id.
+    Гарантировать, что владельцы платформы — РОВНО те, кто перечислен в настройках
+    (их может быть несколько). Все равноправны, интерфейс одинаковый.
 
-    САМОВОССТАНОВЛЕНИЕ: настроенного владельца ВСЕГДА приводим к состоянию
+    САМОВОССТАНОВЛЕНИЕ: каждого настроенного владельца ВСЕГДА приводим к состоянию
     «активный суперадмин без агентства» — даже если раньше его роль или доступ
     слетели (например, его случайно деактивировали). Благодаря этому правильный
-    SUPERADMIN_TELEGRAM_ID + перезапуск всегда возвращают вход владельцу.
+    SUPERADMIN_TELEGRAM_ID(S) + перезапуск всегда возвращают вход владельцам.
 
-    У всех ПРОЧИХ суперадминов права снимаем (их должно быть не больше одного).
+    У всех ПРОЧИХ суперадминов (не из списка) права снимаем. Личные агентства
+    владельцев тут не трогаются — владение хранится на самом агентстве
+    (agencies.owner_telegram_id), а строка суперадмина всегда agency_id=NULL.
     Коммит — на стороне вызывающего.
     """
-    existing = user_repo.get_by_telegram_id(db, telegram_id)
-    if existing is None:
-        user_repo.create(db, telegram_id=telegram_id, role="superadmin", agency_id=None)
-        logger.info("Создан суперадмин (telegram_id=%s).", telegram_id)
-    elif (
-        existing.role != "superadmin"
-        or existing.agency_id is not None
-        or not existing.is_active
-    ):
-        existing.role = "superadmin"
-        existing.agency_id = None
-        existing.is_active = True
-        logger.info("Суперадмин восстановлен/подтверждён (telegram_id=%s).", telegram_id)
+    ids = {int(t) for t in telegram_ids if t}
+    if not ids:
+        logger.info("Список суперадминов пуст — никого не создаём/не меняем.")
+        return
 
-    # Снять права суперадмина с прочих (прежних) владельцев — чтобы их не было двое.
+    for telegram_id in ids:
+        existing = user_repo.get_by_telegram_id(db, telegram_id)
+        if existing is None:
+            user_repo.create(db, telegram_id=telegram_id, role="superadmin", agency_id=None)
+            logger.info("Создан суперадмин (telegram_id=%s).", telegram_id)
+        elif (
+            existing.role != "superadmin"
+            or existing.agency_id is not None
+            or not existing.is_active
+        ):
+            existing.role = "superadmin"
+            existing.agency_id = None
+            existing.is_active = True
+            logger.info("Суперадмин восстановлен/подтверждён (telegram_id=%s).", telegram_id)
+
+    # Снять права суперадмина с прочих (прежних) владельцев — не из списка.
     others = db.execute(
         select(User).where(
             User.role == "superadmin",
-            User.telegram_id != telegram_id,
+            User.telegram_id.notin_(list(ids)),
         )
     ).scalars().all()
     for u in others:
@@ -80,19 +88,25 @@ def ensure_superadmin(db: Session, telegram_id: int) -> None:
         )
 
 
+def ensure_superadmin(db: Session, telegram_id: int) -> None:
+    """Совместимость: один владелец платформы (делегирует ensure_superadmins)."""
+    ensure_superadmins(db, {telegram_id})
+
+
 def bootstrap_superadmin() -> None:
     """
     Если в настройках задан SUPERADMIN_TELEGRAM_ID — привести владельца платформы
     к корректному состоянию (см. ensure_superadmin). Так владелец получает доступ
     без ручного редактирования базы.
     """
-    if not settings.superadmin_telegram_id:
-        logger.info("SUPERADMIN_TELEGRAM_ID не задан — суперадмин не создаётся/не меняется.")
+    ids = settings.superadmin_ids()
+    if not ids:
+        logger.info("SUPERADMIN_TELEGRAM_ID(S) не задан — суперадмины не создаются/не меняются.")
         return
 
     db = SessionLocal()
     try:
-        ensure_superadmin(db, settings.superadmin_telegram_id)
+        ensure_superadmins(db, ids)
         db.commit()
     finally:
         db.close()

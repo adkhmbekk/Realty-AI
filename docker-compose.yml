@@ -47,6 +47,8 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-realty}:${POSTGRES_PASSWORD:?Задай POSTGRES_PASSWORD в .env.}@db:5432/${POSTGRES_DB:-realty}
       BOT_TOKEN: ${BOT_TOKEN:-}
       SUPERADMIN_TELEGRAM_ID: ${SUPERADMIN_TELEGRAM_ID:-}
+      # Несколько владельцев платформы: ID через запятую (например "111,222").
+      SUPERADMIN_TELEGRAM_IDS: ${SUPERADMIN_TELEGRAM_IDS:-}
       JWT_SECRET: ${JWT_SECRET:-}
       BOT_USERNAME: ${BOT_USERNAME:-}
       SUBSCRIPTION_WARN_DAYS: ${SUBSCRIPTION_WARN_DAYS:-3}

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
+import { useActing } from "../acting";
 import { api, errText } from "../api";
 import { Badge, Button, Card, Empty, Field, Input, Row, Spinner } from "../components/ui";
 import type { AgencyOut, AgencyPayment, PaymentsSummary } from "../types";
@@ -158,6 +159,89 @@ export function AgenciesScreen() {
               </button>
             );
           })
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Личные агентства владельца платформы ────────────────────────────────────
+// Здесь владелец создаёт СВОИ агентства (где он сам — главный админ) и «входит»
+// в них, получая обычный интерфейс агентства. Создание — через простой prompt,
+// чтобы не плодить отдельный экран (нужно только название).
+export function MyAgenciesScreen() {
+  const { t, toast } = useApp();
+  const nav = useNav();
+  const { enterAgency } = useActing();
+  const [list, setList] = useState<AgencyOut[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const r = await api<AgencyOut[]>("/api/v1/agencies/mine");
+    if (r.ok && Array.isArray(r.data)) {
+      setList(r.data);
+      setErr(null);
+    } else setErr(`${t("notFound")} (${r.status})`);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function create() {
+    const v = window.prompt(t("personalAgencyNamePrompt"), "");
+    if (v === null) return;
+    if (!v.trim()) {
+      toast(t("emptyName"), "warn");
+      return;
+    }
+    setBusy(true);
+    const r = await api("/api/v1/agencies/mine", { method: "POST", body: { name: v.trim() } });
+    setBusy(false);
+    if (r.ok) {
+      toast(t("agencyCreated"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  async function enter(id: number) {
+    const ok = await enterAgency(id);
+    if (ok) nav.resetTo({ name: "home" });
+  }
+
+  return (
+    <div>
+      <Button full disabled={busy} onClick={create}>
+        <Plus size={18} /> {t("createPersonalAgency")}
+      </Button>
+      <div className="mt-3">
+        {err ? (
+          <Empty>{err}</Empty>
+        ) : !list ? (
+          <Spinner />
+        ) : !list.length ? (
+          <Empty>{t("noPersonalAgencies")}</Empty>
+        ) : (
+          list.map((a) => (
+            <div
+              key={a.id}
+              className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-extrabold">{a.name}</span>
+                <Button size="sm" onClick={() => enter(a.id)}>
+                  {t("enterAgency")}
+                </Button>
+              </div>
+              {a.project_name && (
+                <div className="text-[13px] text-muted mt-1">
+                  {t("projectName")}: {a.project_name}
+                </div>
+              )}
+              <div className="text-[13px] text-muted">ID {a.id}</div>
+            </div>
+          ))
         )}
       </div>
     </div>

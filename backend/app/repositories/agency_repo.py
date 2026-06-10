@@ -28,6 +28,19 @@ def get_all(db: Session) -> List[Agency]:
     )
 
 
+def get_by_owner(db: Session, owner_telegram_id: int) -> List[Agency]:
+    """Личные агентства владельца платформы (по agencies.owner_telegram_id)."""
+    return list(
+        db.execute(
+            select(Agency)
+            .where(Agency.owner_telegram_id == owner_telegram_id)
+            .order_by(Agency.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+
+
 def create(
     db: Session,
     name: str,

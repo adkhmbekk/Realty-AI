@@ -103,6 +103,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Agentlik topilmadi.",
         "en": "Agency not found.",
     },
+    "agency_not_owned": {
+        "ru": "Это не ваше личное агентство — войти нельзя.",
+        "uz": "Bu sizning shaxsiy agentligingiz emas — kirib boʻlmaydi.",
+        "en": "This is not your personal agency — entry denied.",
+    },
+    "personal_agency_name_required": {
+        "ru": "Укажите название личного агентства.",
+        "uz": "Shaxsiy agentlik nomini kiriting.",
+        "en": "Enter a name for the personal agency.",
+    },
     "subscription_end_date_required": {
         "ru": "Не указана дата окончания подписки.",
         "uz": "Obuna tugash sanasi koʻrsatilmagan.",

@@ -7,7 +7,7 @@
 На SQLite в памяти (фикстура db из conftest).
 """
 from app.db.models.user import User
-from app.main import ensure_superadmin
+from app.main import ensure_superadmin, ensure_superadmins
 from app.repositories import user_repo
 
 
@@ -61,3 +61,28 @@ def test_demotes_other_superadmins(db):
     assert a.role == "superadmin" and a.is_active is True
     # Прежний суперадмин 222 теряет права и деактивируется.
     assert b.role == "agent" and b.is_active is False
+
+
+def test_keeps_multiple_listed_superadmins(db):
+    # Оба перечисленных владельца остаются равноправными суперадминами.
+    ensure_superadmins(db, {111, 222})
+    db.commit()
+    a = user_repo.get_by_telegram_id(db, 111)
+    b = user_repo.get_by_telegram_id(db, 222)
+    assert a.role == "superadmin" and a.is_active is True and a.agency_id is None
+    assert b.role == "superadmin" and b.is_active is True and b.agency_id is None
+
+
+def test_demotes_only_those_not_listed(db):
+    db.add(User(telegram_id=111, role="superadmin", agency_id=None, is_active=True))
+    db.add(User(telegram_id=222, role="superadmin", agency_id=None, is_active=True))
+    db.add(User(telegram_id=333, role="superadmin", agency_id=None, is_active=True))
+    db.commit()
+
+    ensure_superadmins(db, {111, 222})  # 333 не в списке
+    db.commit()
+
+    assert user_repo.get_by_telegram_id(db, 111).role == "superadmin"
+    assert user_repo.get_by_telegram_id(db, 222).role == "superadmin"
+    c = user_repo.get_by_telegram_id(db, 333)
+    assert c.role == "agent" and c.is_active is False

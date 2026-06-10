@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Building2, Database, Home, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
+import { Briefcase, Building2, Database, Home, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
 import { NavProvider, Route, useNav } from "./nav";
+import { ActingProvider, useActing } from "./acting";
 import { api, errText, setReauthHandler } from "./api";
 import { tg, tgReady, getInitData, getStartParam, haptic } from "./telegram";
 import type { AuthResponse, AgencySettings } from "./types";
@@ -14,7 +15,7 @@ import { TeamScreen } from "./screens/Team";
 import { InvitesScreen } from "./screens/Invites";
 import { AnalyticsScreen } from "./screens/Analytics";
 import { AgentDetailScreen } from "./screens/AgentDetail";
-import { AgenciesScreen, AgencyCreateScreen, AgencyManageScreen } from "./screens/Superadmin";
+import { AgenciesScreen, AgencyCreateScreen, AgencyManageScreen, MyAgenciesScreen } from "./screens/Superadmin";
 import {
   AddObjectScreen,
   ArchiveScreen,
@@ -60,6 +61,7 @@ function titleKeyFor(route: Route): string | null {
   switch (route.name) {
     case "home":
     case "agencies":
+    case "myAgencies":
       return null;
     case "profile":
       return "profile";
@@ -104,6 +106,8 @@ function RouteView({ route }: { route: Route }) {
       return <SettingsScreen />;
     case "agencies":
       return <AgenciesScreen />;
+    case "myAgencies":
+      return <MyAgenciesScreen />;
     case "agencyCreate":
       return <AgencyCreateScreen />;
     case "agencyManage":
@@ -142,7 +146,8 @@ function BottomTabs() {
 
   if (role === "superadmin") {
     const tabs: { route: Route; icon: JSX.Element; label: string; key: string }[] = [
-      { route: { name: "agencies" }, icon: <Building2 size={22} />, label: t("myAgencies"), key: "agencies" },
+      { route: { name: "agencies" }, icon: <Building2 size={22} />, label: t("agenciesTab"), key: "agencies" },
+      { route: { name: "myAgencies" }, icon: <Briefcase size={22} />, label: t("myAgenciesTab"), key: "myAgencies" },
       { route: { name: "settings" }, icon: <SettingsIcon size={22} />, label: t("settings"), key: "settings" },
       { route: { name: "profile" }, icon: <User size={22} />, label: t("profile"), key: "profile" },
     ];
@@ -200,8 +205,10 @@ function TabButton({ active, icon, label, onClick }: { active: boolean; icon: JS
 
 // ── Оболочка (после входа) ──────────────────────────────────────────
 function Shell() {
-  const { t } = useApp();
+  const { t, user } = useApp();
+  const { exitToPlatform } = useActing();
   const nav = useNav();
+  const acting = user?.real_role === "superadmin" && !!user?.acting_as_agency_id;
   const depth = nav.stack.length;
   const route = nav.current;
   const tkey = titleKeyFor(route);
@@ -262,6 +269,22 @@ function Shell() {
   return (
     <div className="min-h-screen pb-28" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="max-w-[560px] mx-auto px-3.5 pt-3.5">
+        {/* Баннер acting-режима: владелец платформы внутри своего агентства */}
+        {acting && (
+          <button
+            onClick={async () => {
+              await exitToPlatform();
+              nav.resetTo({ name: "agencies" });
+            }}
+            className="w-full mb-3 rounded-xl2 px-3.5 py-2.5 text-left text-[13px] font-bold text-white shadow-soft active:scale-[.99] transition"
+            style={{ background: "var(--grad)" }}
+          >
+            {t("actingBanner").replace("{name}", user?.acting_as_agency_name || "")}
+            <span className="block text-[12px] font-semibold opacity-90 underline">
+              {t("exitToPlatform")}
+            </span>
+          </button>
+        )}
         {/* Шапка */}
         <header className="flex items-center gap-3 min-h-[40px] mb-3">
           {showBack ? (
@@ -374,7 +397,7 @@ function JoinScreen({ prefill, onAuth }: { prefill: string; onAuth: (r: AuthResp
 
 // ── Корень ──────────────────────────────────────────────────────────
 export function App() {
-  const { setAuth, setSettings, user, subscriptionActive, clearAuth } = useApp();
+  const { setAuth, setSettings, user, subscriptionActive, clearAuth, toast, t } = useApp();
   const [phase, setPhase] = useState<Phase>("loading");
   const [startParam, setStartParam] = useState("");
 
@@ -382,20 +405,64 @@ export function App() {
     if (role === "agency_admin" || role === "agent") {
       const r = await api<AgencySettings>("/api/v1/agency/settings");
       if (r.ok && r.data) setSettings(r.data);
+    } else {
+      // Суперадмин на платформе: чужие настройки агентства не нужны (могли
+      // остаться от acting-сессии) — сбрасываем.
+      setSettings(null);
     }
   }
 
   // refresh-пропуск держим только в памяти (не в localStorage) — как и access-токен.
   const refreshTokenRef = useRef<string | null>(null);
+  // Текущее личное агентство (acting): нужно, чтобы тихое продление сессии не
+  // выкидывало владельца из агентства обратно на платформу.
+  const actingAgencyRef = useRef<number | null>(null);
 
   async function applyAuth(data: AuthResponse) {
     setAuth(data.access_token, data.user, data.subscription_active ?? null);
     refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;
+    actingAgencyRef.current = data.user.acting_as_agency_id ?? null;
     await loadSettingsIfNeeded(data.user.role);
     if ((data.user.role === "agency_admin" || data.user.role === "agent") && data.subscription_active === false) {
       setPhase("suspended");
     } else {
       setPhase("ready");
+    }
+  }
+
+  // Войти в своё личное агентство (acting): получить сессию главного админа.
+  async function enterAgency(id: number): Promise<boolean> {
+    const r = await api<AuthResponse>(`/api/v1/agencies/${id}/enter`, { method: "POST" });
+    if (r.ok && r.data) {
+      await applyAuth(r.data);
+      return true;
+    }
+    toast(errText(r.data, r.status) || t("loginFail"), "err");
+    return false;
+  }
+
+  // Выйти из агентства обратно на платформу (роль суперадмина). Обновляем сессию
+  // БЕЗ act_as — сервер вернёт обычную сессию владельца.
+  async function exitToPlatform(): Promise<void> {
+    const rt = refreshTokenRef.current;
+    if (rt) {
+      const r = await api<AuthResponse>("/api/v1/auth/refresh", {
+        method: "POST",
+        body: { refresh_token: rt },
+      });
+      if (r.ok && r.data) {
+        await applyAuth(r.data);
+        return;
+      }
+    }
+    // Запасной путь: вход по initData (вернёт суперадмина).
+    const fresh = getInitData();
+    if (fresh) {
+      const r = await api<AuthResponse>("/api/v1/auth/telegram", {
+        method: "POST",
+        body: { init_data: fresh },
+      });
+      if (r.ok && r.data) await applyAuth(r.data);
     }
   }
 
@@ -418,12 +485,17 @@ export function App() {
           const res = await fetch("/api/v1/auth/refresh", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refresh_token: rt }),
+            body: JSON.stringify({
+              refresh_token: rt,
+              // Если владелец сейчас внутри своего агентства — сохраняем контекст.
+              act_as_agency_id: actingAgencyRef.current,
+            }),
           });
           if (res.ok) {
             const data: AuthResponse = await res.json();
             setAuth(data.access_token, data.user, data.subscription_active ?? null);
             refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;
+            actingAgencyRef.current = data.user.acting_as_agency_id ?? null;
             return data.access_token;
           }
         } catch {
@@ -444,6 +516,7 @@ export function App() {
         const data: AuthResponse = await res.json();
         setAuth(data.access_token, data.user, data.subscription_active ?? null);
         refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;
+        actingAgencyRef.current = data.user.acting_as_agency_id ?? null;
         return data.access_token;
       } catch {
         return null;
@@ -493,7 +566,9 @@ export function App() {
   const initialRoute: Route = user?.role === "superadmin" ? { name: "agencies" } : { name: "home" };
   return (
     <NavProvider initial={initialRoute}>
-      <Shell />
+      <ActingProvider value={{ enterAgency, exitToPlatform }}>
+        <Shell />
+      </ActingProvider>
       <Toasts />
     </NavProvider>
   );

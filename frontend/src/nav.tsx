@@ -7,6 +7,7 @@ export type Route =
   | { name: "profile" }
   | { name: "settings" }
   | { name: "agencies" }
+  | { name: "myAgencies" }
   | { name: "agencyCreate" }
   | { name: "agencyManage"; id: number }
   | { name: "addObject" }

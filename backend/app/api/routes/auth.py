@@ -37,7 +37,9 @@ def telegram_login(body: TelegramAuthRequest, request: Request, db: Session = De
 )
 def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     """Обновить сессию по refresh-пропуску (без повторной проверки initData)."""
-    return auth_service.refresh_session(db, body.refresh_token)
+    return auth_service.refresh_session(
+        db, body.refresh_token, act_as_agency_id=body.act_as_agency_id
+    )
 
 
 @router.get("/me", response_model=UserProfile)
