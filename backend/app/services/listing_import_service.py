@@ -400,6 +400,17 @@ def _clean(data: dict) -> dict:
     return out
 
 
+def extract_fields_from_text(text: str, districts: List[str]) -> dict:
+    """
+    Извлечь поля объекта из ГОТОВОГО текста (без загрузки страницы) — для
+    массового импорта из Telegram-канала, где текст постов уже получен. Возвращает
+    тот же набор очищенных полей, что и import_preview (без фото и предупреждений).
+    """
+    if not text or len(text.strip()) < 20:
+        return _clean({})
+    return _clean(_extract_with_ai(text, districts))
+
+
 def import_preview(url: str, districts: List[str]) -> dict:
     """
     Главный вход: загрузить объявление, разобрать AI и вернуть поля + ссылки на

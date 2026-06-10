@@ -19,7 +19,8 @@ from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.base_import import BaseImportAnalyzeOut, BaseImportCommitOut
-from app.services import base_import_service
+from app.schemas.tg_import import TelegramScanIn, TelegramScanOut
+from app.services import base_import_service, telegram_channel_service
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 
@@ -62,4 +63,20 @@ async def commit_base(
     return base_import_service.commit(
         db, current_user.agency_id, created_by=current_user.id,
         filename=file.filename or "", content=content, mapping=mapping_dict,
+    )
+
+
+@router.post(
+    "/telegram/scan",
+    response_model=TelegramScanOut,
+    dependencies=[Depends(rate_limit(40, 60, "import_tg_scan"))],
+)
+async def scan_telegram(
+    body: TelegramScanIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_owner),
+):
+    """Обработать одну страницу ленты открытого Telegram-канала (постранично)."""
+    return await telegram_channel_service.scan_page(
+        db, current_user.agency_id, current_user.id, body.channel, body.before
     )

@@ -472,6 +472,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Import uchun birorta ustun tanlanmadi. Kamida bitta maydonni moslang.",
         "en": "No columns selected for import. Map at least one field.",
     },
+    "tg_channel_invalid": {
+        "ru": "Не похоже на ссылку или имя канала. Пример: @mychannel или https://t.me/mychannel",
+        "uz": "Bu kanal havolasi yoki nomiga oʻxshamaydi. Masalan: @mychannel yoki https://t.me/mychannel",
+        "en": "This doesn't look like a channel link or name. Example: @mychannel or https://t.me/mychannel",
+    },
+    "tg_channel_unreachable": {
+        "ru": "Не удалось открыть канал. Проверьте имя и что канал ПУБЛИЧНЫЙ (открытый).",
+        "uz": "Kanalni ochib boʻlmadi. Nomini va kanal OCHIQ ekanini tekshiring.",
+        "en": "Could not open the channel. Check the name and that the channel is PUBLIC.",
+    },
     "export_link_invalid": {
         "ru": "Ссылка на скачивание устарела. Вернитесь в приложение и нажмите «Скачать Excel» ещё раз.",
         "uz": "Yuklab olish havolasi eskirgan. Ilovaga qaytib, «Excelni yuklab olish»ni qayta bosing.",

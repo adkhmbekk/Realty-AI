@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { useApp } from "../store";
-import { api, apiUpload, errText } from "../api";
+import { api, apiUpload, errText, type ApiResult } from "../api";
 import { Button, Card, Field, Hint, Input, Label, Segmented, Select, SectionTitle } from "../components/ui";
 import { Lang } from "../i18n";
 import type { AgencySettings, SheetStatus } from "../types";
@@ -299,6 +299,90 @@ function ExcelExportCard() {
   );
 }
 
+// ── Массовый импорт из открытого Telegram-канала (постранично) ──────
+type TgScanOut = {
+  channel: string;
+  created: number;
+  skipped: number;
+  scanned: number;
+  next_before: number | null;
+  done: boolean;
+};
+
+function TelegramImportCard() {
+  const { t, toast } = useApp();
+  const [channel, setChannel] = useState("");
+  const [running, setRunning] = useState(false);
+  const [scanned, setScanned] = useState(0);
+  const [created, setCreated] = useState(0);
+  const stopRef = useRef(false);
+
+  // Предохранитель: не уходим в бесконечность на гигантских каналах.
+  const HARD_CAP = 600;
+
+  async function start() {
+    if (!channel.trim() || running) return;
+    stopRef.current = false;
+    setRunning(true);
+    setScanned(0);
+    setCreated(0);
+    let before: number | null = null;
+    let totalScanned = 0;
+    let totalCreated = 0;
+    let failed = false;
+    while (!stopRef.current && totalScanned < HARD_CAP) {
+      const r: ApiResult<TgScanOut> = await api<TgScanOut>("/api/v1/imports/telegram/scan", {
+        method: "POST",
+        body: { channel: channel.trim(), before },
+        timeoutMs: 120000,
+      });
+      if (!r.ok || !r.data) {
+        toast(errText(r.data, r.status) || t("tgImportError"), "err");
+        failed = true;
+        break;
+      }
+      totalScanned += r.data.scanned;
+      totalCreated += r.data.created;
+      setScanned(totalScanned);
+      setCreated(totalCreated);
+      if (r.data.done || r.data.next_before == null) break;
+      before = r.data.next_before;
+    }
+    setRunning(false);
+    if (!failed) toast(`${t("tgImportDoneMsg")}: ${totalCreated}`, totalCreated > 0 ? "ok" : "err");
+  }
+
+  return (
+    <div className="mt-2">
+      <SectionTitle>{t("tgImportTitle")}</SectionTitle>
+      <Card>
+        <Hint>{t("tgImportHint")}</Hint>
+        <Input
+          className="mt-3"
+          placeholder={t("tgImportPlaceholder")}
+          value={channel}
+          onChange={(e) => setChannel(e.target.value)}
+          disabled={running}
+        />
+        {(running || scanned > 0) && (
+          <div className="mt-3 text-[13px] text-muted">
+            {t("tgImportScanned")}: <b>{scanned}</b> · {t("tgImportCreated")}: <b>{created}</b>
+          </div>
+        )}
+        {!running ? (
+          <Button full className="mt-3" disabled={!channel.trim()} onClick={start}>
+            {t("tgImportStart")}
+          </Button>
+        ) : (
+          <Button full variant="danger" className="mt-3" onClick={() => (stopRef.current = true)}>
+            {t("tgImportStop")}
+          </Button>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 export function SettingsScreen() {
   const { t, lang, theme, setLang, setTheme, user, settings, setSettings, toast } = useApp();
   const role = user?.role;
@@ -367,6 +451,7 @@ export function SettingsScreen() {
           <GoogleSheetsCard />
           <BaseImportCard />
           <ExcelExportCard />
+          <TelegramImportCard />
         </div>
       )}
 
