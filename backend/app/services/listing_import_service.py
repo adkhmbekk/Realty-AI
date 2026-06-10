@@ -21,14 +21,14 @@ import json
 import logging
 import re
 from typing import List, Optional, Tuple
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 import httpx
 from fastapi import status
 
 from app.config import settings
 from app.core.errors import AppError
-from app.services import photo_service
+from app.services import browser_render_service, photo_service
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -141,6 +141,54 @@ def _is_image_url(u: str) -> bool:
     return path.endswith((".jpg", ".jpeg", ".png", ".webp"))
 
 
+# Статика, которую не считаем фотографиями объекта (логотипы, аватары, иконки).
+_NON_PHOTO_HINTS = (
+    "logo", "avatar", "placeholder", "sprite", "icon", "favicon", "/flags/", "top-ten",
+)
+
+
+def _unwrap_proxy(u: str) -> str:
+    """Развернуть Next.js-обёртку картинок: /_next/image?url=ENCODED&w=..&q=.."""
+    try:
+        parsed = urlparse(u)
+        if parsed.path.endswith("/_next/image") or parsed.path == "/_next/image":
+            inner = parse_qs(parsed.query).get("url", [None])[0]
+            if inner:
+                return unquote(inner)
+    except Exception:  # noqa: BLE001
+        pass
+    return u
+
+
+def _normalize_images(found: List[str], base_url: str) -> List[str]:
+    """Привести список к абсолютным http-ссылкам на фото, без дублей и мусора."""
+    seen = set()
+    result: List[str] = []
+    for u in found:
+        u = (u or "").strip()
+        if not u or u.startswith("data:"):
+            continue
+        u = _unwrap_proxy(u)
+        if u.startswith("//"):
+            u = "https:" + u
+        elif u.startswith("/"):
+            u = urljoin(base_url, u)
+        if not u.startswith("http"):
+            continue
+        if not _is_image_url(u):
+            continue
+        low = u.lower()
+        if any(h in low for h in _NON_PHOTO_HINTS):
+            continue
+        if u in seen:
+            continue
+        seen.add(u)
+        result.append(u)
+        if len(result) >= _MAX_IMAGES:
+            break
+    return result
+
+
 def _extract_images_generic(html: str, base_url: str) -> List[str]:
     """Ссылки на фото с обычной страницы: og:image, twitter:image, JSON-LD, <img>."""
     found: List[str] = []
@@ -161,29 +209,7 @@ def _extract_images_generic(html: str, base_url: str) -> List[str]:
         first = m.group(1).split(",")[0].strip().split(" ")[0]
         if first:
             found.append(html_lib.unescape(first))
-
-    # Нормализуем (абсолютные http-ссылки на изображения), без дублей.
-    seen = set()
-    result: List[str] = []
-    for u in found:
-        u = (u or "").strip()
-        if not u or u.startswith("data:"):
-            continue
-        if u.startswith("//"):
-            u = "https:" + u
-        elif u.startswith("/"):
-            u = urljoin(base_url, u)
-        if not u.startswith("http"):
-            continue
-        if not _is_image_url(u):
-            continue
-        if u in seen:
-            continue
-        seen.add(u)
-        result.append(u)
-        if len(result) >= _MAX_IMAGES:
-            break
-    return result
+    return _normalize_images(found, base_url)
 
 
 def _build_ai_text(html: str) -> str:
@@ -207,6 +233,24 @@ def _build_ai_text(html: str) -> str:
     return text[:_MAX_AI_CHARS]
 
 
+# Мало осмысленного текста на странице → вероятно «одностраничник» (контент за JS).
+_THIN_CONTENT_CHARS = 400
+
+
+def _build_ai_text_from_rendered(html: str, rendered_text: str) -> str:
+    """Собрать текст для AI из отрендеренной страницы (+ мета-теги, если были)."""
+    head: List[str] = []
+    if html:
+        title = _meta_content(html, "og:title")
+        desc = _meta_content(html, "og:description") or _meta_content(html, "description")
+        if title:
+            head.append("Заголовок: " + title)
+        if desc:
+            head.append("Описание (мета): " + desc)
+    text = ("\n\n".join(head) + "\n\nТекст страницы:\n" + rendered_text).strip()
+    return text[:_MAX_AI_CHARS]
+
+
 def _fetch_listing(url: str) -> Tuple[str, List[str]]:
     """Загрузить страницу и вернуть (текст_для_AI, ссылки_на_фото)."""
     # Telegram-пост: текст и фото берём через уже готовый разбор встраивания.
@@ -216,8 +260,28 @@ def _fetch_listing(url: str) -> Tuple[str, List[str]]:
         images = photo_service._extract_image_urls(html)[:_MAX_IMAGES]
         return _build_ai_text(html), images
 
-    html, final_url = _fetch_html(url)
-    return _build_ai_text(html), _extract_images_generic(html, final_url)
+    # Быстрый путь: обычный HTTP. Для большинства сайтов этого достаточно.
+    html, final_url = "", url
+    try:
+        html, final_url = _fetch_html(url)
+    except AppError:
+        html = ""  # не удалось — попробуем браузером ниже
+    text = _build_ai_text(html) if html else ""
+    images = _extract_images_generic(html, final_url) if html else []
+
+    # Сайт-одностраничник (текста почти нет — он рисуется скриптами): добираем
+    # настоящим браузером. Любая ошибка рендера → тихо остаёмся на HTTP-разборе.
+    if len(_visible_text(html).strip() if html else "") < _THIN_CONTENT_CHARS:
+        rendered = browser_render_service.try_render(url)
+        if rendered:
+            r_text, r_final, r_imgs = rendered
+            if len((r_text or "").strip()) > len(_visible_text(html).strip() if html else ""):
+                text = _build_ai_text_from_rendered(html, r_text)
+                r_imgs_norm = _normalize_images(r_imgs, r_final)
+                if r_imgs_norm:
+                    images = r_imgs_norm
+
+    return text, images
 
 
 # ── AI-извлечение полей (Google Gemini) ──────────────────────────────
@@ -229,6 +293,11 @@ def _system_prompt(districts: List[str]) -> str:
     return (
         "Ты — помощник агента недвижимости. Из текста объявления извлеки данные "
         "объекта. Правила:\n"
+        "- Текст может быть на узбекском или русском — пойми смысл в любом случае.\n"
+        "- В тексте может быть блок «похожие/рекомендованные объявления» (список "
+        "других объектов с ценами). ИГНОРИРУЙ его — извлекай ТОЛЬКО основной "
+        "объект (обычно он в начале страницы). Если основного объекта в тексте "
+        "нет (например, объявление удалено) — верни все поля null.\n"
         f"- type: выбери РОВНО одно из списка {OBJ_TYPE_VALUES}. Если объект — земельный "
         "участок, выбирай «Участок» (или «Земля»).\n"
         "- Для типа «Земля»/«Участок» заполни land_area (площадь в сотках), а floor и "

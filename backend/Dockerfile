@@ -10,6 +10,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Безголовый Chromium для рендера сайтов-одностраничников (импорт объявлений).
+# --with-deps ставит системные библиотеки, нужные браузеру внутри slim-образа.
+RUN playwright install --with-deps chromium
+
 # Теперь копируем сам код приложения.
 COPY . .
 
