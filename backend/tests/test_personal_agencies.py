@@ -9,7 +9,7 @@ import pytest
 from app.core import dependencies
 from app.core.errors import AppError
 from app.db.models.agency import Agency
-from app.repositories import user_repo
+from app.repositories import agency_repo, user_repo
 from app.services import agency_service, auth_service
 
 
@@ -27,6 +27,21 @@ def test_create_personal_agency_sets_owner(db):
     # Появилось в списке «моих».
     mine = agency_service.list_personal_agencies(db, owner.telegram_id)
     assert [a.id for a in mine] == [agency.id]
+
+
+def test_platform_list_excludes_personal(db):
+    owner = _superadmin(db)
+    personal = agency_service.create_personal_agency(db, "Личное", owner)
+    client = Agency(name="Клиент", status="active", timezone="Asia/Tashkent",
+                    default_currency="USD")
+    db.add(client)
+    db.commit()
+
+    client_ids = [a.id for a in agency_repo.get_clients(db)]
+    owner_ids = [a.id for a in agency_repo.get_by_owner(db, owner.telegram_id)]
+    # В платформенном списке — только клиент, личное — только в «моих».
+    assert client.id in client_ids and personal.id not in client_ids
+    assert owner_ids == [personal.id]
 
 
 def test_create_personal_agency_requires_name(db):

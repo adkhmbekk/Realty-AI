@@ -46,8 +46,9 @@ def list_agencies(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_superadmin),
 ):
-    """Список всех агентств платформы (с инфо об администраторе)."""
-    agencies = agency_repo.get_all(db)
+    """Список КЛИЕНТСКИХ агентств платформы (личные агентства владельцев сюда
+    не входят — они в /agencies/mine)."""
+    agencies = agency_repo.get_clients(db)
     agency_service.attach_admins(db, agencies)
     return agencies
 
