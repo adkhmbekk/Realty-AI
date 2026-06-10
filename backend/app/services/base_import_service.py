@@ -93,8 +93,9 @@ def parse_file(filename: str, content: bytes) -> Tuple[List[str], List[List[str]
         # Пытаемся по содержимому: xlsx — это zip (PK\x03\x04).
         rows = _parse_xlsx(content) if content[:2] == b"PK" else _parse_csv(content)
 
-    # Убираем полностью пустые строки.
-    rows = [r for r in rows if any((c or "").strip() for c in r)]
+    # Убираем полностью пустые строки. Ячейки из xlsx ещё «сырые» (число, дата,
+    # None) — приводим к строке через _cell_str, иначе .strip() падает на числах.
+    rows = [r for r in rows if any(_cell_str(c).strip() for c in r)]
     if not rows:
         raise AppError("import_file_empty", http_status.HTTP_400_BAD_REQUEST)
 

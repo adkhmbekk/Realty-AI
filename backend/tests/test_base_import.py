@@ -38,6 +38,19 @@ def test_parse_csv_and_xlsx_equivalent():
     assert len(d_csv) == 2 and len(d_xlsx) == 2
 
 
+def test_parse_xlsx_numeric_cells():
+    # У клиента в Excel цена/комнаты — настоящие ЧИСЛА, а не текст. Раньше это
+    # роняло парсинг ('int' object has no attribute 'strip'). Регрессия.
+    rows = [["Наименование", "Цена", "Кол-во комнат", "Площадь"],
+            ["Квартира центр", 55000, 3, 64.5],
+            ["Дом", 120000, 5, 180]]
+    header, data = bi.parse_file("base.xlsx", _xlsx(rows))
+    assert header == ["Наименование", "Цена", "Кол-во комнат", "Площадь"]
+    assert data[0] == ["Квартира центр", "55000", "3", "64.5"]
+    # 180 — целое float из xlsx → "180", без ".0".
+    assert data[1] == ["Дом", "120000", "5", "180"]
+
+
 def test_heuristic_mapping_by_header_names():
     header = ["Наименование", "Район", "Цена", "Кол-во комнат", "Телефон собственника"]
     m = bi._heuristic_mapping(header)
