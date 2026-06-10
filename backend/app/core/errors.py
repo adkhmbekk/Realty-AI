@@ -472,6 +472,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Import uchun birorta ustun tanlanmadi. Kamida bitta maydonni moslang.",
         "en": "No columns selected for import. Map at least one field.",
     },
+    "excel_unsupported": {
+        "ru": "Экспорт в Excel временно недоступен. Попробуйте позже или используйте Google Sheets.",
+        "uz": "Excelga eksport vaqtincha mavjud emas. Keyinroq urinib koʻring yoki Google Sheets'dan foydalaning.",
+        "en": "Excel export is temporarily unavailable. Try later or use Google Sheets.",
+    },
     # Синхронизация с Google Sheets
     "sheets_not_configured": {
         "ru": "Google Sheets не настроены на платформе. Обратитесь к владельцу платформы.",

@@ -8,6 +8,7 @@ from app.api.routes import (
     apartments,
     auth,
     dictionaries,
+    exports,
     imports,
     invites,
     photos,
@@ -27,3 +28,4 @@ api_router.include_router(apartments.router)
 api_router.include_router(photos.router)
 api_router.include_router(sheets.router)
 api_router.include_router(imports.router)
+api_router.include_router(exports.router)

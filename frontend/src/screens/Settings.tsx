@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { useApp } from "../store";
-import { api, apiUpload, errText } from "../api";
+import { api, apiDownload, apiUpload, errText } from "../api";
 import { Button, Card, Field, Hint, Input, Label, Segmented, Select, SectionTitle } from "../components/ui";
 import { Lang } from "../i18n";
 import type { AgencySettings, SheetStatus } from "../types";
@@ -271,6 +271,31 @@ function BaseImportCard() {
   );
 }
 
+// ── Односторонний экспорт базы в файл Excel (.xlsx) ─────────────────
+function ExcelExportCard() {
+  const { t, toast } = useApp();
+  const [busy, setBusy] = useState(false);
+
+  async function download() {
+    setBusy(true);
+    const ok = await apiDownload("/api/v1/exports/excel", "realty-base.xlsx");
+    setBusy(false);
+    if (!ok) toast(t("excelError"), "err");
+  }
+
+  return (
+    <div className="mt-2">
+      <SectionTitle>{t("excelTitle")}</SectionTitle>
+      <Card>
+        <Hint>{t("excelHint")}</Hint>
+        <Button full className="mt-3" disabled={busy} onClick={download}>
+          {busy ? t("excelDownloading") : t("excelDownload")}
+        </Button>
+      </Card>
+    </div>
+  );
+}
+
 export function SettingsScreen() {
   const { t, lang, theme, setLang, setTheme, user, settings, setSettings, toast } = useApp();
   const role = user?.role;
@@ -338,6 +363,7 @@ export function SettingsScreen() {
           </Card>
           <GoogleSheetsCard />
           <BaseImportCard />
+          <ExcelExportCard />
         </div>
       )}
 

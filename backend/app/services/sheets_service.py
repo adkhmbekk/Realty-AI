@@ -277,6 +277,15 @@ def _build_values(db: Session, agency_id: int, cols: List[dict]) -> List[list]:
     return [header] + rows
 
 
+def export_matrix(db: Session, agency_id: int) -> tuple[List[dict], List[list]]:
+    """(описание колонок, значения header+строки) для выгрузки в файл (Excel)."""
+    districts = [
+        d.value for d in dictionary_service.list_dictionaries(db, agency_id, category="district")
+    ]
+    cols = _columns(districts)
+    return cols, _build_values(db, agency_id, cols)
+
+
 def _write_values(token: str, spreadsheet_id: str, values: List[list]) -> None:
     # Чистим лист и пишем заново (простой и надёжный экспорт на Этапе 2).
     _gpost(
