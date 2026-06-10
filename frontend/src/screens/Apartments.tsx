@@ -941,8 +941,11 @@ export function SearchScreen() {
   const toggle = (arr: string[], set: (v: string[]) => void, v: string) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
-  // Если среди выбранных типов есть дом/участок/земля — вместо этажа фильтруем по соткам.
-  const landSelected = types.some(hasLandArea);
+  // Какие фильтры показывать. Независимо: «Соток» — если выбран дом/участок/земля;
+  // «Этаж» — если выбрана квартира/коммерция (или тип не выбран вовсе). При выборе
+  // обоих видов сразу (например, квартира + участок) показываем И «Этаж», И «Соток».
+  const showLand = types.some(hasLandArea);
+  const showFloor = types.length === 0 || types.some((tp) => !hasLandArea(tp));
 
   function run() {
     const params: SearchParams = { status };
@@ -951,10 +954,11 @@ export function SearchScreen() {
     if (q.trim()) params.q = q.trim();
     if (rmin) params.rooms_min = rmin;
     if (rmax) params.rooms_max = rmax;
-    if (landSelected) {
+    if (showLand) {
       if (lamin) params.land_area_min = lamin;
       if (lamax) params.land_area_max = lamax;
-    } else {
+    }
+    if (showFloor) {
       if (fmin) params.floor_min = fmin;
       if (fmax) params.floor_max = fmax;
     }
@@ -1016,35 +1020,34 @@ export function SearchScreen() {
           </Field>
         </div>
       </div>
-      <div className="flex gap-2">
-        {landSelected ? (
-          <>
-            <div className="flex-1 min-w-0">
-              <Field label={t("landFrom")}>
-                <Input inputMode="decimal" value={lamin} onChange={(e) => setLamin(e.target.value)} />
-              </Field>
-            </div>
-            <div className="flex-1 min-w-0">
-              <Field label={t("to")}>
-                <Input inputMode="decimal" value={lamax} onChange={(e) => setLamax(e.target.value)} />
-              </Field>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex-1 min-w-0">
-              <Field label={t("floorFrom")}>
-                <Input inputMode="numeric" value={fmin} onChange={(e) => setFmin(e.target.value)} />
-              </Field>
-            </div>
-            <div className="flex-1 min-w-0">
-              <Field label={t("to")}>
-                <Input inputMode="numeric" value={fmax} onChange={(e) => setFmax(e.target.value)} />
-              </Field>
-            </div>
-          </>
-        )}
-      </div>
+      {showFloor && (
+        <div className="flex gap-2">
+          <div className="flex-1 min-w-0">
+            <Field label={t("floorFrom")}>
+              <Input inputMode="numeric" value={fmin} onChange={(e) => setFmin(e.target.value)} />
+            </Field>
+          </div>
+          <div className="flex-1 min-w-0">
+            <Field label={t("to")}>
+              <Input inputMode="numeric" value={fmax} onChange={(e) => setFmax(e.target.value)} />
+            </Field>
+          </div>
+        </div>
+      )}
+      {showLand && (
+        <div className="flex gap-2">
+          <div className="flex-1 min-w-0">
+            <Field label={t("landFrom")}>
+              <Input inputMode="decimal" value={lamin} onChange={(e) => setLamin(e.target.value)} />
+            </Field>
+          </div>
+          <div className="flex-1 min-w-0">
+            <Field label={t("to")}>
+              <Input inputMode="decimal" value={lamax} onChange={(e) => setLamax(e.target.value)} />
+            </Field>
+          </div>
+        </div>
+      )}
       <div className="flex gap-2">
         <div className="flex-1">
           <Field label={t("priceFrom")}>
