@@ -48,6 +48,14 @@ export function TeamScreen() {
       load();
     } else toast(errText(r.data, r.status), "err");
   }
+  async function removeMember(m: Member) {
+    if (!(await confirmDialog(t("removeMemberQ")))) return;
+    const r = await api("/api/v1/team/" + m.id, { method: "DELETE" });
+    if (r.ok) {
+      toast(t("memberRemoved"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
 
   if (err) return <Empty>{err}</Empty>;
   if (!members) return <Spinner />;
@@ -81,14 +89,19 @@ export function TeamScreen() {
                     {m.is_active ? t("disable") : t("enable")}
                   </Button>
                   {meOwner && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button full size="sm" variant="ghost" onClick={() => changeRole(m)}>
-                        {m.role === "agency_admin" ? t("demote") : t("promote")}
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button full size="sm" variant="ghost" onClick={() => changeRole(m)}>
+                          {m.role === "agency_admin" ? t("demote") : t("promote")}
+                        </Button>
+                        <Button full size="sm" variant="ghost" onClick={() => makeOwner(m)}>
+                          {t("makeOwner")}
+                        </Button>
+                      </div>
+                      <Button full size="sm" variant="danger" onClick={() => removeMember(m)}>
+                        {t("removeMember")}
                       </Button>
-                      <Button full size="sm" variant="ghost" onClick={() => makeOwner(m)}>
-                        {t("makeOwner")}
-                      </Button>
-                    </div>
+                    </>
                   )}
                 </div>
               ) : null}
