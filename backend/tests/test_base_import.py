@@ -74,13 +74,26 @@ def test_coerce_values():
 
 
 def test_build_payload_land_consistency():
-    # type=Участок → этажи убираются, остаются сотки.
-    header = ["Тип", "Соток", "Этаж"]
-    mapping = {"type": 0, "land_area": 1, "floor": 2}
-    body = bi._build_payload({**{f: None for f in bi.TARGET_CODES}, **mapping}, ["Участок", "8", "2"])
+    # Дом/участок/земля: «Этаж» убирается, «Этажность» и «Соток» остаются.
+    mapping = {"type": 0, "land_area": 1, "floor": 2, "total_floors": 3}
+    base = {**{f: None for f in bi.TARGET_CODES}, **mapping}
+
+    body = bi._build_payload(base, ["Участок", "8", "2", "1"])
     assert body["type"] == "Участок"
     assert body["land_area"] == 8.0
+    assert body["total_floors"] == 1  # этажность остаётся
+    assert "floor" not in body        # этаж убран
+
+    body = bi._build_payload(base, ["Дом", "6", "3", "2"])
+    assert body["type"] == "Дом"
+    assert body["land_area"] == 6.0   # у дома теперь есть соток
+    assert body["total_floors"] == 2
     assert "floor" not in body
+
+    # Квартира: «Этаж»+«Этажность» остаются, «Соток» убирается.
+    body = bi._build_payload(base, ["Квартира", "10", "5", "9"])
+    assert body["floor"] == 5 and body["total_floors"] == 9
+    assert "land_area" not in body
 
 
 def _setup(db):

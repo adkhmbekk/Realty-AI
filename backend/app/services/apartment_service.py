@@ -42,8 +42,11 @@ VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD)
 # Статусы, при которых объект считается снятым с продажи (фиксируем дату).
 _CLOSED_STATUSES = (STATUS_SOLD,)
 
-# Типы «Земля» и «Участок»: для них вместо этажа/этажности — площадь в сотках.
+# Типы «Земля» и «Участок» (исторический список).
 LAND_TYPES = ("Земля", "Участок")
+# Типы с земельным участком (дом тоже): «Этаж» не показываем; «Этажность» и
+# «Соток» — показываем. Зеркало фронта (hasLandArea).
+LAND_AREA_TYPES = ("Дом", "Земля", "Участок")
 
 # Поля, изменение которых отражаем в журнале (в порядке формы).
 _TRACKED_FIELDS = (
@@ -401,16 +404,15 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
         details.append(f"🗺 Адрес: {apartment.address}")
     if apartment.rooms is not None:
         details.append(f"🚪 Комнат: {apartment.rooms}")
-    is_land = apartment.type in LAND_TYPES
-    if is_land:
+    # Дом/участок/земля: «Соток» вместо «Этажа»; «Этажность» — для всех типов.
+    if apartment.type in LAND_AREA_TYPES:
         if apartment.land_area is not None:
             details.append(f"🌳 Соток: {apartment.land_area}")
     else:
-        # Этаж и этажность — отдельными строками (не «5/9»).
         if apartment.floor is not None:
             details.append(f"🏢 Этаж: {apartment.floor}")
-        if apartment.total_floors is not None:
-            details.append(f"🏢 Этажность: {apartment.total_floors}")
+    if apartment.total_floors is not None:
+        details.append(f"🏢 Этажность: {apartment.total_floors}")
     if apartment.area is not None:
         details.append(f"📐 Площадь: {apartment.area} м²")
     if apartment.condition:

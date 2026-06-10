@@ -31,7 +31,7 @@ from app.schemas.apartment import ApartmentCreate
 from app.services import apartment_service
 from app.services.listing_import_service import (
     CURRENCIES,
-    LAND_TYPES,
+    LAND_AREA_TYPES,
     OBJ_COND_VALUES,
     OBJ_TYPE_VALUES,
 )
@@ -328,10 +328,10 @@ def _build_payload(mapping: Dict[str, Optional[int]], row: List[str]) -> dict:
         val = _coerce(field, row[idx])
         if val is not None:
             body[field] = val
-    # Согласованность: участок — без этажей; иначе — без соток.
-    if body.get("type") in LAND_TYPES:
+    # Согласованность: дом/участок/земля — без «Этажа» (но «Этажность» остаётся);
+    # квартира/коммерция — без «Соток».
+    if body.get("type") in LAND_AREA_TYPES:
         body.pop("floor", None)
-        body.pop("total_floors", None)
     else:
         body.pop("land_area", None)
     return body

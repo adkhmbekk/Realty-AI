@@ -37,7 +37,7 @@ import {
 import {
   CURRENCIES,
   FA_VALUES,
-  isLandType,
+  hasLandArea,
   OBJ_COND_VALUES,
   OBJ_TYPE_VALUES,
   STATUS_BADGE,
@@ -123,20 +123,21 @@ function ObjectForm({
     comment: o.comment ?? "",
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
-  // Для земли/участка вместо этажа/этажности показываем «Соток».
-  const isLand = isLandType(f.type);
+  // Дом/участок/земля: вместо «Этажа» показываем «Соток»; «Этажность» остаётся.
+  const withLand = hasLandArea(f.type);
 
   function submit() {
-    const land = isLandType(f.type);
+    const land = hasLandArea(f.type);
     const fields: Record<string, unknown> = {
       name: f.name.trim() || null,
       type: f.type || null,
       district: f.district || null,
       address: f.address.trim() || null,
       rooms: intOrNull(f.rooms),
-      // Участок не имеет этажности; квартира/дом не имеет соток.
+      // Дом/участок/земля: без «Этажа», но с «Этажностью» и «Соток».
+      // Квартира/коммерция: с «Этажом»+«Этажностью», без «Соток».
       floor: land ? null : intOrNull(f.floor),
-      total_floors: land ? null : intOrNull(f.total_floors),
+      total_floors: intOrNull(f.total_floors),
       land_area: land ? numOrNull(f.land_area) : null,
       area: numOrNull(f.area),
       price: numOrNull(f.price),
@@ -199,25 +200,27 @@ function ObjectForm({
             <Input inputMode="numeric" value={f.rooms} onChange={(e) => set("rooms", e.target.value)} />
           </Field>
         </div>
-        {isLand ? (
+        {/* «Этаж» — только для квартиры/коммерции (не для дома/участка/земли). */}
+        {!withLand && (
+          <div className="flex-1 min-w-0">
+            <Field label={t("f_floor")}>
+              <Input inputMode="numeric" value={f.floor} onChange={(e) => set("floor", e.target.value)} />
+            </Field>
+          </div>
+        )}
+        {/* «Этажность» — для всех типов. */}
+        <div className="flex-1 min-w-0">
+          <Field label={t("f_tfloors")}>
+            <Input inputMode="numeric" value={f.total_floors} onChange={(e) => set("total_floors", e.target.value)} />
+          </Field>
+        </div>
+        {/* «Соток» — для дома/участка/земли. */}
+        {withLand && (
           <div className="flex-1 min-w-0">
             <Field label={t("f_land_area")}>
               <Input inputMode="decimal" value={f.land_area} onChange={(e) => set("land_area", e.target.value)} />
             </Field>
           </div>
-        ) : (
-          <>
-            <div className="flex-1 min-w-0">
-              <Field label={t("f_floor")}>
-                <Input inputMode="numeric" value={f.floor} onChange={(e) => set("floor", e.target.value)} />
-              </Field>
-            </div>
-            <div className="flex-1 min-w-0">
-              <Field label={t("f_tfloors")}>
-                <Input inputMode="numeric" value={f.total_floors} onChange={(e) => set("total_floors", e.target.value)} />
-              </Field>
-            </div>
-          </>
         )}
       </div>
       <div className="flex gap-2">
@@ -309,13 +312,13 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
   if (o.district) d.push("📍 " + t("f_district") + ": " + o.district);
   if (o.address) d.push("🗺 " + t("f_address") + ": " + o.address);
   if (o.rooms != null) d.push("🚪 " + t("f_rooms") + ": " + o.rooms);
-  if (isLandType(o.type)) {
+  // Дом/участок/земля: «Соток» вместо «Этажа», «Этажность» остаётся для всех.
+  if (hasLandArea(o.type)) {
     if (o.land_area != null) d.push("🌳 " + t("f_land_area") + ": " + o.land_area);
   } else {
-    // Этаж и этажность — отдельными строками (не «5/9»).
     if (o.floor != null) d.push("🏢 " + t("f_floor") + ": " + o.floor);
-    if (o.total_floors != null) d.push("🏢 " + t("f_tfloors") + ": " + o.total_floors);
   }
+  if (o.total_floors != null) d.push("🏢 " + t("f_tfloors") + ": " + o.total_floors);
   if (o.area != null) d.push("📐 " + t("f_area") + ": " + o.area);
   if (o.condition) d.push("🔧 " + L.condLabel(o.condition));
   const fa = L.faLabel(o.furniture_appliances);
@@ -938,8 +941,8 @@ export function SearchScreen() {
   const toggle = (arr: string[], set: (v: string[]) => void, v: string) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
-  // Если среди выбранных типов есть земля/участок — вместо этажа фильтруем по соткам.
-  const landSelected = types.some(isLandType);
+  // Если среди выбранных типов есть дом/участок/земля — вместо этажа фильтруем по соткам.
+  const landSelected = types.some(hasLandArea);
 
   function run() {
     const params: SearchParams = { status };
@@ -1312,16 +1315,16 @@ export function ObjectDetailScreen({ id }: { id: number }) {
 
   if (loading || !o) return <Spinner />;
 
-  const isLand = isLandType(o.type);
+  const withLand = hasLandArea(o.type);
   const rows: [string | null, React.ReactNode][] = [
     [t("f_name"), o.name],
     [t("f_type"), o.type ? L.typeLabel(o.type) : null],
     [t("f_district"), o.district],
     [t("f_address"), o.address],
     [t("f_rooms"), o.rooms],
-    // Этаж и этажность — отдельными строками (не «5/9»).
-    isLand ? [t("f_land_area"), o.land_area] : [t("f_floor"), o.floor],
-    isLand ? [null, null] : [t("f_tfloors"), o.total_floors],
+    // Дом/участок/земля: «Соток» вместо «Этажа»; «Этажность» — для всех типов.
+    withLand ? [t("f_land_area"), o.land_area] : [t("f_floor"), o.floor],
+    [t("f_tfloors"), o.total_floors],
     [t("f_area"), o.area],
     [t("f_price"), fmtPrice(o.price, o.currency)],
     [t("f_condition"), o.condition ? L.condLabel(o.condition) : null],

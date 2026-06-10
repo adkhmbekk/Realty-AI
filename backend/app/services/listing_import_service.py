@@ -42,6 +42,9 @@ OBJ_COND_VALUES = [
 FA_VALUES = ["furniture_and_appliances", "furniture_only", "appliances_only", "none"]
 CURRENCIES = ["USD", "UZS", "EUR"]
 LAND_TYPES = ("Земля", "Участок")
+# Типы с земельным участком (дом тоже): «Этаж» (floor) не заполняем; «Этажность»
+# (total_floors) и «Соток» (land_area) — заполняем. Зеркало фронта (hasLandArea).
+LAND_AREA_TYPES = ("Дом", "Земля", "Участок")
 
 # Ограничения, чтобы не раздувать память/токены.
 _MAX_HTML_BYTES = 3 * 1024 * 1024     # не качаем гигантские страницы
@@ -301,9 +304,9 @@ def _system_prompt(districts: List[str]) -> str:
         "нет (например, объявление удалено) — верни все поля null.\n"
         f"- type: выбери РОВНО одно из списка {OBJ_TYPE_VALUES}. Если объект — земельный "
         "участок, выбирай «Участок» (или «Земля»).\n"
-        "- Для типа «Земля»/«Участок» заполни land_area (площадь в сотках), а floor и "
-        "total_floors оставь null. Для квартир/домов наоборот: floor/total_floors, а "
-        "land_area = null.\n"
+        "- Для типа «Дом», «Земля» или «Участок» заполни land_area (площадь в сотках) "
+        "и НЕ заполняй floor (этаж) — оставь null; total_floors (этажность дома) можно "
+        "заполнить. Для квартиры/коммерции наоборот: floor и total_floors, а land_area = null.\n"
         f"- district: выбери из районов агентства, если явно совпадает: [{district_line}]. "
         "Если не совпадает — null, а район/местоположение впиши в address или description.\n"
         f"- condition: РОВНО одно из {OBJ_COND_VALUES} или null.\n"
@@ -418,10 +421,10 @@ def _clean(data: dict) -> dict:
         out["furniture_appliances"] = None
     if out["currency"] not in CURRENCIES:
         out["currency"] = None
-    # Согласованность: участок — без этажей; иначе — без соток.
-    if out["type"] in LAND_TYPES:
+    # Согласованность: дом/участок/земля — без «Этажа» (но «Этажность» остаётся);
+    # квартира/коммерция — без «Соток».
+    if out["type"] in LAND_AREA_TYPES:
         out["floor"] = None
-        out["total_floors"] = None
     else:
         out["land_area"] = None
     # Отрицательные числа отбрасываем.
