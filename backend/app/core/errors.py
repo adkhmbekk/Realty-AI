@@ -472,6 +472,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Import uchun birorta ustun tanlanmadi. Kamida bitta maydonni moslang.",
         "en": "No columns selected for import. Map at least one field.",
     },
+    "export_link_invalid": {
+        "ru": "Ссылка на скачивание устарела. Вернитесь в приложение и нажмите «Скачать Excel» ещё раз.",
+        "uz": "Yuklab olish havolasi eskirgan. Ilovaga qaytib, «Excelni yuklab olish»ni qayta bosing.",
+        "en": "The download link has expired. Go back to the app and tap “Download Excel” again.",
+    },
     "excel_unsupported": {
         "ru": "Экспорт в Excel временно недоступен. Попробуйте позже или используйте Google Sheets.",
         "uz": "Excelga eksport vaqtincha mavjud emas. Keyinroq urinib koʻring yoki Google Sheets'dan foydalaning.",

@@ -140,43 +140,6 @@ export async function apiUpload<T = any>(
   return { ok: res.ok, status: res.status, data };
 }
 
-// Скачать файл по защищённому эндпоинту (с токеном) и сохранить на устройство.
-// Возвращает true при успехе. Для экспорта базы в Excel (.xlsx).
-export async function apiDownload(path: string, filename: string, timeoutMs = 60000): Promise<boolean> {
-  const doFetch = (token: string | null): Promise<Response> => {
-    const headers: Record<string, string> = { "X-Lang": langGetter() };
-    if (token) headers["Authorization"] = "Bearer " + token;
-    return fetchWithTimeout(path, { method: "GET", headers }, timeoutMs);
-  };
-  let res: Response;
-  try {
-    res = await doFetch(tokenGetter());
-  } catch {
-    return false;
-  }
-  if (res.status === 401) {
-    const fresh = await tryReauth();
-    if (fresh) {
-      try {
-        res = await doFetch(fresh);
-      } catch {
-        return false;
-      }
-    }
-  }
-  if (!res.ok) return false;
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return true;
-}
-
 // Построение query-строки из объекта параметров (массивы повторяются).
 export function buildQuery(params: Record<string, unknown>): string {
   const p = new URLSearchParams();

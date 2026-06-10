@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { useApp } from "../store";
-import { api, apiDownload, apiUpload, errText } from "../api";
+import { api, apiUpload, errText } from "../api";
 import { Button, Card, Field, Hint, Input, Label, Segmented, Select, SectionTitle } from "../components/ui";
 import { Lang } from "../i18n";
 import type { AgencySettings, SheetStatus } from "../types";
@@ -278,9 +278,12 @@ function ExcelExportCard() {
 
   async function download() {
     setBusy(true);
-    const ok = await apiDownload("/api/v1/exports/excel", "realty-base.xlsx");
+    // В Telegram файл нельзя качать «изнутри» (webview зависает) — берём короткую
+    // ссылку и открываем во внешнем браузере, который и скачивает .xlsx.
+    const r = await api<{ url: string }>("/api/v1/exports/excel/link", { method: "POST" });
     setBusy(false);
-    if (!ok) toast(t("excelError"), "err");
+    if (r.ok && r.data?.url) openLink(r.data.url);
+    else toast(errText(r.data, r.status) || t("excelError"), "err");
   }
 
   return (
