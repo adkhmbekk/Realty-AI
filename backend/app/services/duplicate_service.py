@@ -7,10 +7,12 @@
 поэтому здесь даём «менеджер дубликатов»: группируем похожие объекты, а человек
 решает — удалить лишние или подтвердить «не дубликаты».
 
-Признак группировки (v1): НОМЕР ТЕЛЕФОНА собственника. Один номер — почти всегда
-один и тот же объект/собственник. Нормализуем номер до последних 9 цифр
-(убирает разнобой +998/998/0/пробелы/скобки). Подтверждённые «не дубликаты»
-(duplicate_dismissals) больше не показываем.
+Признак группировки (v2): СОВПАДЕНИЕ ФИКСИРОВАННЫХ ХАРАКТЕРИСТИК объекта —
+тип, район, комнаты, этаж, этажность, площадь, сотки. Цена НЕ участвует
+(у разных источников разная цена), свободные тексты (адрес, описание, телефон)
+тоже — они различаются от площадки к площадке. Чтобы не плодить мусорные группы
+из полупустых карточек, требуем минимум 3 заполненных характеристики.
+Подтверждённые «не дубликаты» (duplicate_dismissals) больше не показываем.
 """
 import re
 from typing import List, Optional
@@ -21,9 +23,13 @@ from app.db.models.apartment import Apartment
 from app.db.models.duplicate_dismissal import DuplicateDismissal
 from app.services import apartment_service
 
+# Минимум заполненных характеристик, чтобы объект участвовал в сравнении.
+# Меньше — карточка слишком «пустая», совпадения были бы случайными.
+_MIN_FILLED = 3
+
 
 def normalize_phone(phone: Optional[str]) -> Optional[str]:
-    """Телефон → ключ группы (последние 9 цифр) или None, если непохоже на номер."""
+    """Телефон → последние 9 цифр (используется в импорте/поиске похожих)."""
     if not phone:
         return None
     digits = re.sub(r"\D", "", str(phone))
@@ -32,21 +38,79 @@ def normalize_phone(phone: Optional[str]) -> Optional[str]:
     return digits[-9:]
 
 
+def _norm_text(v: Optional[str]) -> Optional[str]:
+    """Строка → ключевая форма: без регистра и лишних пробелов."""
+    if not v:
+        return None
+    s = re.sub(r"\s+", " ", str(v)).strip().lower()
+    return s or None
+
+
+def _norm_num(v) -> Optional[str]:
+    """Число → каноническая строка (70 и 70.0 — одно и то же)."""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return ("%g" % f)
+
+
+def _group_key(a: Apartment) -> Optional[str]:
+    """
+    Ключ группы из фиксированных характеристик. None — объект слишком пустой,
+    чтобы судить о дубликатах.
+    """
+    parts = [
+        _norm_text(a.type),
+        _norm_text(a.district),
+        _norm_num(a.rooms),
+        _norm_num(a.floor),
+        _norm_num(a.total_floors),
+        _norm_num(a.area),
+        _norm_num(a.land_area),
+    ]
+    if sum(1 for p in parts if p is not None) < _MIN_FILLED:
+        return None
+    return "|".join(p if p is not None else "-" for p in parts)
+
+
+def _group_label(a: Apartment) -> str:
+    """Человекочитаемое описание группы для заголовка на экране."""
+    bits: List[str] = []
+    if a.type:
+        bits.append(str(a.type))
+    if a.district:
+        bits.append(str(a.district))
+    if a.rooms is not None:
+        bits.append(f"{a.rooms} комн.")
+    if a.floor is not None and a.total_floors is not None:
+        bits.append(f"{a.floor}/{a.total_floors} эт.")
+    elif a.total_floors is not None:
+        bits.append(f"{a.total_floors} эт.")
+    if a.area is not None:
+        bits.append(("%g" % float(a.area)) + " м²")
+    if a.land_area is not None:
+        bits.append(("%g" % float(a.land_area)) + " сот.")
+    return " · ".join(bits)
+
+
 def find_duplicate_groups(db: Session, agency_id: int) -> List[dict]:
-    """Группы возможных дубликатов (>=2 объекта с одним номером), кроме подтверждённых."""
+    """Группы возможных дубликатов (>=2 объекта с одинаковыми фиксированными
+    характеристиками), кроме подтверждённых «не дубликаты»."""
     apts = (
         db.query(Apartment)
         .filter(
             Apartment.agency_id == agency_id,
             Apartment.deleted_at.is_(None),
-            Apartment.owner_phone.isnot(None),
         )
         .order_by(Apartment.created_at.desc())
         .all()
     )
     by_key: dict = {}
     for a in apts:
-        key = normalize_phone(a.owner_phone)
+        key = _group_key(a)
         if not key:
             continue
         by_key.setdefault(key, []).append(a)
@@ -64,7 +128,14 @@ def find_duplicate_groups(db: Session, agency_id: int) -> List[dict]:
             continue
         apartment_service._attach_creators(db, items)
         groups.append(
-            {"key": key, "phone": items[0].owner_phone, "count": len(items), "items": items}
+            {
+                "key": key,
+                "label": _group_label(items[0]),
+                # phone оставлен для совместимости со старым фронтом; в v2 не используется.
+                "phone": None,
+                "count": len(items),
+                "items": items,
+            }
         )
     # Самые «населённые» группы — сверху.
     groups.sort(key=lambda g: g["count"], reverse=True)

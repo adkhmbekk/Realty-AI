@@ -1,6 +1,7 @@
 """
-Тесты менеджера дубликатов: нормализация телефона, группировка по номеру,
-подтверждение «не дубликаты».
+Тесты менеджера дубликатов (v2): группировка по совпадению фиксированных
+характеристик (тип, район, комнаты, этаж, этажность, площадь, сотки), цена не
+участвует; минимум заполненности; подтверждение «не дубликаты».
 """
 from app.db.models.agency import Agency
 from app.repositories import user_repo
@@ -17,11 +18,14 @@ def _setup(db):
     return agency.id, owner.id
 
 
-def _mk(db, aid, uid, phone, name):
+def _mk(db, aid, uid, name, **fields):
     return apartment_service.create_apartment(
         db, aid, created_by=uid,
-        payload=ApartmentCreate(name=name, owner_phone=phone, price=1000),
+        payload=ApartmentCreate(name=name, **fields),
     )
+
+
+FLAT = dict(type="Квартира", district="Юнусабад", rooms=3, floor=5, total_floors=9, area=70)
 
 
 def test_normalize_phone():
@@ -32,23 +36,44 @@ def test_normalize_phone():
     assert dup.normalize_phone(None) is None
 
 
-def test_groups_by_phone(db):
+def test_groups_by_attributes_price_ignored(db):
     aid, uid = _setup(db)
-    _mk(db, aid, uid, "+998901112233", "A1")
-    _mk(db, aid, uid, "998 90 111 22 33", "A2")  # тот же номер, другой формат
-    _mk(db, aid, uid, "901112233", "A3")
-    _mk(db, aid, uid, "+998907777777", "B1")  # одиночка — не группа
+    # Один объект из трёх источников: характеристики совпали, цены РАЗНЫЕ.
+    _mk(db, aid, uid, "A1", **FLAT, price=50000)
+    _mk(db, aid, uid, "A2", **FLAT, price=52000)
+    _mk(db, aid, uid, "A3", **FLAT, price=49500)
+    # Похожий, но другой объект (другая комнатность) — не в группе.
+    _mk(db, aid, uid, "B1", **{**FLAT, "rooms": 2}, price=50000)
 
     groups = dup.find_duplicate_groups(db, aid)
     assert len(groups) == 1
     assert groups[0]["count"] == 3
     assert {i.name for i in groups[0]["items"]} == {"A1", "A2", "A3"}
+    assert groups[0]["label"]  # человекочитаемое описание группы
+
+
+def test_area_float_int_same_key(db):
+    aid, uid = _setup(db)
+    # 70 и 70.0 — одна площадь; регистр/пробелы района не важны.
+    _mk(db, aid, uid, "A1", type="Квартира", district="Юнусабад", rooms=3, area=70)
+    _mk(db, aid, uid, "A2", type="Квартира", district="  юнусабад ", rooms=3, area=70.0)
+    groups = dup.find_duplicate_groups(db, aid)
+    assert len(groups) == 1
+    assert groups[0]["count"] == 2
+
+
+def test_too_empty_not_grouped(db):
+    aid, uid = _setup(db)
+    # Заполнено меньше 3 характеристик — слишком пусто, чтобы судить о дублях.
+    _mk(db, aid, uid, "A1", type="Квартира", rooms=3, price=1000)
+    _mk(db, aid, uid, "A2", type="Квартира", rooms=3, price=2000)
+    assert dup.find_duplicate_groups(db, aid) == []
 
 
 def test_dismiss_hides_group(db):
     aid, uid = _setup(db)
-    _mk(db, aid, uid, "901112233", "A1")
-    _mk(db, aid, uid, "901112233", "A2")
+    _mk(db, aid, uid, "A1", **FLAT)
+    _mk(db, aid, uid, "A2", **FLAT)
     groups = dup.find_duplicate_groups(db, aid)
     assert len(groups) == 1
     key = groups[0]["key"]
@@ -59,8 +84,8 @@ def test_dismiss_hides_group(db):
 
 def test_deleted_not_grouped(db):
     aid, uid = _setup(db)
-    a1 = _mk(db, aid, uid, "901112233", "A1")
-    _mk(db, aid, uid, "901112233", "A2")
+    a1 = _mk(db, aid, uid, "A1", **FLAT)
+    _mk(db, aid, uid, "A2", **FLAT)
     # Архивируем один — остаётся один активный, группы больше нет.
     apartment_service.delete_apartment(db, aid, a1.id)
     assert dup.find_duplicate_groups(db, aid) == []

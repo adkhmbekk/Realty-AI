@@ -1223,10 +1223,11 @@ export function DatabaseScreen() {
 }
 
 // ── Экран: менеджер дубликатов ──────────────────────────────────────
-// Группы возможных дубликатов (объекты с одним номером собственника) показываем
+// Группы возможных дубликатов (совпали фиксированные характеристики: тип, район,
+// комнаты, этаж, этажность, площадь, сотки — цена не сравнивается) показываем
 // по одной. В группе можно открыть/удалить лишние объекты, либо подтвердить «это
 // не дубликаты» (группа больше не появится) и перейти к следующей.
-type DupGroup = { key: string; phone: string | null; count: number; items: Apartment[] };
+type DupGroup = { key: string; label?: string | null; phone: string | null; count: number; items: Apartment[] };
 
 export function DuplicatesScreen() {
   const { t, L, lang, toast } = useApp();
@@ -1269,11 +1270,13 @@ export function DuplicatesScreen() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[13px] font-extrabold">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="text-[13px] font-extrabold shrink-0">
           {t("group")} {pos + 1} / {groups.length}
         </span>
-        {g.phone && <span className="text-[13px] text-muted">📞 {g.phone}</span>}
+        {(g.label || g.phone) && (
+          <span className="text-[12.5px] text-muted truncate">{g.label || "📞 " + g.phone}</span>
+        )}
       </div>
       <Hint>{t("duplicatesHint")}</Hint>
       {g.items.map((o) => (
