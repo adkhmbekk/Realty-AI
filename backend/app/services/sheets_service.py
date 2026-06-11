@@ -25,9 +25,9 @@ from app.config import settings
 from app.core import security
 from app.core.errors import AppError
 from app.db.models.agency_sheet import AgencySheet
-from app.repositories import apartment_photo_repo, apartment_repo
+from app.repositories import apartment_photo_repo, apartment_repo, user_repo
 from app.schemas.apartment import ApartmentCreate, ApartmentUpdate
-from app.services import apartment_service, dictionary_service
+from app.services import apartment_service, dictionary_service, telegram_service
 from app.services.listing_import_service import (
     CURRENCIES,
     OBJ_COND_VALUES,
@@ -35,6 +35,43 @@ from app.services.listing_import_service import (
 )
 
 logger = logging.getLogger("uvicorn.error")
+
+# Защита от случайного массового удаления через таблицу: если за один цикл из
+# таблицы «исчезло» не меньше _DELETE_GUARD_MIN строк И это не меньше половины
+# базы — удаление НЕ выполняем, строки возвращаем в таблицу и предупреждаем
+# владельца. Так fat-finger («удалил все строки») не уносит данные.
+_DELETE_GUARD_MIN = 5
+
+
+def _is_mass_deletion(deleted: int, total: int) -> bool:
+    if deleted < _DELETE_GUARD_MIN:
+        return False
+    if total <= 0:
+        return True
+    return deleted >= total * 0.5
+
+
+def _notify_mass_deletion_blocked(db: Session, agency_id: int, count: int) -> None:
+    """Best-effort: предупредить владельца агентства в бот об отменённом удалении."""
+    try:
+        if not telegram_service.is_configured():
+            return
+        owner = next(
+            (u for u in user_repo.get_by_agency(db, agency_id)
+             if u.role == "agency_admin" and u.is_owner and u.is_active),
+            None,
+        )
+        if owner is None:
+            return
+        telegram_service.notify_async(
+            [owner.telegram_id],
+            "⚠️ Синхронизация Google-таблицы хотела удалить "
+            f"{count} объектов — это похоже на случайное удаление строк. "
+            "Удаление отменено, строки возвращены в таблицу. Если вы правда "
+            "хотите удалить объекты — удаляйте по несколько за раз или в приложении.",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Sheets: не удалось предупредить об отменённом удалении: %s", exc)
 
 # ── Подписи enum-значений в таблице (человекочитаемые) ───────────────
 STATUS_LABELS = {"active": "Активен", "deposit": "Задаток", "sold": "Продан"}
@@ -618,20 +655,36 @@ def sync_agency(db: Session, agency_id: int) -> dict:
             continue
 
     # 3. Строки, что были в снимке, но исчезли из таблицы → в архив.
+    # ЗАЩИТА: если удалений подозрительно много (см. _is_mass_deletion) — НЕ
+    # удаляем, а вернём строки в таблицу (needs_write ниже) и предупредим владельца.
     sheet_ids = set(sheet_by_id.keys())
+    to_delete: List[int] = []
     for sid_str in list(snapshot.keys()):
         try:
             aid = int(sid_str)
         except ValueError:
             continue
         if aid not in sheet_ids and aid in db_by_id:
+            to_delete.append(aid)
+
+    restored_deletion = False
+    if to_delete and _is_mass_deletion(len(to_delete), len(db_by_id)):
+        restored_deletion = True
+        logger.warning(
+            "Sheets: отменено массовое удаление %s из %s объектов (агентство %s) — "
+            "строки вернутся в таблицу.", len(to_delete), len(db_by_id), agency_id,
+        )
+        _notify_mass_deletion_blocked(db, agency_id, len(to_delete))
+    else:
+        for aid in to_delete:
             apartment_service.delete_apartment(db, agency_id, aid)
             archived += 1
 
     # 4. Нужно ли что-то писать в таблицу? Пишем ТОЛЬКО при изменениях со стороны
     # бота (новые/архив/правки в БД, которых ещё нет в таблице). Иначе таблицу не
     # трогаем — так не затираем правки человека и сохраняем смысл modifiedTime.
-    needs_write = created > 0 or archived > 0
+    # restored_deletion → нужно вернуть «удалённые» строки обратно в таблицу.
+    needs_write = created > 0 or archived > 0 or restored_deletion
     if not needs_write:
         for aid, apt in db_by_id.items():
             can = _canonical(apt)
