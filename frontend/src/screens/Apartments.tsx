@@ -168,6 +168,14 @@ function ObjectForm({
   return (
     <Card>
       <Sec>{t("sectionMain")}</Sec>
+      {/* Ссылка на пост и источник (канал) — наверху, чтобы при добавлении
+          по ссылке всё было сразу под рукой. */}
+      <Field label={t("f_source")}>
+        <Input inputMode="url" placeholder="https://…" value={f.source_link} onChange={(e) => set("source_link", e.target.value)} />
+      </Field>
+      <Field label={t("f_sourceName")}>
+        <Input placeholder={t("f_sourceNamePh")} value={f.source} onChange={(e) => set("source", e.target.value)} />
+      </Field>
       <Field label={t("f_name")}>
         <Input value={f.name} onChange={(e) => set("name", e.target.value)} />
       </Field>
@@ -274,12 +282,6 @@ function ObjectForm({
         <Input value={f.owner_phone} onChange={(e) => set("owner_phone", e.target.value)} />
       </Field>
       <Hint>{t("ownerPhoneHint")}</Hint>
-      <Field label={t("f_source")}>
-        <Input inputMode="url" placeholder="https://…" value={f.source_link} onChange={(e) => set("source_link", e.target.value)} />
-      </Field>
-      <Field label={t("f_sourceName")}>
-        <Input placeholder={t("f_sourceNamePh")} value={f.source} onChange={(e) => set("source", e.target.value)} />
-      </Field>
       <Field label={t("f_desc")}>
         <Textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} />
       </Field>
