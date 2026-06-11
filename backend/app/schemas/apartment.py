@@ -165,6 +165,19 @@ class ApartmentListOut(BaseModel):
     offset: int
 
 
+class DuplicateGroupOut(BaseModel):
+    # Группа возможных дубликатов (объекты с одним номером собственника).
+    key: str
+    phone: Optional[str] = None
+    count: int
+    items: List[ApartmentOut]
+
+
+class DuplicateDismissIn(BaseModel):
+    # Подтвердить, что группа (по ключу) — НЕ дубликаты.
+    key: str
+
+
 class ApartmentStatsOut(BaseModel):
     # Мини-статистика по объектам агентства.
     active: int

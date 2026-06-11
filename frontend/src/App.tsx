@@ -20,6 +20,7 @@ import {
   AddObjectScreen,
   ArchiveScreen,
   DatabaseScreen,
+  DuplicatesScreen,
   ObjectDetailScreen,
   ObjectEditScreen,
   ObjectList,
@@ -79,6 +80,8 @@ function titleKeyFor(route: Route): string | null {
       return route.titleKey;
     case "database":
       return "myDatabase";
+    case "duplicates":
+      return "duplicatesBtn";
     case "objectDetail":
       return "apartment";
     case "objectEdit":
@@ -120,6 +123,8 @@ function RouteView({ route }: { route: Route }) {
       return <ObjectList params={route.params} />;
     case "database":
       return <DatabaseScreen />;
+    case "duplicates":
+      return <DuplicatesScreen />;
     case "objectDetail":
       return <ObjectDetailScreen id={route.id} />;
     case "objectEdit":

@@ -1080,6 +1080,7 @@ export function SearchScreen() {
 // ── Экран: «Моя база» (не проданные / проданные) ────────────────────
 export function DatabaseScreen() {
   const { t } = useApp();
+  const nav = useNav();
   const views = ["unsold", "sold", "archived"] as const;
   const [view, setView] = useState<(typeof views)[number]>("unsold");
   const [showFilter, setShowFilter] = useState(false);
@@ -1098,7 +1099,16 @@ export function DatabaseScreen() {
 
   return (
     <div>
-      <div className="flex justify-end mb-1.5">
+      <div className="flex justify-between items-center mb-1.5">
+        <button
+          onClick={() => {
+            haptic();
+            nav.push({ name: "duplicates" });
+          }}
+          className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12px] font-bold transition active:scale-95 bg-card border-line text-muted"
+        >
+          <Copy size={14} /> {t("duplicatesBtn")}
+        </button>
         <button
           onClick={() => {
             haptic();
@@ -1174,6 +1184,103 @@ export function DatabaseScreen() {
           <ObjectList params={{ status: view, created_from: from || undefined, created_to: to || undefined }} />
         )}
       </Swipeable>
+    </div>
+  );
+}
+
+// ── Экран: менеджер дубликатов ──────────────────────────────────────
+// Группы возможных дубликатов (объекты с одним номером собственника) показываем
+// по одной. В группе можно открыть/удалить лишние объекты, либо подтвердить «это
+// не дубликаты» (группа больше не появится) и перейти к следующей.
+type DupGroup = { key: string; phone: string | null; count: number; items: Apartment[] };
+
+export function DuplicatesScreen() {
+  const { t, L, lang, toast } = useApp();
+  const nav = useNav();
+  const [groups, setGroups] = useState<DupGroup[] | null>(null);
+  const [idx, setIdx] = useState(0);
+
+  async function load() {
+    const r = await api<DupGroup[]>("/api/v1/apartments/duplicates");
+    setGroups(r.ok && Array.isArray(r.data) ? r.data : []);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!groups) return <Spinner />;
+  if (!groups.length) return <Empty>{t("noDuplicates")}</Empty>;
+
+  const pos = Math.min(idx, groups.length - 1);
+  const g = groups[pos];
+
+  async function removeItem(id: number) {
+    if (!(await confirmDialog(t("delObjQ")))) return;
+    const r = await api(`/api/v1/apartments/${id}`, { method: "DELETE" });
+    if (r.ok) {
+      toast(t("dupDeleted"), "ok");
+      await load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  async function notDup() {
+    const r = await api("/api/v1/apartments/duplicates/dismiss", { method: "POST", body: { key: g.key } });
+    if (r.ok) {
+      toast(t("saved"), "ok");
+      setIdx(0);
+      await load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[13px] font-extrabold">
+          {t("group")} {pos + 1} / {groups.length}
+        </span>
+        {g.phone && <span className="text-[13px] text-muted">📞 {g.phone}</span>}
+      </div>
+      <Hint>{t("duplicatesHint")}</Hint>
+      {g.items.map((o) => (
+        <div key={o.id} className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5">
+          <div className="flex gap-3">
+            {o.photo_url && (
+              <img src={o.photo_url} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="font-extrabold truncate">{o.name || "№ " + o.display_id}</div>
+              <div className="text-[12px] text-muted truncate">
+                {[L.typeLabel(o.type), o.district, o.rooms != null ? `${o.rooms} ${t("f_rooms").toLowerCase()}` : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+              <div className="text-[12px] text-muted">
+                {fmtPrice(o.price, o.currency)}
+                {o.area != null ? ` · ${o.area} м²` : ""}
+                {o.land_area != null ? ` · ${o.land_area} ${t("f_land_area").toLowerCase()}` : ""}
+              </div>
+              <div className="text-[11px] text-muted">{fmtDate(o.created_at, lang)}</div>
+            </div>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Button size="sm" variant="ghost" onClick={() => nav.push({ name: "objectDetail", id: o.id })}>
+              {t("dupOpen")}
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => removeItem(o.id)}>
+              {t("dupDelete")}
+            </Button>
+          </div>
+        </div>
+      ))}
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button full variant="ghost" onClick={notDup}>
+          {t("notDuplicates")}
+        </Button>
+        <Button full onClick={() => setIdx((i) => Math.min(i + 1, groups.length - 1))} disabled={pos >= groups.length - 1}>
+          {t("nextGroup")}
+        </Button>
+      </div>
     </div>
   );
 }

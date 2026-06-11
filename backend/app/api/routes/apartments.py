@@ -29,6 +29,8 @@ from app.schemas.apartment import (
     ApartmentStatsOut,
     ApartmentStatusUpdate,
     ApartmentUpdate,
+    DuplicateDismissIn,
+    DuplicateGroupOut,
     ListingImportIn,
     ListingImportOut,
     SharePrepareOut,
@@ -36,7 +38,12 @@ from app.schemas.apartment import (
     TimeseriesOut,
 )
 from app.core.ratelimit import rate_limit
-from app.services import apartment_service, dictionary_service, listing_import_service
+from app.services import (
+    apartment_service,
+    dictionary_service,
+    duplicate_service,
+    listing_import_service,
+)
 
 router = APIRouter(prefix="/apartments", tags=["apartments"])
 
@@ -154,6 +161,26 @@ def get_stats(
 ):
     """Мини-статистика по объектам агентства (счётчики по статусам)."""
     return apartment_service.get_stats(db, current_user.agency_id)
+
+
+# /duplicates тоже ДО /{apartment_id}.
+@router.get("/duplicates", response_model=List[DuplicateGroupOut])
+def list_duplicates(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Группы возможных дубликатов (объекты с одним номером собственника)."""
+    return duplicate_service.find_duplicate_groups(db, current_user.agency_id)
+
+
+@router.post("/duplicates/dismiss", status_code=204)
+def dismiss_duplicate(
+    body: DuplicateDismissIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Подтвердить, что группа — НЕ дубликаты (больше не показывать)."""
+    duplicate_service.dismiss_group(db, current_user.agency_id, body.key)
 
 
 # /analytics и /similar объявлены ДО /{apartment_id}, иначе слово попадёт в id.

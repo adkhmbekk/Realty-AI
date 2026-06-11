@@ -16,6 +16,7 @@ export type Route =
   | { name: "objectDetail"; id: number }
   | { name: "objectEdit"; obj: Apartment }
   | { name: "database" }
+  | { name: "duplicates" }
   | { name: "archive" }
   | { name: "team" }
   | { name: "invites" }
