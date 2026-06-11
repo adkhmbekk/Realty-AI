@@ -305,6 +305,7 @@ type TgScanOut = {
   created: number;
   skipped: number;
   failed: number;
+  archived: number;
   next_before: number | null;
   rate_limited: boolean;
   done: boolean;
@@ -319,6 +320,7 @@ function TelegramImportCard() {
   const [scanned, setScanned] = useState(0);
   const [created, setCreated] = useState(0);
   const [failed, setFailed] = useState(0);
+  const [archived, setArchived] = useState(0);
   const [rateNote, setRateNote] = useState(false);
   const stopRef = useRef(false);
 
@@ -337,11 +339,13 @@ function TelegramImportCard() {
     setScanned(0);
     setCreated(0);
     setFailed(0);
+    setArchived(0);
     setRateNote(false);
     let before: number | null = null;
     let totalProcessed = 0;
     let totalCreated = 0;
     let totalFailed = 0;
+    let totalArchived = 0;
     let requests = 0;
     let stuck = 0;
     let netRetries = 0;
@@ -376,9 +380,11 @@ function TelegramImportCard() {
       totalProcessed += processed;
       totalCreated += d.created;
       totalFailed += d.failed;
+      totalArchived += d.archived ?? 0;
       setScanned(totalProcessed);
       setCreated(totalCreated);
       setFailed(totalFailed);
+      setArchived(totalArchived);
       setRateNote(d.rate_limited);
       if (d.done) break;
       // Курсор не сдвинулся и ничего не обработали — застряли (обычно лимит ИИ).
@@ -412,6 +418,11 @@ function TelegramImportCard() {
         {(running || scanned > 0) && (
           <div className="mt-3 text-[13px] text-muted">
             {t("tgImportScanned")}: <b>{scanned}</b> · {t("tgImportCreated")}: <b>{created}</b>
+            {archived > 0 && (
+              <>
+                {" "}· {t("tgImportArchived")}: <b>{archived}</b>
+              </>
+            )}
             {failed > 0 && (
               <>
                 {" "}· {t("tgImportFailed")}: <b>{failed}</b>

@@ -48,6 +48,19 @@ _MAX_PHOTOS_PER_OBJ = 10     # столько фото на объект при 
 # (приветствие, реклама и т.п.), такой пост пропускаем.
 _STRUCTURAL = ("type", "price", "rooms", "area", "land_area", "district", "address", "owner_phone")
 
+# Признаки, что объект уже ПРОДАН / снят / неактуален (где угодно в тексте —
+# в начале или в конце). Такие посты не добавляем; если это reply на пост —
+# исходный объект архивируем. ВАЖНО: НЕ ловим «продажа/продаётся/продаю»
+# (это активные объявления) — только завершённое «продано/продан/sotildi».
+_INACTIVE_RE = re.compile(
+    r"прода(?:но|на|ны|н)\b"
+    r"|sotildi|sotilgan|sotib\s+yubor"
+    r"|\bsold\b"
+    r"|неактуал|не\s*актуал"
+    r"|снят[оа]?\s+с\s+продаж",
+    re.IGNORECASE,
+)
+
 
 def normalize_channel(raw: str) -> str:
     """Из ввода пользователя получить username канала. Бросает ошибку, если не похоже."""
@@ -76,7 +89,7 @@ def _strip_tags(html: str) -> str:
 
 
 def parse_feed(html: str) -> List[dict]:
-    """Разобрать HTML ленты канала → список постов [{id, text, images}]."""
+    """Разобрать HTML ленты канала → список постов [{id, text, images, reply_to}]."""
     posts: List[dict] = []
     # Делим страницу на блоки сообщений по обёртке tgme_widget_message_wrap.
     starts = [m.start() for m in re.finditer(r'<div class="tgme_widget_message_wrap', html)]
@@ -89,6 +102,18 @@ def parse_feed(html: str) -> List[dict]:
             continue
         post_id = int(mid.group(1))
 
+        # Это ответ (reply) на другой пост канала? Вытаскиваем id родителя и
+        # УБИРАЕМ блок-цитату из чанка, чтобы не принять текст исходного поста
+        # за текст ответа (из-за этого раньше плодились дубли).
+        reply_to: Optional[int] = None
+        rep = re.search(
+            r'<a class="tgme_widget_message_reply"[^>]*href="[^"]*?/(\d+)"[^>]*>.*?</a>',
+            chunk, flags=re.DOTALL,
+        )
+        if rep:
+            reply_to = int(rep.group(1))
+            chunk = chunk[: rep.start()] + chunk[rep.end():]
+
         # Текст поста (может отсутствовать — пост из одних фото).
         text_parts = re.findall(
             r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>',
@@ -96,7 +121,8 @@ def parse_feed(html: str) -> List[dict]:
         )
         text = _strip_tags(" ".join(text_parts)) if text_parts else ""
 
-        # Фото поста: background-image:url('...').
+        # Фото поста: background-image:url('...'). Видео в ленту попадают как
+        # отдельные плееры без background-image — поэтому берём только фото.
         images: List[str] = []
         seen = set()
         for u in re.findall(r"background-image:\s*url\('([^']+)'\)", chunk):
@@ -105,7 +131,7 @@ def parse_feed(html: str) -> List[dict]:
                 seen.add(u)
                 images.append(u)
 
-        posts.append({"id": post_id, "text": text, "images": images})
+        posts.append({"id": post_id, "text": text, "images": images, "reply_to": reply_to})
     return posts
 
 
@@ -145,7 +171,7 @@ async def scan_page(
     posts = parse_feed(html)
     if not posts:
         return {"channel": channel, "created": 0, "skipped": 0, "failed": 0,
-                "next_before": before, "rate_limited": False, "done": True}
+                "archived": 0, "next_before": before, "rate_limited": False, "done": True}
 
     districts = [
         d.value for d in dictionary_service.list_dictionaries(db, agency_id, category="district")
@@ -159,14 +185,45 @@ async def scan_page(
         .all()
     }
 
-    created = skipped = failed = ai_done = 0
+    created = skipped = failed = archived = ai_done = 0
     rate_limited = False
     advanced_to: Optional[int] = None  # самый старый пост, который мы «закрыли»
 
+    # Пре-проход по ОТВЕТАМ (reply): если под постом ответ «продано/неактуально»,
+    # помечаем исходный пост как проданный. Уже импортированный объект-родитель
+    # сразу архивируем; ещё не импортированный — просто не возьмём ниже.
+    sold_parents = {
+        p["reply_to"]
+        for p in posts
+        if p["reply_to"] and p["text"] and _INACTIVE_RE.search(p["text"])
+    }
+    if sold_parents:
+        parent_links = [f"https://t.me/{channel}/{pid}" for pid in sold_parents]
+        rows = (
+            db.query(Apartment.id, Apartment.source_link)
+            .filter(Apartment.agency_id == agency_id,
+                    Apartment.source_link.in_(parent_links),
+                    Apartment.deleted_at.is_(None))
+            .all()
+        )
+        for aid, _link in rows:
+            try:
+                await run_in_threadpool(apartment_service.delete_apartment, db, agency_id, aid)
+                archived += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.info("TG-импорт: не удалось архивировать проданный %s: %s", aid, exc)
+
     # От новых к старым.
     for p in sorted(posts, key=lambda x: x["id"], reverse=True):
-        # Дубль или пост без текста — закрываем сразу (двигаем курсор).
-        if urls[p["id"]] in existing or not p["text"]:
+        # Сообщения-ОТВЕТЫ — это статус/комментарий, а не объявление: пропускаем.
+        if p["reply_to"]:
+            skipped += 1
+            advanced_to = p["id"]
+            continue
+        # Дубль, пост без текста, помеченный проданным (через reply или прямо в
+        # тексте — в начале или в конце) — закрываем сразу (двигаем курсор).
+        if (urls[p["id"]] in existing or not p["text"]
+                or p["id"] in sold_parents or _INACTIVE_RE.search(p["text"])):
             skipped += 1
             advanced_to = p["id"]
             continue
@@ -226,6 +283,7 @@ async def scan_page(
         "created": created,
         "skipped": skipped,
         "failed": failed,
+        "archived": archived,
         "next_before": next_before,
         "rate_limited": rate_limited,
         "done": False,

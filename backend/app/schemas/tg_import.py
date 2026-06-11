@@ -29,6 +29,8 @@ class TelegramScanOut(BaseModel):
     skipped: int
     # Ошибок ИИ-разбора (не считая лимита частоты).
     failed: int
+    # Архивировано (помечено проданным через reply «продано/неактуально»).
+    archived: int = 0
     # Курсор для следующей порции (передать как before). None — больше нет.
     next_before: Optional[int] = None
     # Упёрлись в лимит частоты бесплатного Gemini — фронтенду стоит сделать паузу.
