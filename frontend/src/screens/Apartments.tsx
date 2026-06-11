@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Archive as ArchiveIcon,
   ArrowLeft,
   Camera,
   ChevronLeft,
@@ -12,6 +13,7 @@ import {
   Pencil,
   RotateCcw,
   Search as SearchIcon,
+  SearchX,
   SlidersHorizontal,
   Send,
   Sparkles,
@@ -491,7 +493,14 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
       {photos && photos.length > 0 && (
         <div className="grid grid-cols-3 gap-2 mb-2.5">
           {photos.map((p, i) => (
-            <div key={p.id} className="relative aspect-square rounded-[14px] overflow-hidden bg-[var(--soft)] border border-line">
+            <div
+              key={p.id}
+              className={cx2(
+                "relative aspect-square rounded-[14px] overflow-hidden bg-[var(--soft)] border border-line",
+                // Первое фото — крупная «обложка» 2×2: премиальная подача объекта.
+                i === 0 && photos.length > 1 && "col-span-2 row-span-2"
+              )}
+            >
               <button type="button" className="block w-full h-full active:scale-95 transition" onClick={() => setViewer(i)}>
                 <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
               </button>
@@ -557,12 +566,14 @@ export function ApartmentCard({ o }: { o: Apartment }) {
         accent[o.status] || "border-l-slate-400"
       )}
     >
-      <div className="flex items-center gap-3">
-        <div className="w-11 h-11 shrink-0 rounded-[13px] bg-primary-soft text-primary flex items-center justify-center overflow-hidden">
+      {/* Фото растянуто на всю высоту карточки (items-stretch): максимум веса
+          снимку без увеличения самой карточки. */}
+      <div className="flex items-stretch gap-3">
+        <div className="w-[88px] shrink-0 self-stretch rounded-[14px] bg-primary-soft text-primary flex items-center justify-center overflow-hidden">
           {o.photo_url ? (
-            <img src={o.photo_url} alt="" className="w-full h-full object-cover" />
+            <img src={o.photo_url} alt="" loading="lazy" className="w-full h-full object-cover" />
           ) : (
-            <HomeIcon size={22} />
+            <HomeIcon size={26} className="opacity-70" />
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -629,7 +640,7 @@ export function ObjectList({ params }: { params: SearchParams }) {
 
   if (loading && !items.length) return <ListSkeleton />;
   if (err) return <Empty>{err}</Empty>;
-  if (!items.length) return <Empty>{t("notFound")}</Empty>;
+  if (!items.length) return <Empty icon={<SearchX size={24} />} sub={t("emptyListSub")}>{t("notFound")}</Empty>;
   const left = total - items.length;
   return (
     <div>
@@ -774,14 +785,28 @@ function ImportFromLink({ onImported }: { onImported: (r: ListingImport) => void
   }
 
   return (
-    <Card className="mb-3">
-      <Field label={t("importLinkLabel")}>
+    <Card className="mb-3 relative overflow-hidden">
+      {/* Тонкое фиолетовое свечение — подсказывает, что здесь работает ИИ. */}
+      <div
+        className="absolute -right-14 -top-14 w-44 h-44 rounded-full pointer-events-none"
+        style={{ background: "radial-gradient(circle, var(--ring), transparent 68%)" }}
+      />
+      <div className="relative">
+        <div className="flex items-center gap-2.5 mb-2">
+          <span className="w-9 h-9 rounded-[11px] flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
+            <Sparkles size={17} />
+          </span>
+          <div>
+            <div className="text-[14px] font-extrabold leading-tight">{t("aiImportTitle")}</div>
+            <div className="text-[11.5px] text-muted">{t("importLinkLabel")}</div>
+          </div>
+        </div>
         <Input inputMode="url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
-      </Field>
-      <Button full className="mt-3" disabled={busy} onClick={run}>
-        <Sparkles size={16} /> {busy ? t("importing") : t("importBtn")}
-      </Button>
-      <Hint>{t("importHint")}</Hint>
+        <Button full className="mt-3" disabled={busy} onClick={run}>
+          <Sparkles size={16} /> {busy ? t("importing") : t("importBtn")}
+        </Button>
+        <Hint>{t("importHint")}</Hint>
+      </div>
     </Card>
   );
 }
@@ -1364,7 +1389,7 @@ export function ArchiveScreen({ createdFrom, createdTo }: { createdFrom?: string
 
   if (loading && !items.length) return <ListSkeleton />;
   if (err) return <Empty>{err}</Empty>;
-  if (!items.length) return <Empty>{t("archiveEmpty")}</Empty>;
+  if (!items.length) return <Empty icon={<ArchiveIcon size={24} />}>{t("archiveEmpty")}</Empty>;
   const left = total - items.length;
   return (
     <div>

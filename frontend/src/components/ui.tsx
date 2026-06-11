@@ -1,4 +1,5 @@
 import React from "react";
+import { haptic } from "../telegram";
 
 type Div = React.HTMLAttributes<HTMLDivElement>;
 
@@ -34,13 +35,16 @@ export function Button({
   size = "md",
   className,
   children,
+  onClick,
   ...rest
 }: BtnProps) {
   const base =
     "inline-flex items-center justify-center gap-2 font-bold tracking-[-.01em] rounded-xl cursor-pointer select-none transition-all duration-200 active:scale-[.97] disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed";
   const sizes = size === "sm" ? "px-3 py-2 text-[13px] rounded-[11px]" : "px-4 py-3 text-[15px]";
+  // Внутренний верхний блик на primary — «стеклянная» кромка премиальных кнопок.
   const variants: Record<BtnVariant, string> = {
-    primary: "text-white shadow-[0_10px_24px_rgba(79,70,229,.34)] hover:shadow-[0_14px_30px_rgba(79,70,229,.42)]",
+    primary:
+      "text-white shadow-[inset_0_1px_0_rgba(255,255,255,.22),0_10px_24px_rgba(79,70,229,.34)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,.22),0_14px_30px_rgba(79,70,229,.42)]",
     ghost: "bg-[var(--soft)] text-text border border-line hover:border-primary/40",
     soft: "bg-primary-soft text-primary hover:bg-primary/10",
     danger: "bg-[var(--danger-soft)] text-[var(--danger)] hover:brightness-95",
@@ -50,6 +54,12 @@ export function Button({
     <button
       className={cx(base, sizes, variants[variant], full && "w-full", className)}
       style={style}
+      // Лёгкая вибрация на каждом нажатии — единый тактильный отклик по всему
+      // приложению (вне Telegram — безопасный no-op).
+      onClick={(e) => {
+        haptic("light");
+        onClick?.(e);
+      }}
       {...rest}
     >
       {children}
@@ -122,13 +132,16 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex gap-1 p-1.5 rounded-[14px] bg-[var(--soft)]">
+    <div className="flex gap-1 p-1.5 rounded-[14px] bg-[var(--soft)] border border-line/60">
       {options.map((o) => (
         <button
           key={o.value}
-          onClick={() => onChange(o.value)}
+          onClick={() => {
+            if (o.value !== value) haptic("light");
+            onChange(o.value);
+          }}
           className={cx(
-            "flex-1 px-3 py-2.5 rounded-[10px] text-[13px] font-bold cursor-pointer transition-all duration-200",
+            "flex-1 px-3 py-2.5 rounded-[10px] text-[13px] font-bold cursor-pointer transition-all duration-200 active:scale-[.97]",
             value === o.value ? "bg-card text-text shadow-soft" : "text-muted hover:text-text"
           )}
         >
@@ -183,7 +196,7 @@ export function Spinner() {
 // Скелетоны загрузки: показываем «каркас» списка вместо спиннера — ощущается
 // быстрее и аккуратнее.
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cx("animate-pulse rounded-lg bg-line/70", className)} />;
+  return <div className={cx("shimmer rounded-lg", className)} />;
 }
 
 export function ListSkeleton({ rows = 4 }: { rows?: number }) {
@@ -241,8 +254,29 @@ export function Swipeable({
   );
 }
 
-export function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="text-center text-muted text-sm py-7">{children}</div>;
+// Пустое состояние: опциональная иконка в мягком круге и подзаголовок —
+// дружелюбнее голой строки текста. Старые вызовы (только children) работают.
+export function Empty({
+  children,
+  icon,
+  sub,
+}: {
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  sub?: React.ReactNode;
+}) {
+  if (!icon && !sub) return <div className="text-center text-muted text-sm py-7">{children}</div>;
+  return (
+    <div className="text-center py-9 px-4 animate-fade-up">
+      {icon && (
+        <div className="mx-auto mb-3 w-14 h-14 rounded-2xl bg-primary-soft text-primary flex items-center justify-center">
+          {icon}
+        </div>
+      )}
+      <div className="text-[15px] font-extrabold">{children}</div>
+      {sub && <div className="text-[13px] text-muted mt-1.5 leading-relaxed max-w-[300px] mx-auto">{sub}</div>}
+    </div>
+  );
 }
 
 export function Hint({ children }: { children: React.ReactNode }) {

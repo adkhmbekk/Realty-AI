@@ -5,7 +5,7 @@ import { Badge, Button, Card, Empty, Field, Input, Select, SectionTitle, Spinner
 import type { Invite } from "../types";
 import { copyText } from "../utils";
 import { haptic, shareToTelegram } from "../telegram";
-import { Send } from "lucide-react";
+import { Mail, Send } from "lucide-react";
 
 export function InvitesScreen() {
   const { t, L, toast, user } = useApp();
@@ -118,7 +118,7 @@ export function InvitesScreen() {
         {!list ? (
           <Spinner />
         ) : !list.length ? (
-          <Empty>{t("noInvites")}</Empty>
+          <Empty icon={<Mail size={24} />}>{t("noInvites")}</Empty>
         ) : (
           list.map((inv) => {
             const st = stMap[inv.status] || { c: "gray" as const, k: inv.status };

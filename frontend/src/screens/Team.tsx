@@ -1,8 +1,10 @@
 import { confirmDialog } from "../telegram";
 import { useEffect, useState } from "react";
+import { Users } from "lucide-react";
 import { useApp } from "../store";
 import { api, errText } from "../api";
 import { Badge, Button, Card, Empty, Spinner } from "../components/ui";
+import { initials } from "../utils";
 import type { Member } from "../types";
 
 export function TeamScreen() {
@@ -59,7 +61,7 @@ export function TeamScreen() {
 
   if (err) return <Empty>{err}</Empty>;
   if (!members) return <Spinner />;
-  if (!members.length) return <Empty>{t("noMembers")}</Empty>;
+  if (!members.length) return <Empty icon={<Users size={24} />}>{t("noMembers")}</Empty>;
 
   return (
     <div>
@@ -69,16 +71,30 @@ export function TeamScreen() {
         const canAct = !isSelf && !m.is_owner && (m.role === "agent" || meOwner);
         return (
           <Card key={m.id} className="mt-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-extrabold">{name}</span>
-              <span className="flex gap-1.5">
-                {m.is_owner && <Badge color="amber">{t("mainAdmin")}</Badge>}
-                <Badge color={m.is_active ? "green" : "gray"}>{m.is_active ? t("mActive") : t("mDisabled")}</Badge>
+            <div className="flex items-center gap-3">
+              {/* Аватар с инициалами — как на Главной и в Аналитике. */}
+              <span
+                className={
+                  "w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-[13px] font-extrabold " +
+                  (m.is_owner ? "text-white" : "bg-primary-soft text-primary")
+                }
+                style={m.is_owner ? { background: "var(--grad)" } : undefined}
+              >
+                {initials(name) || "—"}
               </span>
-            </div>
-            <div className="text-[13px] text-muted mt-1">
-              {L.roleLabel(m.role)}
-              {m.username ? " · @" + m.username : ""}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-extrabold truncate">{name}</span>
+                  <span className="flex gap-1.5 shrink-0">
+                    {m.is_owner && <Badge color="amber">{t("mainAdmin")}</Badge>}
+                    <Badge color={m.is_active ? "green" : "gray"}>{m.is_active ? t("mActive") : t("mDisabled")}</Badge>
+                  </span>
+                </div>
+                <div className="text-[13px] text-muted mt-0.5">
+                  {L.roleLabel(m.role)}
+                  {m.username ? " · @" + m.username : ""}
+                </div>
+              </div>
             </div>
             <div className="mt-2">
               {isSelf ? (

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  BarChart3,
   Building2,
   CheckCircle2,
   ChevronRight,
@@ -7,6 +8,7 @@ import {
   Tag,
   Trophy,
   TrendingUp,
+  Users,
 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
@@ -156,7 +158,7 @@ export function AnalyticsScreen() {
   }, [period]);
 
   if (loading) return <Spinner />;
-  if (!data) return <Empty>{t("noAnalytics")}</Empty>;
+  if (!data) return <Empty icon={<BarChart3 size={24} />}>{t("noAnalytics")}</Empty>;
 
   const maxAgent = Math.max(1, ...data.agents.map((a) => a.total));
   const conversion = data.total > 0 ? Math.round((data.sold / data.total) * 100) : 0;
@@ -265,7 +267,7 @@ export function AnalyticsScreen() {
       {/* Активность сотрудников (тап → детальный экран) */}
       <SectionTitle>{t("agentsActivity")}</SectionTitle>
       {data.agents.length === 0 ? (
-        <Empty>{t("noAnalytics")}</Empty>
+        <Empty icon={<Users size={24} />}>{t("noAnalytics")}</Empty>
       ) : (
         data.agents.map((a, i) => {
           const name = a.name || t("notSet");

@@ -40,14 +40,20 @@
   --primary: #4f46e5;
   --primary-2: #4338ca;
   --primary-soft: #eef0fe;
+  /* Второй акцент (фиолетовый) — для тонких премиальных деталей. */
+  --accent: #7c5cf6;
+  --accent-soft: #f3effe;
   --ring: rgba(79, 70, 229, 0.22);
   --danger: #dc2626;
   --danger-soft: #fdecea;
   --ok: #16a34a;
   --warn: #d97706;
-  --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(20, 26, 64, 0.07);
-  --shadow-lg: 0 4px 14px rgba(20, 26, 64, 0.08), 0 24px 54px rgba(20, 26, 64, 0.16);
-  --grad: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
+  /* Слоистые мягкие тени: близкая + средняя + дальняя. */
+  --shadow: 0 1px 2px rgba(16, 24, 64, 0.05), 0 4px 12px rgba(28, 35, 84, 0.06), 0 14px 34px rgba(28, 35, 84, 0.07);
+  --shadow-lg: 0 2px 6px rgba(16, 24, 64, 0.06), 0 12px 28px rgba(28, 35, 84, 0.12), 0 32px 68px rgba(28, 35, 84, 0.16);
+  --grad: linear-gradient(135deg, #6d70f9 0%, #4f46e5 48%, #4630c9 100%);
+  /* Глубокий «герой»-градиент для шапок Home/Profile. */
+  --grad-hero: radial-gradient(150% 140% at 0% 0%, #818cf8 0%, #4f46e5 42%, #4029c2 78%, #341fa3 100%);
 }
 
 .dark {
@@ -62,14 +68,17 @@
   --primary: #818cf8;
   --primary-2: #6366f1;
   --primary-soft: #1b2340;
+  --accent: #a78bfa;
+  --accent-soft: #221b3f;
   --ring: rgba(129, 140, 248, 0.32);
   --danger: #f87171;
   --danger-soft: #3a1d1d;
   --ok: #4ade80;
   --warn: #fbbf24;
-  --shadow: 0 2px 6px rgba(0, 0, 0, 0.36), 0 12px 36px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 6px 20px rgba(0, 0, 0, 0.5), 0 26px 64px rgba(0, 0, 0, 0.64);
-  --grad: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.4), 0 16px 44px rgba(0, 0, 0, 0.46);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.46), 0 16px 36px rgba(0, 0, 0, 0.52), 0 36px 76px rgba(0, 0, 0, 0.6);
+  --grad: linear-gradient(135deg, #6d70f9 0%, #4f46e5 48%, #4630c9 100%);
+  --grad-hero: radial-gradient(150% 140% at 0% 0%, #818cf8 0%, #4f46e5 42%, #4029c2 78%, #341fa3 100%);
 }
 
 * {
@@ -109,6 +118,7 @@ body {
   background:
     radial-gradient(1100px 440px at 8% -14%, rgba(99, 102, 241, 0.18), transparent 60%),
     radial-gradient(940px 380px at 114% -6%, rgba(129, 140, 248, 0.13), transparent 55%),
+    radial-gradient(760px 320px at 50% 112%, rgba(124, 92, 246, 0.07), transparent 60%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
@@ -116,6 +126,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.011em;
+  /* Цифры одной ширины — статистика и цены не «прыгают». */
+  font-variant-numeric: tabular-nums;
   min-height: 100vh;
 }
 
@@ -156,6 +168,31 @@ textarea {
     background: color-mix(in srgb, var(--card) 82%, transparent);
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+  /* Скелетон с бегущим бликом — премиальнее простого мигания. */
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--border) 70%, transparent);
+  }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--card) 60%, transparent),
+      transparent
+    );
+    animation: shimmer-slide 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer-slide {
+  100% {
+    transform: translateX(100%);
   }
 }
 

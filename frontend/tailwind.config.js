@@ -14,6 +14,8 @@ export default {
         primary: "var(--primary)",
         "primary-2": "var(--primary-2)",
         "primary-soft": "var(--primary-soft)",
+        accent: "var(--accent)",
+        "accent-soft": "var(--accent-soft)",
         ring2: "var(--ring)",
       },
       borderRadius: {

@@ -199,7 +199,13 @@ function BottomTabs() {
 
 function TabButton({ active, icon, label, onClick }: { active: boolean; icon: JSX.Element; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={"flex flex-col items-center gap-1 px-2 py-1 min-w-[58px] cursor-pointer transition-colors duration-200 " + (active ? "text-primary" : "text-muted")}>
+    <button
+      onClick={() => {
+        if (!active) haptic();
+        onClick();
+      }}
+      className={"flex flex-col items-center gap-1 px-2 py-1 min-w-[58px] cursor-pointer transition-colors duration-200 active:scale-95 " + (active ? "text-primary" : "text-muted")}
+    >
       <span className={"flex items-center justify-center w-11 h-7 rounded-full transition-colors duration-200 " + (active ? "bg-primary-soft" : "")}>
         {icon}
       </span>
@@ -335,19 +341,19 @@ function OpenInTelegram() {
       .catch(() => setOk(false));
   }, []);
   return (
-    <div className="max-w-[560px] mx-auto px-4 pt-10">
-      <div className="flex items-center gap-2.5 mb-5">
-        <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
-          <Building2 size={20} />
+    <div className="max-w-[560px] mx-auto px-4 pt-14 animate-fade-up">
+      <div className="flex flex-col items-center text-center mb-5">
+        <span className="w-16 h-16 rounded-[20px] flex items-center justify-center text-white shadow-glow mb-3" style={{ background: "var(--grad)" }}>
+          <Building2 size={30} />
         </span>
-        <span className="text-[20px] font-extrabold">
+        <span className="text-[24px] font-extrabold tracking-tight">
           Realty <span className="text-primary">AI</span>
         </span>
       </div>
-      <div className={"rounded-[14px] px-4 py-3 text-sm font-semibold " + (ok ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
+      <div className={"rounded-[14px] px-4 py-3 text-sm font-semibold text-center " + (ok ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
         {ok == null ? t("loading") : ok ? t("backendOk") : t("backendErr")}
       </div>
-      <p className="text-muted text-sm mt-3">{t("openInTg")}</p>
+      <p className="text-muted text-sm mt-3 text-center">{t("openInTg")}</p>
     </div>
   );
 }
@@ -378,16 +384,17 @@ function JoinScreen({ prefill, onAuth }: { prefill: string; onAuth: (r: AuthResp
   }, [prefill]);
 
   return (
-    <div className="max-w-[560px] mx-auto px-4 pt-8">
-      <div className="flex items-center gap-2.5 mb-4">
-        <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
-          <Building2 size={20} />
+    <div className="max-w-[560px] mx-auto px-4 pt-10 animate-fade-up">
+      {/* Первое впечатление нового сотрудника: крупный брендовый блок. */}
+      <div className="flex flex-col items-center text-center mb-5">
+        <span className="w-16 h-16 rounded-[20px] flex items-center justify-center text-white shadow-glow mb-3" style={{ background: "var(--grad)" }}>
+          <Building2 size={30} />
         </span>
-        <span className="text-[20px] font-extrabold">
+        <span className="text-[24px] font-extrabold tracking-tight">
           Realty <span className="text-primary">AI</span>
         </span>
       </div>
-      <div className="rounded-[14px] px-4 py-3 text-sm bg-primary-soft text-primary mb-3">{t("notInAgency")}</div>
+      <div className="rounded-[14px] px-4 py-3 text-sm bg-primary-soft text-primary mb-3 text-center">{t("notInAgency")}</div>
       <Card>
         <Field label={t("joinCodeLabel")}>
           <Input value={code} onChange={(e) => setCode(e.target.value)} />

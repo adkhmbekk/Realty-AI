@@ -12,7 +12,7 @@ export function ProfileScreen() {
       {/* Личная шапка с аватаром-инициалами */}
       <div
         className="flex items-center gap-3.5 rounded-xl3 p-4 mb-3 text-white overflow-hidden"
-        style={{ background: "var(--grad)", boxShadow: "0 16px 40px rgba(67,56,202,.34)" }}
+        style={{ background: "var(--grad-hero)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.16), 0 16px 40px rgba(52,31,163,.36)" }}
       >
         <div className="w-14 h-14 shrink-0 rounded-2xl bg-white/20 border border-white/40 flex items-center justify-center text-xl font-extrabold backdrop-blur">
           {initials(user.full_name || user.username) || <User size={24} />}

@@ -1,6 +1,6 @@
 import { confirmDialog } from "../telegram";
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Briefcase, Building2, Plus } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { useActing } from "../acting";
@@ -129,7 +129,7 @@ export function AgenciesScreen() {
         ) : !list ? (
           <Spinner />
         ) : !list.length ? (
-          <Empty>{t("noAgencies")}</Empty>
+          <Empty icon={<Building2 size={24} />}>{t("noAgencies")}</Empty>
         ) : (
           list.map((a) => {
             const adminTxt = a.admin_name
@@ -221,7 +221,7 @@ export function MyAgenciesScreen() {
         ) : !list ? (
           <Spinner />
         ) : !list.length ? (
-          <Empty>{t("noPersonalAgencies")}</Empty>
+          <Empty icon={<Briefcase size={24} />}>{t("noPersonalAgencies")}</Empty>
         ) : (
           list.map((a) => (
             <div

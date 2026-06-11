@@ -24,16 +24,16 @@ function Hero() {
         haptic();
         nav.push({ name: "profile" });
       }}
-      className="relative w-full text-left overflow-hidden rounded-xl3 p-5 mb-4 text-white"
+      className="relative w-full text-left overflow-hidden rounded-xl3 p-5 mb-4 text-white active:scale-[.99] transition"
       style={{
-        background: "radial-gradient(140% 130% at 0% 0%, #818cf8 0%, #4f46e5 44%, #4338ca 100%)",
-        boxShadow: "0 20px 46px rgba(67,56,202,.42)",
+        background: "var(--grad-hero)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,.16), 0 20px 46px rgba(52,31,163,.4)",
       }}
     >
       <div className="absolute -right-12 -top-16 w-52 h-52 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,.2), transparent 65%)" }} />
       <div className="absolute -left-8 -bottom-20 w-52 h-52 rounded-full" style={{ background: "radial-gradient(circle, rgba(165,180,252,.26), transparent 66%)" }} />
       <div className="relative flex items-center gap-4">
-        <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/40 flex items-center justify-center text-xl font-extrabold backdrop-blur">
+        <div className="w-14 h-14 shrink-0 rounded-2xl bg-white/20 border border-white/40 flex items-center justify-center text-xl font-extrabold backdrop-blur">
           {initials(user?.full_name || settings?.project_name) || <User size={24} />}
         </div>
         <div className="min-w-0">
@@ -56,6 +56,29 @@ function Stats() {
     });
   }, []);
   if (!s) return null;
+  // Первое впечатление нового пользователя: база пуста → дружелюбный
+  // онбординг с призывом добавить первый объект (вместо нулевой статистики).
+  if (s.total === 0) {
+    return (
+      <button
+        onClick={() => {
+          haptic();
+          nav.push({ name: "addObject" });
+        }}
+        className="w-full text-left rounded-xl2 bg-card border border-line shadow-soft p-5 mb-4 transition active:scale-[.99] hover:shadow-lg2 animate-fade-up"
+      >
+        <div className="flex items-center gap-3.5">
+          <span className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
+            <Plus size={24} />
+          </span>
+          <div className="min-w-0">
+            <div className="text-[16px] font-extrabold">{t("emptyDbTitle")}</div>
+            <div className="text-[13px] text-muted mt-0.5 leading-relaxed">{t("emptyDbText")}</div>
+          </div>
+        </div>
+      </button>
+    );
+  }
   const max = Math.max(1, s.active, s.deposit, s.sold);
   const tiles: { status: string; labelKey: string; count: number; bar: string; num: string }[] = [
     { status: "active", labelKey: "statusActive", count: s.active, bar: "from-emerald-500 to-emerald-400", num: "text-emerald-600 dark:text-emerald-400" },
