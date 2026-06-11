@@ -843,6 +843,8 @@ export function AddObjectScreen() {
       owner_phone: r.owner_phone ?? null,
       description: r.description ?? null,
       source_link: r.source_link ?? null,
+      // «Источник» заполняем названием канала/площадки — как в массовом импорте.
+      source: r.source ?? null,
     });
     setImgUrls(r.photo_urls || []);
     setFormKey((k) => k + 1); // перемонтировать форму, чтобы поля перечитались

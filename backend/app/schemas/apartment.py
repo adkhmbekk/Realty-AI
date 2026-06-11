@@ -285,6 +285,8 @@ class ListingImportOut(BaseModel):
     owner_phone: Optional[str] = None
     description: Optional[str] = None
     source_link: Optional[str] = None
+    # Источник: "@канал" для Telegram-ссылок (как в массовом импорте) или домен площадки.
+    source: Optional[str] = None
     # Ссылки на фотографии, найденные на странице (прямые URL картинок).
     photo_urls: List[str] = []
     # Предупреждения для пользователя (например, «фото не найдены»).

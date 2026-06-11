@@ -41,10 +41,8 @@ export function Button({
   const base =
     "inline-flex items-center justify-center gap-2 font-bold tracking-[-.01em] rounded-xl cursor-pointer select-none transition-all duration-200 active:scale-[.97] disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed";
   const sizes = size === "sm" ? "px-3 py-2 text-[13px] rounded-[11px]" : "px-4 py-3 text-[15px]";
-  // Внутренний верхний блик на primary — «стеклянная» кромка премиальных кнопок.
   const variants: Record<BtnVariant, string> = {
-    primary:
-      "text-white shadow-[inset_0_1px_0_rgba(255,255,255,.22),0_10px_24px_rgba(79,70,229,.34)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,.22),0_14px_30px_rgba(79,70,229,.42)]",
+    primary: "text-white shadow-[0_10px_24px_rgba(79,70,229,.34)] hover:shadow-[0_14px_30px_rgba(79,70,229,.42)]",
     ghost: "bg-[var(--soft)] text-text border border-line hover:border-primary/40",
     soft: "bg-primary-soft text-primary hover:bg-primary/10",
     danger: "bg-[var(--danger-soft)] text-[var(--danger)] hover:brightness-95",

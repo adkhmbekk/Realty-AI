@@ -176,6 +176,8 @@ export interface ListingImport {
   owner_phone?: string | null;
   description?: string | null;
   source_link?: string | null;
+  // Источник: "@канал" для Telegram (как в массовом импорте) или домен площадки.
+  source?: string | null;
   photo_urls: string[];
   warnings: string[];
 }

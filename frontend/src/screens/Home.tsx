@@ -27,7 +27,7 @@ function Hero() {
       className="relative w-full text-left overflow-hidden rounded-xl3 p-5 mb-4 text-white active:scale-[.99] transition"
       style={{
         background: "var(--grad-hero)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,.16), 0 20px 46px rgba(52,31,163,.4)",
+        boxShadow: "0 20px 46px rgba(52,31,163,.4)",
       }}
     >
       <div className="absolute -right-12 -top-16 w-52 h-52 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,.2), transparent 65%)" }} />

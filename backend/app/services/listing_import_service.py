@@ -451,6 +451,34 @@ def extract_fields_from_text(text: str, districts: List[str]) -> dict:
     return _clean(_extract_with_ai(text, districts))
 
 
+def derive_source_from_url(url: str) -> Optional[str]:
+    """
+    «Источник» из ссылки — в том же виде, что и массовый импорт из Telegram
+    (telegram_channel_service пишет source="@канал"). Для t.me/telegram.me
+    возвращаем "@имя_канала"; для прочих площадок — домен (например "olx.uz").
+    Приватные ссылки (t.me/c/…, t.me/+…) источника не дают.
+    """
+    try:
+        u = urlparse(url)
+        host = (u.hostname or "").lower()
+        if host.startswith("www."):
+            host = host[4:]
+        if host in ("t.me", "telegram.me"):
+            parts = [p for p in u.path.split("/") if p]
+            # t.me/s/<канал>/<пост> — веб-превью канала.
+            if parts and parts[0] == "s":
+                parts = parts[1:]
+            if not parts:
+                return None
+            name = parts[0]
+            if name in ("c", "joinchat") or name.startswith("+"):
+                return None
+            return f"@{name}"
+        return host or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def import_preview(url: str, districts: List[str]) -> dict:
     """
     Главный вход: загрузить объявление, разобрать AI и вернуть поля + ссылки на
@@ -471,6 +499,8 @@ def import_preview(url: str, districts: List[str]) -> dict:
 
     result = dict(fields)
     result["source_link"] = url
+    # Источник (название канала/площадки) — как в массовом импорте.
+    result["source"] = derive_source_from_url(url)
     result["photo_urls"] = images
     result["warnings"] = warnings
     return result
