@@ -62,6 +62,22 @@ def test_area_float_int_same_key(db):
     assert groups[0]["count"] == 2
 
 
+def test_house_land_plot_same_type(db):
+    aid, uid = _setup(db)
+    # Один объект, который источники назвали по-разному: Дом / Участок / Земля.
+    base = dict(district="Кибрай", rooms=4, total_floors=2, area=120, land_area=6)
+    _mk(db, aid, uid, "H1", type="Дом", **base, price=80000)
+    _mk(db, aid, uid, "H2", type="Участок", **base, price=85000)
+    _mk(db, aid, uid, "H3", type="Земля", **base, price=78000)
+    # Квартира с теми же числами — НЕ в группе (другой тип).
+    _mk(db, aid, uid, "F1", type="Квартира", district="Кибрай", rooms=4, total_floors=2, area=120)
+
+    groups = dup.find_duplicate_groups(db, aid)
+    assert len(groups) == 1
+    assert groups[0]["count"] == 3
+    assert {i.name for i in groups[0]["items"]} == {"H1", "H2", "H3"}
+
+
 def test_too_empty_not_grouped(db):
     aid, uid = _setup(db)
     # Заполнено меньше 3 характеристик — слишком пусто, чтобы судить о дублях.

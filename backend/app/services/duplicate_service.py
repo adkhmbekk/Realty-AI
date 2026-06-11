@@ -57,13 +57,25 @@ def _norm_num(v) -> Optional[str]:
     return ("%g" % f)
 
 
+# «Дом», «Земля» и «Участок» — один и тот же физический объект, который разные
+# источники называют по-разному. Для сравнения сводим их к одному типу.
+_LAND_LIKE = {"дом", "земля", "участок"}
+
+
+def _norm_type(v: Optional[str]) -> Optional[str]:
+    t = _norm_text(v)
+    if t in _LAND_LIKE:
+        return "дом/земля/участок"
+    return t
+
+
 def _group_key(a: Apartment) -> Optional[str]:
     """
     Ключ группы из фиксированных характеристик. None — объект слишком пустой,
     чтобы судить о дубликатах.
     """
     parts = [
-        _norm_text(a.type),
+        _norm_type(a.type),
         _norm_text(a.district),
         _norm_num(a.rooms),
         _norm_num(a.floor),
