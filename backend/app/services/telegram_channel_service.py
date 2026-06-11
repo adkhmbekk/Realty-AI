@@ -17,6 +17,7 @@
 import html as html_lib
 import logging
 import re
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import httpx
@@ -25,7 +26,10 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.subscription import agency_is_active
 from app.db.models.apartment import Apartment
+from app.db.models.watched_channel import WatchedChannel
+from app.repositories import agency_repo
 from app.schemas.apartment import ApartmentCreate
 from app.services import (
     apartment_service,
@@ -288,3 +292,195 @@ async def scan_page(
         "rate_limited": rate_limited,
         "done": False,
     }
+
+
+# ── Фоновый авто-импорт: слежение за каналами ───────────────────────────────
+# Сервер сам периодически проверяет «слушаемые» каналы и добавляет НОВЫЕ посты
+# (id > last_post_id). Это и фоновый импорт (не нужен открытый экран), и решение
+# «новый пост → сразу в базе».
+_AUTO_MAX_NEW = 8  # сколько ИИ-разборов делаем за один тик одного канала
+
+
+def _newest_post_id(channel: str) -> int:
+    """id самого свежего поста канала (0 — если постов нет). Может бросить AppError."""
+    html = _fetch_feed(channel, None)
+    posts = parse_feed(html)
+    return max((p["id"] for p in posts), default=0)
+
+
+def add_watch(db: Session, agency_id: int, created_by: Optional[int], channel_raw: str) -> WatchedChannel:
+    """Включить слежение за каналом. Курсор ставим на текущий свежий пост —
+    история не импортируется (для неё есть ручной импорт), берём только новое."""
+    channel = normalize_channel(channel_raw)
+    newest = _newest_post_id(channel)  # заодно проверяет, что канал доступен
+    existing = (
+        db.query(WatchedChannel)
+        .filter(WatchedChannel.agency_id == agency_id, WatchedChannel.channel == channel)
+        .first()
+    )
+    if existing is not None:
+        existing.enabled = True
+        existing.created_by = created_by
+        existing.last_post_id = max(existing.last_post_id or 0, newest)
+        db.commit()
+        db.refresh(existing)
+        return existing
+    w = WatchedChannel(
+        agency_id=agency_id, channel=channel, last_post_id=newest,
+        created_by=created_by, enabled=True,
+    )
+    db.add(w)
+    db.commit()
+    db.refresh(w)
+    return w
+
+
+def list_watches(db: Session, agency_id: int) -> List[WatchedChannel]:
+    return (
+        db.query(WatchedChannel)
+        .filter(WatchedChannel.agency_id == agency_id)
+        .order_by(WatchedChannel.created_at.desc())
+        .all()
+    )
+
+
+def remove_watch(db: Session, agency_id: int, watch_id: int) -> None:
+    w = (
+        db.query(WatchedChannel)
+        .filter(WatchedChannel.agency_id == agency_id, WatchedChannel.id == watch_id)
+        .first()
+    )
+    if w is not None:
+        db.delete(w)
+        db.commit()
+
+
+async def auto_import_channel(db: Session, watch: WatchedChannel, max_new: int = _AUTO_MAX_NEW) -> int:
+    """
+    Один тик слежения за каналом: добрать НОВЫЕ посты (id > last_post_id) от
+    старых к новым (не больше max_new ИИ-разборов), создать объекты, продвинуть
+    курсор. Reply «продано» архивирует исходный объект; проданные/неактуальные и
+    дубли (тот же пост) пропускаются, но курсор через них продвигается.
+    """
+    channel = watch.channel
+    html = await run_in_threadpool(_fetch_feed, channel, None)
+    posts = parse_feed(html)
+    watch.last_checked_at = datetime.now(timezone.utc)
+    if not posts:
+        db.commit()
+        return 0
+
+    # Архивируем объекты, под постами которых появился ответ «продано».
+    sold_parents = {
+        p["reply_to"] for p in posts
+        if p["reply_to"] and p["text"] and _INACTIVE_RE.search(p["text"])
+    }
+    if sold_parents:
+        parent_links = [f"https://t.me/{channel}/{pid}" for pid in sold_parents]
+        rows = (
+            db.query(Apartment.id)
+            .filter(Apartment.agency_id == watch.agency_id,
+                    Apartment.source_link.in_(parent_links),
+                    Apartment.deleted_at.is_(None))
+            .all()
+        )
+        for (aid,) in rows:
+            try:
+                await run_in_threadpool(apartment_service.delete_apartment, db, watch.agency_id, aid)
+            except Exception as exc:  # noqa: BLE001
+                logger.info("Авто-импорт: не удалось архивировать %s: %s", aid, exc)
+
+    last_id = watch.last_post_id or 0
+    new_posts = sorted((p for p in posts if p["id"] > last_id), key=lambda x: x["id"])
+    if not new_posts:
+        db.commit()
+        return 0
+
+    districts = [
+        d.value for d in dictionary_service.list_dictionaries(db, watch.agency_id, category="district")
+    ]
+    urls = {p["id"]: f"https://t.me/{channel}/{p['id']}" for p in new_posts}
+    existing = {
+        row[0] for row in db.query(Apartment.source_link)
+        .filter(Apartment.agency_id == watch.agency_id,
+                Apartment.source_link.in_(list(urls.values()))).all()
+    }
+
+    created = ai_done = 0
+    cursor = last_id
+    for p in new_posts:
+        pid = p["id"]
+        # Ответы, дубли, проданные/неактуальные, пустые — мимо (курсор двигаем).
+        if (p["reply_to"] or urls[pid] in existing or not p["text"]
+                or pid in sold_parents or _INACTIVE_RE.search(p["text"])):
+            cursor = max(cursor, pid)
+            continue
+        if ai_done >= max_new:
+            break  # остаток добежит на следующем тике (id > cursor)
+        try:
+            fields = await run_in_threadpool(
+                listing_import_service.extract_fields_from_text, p["text"], districts
+            )
+        except AppError as exc:
+            if exc.status_code == http_status.HTTP_429_TOO_MANY_REQUESTS:
+                break  # лимит — этот пост повторим на следующем тике (курсор не двигаем)
+            ai_done += 1
+            cursor = max(cursor, pid)
+            continue
+        except Exception as exc:  # noqa: BLE001
+            logger.info("Авто-импорт: ИИ-разбор поста %s: %s", pid, exc)
+            ai_done += 1
+            cursor = max(cursor, pid)
+            continue
+        ai_done += 1
+        if not fields or not any(fields.get(k) is not None for k in _STRUCTURAL):
+            cursor = max(cursor, pid)
+            continue
+        body = {k: v for k, v in fields.items() if v is not None and k != "warnings"}
+        body.pop("photo_urls", None)
+        body["source_link"] = urls[pid]
+        try:
+            apt = await run_in_threadpool(
+                apartment_service.create_apartment,
+                db, watch.agency_id, watch.created_by, ApartmentCreate(**body),
+            )
+        except AppError:
+            cursor = max(cursor, pid)
+            continue
+        created += 1
+        cursor = max(cursor, pid)
+        if p["images"]:
+            try:
+                await photo_service.import_from_image_urls(
+                    db, watch.agency_id, apt.id, p["images"][:_MAX_PHOTOS_PER_OBJ]
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.info("Авто-импорт: фото поста %s не прикреплены: %s", pid, exc)
+
+    watch.last_post_id = max(watch.last_post_id or 0, cursor)
+    db.commit()
+    return created
+
+
+async def auto_import_all(db: Session, max_channels: int = 100, max_new: int = _AUTO_MAX_NEW) -> int:
+    """Тик авто-импорта по всем включённым каналам. Возвращает число созданных объектов."""
+    watches = (
+        db.query(WatchedChannel)
+        .filter(WatchedChannel.enabled.is_(True))
+        .limit(max_channels)
+        .all()
+    )
+    total = 0
+    for w in watches:
+        agency = agency_repo.get_by_id(db, w.agency_id)
+        if agency is None:
+            continue
+        # Клиентские агентства с неактивной подпиской пропускаем; личные — всегда.
+        if agency.owner_telegram_id is None and not agency_is_active(agency):
+            continue
+        try:
+            total += await auto_import_channel(db, w, max_new=max_new)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Авто-импорт канала %s (агентство %s): %s", w.channel, w.agency_id, exc)
+            db.rollback()
+    return total

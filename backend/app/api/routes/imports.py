@@ -18,8 +18,10 @@ from app.core.errors import AppError
 from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
+from typing import List
+
 from app.schemas.base_import import BaseImportAnalyzeOut, BaseImportCommitOut
-from app.schemas.tg_import import TelegramScanIn, TelegramScanOut
+from app.schemas.tg_import import TelegramScanIn, TelegramScanOut, WatchIn, WatchOut
 from app.services import base_import_service, telegram_channel_service
 
 router = APIRouter(prefix="/imports", tags=["imports"])
@@ -80,3 +82,35 @@ async def scan_telegram(
     return await telegram_channel_service.scan_page(
         db, current_user.agency_id, current_user.id, body.channel, body.before
     )
+
+
+# ── Фоновое слежение за каналом (авто-импорт новых постов) ───────────────────
+@router.get("/telegram/watches", response_model=List[WatchOut])
+def list_watches(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_owner),
+):
+    """Список каналов, за которыми следит агентство (авто-импорт)."""
+    return telegram_channel_service.list_watches(db, current_user.agency_id)
+
+
+@router.post("/telegram/watches", response_model=WatchOut)
+def add_watch(
+    body: WatchIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_owner),
+):
+    """Включить слежение за каналом: новые посты будут добавляться автоматически."""
+    return telegram_channel_service.add_watch(
+        db, current_user.agency_id, current_user.id, body.channel
+    )
+
+
+@router.delete("/telegram/watches/{watch_id}", status_code=204)
+def remove_watch(
+    watch_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_owner),
+):
+    """Выключить слежение за каналом."""
+    telegram_channel_service.remove_watch(db, current_user.agency_id, watch_id)

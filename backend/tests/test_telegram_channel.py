@@ -97,3 +97,42 @@ def test_inactive_regex():
     assert not R.search("Продажа квартиры")
     assert not R.search("срочно продаю дом")
     assert not R.search("продаётся участок")
+
+
+def test_auto_import_advances_cursor(db, monkeypatch):
+    import asyncio
+
+    from app.db.models.agency import Agency
+    from app.db.models.watched_channel import WatchedChannel
+    from app.repositories import apartment_repo, user_repo
+
+    agency = Agency(name="A", status="active", timezone="Asia/Tashkent", default_currency="USD")
+    db.add(agency)
+    db.flush()
+    owner = user_repo.create(db, telegram_id=1, role="agency_admin", agency_id=agency.id, is_owner=True)
+    db.commit()
+
+    w = WatchedChannel(agency_id=agency.id, channel="realty", last_post_id=100,
+                       created_by=owner.id, enabled=True)
+    db.add(w)
+    db.commit()
+    db.refresh(w)
+
+    posts = [
+        {"id": 101, "text": "Квартира 55000", "images": [], "reply_to": None},
+        {"id": 102, "text": "Продано", "images": [], "reply_to": None},   # неактуально → мимо
+        {"id": 103, "text": "Дом 90000", "images": [], "reply_to": None},
+        {"id": 99, "text": "старое", "images": [], "reply_to": None},      # <= курсора → игнор
+    ]
+    monkeypatch.setattr(tg, "_fetch_feed", lambda ch, before: "")
+    monkeypatch.setattr(tg, "parse_feed", lambda html: posts)
+    monkeypatch.setattr(
+        tg.listing_import_service, "extract_fields_from_text",
+        lambda text, districts: {"type": "Квартира", "price": 55000},
+    )
+
+    created = asyncio.run(tg.auto_import_channel(db, w, max_new=8))
+    assert created == 2  # 101 и 103 (102 «Продано» пропущен)
+    assert w.last_post_id == 103
+    _, total = apartment_repo.search(db, agency.id, status=None)
+    assert total == 2

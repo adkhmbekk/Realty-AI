@@ -324,6 +324,32 @@ function TelegramImportCard() {
   const [rateNote, setRateNote] = useState(false);
   const stopRef = useRef(false);
 
+  // Авто-импорт: каналы, за которыми следит сервер (добавляет новые посты сам).
+  type Watch = { id: number; channel: string; enabled: boolean; last_checked_at: string | null };
+  const [watches, setWatches] = useState<Watch[]>([]);
+  async function loadWatches() {
+    const r = await api<Watch[]>("/api/v1/imports/telegram/watches");
+    if (r.ok && Array.isArray(r.data)) setWatches(r.data);
+  }
+  useEffect(() => {
+    loadWatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  async function addWatch() {
+    const ch = channel.trim();
+    if (!ch) return;
+    const r = await api<Watch>("/api/v1/imports/telegram/watches", { method: "POST", body: { channel: ch } });
+    if (r.ok) {
+      toast(t("tgWatchAdded"), "ok");
+      loadWatches();
+    } else toast(errText(r.data, r.status) || t("tgImportError"), "err");
+  }
+  async function removeWatch(id: number) {
+    const r = await api(`/api/v1/imports/telegram/watches/${id}`, { method: "DELETE" });
+    if (r.ok) loadWatches();
+    else toast(errText(r.data, r.status), "err");
+  }
+
   // Предохранители от бесконечного цикла на гигантских каналах.
   const HARD_CAP = 1000; // обработанных постов за один запуск
   const MAX_REQ = 400; // запросов за один запуск
@@ -440,6 +466,36 @@ function TelegramImportCard() {
             {t("tgImportStop")}
           </Button>
         )}
+
+        {/* Авто-импорт: сервер сам добавляет новые посты канала */}
+        <div className="mt-4 pt-3 border-t border-line">
+          <div className="text-[12px] font-extrabold uppercase tracking-wider text-primary mb-1">
+            {t("tgWatchTitle")}
+          </div>
+          <Hint>{t("tgWatchHint")}</Hint>
+          <Button full variant="ghost" className="mt-2" disabled={!channel.trim() || running} onClick={addWatch}>
+            {t("tgWatchAdd")}
+          </Button>
+          {watches.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              {watches.map((w) => (
+                <div
+                  key={w.id}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-[var(--soft)] px-3 py-2 text-[13px]"
+                >
+                  <span className="truncate">@{w.channel}</span>
+                  <button
+                    onClick={() => removeWatch(w.id)}
+                    className="text-rose-600 font-extrabold shrink-0 px-1 active:scale-90 transition"
+                    aria-label={t("tgWatchRemove")}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   );

@@ -13,6 +13,7 @@ from app.db.models.duplicate_dismissal import DuplicateDismissal
 from app.db.models.invite import Invite
 from app.db.models.subscription_payment import SubscriptionPayment
 from app.db.models.user import User
+from app.db.models.watched_channel import WatchedChannel
 
 __all__ = [
     "Agency",
@@ -26,4 +27,5 @@ __all__ = [
     "AuditLog",
     "SubscriptionPayment",
     "DuplicateDismissal",
+    "WatchedChannel",
 ]

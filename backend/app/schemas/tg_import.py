@@ -1,9 +1,10 @@
 """
 Схемы массового импорта из открытого Telegram-канала — Этап 3.1.
 """
+from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class TelegramScanIn(BaseModel):
@@ -37,3 +38,27 @@ class TelegramScanOut(BaseModel):
     rate_limited: bool = False
     # Канал закончился (постов больше нет).
     done: bool
+
+
+# ── Фоновое слежение за каналом (авто-импорт) ───────────────────────────────
+class WatchIn(BaseModel):
+    channel: str
+
+    @field_validator("channel")
+    @classmethod
+    def _strip(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("empty_channel")
+        return v
+
+
+class WatchOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    channel: str
+    enabled: bool
+    last_post_id: int
+    last_checked_at: Optional[datetime] = None
+    created_at: datetime

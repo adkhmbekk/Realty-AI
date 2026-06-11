@@ -188,7 +188,32 @@ def _sheets_loop() -> None:
         time.sleep(SHEETS_SYNC_INTERVAL_SECONDS)
 
 
+# Как часто проверять «слушаемые» Telegram-каналы и добавлять новые посты.
+AUTOIMPORT_INTERVAL_SECONDS = 180
+
+
+def _autoimport_loop() -> None:
+    import asyncio
+
+    from app.services import telegram_channel_service as tg
+
+    logger.info("Планировщик: авто-импорт Telegram (раз в %s с).", AUTOIMPORT_INTERVAL_SECONDS)
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                created = asyncio.run(tg.auto_import_all(db))
+                if created:
+                    logger.info("Планировщик: авто-импорт добавил объектов: %s.", created)
+            finally:
+                db.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Планировщик: ошибка авто-импорта Telegram: %s", exc)
+        time.sleep(AUTOIMPORT_INTERVAL_SECONDS)
+
+
 def start_scheduler() -> None:
     """Запустить фоновые задачи (демон-потоки). Безопасно при любом окружении."""
     threading.Thread(target=_loop, name="realty-scheduler", daemon=True).start()
     threading.Thread(target=_sheets_loop, name="realty-sheets-sync", daemon=True).start()
+    threading.Thread(target=_autoimport_loop, name="realty-tg-autoimport", daemon=True).start()
