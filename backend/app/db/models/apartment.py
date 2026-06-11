@@ -98,6 +98,9 @@ class Apartment(Base):
     photo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Ссылка на источник (OLX, Telegram и т.д.).
     source_link: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Источник объявления — НАЗВАНИЕ канала/площадки (например «@realty_tashkent»).
+    # Внутреннее поле: видно команде, но НЕ уходит клиенту при «поделиться».
+    source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # id пользователя, который создал объект (для аудита).
     created_by: Mapped[Optional[int]] = mapped_column(

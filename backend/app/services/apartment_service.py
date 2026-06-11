@@ -151,6 +151,7 @@ def create_apartment(
         comment=payload.comment,
         photo_url=payload.photo_url,
         source_link=payload.source_link,
+        source=payload.source,
         archived_at=datetime.now(timezone.utc) if new_status in _CLOSED_STATUSES else None,
     )
     apartment_repo.create(db, apartment)

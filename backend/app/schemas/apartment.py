@@ -50,6 +50,8 @@ class _ApartmentBase(BaseModel):
     photo_url: Optional[str] = None
     # Ссылка на источник (OLX, Telegram и т.д.).
     source_link: Optional[str] = None
+    # Источник — название канала/площадки (внутреннее, не уходит клиенту).
+    source: Optional[str] = None
 
     @field_validator("rooms", "floor", "total_floors")
     @classmethod
@@ -117,6 +119,7 @@ class ApartmentOut(BaseModel):
     comment: Optional[str] = None
     photo_url: Optional[str] = None
     source_link: Optional[str] = None
+    source: Optional[str] = None
     created_by: Optional[int] = None
     created_by_name: Optional[str] = None
     created_at: datetime

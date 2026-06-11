@@ -119,6 +119,7 @@ function ObjectForm({
     furniture_appliances: o.furniture_appliances ?? "",
     owner_phone: o.owner_phone ?? "",
     source_link: o.source_link ?? "",
+    source: o.source ?? "",
     description: o.description ?? "",
     comment: o.comment ?? "",
   });
@@ -146,6 +147,7 @@ function ObjectForm({
       furniture_appliances: f.furniture_appliances || null,
       owner_phone: f.owner_phone.trim() || null,
       source_link: f.source_link.trim() || null,
+      source: f.source.trim() || null,
       description: f.description.trim() || null,
       comment: f.comment.trim() || null,
     };
@@ -274,6 +276,9 @@ function ObjectForm({
       <Hint>{t("ownerPhoneHint")}</Hint>
       <Field label={t("f_source")}>
         <Input inputMode="url" placeholder="https://…" value={f.source_link} onChange={(e) => set("source_link", e.target.value)} />
+      </Field>
+      <Field label={t("f_sourceName")}>
+        <Input placeholder={t("f_sourceNamePh")} value={f.source} onChange={(e) => set("source", e.target.value)} />
       </Field>
       <Field label={t("f_desc")}>
         <Textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} />
@@ -1440,6 +1445,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     [t("f_condition"), o.condition ? L.condLabel(o.condition) : null],
     [t("f_furniture"), L.faLabel(o.furniture_appliances)],
     [t("f_owner_phone"), o.owner_phone],
+    [t("f_sourceName"), o.source],
     [t("f_desc"), o.description],
     [t("addedBy"), o.created_by_name],
     o.status === "sold" && o.archived_at ? [t("soldDate"), fmtDate(o.archived_at, lang, settings?.timezone)] : [null, null],

@@ -262,6 +262,7 @@ async def scan_page(
         body = {k: v for k, v in fields.items() if v is not None and k != "warnings"}
         body.pop("photo_urls", None)
         body["source_link"] = urls[p["id"]]
+        body["source"] = f"@{channel}"
         try:
             apt = await run_in_threadpool(
                 apartment_service.create_apartment,
@@ -439,6 +440,7 @@ async def auto_import_channel(db: Session, watch: WatchedChannel, max_new: int =
         body = {k: v for k, v in fields.items() if v is not None and k != "warnings"}
         body.pop("photo_urls", None)
         body["source_link"] = urls[pid]
+        body["source"] = f"@{channel}"
         try:
             apt = await run_in_threadpool(
                 apartment_service.create_apartment,

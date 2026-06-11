@@ -45,6 +45,7 @@ export interface Apartment {
   comment?: string | null;
   photo_url?: string | null;
   source_link?: string | null;
+  source?: string | null;
   created_by?: number | null;
   created_by_name?: string | null;
   created_at: string;
