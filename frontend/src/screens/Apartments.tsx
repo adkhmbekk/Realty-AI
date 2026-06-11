@@ -1297,7 +1297,11 @@ export function DuplicatesScreen() {
                 {o.area != null ? ` · ${o.area} м²` : ""}
                 {o.land_area != null ? ` · ${o.land_area} ${t("f_land_area").toLowerCase()}` : ""}
               </div>
-              <div className="text-[11px] text-muted">{fmtDate(o.created_at, lang)}</div>
+              <div className="text-[11px] text-muted">
+                {fmtDate(o.created_at, lang)}
+                {/* Источник — чтобы было видно, какой канал оставить, какой удалить. */}
+                {o.source ? <span className="text-primary font-bold"> · {o.source}</span> : ""}
+              </div>
             </div>
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">

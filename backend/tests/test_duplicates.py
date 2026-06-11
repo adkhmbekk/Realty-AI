@@ -1,7 +1,7 @@
 """
-Тесты менеджера дубликатов (v2): группировка по совпадению фиксированных
-характеристик (тип, район, комнаты, этаж, этажность, площадь, сотки), цена не
-участвует; минимум заполненности; подтверждение «не дубликаты».
+Тесты менеджера дубликатов (v3): группировка по совпадению фиксированных
+характеристик (район, комнаты, этаж, этажность, площадь, сотки); ТИП и ЦЕНА
+не участвуют; минимум заполненности; подтверждение «не дубликаты».
 """
 from app.db.models.agency import Agency
 from app.repositories import user_repo
@@ -62,20 +62,36 @@ def test_area_float_int_same_key(db):
     assert groups[0]["count"] == 2
 
 
-def test_house_land_plot_same_type(db):
+def test_type_fully_ignored(db):
     aid, uid = _setup(db)
     # Один объект, который источники назвали по-разному: Дом / Участок / Земля.
     base = dict(district="Кибрай", rooms=4, total_floors=2, area=120, land_area=6)
     _mk(db, aid, uid, "H1", type="Дом", **base, price=80000)
     _mk(db, aid, uid, "H2", type="Участок", **base, price=85000)
     _mk(db, aid, uid, "H3", type="Земля", **base, price=78000)
-    # Квартира с теми же числами — НЕ в группе (другой тип).
+    # Объект с другими числами (нет соток) — НЕ в группе: числа не совпали.
     _mk(db, aid, uid, "F1", type="Квартира", district="Кибрай", rooms=4, total_floors=2, area=120)
 
     groups = dup.find_duplicate_groups(db, aid)
     assert len(groups) == 1
     assert groups[0]["count"] == 3
     assert {i.name for i in groups[0]["items"]} == {"H1", "H2", "H3"}
+
+    # А если совпали ВСЕ числа — группа образуется даже при «несовместимых» типах.
+    _mk(db, aid, uid, "C1", type="Квартира", district="Чиланзар", rooms=2, floor=3, total_floors=5, area=48)
+    _mk(db, aid, uid, "C2", type="Коммерция", district="Чиланзар", rooms=2, floor=3, total_floors=5, area=48)
+    groups = dup.find_duplicate_groups(db, aid)
+    assert len(groups) == 2
+
+
+def test_same_price_also_grouped(db):
+    aid, uid = _setup(db)
+    # Цена не влияет: ОДИНАКОВЫЕ цены тоже показываются как дубликаты.
+    _mk(db, aid, uid, "A1", **FLAT, price=50000)
+    _mk(db, aid, uid, "A2", **FLAT, price=50000)
+    groups = dup.find_duplicate_groups(db, aid)
+    assert len(groups) == 1
+    assert groups[0]["count"] == 2
 
 
 def test_too_empty_not_grouped(db):
