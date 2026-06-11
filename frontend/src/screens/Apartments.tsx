@@ -324,7 +324,7 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
   const fa = L.faLabel(o.furniture_appliances);
   if (fa) d.push("🛋 " + fa);
   if (o.price != null) d.push("💵 " + t("f_price") + ": " + o.price + " " + (o.currency || ""));
-  if (o.source_link) d.push("🔗 " + o.source_link);
+  // Ссылку-источник клиенту НЕ показываем (никаких ссылок в карточке).
   if (d.length) {
     lines.push("");
     lines.push(...d);
@@ -333,7 +333,7 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
     lines.push("");
     lines.push("📞 " + contactPhone);
   }
-  if (contactUsername) lines.push("✈️ " + contactUsername);
+  // Username главного админа в карточку клиента НЕ добавляем (по требованию).
   return lines.join("\n");
 }
 
