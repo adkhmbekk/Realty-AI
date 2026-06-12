@@ -14,12 +14,20 @@ from datetime import datetime, timezone
 ACTIVE_STATUSES = ("trial", "active")
 
 
+def _as_utc(dt: datetime) -> datetime:
+    """Дату из БД приводим к aware-UTC: Postgres (прод) отдаёт со смещением,
+    SQLite (тесты) — без; иначе сравнение с now(timezone.utc) даёт TypeError."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def agency_is_active(agency) -> bool:
     if agency is None:
         return False
     if agency.status not in ACTIVE_STATUSES:
         return False
     expires_at = agency.subscription_expires_at
-    if expires_at is not None and expires_at < datetime.now(timezone.utc):
+    if expires_at is not None and _as_utc(expires_at) < datetime.now(timezone.utc):
         return False
     return True

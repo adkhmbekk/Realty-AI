@@ -42,10 +42,19 @@ def _generate_unique_code(db: Session) -> str:
     )
 
 
+def _as_utc(dt: datetime) -> datetime:
+    """Привести дату из БД к aware-UTC. Postgres (прод) отдаёт дату со смещением,
+    а SQLite (тесты) — без него; без этой нормализации сравнение с
+    datetime.now(timezone.utc) падает с TypeError (naive vs aware)."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def _status_of(invite) -> str:
     if invite.used_at is not None:
         return "used"
-    if invite.expires_at <= datetime.now(timezone.utc):
+    if _as_utc(invite.expires_at) <= datetime.now(timezone.utc):
         return "expired"
     return "active"
 
@@ -137,7 +146,7 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
         raise AppError("invite_not_found", status.HTTP_404_NOT_FOUND)
     if invite.used_at is not None:
         raise AppError("invite_already_used", status.HTTP_409_CONFLICT)
-    if invite.expires_at <= datetime.now(timezone.utc):
+    if _as_utc(invite.expires_at) <= datetime.now(timezone.utc):
         raise AppError("invite_expired", status.HTTP_400_BAD_REQUEST)
 
     # 4. Создаём или привязываем пользователя к агентству приглашения.
