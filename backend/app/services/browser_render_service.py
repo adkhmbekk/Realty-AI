@@ -18,8 +18,10 @@ from __future__ import annotations
 import logging
 import threading
 from typing import List, Optional, Tuple
+from urllib.parse import urlparse
 
 from app.config import settings
+from app.services import photo_service
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -66,9 +68,16 @@ def try_render(url: str) -> Optional[Tuple[str, str, List[str]]]:
 
 def _block_heavy(route):
     """Не качать сами картинки/шрифты/видео — ссылки в DOM остаются, а грузится
-    страница в разы быстрее и стабильнее."""
+    страница в разы быстрее и стабильнее.
+
+    Заодно ЗАЩИТА от SSRF: режем любые запросы со схемой кроме http/https
+    (file:, data:, blob:, ftp:) — на случай внутреннего редиректа страницы или
+    meta-refresh, который иначе заставил бы Chromium прочитать локальный файл."""
     try:
-        if route.request.resource_type in ("image", "media", "font"):
+        scheme = urlparse(route.request.url).scheme.lower()
+        if scheme not in ("http", "https"):
+            route.abort()
+        elif route.request.resource_type in ("image", "media", "font"):
             route.abort()
         else:
             route.continue_()
@@ -78,6 +87,13 @@ def _block_heavy(route):
 
 def _render(url: str, timeout_ms: int) -> Tuple[str, str, List[str]]:
     from playwright.sync_api import sync_playwright
+
+    # ЗАЩИТА от SSRF/чтения файлов: повторно убеждаемся, что адрес публичный и
+    # по http/https, прежде чем отдать его браузеру (вызывающий код уже проверял,
+    # но _render не должен полагаться на это — Playwright сам адрес не проверяет).
+    if urlparse(url).scheme not in ("http", "https"):
+        raise ValueError("browser render: only http/https allowed")
+    photo_service._assert_public_url(url)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(

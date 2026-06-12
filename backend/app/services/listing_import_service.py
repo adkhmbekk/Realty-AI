@@ -50,6 +50,7 @@ LAND_AREA_TYPES = ("Дом", "Земля", "Участок")
 _MAX_HTML_BYTES = 3 * 1024 * 1024     # не качаем гигантские страницы
 _MAX_AI_CHARS = 14_000               # сколько текста отдаём модели
 _MAX_IMAGES = 20                     # сколько ссылок на фото возвращаем
+_MAX_REDIRECTS = 5                   # сколько переходов по Location допускаем
 _FETCH_TIMEOUT = httpx.Timeout(12.0, connect=8.0)
 
 
@@ -57,30 +58,51 @@ _FETCH_TIMEOUT = httpx.Timeout(12.0, connect=8.0)
 def _fetch_html(url: str) -> Tuple[str, str]:
     """
     Скачать HTML страницы. Возвращает (html, final_url).
-    Защита от SSRF: исходный адрес обязан резолвиться в публичный IP.
+
+    Защита от SSRF: редиректы НЕ следуем автоматически (иначе публичная страница
+    могла бы 302-редиректом увести нас на внутренний адрес). Идём по Location
+    вручную и проверяем _assert_public_url на КАЖДОМ переходе — как в
+    photo_service._afetch.
     """
-    photo_service._assert_public_url(url)  # бросит AppError при внутреннем адресе
+    current = url
     try:
-        with httpx.Client(follow_redirects=True, timeout=_FETCH_TIMEOUT) as client:
-            with client.stream(
-                "GET", url,
-                headers={
-                    "User-Agent": photo_service._UA,
-                    "Accept": "text/html,application/xhtml+xml,*/*",
-                    "Accept-Language": "ru,en;q=0.8",
-                },
-            ) as resp:
-                if resp.status_code >= 400:
-                    raise AppError("import_fetch_failed", status.HTTP_400_BAD_REQUEST)
-                chunks: List[bytes] = []
-                total = 0
-                for chunk in resp.iter_bytes():
-                    total += len(chunk)
-                    if total > _MAX_HTML_BYTES:
-                        break
-                    chunks.append(chunk)
-                final_url = str(resp.url)
-        return b"".join(chunks).decode("utf-8", errors="ignore"), final_url
+        with httpx.Client(follow_redirects=False, timeout=_FETCH_TIMEOUT) as client:
+            for _ in range(_MAX_REDIRECTS + 1):
+                # бросит AppError при внутреннем/непубличном адресе
+                photo_service._assert_public_url(current)
+                with client.stream(
+                    "GET", current,
+                    headers={
+                        "User-Agent": photo_service._UA,
+                        "Accept": "text/html,application/xhtml+xml,*/*",
+                        "Accept-Language": "ru,en;q=0.8",
+                    },
+                ) as resp:
+                    if 300 <= resp.status_code < 400:
+                        loc = resp.headers.get("Location")
+                        if not loc:
+                            raise AppError(
+                                "import_fetch_failed", status.HTTP_400_BAD_REQUEST
+                            )
+                        # следующий хоп проверим в начале цикла (urljoin — на
+                        # случай относительного Location)
+                        current = urljoin(current, loc)
+                        continue
+                    if resp.status_code >= 400:
+                        raise AppError(
+                            "import_fetch_failed", status.HTTP_400_BAD_REQUEST
+                        )
+                    chunks: List[bytes] = []
+                    total = 0
+                    for chunk in resp.iter_bytes():
+                        total += len(chunk)
+                        if total > _MAX_HTML_BYTES:
+                            break
+                        chunks.append(chunk)
+                    final_url = str(resp.url)
+                    return b"".join(chunks).decode("utf-8", errors="ignore"), final_url
+            # слишком много редиректов
+            raise AppError("import_fetch_failed", status.HTTP_400_BAD_REQUEST)
     except AppError:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -263,6 +285,12 @@ def _fetch_listing(url: str) -> Tuple[str, List[str]]:
         html, _ = _fetch_html(base + "?embed=1&mode=tme")
         images = photo_service._extract_image_urls(html)[:_MAX_IMAGES]
         return _build_ai_text(html), images
+
+    # ВАЖНО (SSRF): проверяем адрес ДО любой загрузки, чтобы это покрыло и
+    # запасной путь через браузер ниже. Иначе file:// или внутренний http
+    # дошли бы до Playwright (который сам адрес не проверяет) и прочитали бы
+    # локальные файлы/внутренние сервисы. Внутренний адрес → сразу AppError.
+    photo_service._assert_public_url(url)
 
     # Быстрый путь: обычный HTTP. Для большинства сайтов этого достаточно.
     html, final_url = "", url
