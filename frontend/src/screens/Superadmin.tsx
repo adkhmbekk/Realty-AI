@@ -268,10 +268,11 @@ export function AgencyCreateScreen() {
       return;
     }
     setSaving(true);
+    const parsedDays = parseInt(days, 10);
     const body: Record<string, unknown> = {
       name: name.trim(),
       admin_telegram_id: id,
-      subscription_days: parseInt(days, 10) || 30,
+      subscription_days: Number.isNaN(parsedDays) ? 30 : parsedDays,
     };
     const u = adminUser.trim();
     if (u) body.admin_username = u;

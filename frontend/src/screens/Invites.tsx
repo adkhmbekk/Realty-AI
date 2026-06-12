@@ -38,7 +38,9 @@ export function InvitesScreen() {
 
   async function create() {
     setCreating(true);
-    const r = await api<Invite>("/api/v1/invites", { method: "POST", body: { role, expires_in_days: parseInt(days, 10) || 7 } });
+    // Явная проверка на «не число»: || превращал бы введённый 0 в 7 молча.
+    const parsedDays = parseInt(days, 10);
+    const r = await api<Invite>("/api/v1/invites", { method: "POST", body: { role, expires_in_days: Number.isNaN(parsedDays) ? 7 : parsedDays } });
     setCreating(false);
     if (r.ok && r.data) {
       toast(t("inviteCreated"), "ok");

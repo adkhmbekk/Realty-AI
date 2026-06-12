@@ -117,8 +117,9 @@ def notify_async(chat_ids: Sequence[int], text: str) -> None:
         for chat_id in targets:
             try:
                 send_message(chat_id, text)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                # Уведомление некритично, но сбой должен быть виден в логах.
+                logger.warning("Уведомление в чат %s не отправлено: %s", chat_id, exc)
 
     threading.Thread(target=_run, daemon=True).start()
 

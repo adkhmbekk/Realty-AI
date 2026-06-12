@@ -224,7 +224,14 @@ def update_subscription(
         agency.subscription_expires_at = expires_at
         agency.status = "active"
         agency.activated_at = now if not was_active else agency.activated_at
-        record_payment = True
+        # Ручная правка даты — не оплата: платёж фиксируем только при явной
+        # сумме, иначе в истории выручки появлялись записи без суммы/валюты.
+        if amount is not None:
+            if amount > 0 and not (currency and currency.strip()):
+                raise AppError(
+                    "subscription_currency_required", status.HTTP_400_BAD_REQUEST
+                )
+            record_payment = True
     elif action == "freeze":
         agency.status = "frozen"
     elif action == "activate":

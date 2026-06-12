@@ -139,6 +139,7 @@ export function AnalyticsScreen() {
   const nav = useNav();
   const [data, setData] = useState<ApartmentAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const [period, setPeriod] = useState<"week" | "month" | "halfyear" | "year">("month");
   const [metric, setMetric] = useState<"added" | "sold">("added");
@@ -148,6 +149,7 @@ export function AnalyticsScreen() {
     api<ApartmentAnalytics>("/api/v1/apartments/analytics").then((r) => {
       setLoading(false);
       if (r.ok && r.data) setData(r.data);
+      else setLoadError(true);
     });
   }, []);
 
@@ -158,6 +160,8 @@ export function AnalyticsScreen() {
   }, [period]);
 
   if (loading) return <Spinner />;
+  // Сбой сети — отдельное сообщение, а не «данных пока нет».
+  if (loadError) return <Empty icon={<BarChart3 size={24} />}>{t("loadFailed")}</Empty>;
   if (!data) return <Empty icon={<BarChart3 size={24} />}>{t("noAnalytics")}</Empty>;
 
   const maxAgent = Math.max(1, ...data.agents.map((a) => a.total));

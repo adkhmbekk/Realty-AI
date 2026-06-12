@@ -19,7 +19,7 @@ export function ProfileScreen() {
         </div>
         <div className="min-w-0">
           <div className="text-[20px] font-extrabold leading-tight truncate">{displayName}</div>
-          <div className="text-[13px] opacity-90 mt-0.5">{L.roleLabel(user.role)}</div>
+          <div className="text-[13px] opacity-90 mt-0.5">{L.roleLabel(user.role, user.is_owner)}</div>
         </div>
       </div>
       <Card>
@@ -52,7 +52,7 @@ export function SuspendedScreen() {
       {user && (
         <Card>
           <Row label={t("name")} value={user.full_name || t("notSet")} />
-          <Row label={t("roleLbl")} value={L.roleLabel(user.role)} />
+          <Row label={t("roleLbl")} value={L.roleLabel(user.role, user.is_owner)} />
         </Card>
       )}
       <div className="mt-3 rounded-[14px] px-3.5 py-3 text-sm leading-relaxed bg-rose-500/10 text-rose-600 dark:text-rose-300 border border-rose-500/30">

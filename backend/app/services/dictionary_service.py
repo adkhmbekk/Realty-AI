@@ -51,7 +51,17 @@ def update_dictionary(
     item = dictionary_repo.get_by_id(db, agency_id, dict_id)
     if item is None:
         raise AppError("dict_value_not_found", status.HTTP_404_NOT_FOUND)
-    if payload.value is not None:
+    if payload.value is not None and payload.value != item.value:
+        # Как и при создании: два одинаковых значения в категории не допускаем,
+        # иначе переименованием можно получить дубликат (два «Юнусабада»).
+        existing = dictionary_repo.get_one(db, agency_id, item.category, payload.value)
+        if existing is not None and existing.id != item.id:
+            raise AppError(
+                "dict_value_exists",
+                status.HTTP_409_CONFLICT,
+                value=payload.value,
+                category=item.category,
+            )
         item.value = payload.value
     if payload.sort_order is not None:
         item.sort_order = payload.sort_order

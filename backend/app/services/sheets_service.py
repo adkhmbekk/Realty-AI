@@ -738,6 +738,9 @@ def sync_all_connected(db: Session) -> int:
             done += 1
         except Exception as exc:  # noqa: BLE001
             logger.warning("Sheets sync agency %s: %s", r.agency_id, exc)
+            # Сначала откатываем транзакцию упавшей синхронизации, иначе commit
+            # ниже зафиксировал бы её частичные изменения.
+            db.rollback()
             try:
                 r.status = "error"
                 r.error_note = str(exc)[:200]

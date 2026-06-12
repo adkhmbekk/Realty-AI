@@ -18,6 +18,7 @@ export function fmtDate(iso: string | null | undefined, lang: Lang, tz?: string 
 export function daysLeft(iso: string | null | undefined): number {
   if (!iso) return 0;
   const end = new Date(iso).getTime();
+  if (!Number.isFinite(end)) return 0; // кривая дата → 0, а не «NaN дней»
   return Math.max(0, Math.ceil((end - Date.now()) / 86400000));
 }
 
