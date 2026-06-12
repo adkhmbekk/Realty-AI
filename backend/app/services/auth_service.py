@@ -28,10 +28,16 @@ def login_with_init_data(db: Session, init_data: str, ip: Optional[str] = None) 
             "telegram_login_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
-    # 2. Проверяем подпись Telegram.
+    # 2. Проверяем подпись Telegram. Анти-повтор здесь НЕ «гасим» сразу: вход
+    #    незнакомца отвечает 403, а сразу за этим фронтенд шлёт тот же initData
+    #    на вступление по коду (/invites/redeem). Если бы вход «сжигал» подпись,
+    #    redeem ложно посчитался бы повтором и новый сотрудник не смог бы войти.
+    #    Поэтому подпись помечаем использованной только когда реально выдаём
+    #    сессию существующему пользователю (ниже).
     try:
         data = security.validate_init_data(
-            init_data, settings.bot_token, settings.init_data_max_age_seconds
+            init_data, settings.bot_token, settings.init_data_max_age_seconds,
+            anti_replay=False,
         )
     except security.InitDataError as exc:
         raise AppError(exc.key, status.HTTP_401_UNAUTHORIZED) from exc
@@ -45,6 +51,10 @@ def login_with_init_data(db: Session, init_data: str, ip: Optional[str] = None) 
         raise AppError("not_in_agency", status.HTTP_403_FORBIDDEN)
     if not user.is_active:
         raise AppError("access_deactivated", status.HTTP_403_FORBIDDEN)
+
+    # Пользователь есть и активен — выдаём сессию, поэтому теперь «гасим» повтор.
+    if security.remember_replay(data["init_data_hash"], data["replay_expires_at"]):
+        raise AppError("init_data_replayed", status.HTTP_401_UNAUTHORIZED)
 
     # 4. Обновляем актуальные данные из Telegram и время входа.
     username = tg_user.get("username")

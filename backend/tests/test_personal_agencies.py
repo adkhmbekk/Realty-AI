@@ -105,3 +105,101 @@ def test_client_agency_subscription_still_enforced(db):
     with pytest.raises(AppError) as exc:
         dependencies._ensure_subscription_active(db, fake)
     assert exc.value.key == "subscription_suspended"
+
+
+# ─── Регрессия: вступление сотрудника по коду после 403 на входе ────────────
+
+_TEST_BOT_TOKEN = "123456:TEST_BOT_TOKEN"
+
+
+def _sign_init_data(telegram_id: int, *, username=None, first_name="New",
+                    auth_date=None) -> str:
+    """Собрать и подписать initData ровно так, как это делает Telegram."""
+    import hashlib
+    import hmac
+    import json
+    import time
+    from urllib.parse import urlencode
+
+    user_json = json.dumps(
+        {"id": telegram_id, "username": username, "first_name": first_name},
+        separators=(",", ":"),
+    )
+    fields = {"auth_date": str(auth_date or int(time.time())), "user": user_json}
+    data_check_string = "\n".join(f"{k}={fields[k]}" for k in sorted(fields))
+    secret_key = hmac.new(b"WebAppData", _TEST_BOT_TOKEN.encode(), hashlib.sha256).digest()
+    fields["hash"] = hmac.new(
+        secret_key, data_check_string.encode(), hashlib.sha256
+    ).hexdigest()
+    return urlencode(fields)
+
+
+def test_new_employee_can_join_personal_agency_after_login_403(db, monkeypatch):
+    """
+    Корневой баг: фронтенд сначала шлёт initData на /auth/telegram (незнакомец →
+    403), затем ТОТ ЖЕ initData на /invites/redeem. Анти-повтор не должен «гасить»
+    подпись на входе, иначе вступление по коду ложно считается повтором и новый
+    сотрудник не может войти в (личное) агентство владельца платформы.
+    """
+    from app.config import settings
+    from app.core import security
+    from app.repositories import user_repo
+    from app.schemas.invite import InviteCreate
+    from app.services import invite_service
+
+    monkeypatch.setattr(settings, "bot_token", _TEST_BOT_TOKEN, raising=False)
+    # Чистим хранилище повторов между тестами (оно в памяти процесса).
+    security._seen_init_data.clear()
+
+    # 1. Владелец платформы создаёт личное агентство и приглашение (acting).
+    owner = _superadmin(db, telegram_id=196135282)
+    agency = agency_service.create_personal_agency(db, "Navruz Real Estate", owner)
+    invite = invite_service.create_invite(
+        db, agency.id, created_by=owner.id,
+        payload=InviteCreate(role="agent", expires_in_days=30), is_owner=True,
+    )
+
+    # 2. Новый сотрудник открывает ссылку: тот же initData используется дважды.
+    init_data = _sign_init_data(telegram_id=777001, username="employee")
+
+    # 2a. Сначала вход — незнакомца ещё нет в базе → 403 (но initData НЕ сгорает).
+    with pytest.raises(AppError) as exc:
+        auth_service.login_with_init_data(db, init_data)
+    assert exc.value.key == "not_in_agency"
+
+    # 2b. Затем вступление по коду с ТЕМ ЖЕ initData — должно пройти.
+    resp = invite_service.redeem_invite(db, init_data, invite.code)
+    assert resp["user"].role == "agent"
+    assert resp["user"].agency_id == agency.id
+
+    # Сотрудник реально привязан к агентству владельца.
+    joined = user_repo.get_by_telegram_id(db, 777001)
+    assert joined is not None and joined.agency_id == agency.id
+
+
+def test_login_still_blocks_replayed_init_data(db, monkeypatch):
+    """Защита от повторов сохраняется: второй вход тем же initData отклоняется."""
+    from app.config import settings
+    from app.core import security
+
+    monkeypatch.setattr(settings, "bot_token", _TEST_BOT_TOKEN, raising=False)
+    security._seen_init_data.clear()
+
+    # Существующий сотрудник агентства.
+    client = Agency(name="Клиент", status="active", timezone="Asia/Tashkent",
+                    default_currency="USD")
+    db.add(client)
+    db.commit()
+    user_repo.create(db, telegram_id=888002, role="agent", agency_id=client.id)
+    db.commit()
+
+    init_data = _sign_init_data(telegram_id=888002, username="member")
+
+    # Первый вход — успешно (подпись «гасится»).
+    resp = auth_service.login_with_init_data(db, init_data)
+    assert resp["user"].telegram_id == 888002
+
+    # Повтор того же initData — отклонён.
+    with pytest.raises(AppError) as exc:
+        auth_service.login_with_init_data(db, init_data)
+    assert exc.value.key == "init_data_replayed"

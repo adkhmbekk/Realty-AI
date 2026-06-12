@@ -211,15 +211,23 @@ def validate_init_data(
     if max_age_seconds and (time.time() - auth_date) > max_age_seconds:
         raise InitDataError("init_data_expired", "Данные входа устарели, откройте приложение заново")
 
+    # Срок жизни записи в хранилище повторов: до естественного протухания initData.
+    ttl = max_age_seconds if max_age_seconds else 3600
+    replay_expires_at = auth_date + ttl
+
     # Защита от повторного использования (anti-replay): одну и ту же подпись
     # принимаем только один раз — до момента её естественного протухания.
     # Это закрывает переигрывание перехваченного initData в пределах окна
     # свежести. Проверяем только ПОСЛЕ успешной проверки подписи и срока, чтобы
     # неудачные/просроченные попытки не засоряли хранилище.
+    #
+    # ВАЖНО: если anti_replay=False, подпись НЕ запоминается здесь — вызывающий
+    # код «погасит» её сам (security.remember_replay), но только когда реально
+    # выдаёт сессию. Это нужно для связки login→redeem: вход незнакомца сначала
+    # отвечает 403, и нельзя «сжигать» его initData, иначе следующий за ним
+    # запрос вступления по коду (с тем же initData) ложно посчитается повтором.
     if anti_replay:
-        ttl = max_age_seconds if max_age_seconds else 3600
-        expires_at = auth_date + ttl
-        if _replay_check_and_remember(received_hash, expires_at):
+        if _replay_check_and_remember(received_hash, replay_expires_at):
             raise InitDataError(
                 "init_data_replayed",
                 "Эти данные входа уже использованы, откройте приложение заново",
@@ -234,7 +242,23 @@ def validate_init_data(
     if not user.get("id"):
         raise InitDataError("init_data_no_user_id", "В данных входа нет идентификатора пользователя")
 
-    return {"user": user, "auth_date": auth_date}
+    return {
+        "user": user,
+        "auth_date": auth_date,
+        # Для отложенного «гашения» повтора вызывающим кодом (anti_replay=False).
+        "init_data_hash": received_hash,
+        "replay_expires_at": replay_expires_at,
+    }
+
+
+def remember_replay(signature: str, expires_at: float) -> bool:
+    """
+    Пометить подпись initData как использованную (для anti_replay=False, когда
+    решение «гасить ли повтор» принимает вызывающий код — например, вход только
+    при реальной выдаче сессии). Возвращает True, если подпись уже видели раньше
+    (это повтор → надо отклонить), иначе запоминает её и возвращает False.
+    """
+    return _replay_check_and_remember(signature, expires_at)
 
 
 # ─── JWT-пропуска ───────────────────────────────────────────────────────────
