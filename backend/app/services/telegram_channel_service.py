@@ -299,7 +299,36 @@ async def scan_page(
 # Сервер сам периодически проверяет «слушаемые» каналы и добавляет НОВЫЕ посты
 # (id > last_post_id). Это и фоновый импорт (не нужен открытый экран), и решение
 # «новый пост → сразу в базе».
-_AUTO_MAX_NEW = 8  # сколько ИИ-разборов делаем за один тик одного канала
+_AUTO_MAX_NEW = 12  # сколько ИИ-разборов делаем за один тик одного канала
+# Максимум страниц ленты за один проход слежки (защита от бесконечной прокрутки).
+# 25 страниц с запасом покрывают любую реальную пачку новых постов за тик; если
+# канал выложил ещё больше — остаток доберётся на следующих тиках.
+_MAX_FEED_PAGES = 25
+
+
+async def _collect_new_posts(channel: str, last_id: int) -> List[dict]:
+    """Собрать ВСЕ посты канала новее last_id, ЛИСТАЯ ленту назад (параметр
+    before), пока не дойдём до курсора.
+
+    Зачем: t.me/s по умолчанию отдаёт только последнюю страницу. Если за тик в
+    канал вышла пачка постов (например 32), на странице помещаются лишь самые
+    свежие — старые из пачки терялись, а курсор перепрыгивал через них. Теперь
+    собираем всё новее курсора и импортируем по порядку (старые → новые)."""
+    collected: dict = {}
+    before: Optional[int] = None
+    for _ in range(_MAX_FEED_PAGES):
+        html = await run_in_threadpool(_fetch_feed, channel, before)
+        page = parse_feed(html)
+        if not page:
+            break
+        for p in page:
+            if p["id"] > last_id:
+                collected[p["id"]] = p
+        page_min = min(p["id"] for p in page)
+        if page_min <= last_id:
+            break  # дошли до уже учтённых — старее новых постов нет
+        before = page_min
+    return list(collected.values())
 
 
 def _newest_post_id(channel: str) -> int:
@@ -364,8 +393,10 @@ async def auto_import_channel(db: Session, watch: WatchedChannel, max_new: int =
     дубли (тот же пост) пропускаются, но курсор через них продвигается.
     """
     channel = watch.channel
-    html = await run_in_threadpool(_fetch_feed, channel, None)
-    posts = parse_feed(html)
+    last_id = watch.last_post_id or 0
+    # Собираем ВСЕ новые посты (листая ленту назад до курсора), а не только
+    # последнюю страницу — иначе при большой пачке старые посты терялись.
+    posts = await _collect_new_posts(channel, last_id)
     watch.last_checked_at = datetime.now(timezone.utc)
     if not posts:
         db.commit()
