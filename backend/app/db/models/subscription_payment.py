@@ -45,7 +45,9 @@ class SubscriptionPayment(Base):
     # На сколько дней продлили (для action="extend").
     days: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     # Сумма платежа (необязательно — суперадмин может не указывать).
-    amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    # Numeric(18, 2): платёж может быть в сумах (крупные суммы) — как и у
+    # apartments.price, 12,2 был бы риском переполнения.
+    amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
     currency: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Способ оплаты (наличные / перевод / Payme / Click и т.п.) — свободный текст.
     method: Mapped[Optional[str]] = mapped_column(String, nullable=True)
