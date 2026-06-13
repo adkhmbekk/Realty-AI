@@ -89,7 +89,9 @@ class Apartment(Base):
     condition: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Мебель и техника: furniture_and_appliances / furniture_only / appliances_only / none
     furniture_appliances: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    # Numeric(18, 2): цены в сумах бывают в десятки млрд — 12,2 (предел ~10 млрд)
+    # переполнялся и ронял импорт (numeric field overflow).
+    price: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
     currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Внутренний комментарий (виден только команде, не отправляется при шаринге).
