@@ -29,6 +29,7 @@ from app.core.monitoring import report_error
 from app.db import models  # noqa: F401  — нужен, чтобы модели зарегистрировались
 from app.db.migrate import run_migrations
 from app.db.models.user import User
+from app.db.retry import install_db_retry
 from app.db.session import SessionLocal, get_db
 from app.repositories import user_repo
 from app.services.scheduler import start_scheduler
@@ -236,3 +237,8 @@ def health(db: Session = Depends(get_db)):
         "storage": "writable" if storage_ok else "unavailable",
         "version": settings.app_version,
     }
+
+
+# Бесшовный повтор запроса при обрыве соединения с БД (например, при перезагрузке
+# сервера). Подключаем ПОСЛЕ регистрации всех маршрутов — оборачиваем их все.
+install_db_retry(app)
