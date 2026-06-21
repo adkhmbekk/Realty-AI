@@ -212,8 +212,31 @@ def _autoimport_loop() -> None:
         time.sleep(AUTOIMPORT_INTERVAL_SECONDS)
 
 
+# Как часто подбирать новые объекты под активные заявки клиентов.
+MATCHING_INTERVAL_SECONDS = 120
+
+
+def _matching_loop() -> None:
+    from app.services import client_service
+
+    logger.info("Планировщик: авто-подбор по заявкам клиентов (раз в %s с).", MATCHING_INTERVAL_SECONDS)
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                created = client_service.run_matching_tick(db)
+                if created:
+                    logger.info("Планировщик: новых совпадений по заявкам: %s.", created)
+            finally:
+                db.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Планировщик: ошибка авто-подбора по заявкам: %s", exc)
+        time.sleep(MATCHING_INTERVAL_SECONDS)
+
+
 def start_scheduler() -> None:
     """Запустить фоновые задачи (демон-потоки). Безопасно при любом окружении."""
     threading.Thread(target=_loop, name="realty-scheduler", daemon=True).start()
     threading.Thread(target=_sheets_loop, name="realty-sheets-sync", daemon=True).start()
     threading.Thread(target=_autoimport_loop, name="realty-tg-autoimport", daemon=True).start()
+    threading.Thread(target=_matching_loop, name="realty-client-matching", daemon=True).start()

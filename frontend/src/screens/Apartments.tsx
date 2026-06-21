@@ -18,6 +18,7 @@ import {
   Send,
   Sparkles,
   Trash2,
+  UserPlus,
   X,
 } from "lucide-react";
 import { useApp } from "../store";
@@ -607,8 +608,33 @@ function cx2(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
+// Кнопка «Запомнить для клиента»: текущие фильтры поиска сохраняем как заявку
+// клиента (открывается экран выбора/создания клиента).
+function SaveRequestButton({ params }: { params: SearchParams }) {
+  const { t } = useApp();
+  const nav = useNav();
+  return (
+    <button
+      onClick={() => {
+        haptic();
+        nav.push({ name: "saveRequest", criteria: params });
+      }}
+      className="w-full mt-3 rounded-xl2 p-3.5 text-left text-white shadow-glow active:scale-[.99] transition flex items-center gap-3"
+      style={{ background: "var(--grad)" }}
+    >
+      <span className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+        <UserPlus size={20} />
+      </span>
+      <span className="min-w-0">
+        <span className="block font-extrabold">{t("rememberForClient")}</span>
+        <span className="block text-[12.5px] opacity-90">{t("rememberForClientSub")}</span>
+      </span>
+    </button>
+  );
+}
+
 // ── Список/поиск с пагинацией ───────────────────────────────────────
-export function ObjectList({ params }: { params: SearchParams }) {
+export function ObjectList({ params, allowSaveRequest }: { params: SearchParams; allowSaveRequest?: boolean }) {
   const { t } = useApp();
   const [items, setItems] = useState<Apartment[]>([]);
   const [total, setTotal] = useState(0);
@@ -640,7 +666,15 @@ export function ObjectList({ params }: { params: SearchParams }) {
 
   if (loading && !items.length) return <ListSkeleton />;
   if (err) return <Empty>{err}</Empty>;
-  if (!items.length) return <Empty icon={<SearchX size={24} />} sub={t("emptyListSub")}>{t("notFound")}</Empty>;
+  if (!items.length)
+    return (
+      <div>
+        <Empty icon={<SearchX size={24} />} sub={t("emptyListSub")}>
+          {t("notFound")}
+        </Empty>
+        {allowSaveRequest && <SaveRequestButton params={params} />}
+      </div>
+    );
   const left = total - items.length;
   return (
     <div>
@@ -655,6 +689,7 @@ export function ObjectList({ params }: { params: SearchParams }) {
           {t("showMore")} ({left})
         </Button>
       )}
+      {allowSaveRequest && <SaveRequestButton params={params} />}
     </div>
   );
 }

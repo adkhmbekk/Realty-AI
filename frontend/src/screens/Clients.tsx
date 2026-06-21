@@ -1,0 +1,824 @@
+import React, { useEffect, useState } from "react";
+import {
+  Bell,
+  ChevronRight,
+  Pencil,
+  Phone,
+  Plus,
+  RefreshCw,
+  Search as SearchIcon,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
+import { useApp } from "../store";
+import { useNav } from "../nav";
+import { api, errText } from "../api";
+import {
+  Badge,
+  Button,
+  Card,
+  Chips,
+  Empty,
+  Field,
+  Hint,
+  Input,
+  Select,
+  Spinner,
+  Textarea,
+} from "../components/ui";
+import { CURRENCIES, OBJ_TYPE_VALUES, hasLandArea } from "../i18n";
+import type { Client, ClientRequest, DictItem, Match, SearchParams } from "../types";
+import { ApartmentCard } from "./Apartments";
+import { fmtDate } from "../utils";
+import { confirmDialog, haptic } from "../telegram";
+
+// ── Справочник районов (локально) ───────────────────────────────────
+function useDistricts(): DictItem[] {
+  const [districts, setDistricts] = useState<DictItem[]>([]);
+  useEffect(() => {
+    let alive = true;
+    api<DictItem[]>("/api/v1/dictionaries?category=district").then((r) => {
+      if (alive && r.ok && Array.isArray(r.data)) setDistricts(r.data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return districts;
+}
+
+// ── Критерии заявки (контролируемая форма) ──────────────────────────
+export type Criteria = {
+  types: string[];
+  districts: string[];
+  rooms_min: string;
+  rooms_max: string;
+  floor_min: string;
+  floor_max: string;
+  land_area_min: string;
+  land_area_max: string;
+  price_min: string;
+  price_max: string;
+  currency: string;
+  note: string;
+};
+
+export function emptyCriteria(): Criteria {
+  return {
+    types: [],
+    districts: [],
+    rooms_min: "",
+    rooms_max: "",
+    floor_min: "",
+    floor_max: "",
+    land_area_min: "",
+    land_area_max: "",
+    price_min: "",
+    price_max: "",
+    currency: "",
+    note: "",
+  };
+}
+
+export function paramsToCriteria(p: SearchParams): Criteria {
+  const s = (v: unknown) => (v != null && v !== "" ? String(v) : "");
+  return {
+    types: (p.types as string[]) || [],
+    districts: (p.districts as string[]) || [],
+    rooms_min: s(p.rooms_min),
+    rooms_max: s(p.rooms_max),
+    floor_min: s(p.floor_min),
+    floor_max: s(p.floor_max),
+    land_area_min: s(p.land_area_min),
+    land_area_max: s(p.land_area_max),
+    price_min: s(p.price_min),
+    price_max: s(p.price_max),
+    currency: (p.currency as string) || "",
+    note: (p.q as string) || "",
+  };
+}
+
+const numOrU = (v: string): number | undefined => {
+  const s = v.trim();
+  if (!s) return undefined;
+  const n = Number(s.replace(",", "."));
+  return Number.isNaN(n) ? undefined : n;
+};
+const intOrU = (v: string): number | undefined => {
+  const s = v.trim();
+  if (!s) return undefined;
+  const n = parseInt(s, 10);
+  return Number.isNaN(n) ? undefined : n;
+};
+
+export function criteriaNonEmpty(c: Criteria): boolean {
+  return !!(
+    c.types.length ||
+    c.districts.length ||
+    c.rooms_min ||
+    c.rooms_max ||
+    c.floor_min ||
+    c.floor_max ||
+    c.land_area_min ||
+    c.land_area_max ||
+    c.price_min ||
+    c.price_max
+  );
+}
+
+export function criteriaToBody(c: Criteria): Record<string, unknown> {
+  const showLand = c.types.some(hasLandArea);
+  const showFloor = c.types.length === 0 || c.types.some((t) => !hasLandArea(t));
+  const body: Record<string, unknown> = {};
+  if (c.types.length) body.types = c.types;
+  if (c.districts.length) body.districts = c.districts;
+  if (intOrU(c.rooms_min) != null) body.rooms_min = intOrU(c.rooms_min);
+  if (intOrU(c.rooms_max) != null) body.rooms_max = intOrU(c.rooms_max);
+  if (showFloor) {
+    if (intOrU(c.floor_min) != null) body.floor_min = intOrU(c.floor_min);
+    if (intOrU(c.floor_max) != null) body.floor_max = intOrU(c.floor_max);
+  }
+  if (showLand) {
+    if (numOrU(c.land_area_min) != null) body.land_area_min = numOrU(c.land_area_min);
+    if (numOrU(c.land_area_max) != null) body.land_area_max = numOrU(c.land_area_max);
+  }
+  if (numOrU(c.price_min) != null) body.price_min = numOrU(c.price_min);
+  if (numOrU(c.price_max) != null) body.price_max = numOrU(c.price_max);
+  if (c.currency) body.currency = c.currency;
+  if (c.note.trim()) body.note = c.note.trim();
+  return body;
+}
+
+// Человекочитаемая подпись заявки («Квартира · Юнусабад · 4–5 · до 120000 USD»).
+export function requestLabel(r: ClientRequest, L: ReturnType<typeof useApp>["L"], t: (k: string) => string): string {
+  const parts: string[] = [];
+  if (r.types && r.types.length) parts.push(r.types.map((x) => L.typeLabel(x)).join("/"));
+  if (r.districts && r.districts.length) parts.push(r.districts.join(", "));
+  const range = (lo?: number | null, hi?: number | null, suf = "") => {
+    if (lo != null && hi != null) return (lo === hi ? `${lo}` : `${lo}–${hi}`) + suf;
+    if (lo != null) return `${t("from")} ${lo}${suf}`;
+    if (hi != null) return `${t("to")} ${hi}${suf}`;
+    return null;
+  };
+  const rooms = range(r.rooms_min, r.rooms_max);
+  if (rooms) parts.push(rooms + " " + t("f_rooms").toLowerCase());
+  const price = range(r.price_min, r.price_max, r.currency ? " " + r.currency : "");
+  if (price) parts.push(price);
+  return parts.join(" · ") || t("anyCriteria");
+}
+
+export function CriteriaEditor({ value, onChange }: { value: Criteria; onChange: (c: Criteria) => void }) {
+  const { t, L } = useApp();
+  const districts = useDistricts();
+  const set = (k: keyof Criteria, v: string | string[]) => onChange({ ...value, [k]: v });
+  const toggle = (k: "types" | "districts", v: string) => {
+    const arr = value[k];
+    set(k, arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+  };
+  const showLand = value.types.some(hasLandArea);
+  const showFloor = value.types.length === 0 || value.types.some((tp) => !hasLandArea(tp));
+
+  return (
+    <div>
+      <div className="mt-2">
+        <div className="text-[12px] font-bold text-muted mb-1.5">{t("f_type")}</div>
+        <Chips
+          options={OBJ_TYPE_VALUES.map((v) => ({ value: v, label: L.typeLabel(v) }))}
+          selected={value.types}
+          onToggle={(v) => toggle("types", v)}
+        />
+      </div>
+      {districts.length > 0 && (
+        <div className="mt-3">
+          <div className="text-[12px] font-bold text-muted mb-1.5">{t("f_district")}</div>
+          <Chips
+            options={districts.map((d) => ({ value: d.value, label: d.value }))}
+            selected={value.districts}
+            onToggle={(v) => toggle("districts", v)}
+          />
+        </div>
+      )}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Field label={t("roomsFrom")}>
+            <Input inputMode="numeric" value={value.rooms_min} onChange={(e) => set("rooms_min", e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label={t("to")}>
+            <Input inputMode="numeric" value={value.rooms_max} onChange={(e) => set("rooms_max", e.target.value)} />
+          </Field>
+        </div>
+      </div>
+      {showFloor && (
+        <div className="flex gap-2">
+          <div className="flex-1 min-w-0">
+            <Field label={t("floorFrom")}>
+              <Input inputMode="numeric" value={value.floor_min} onChange={(e) => set("floor_min", e.target.value)} />
+            </Field>
+          </div>
+          <div className="flex-1 min-w-0">
+            <Field label={t("to")}>
+              <Input inputMode="numeric" value={value.floor_max} onChange={(e) => set("floor_max", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+      )}
+      {showLand && (
+        <div className="flex gap-2">
+          <div className="flex-1 min-w-0">
+            <Field label={t("landFrom")}>
+              <Input inputMode="decimal" value={value.land_area_min} onChange={(e) => set("land_area_min", e.target.value)} />
+            </Field>
+          </div>
+          <div className="flex-1 min-w-0">
+            <Field label={t("to")}>
+              <Input inputMode="decimal" value={value.land_area_max} onChange={(e) => set("land_area_max", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Field label={t("priceFrom")}>
+            <Input inputMode="numeric" value={value.price_min} onChange={(e) => set("price_min", e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label={t("to")}>
+            <Input inputMode="numeric" value={value.price_max} onChange={(e) => set("price_max", e.target.value)} />
+          </Field>
+        </div>
+      </div>
+      <Field label={t("priceCurrency")}>
+        <Select value={value.currency} onChange={(e) => set("currency", e.target.value)}>
+          <option value="">{t("anyCurrency")}</option>
+          {CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t("reqNote")}>
+        <Textarea rows={2} value={value.note} onChange={(e) => set("note", e.target.value)} placeholder={t("reqNotePh")} />
+      </Field>
+    </div>
+  );
+}
+
+// ── Экран: список клиентов ──────────────────────────────────────────
+export function ClientsScreen() {
+  const { t, toast } = useApp();
+  const nav = useNav();
+  const [clients, setClients] = useState<Client[] | null>(null);
+  const [q, setQ] = useState("");
+  const [newCount, setNewCount] = useState(0);
+  const [adding, setAdding] = useState(false);
+
+  async function load() {
+    const r = await api<Client[]>("/api/v1/clients" + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : ""));
+    if (r.ok && Array.isArray(r.data)) setClients(r.data);
+    else setClients([]);
+  }
+  async function loadCount() {
+    const r = await api<{ new_count: number }>("/api/v1/clients/matches/summary");
+    if (r.ok && r.data) setNewCount(r.data.new_count);
+  }
+  useEffect(() => {
+    load();
+    loadCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Поиск с небольшой задержкой.
+  useEffect(() => {
+    const id = window.setTimeout(load, 300);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
+
+  return (
+    <div>
+      <button
+        onClick={() => {
+          haptic();
+          nav.push({ name: "matches" });
+        }}
+        className={
+          "w-full flex items-center gap-3 rounded-xl2 border p-3.5 mb-3 transition active:scale-[.99] " +
+          (newCount > 0 ? "text-white shadow-glow border-transparent" : "bg-card border-line")
+        }
+        style={newCount > 0 ? { background: "var(--grad)" } : undefined}
+      >
+        <span className={"w-10 h-10 rounded-xl flex items-center justify-center " + (newCount > 0 ? "bg-white/20" : "bg-primary-soft text-primary")}>
+          <Bell size={20} />
+        </span>
+        <div className="min-w-0 flex-1 text-left">
+          <div className="font-extrabold">{t("matchesTitle")}</div>
+          <div className={"text-[12.5px] " + (newCount > 0 ? "opacity-90" : "text-muted")}>
+            {newCount > 0 ? t("newMatchesN").replace("{n}", String(newCount)) : t("matchesSub")}
+          </div>
+        </div>
+        {newCount > 0 && <Badge color="red">{newCount}</Badge>}
+        <ChevronRight size={18} className={newCount > 0 ? "opacity-90" : "text-muted"} />
+      </button>
+
+      <div className="flex gap-2 mb-2">
+        <div className="flex-1">
+          <div className="relative">
+            <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <Input className="pl-9" placeholder={t("clientSearch")} value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+        </div>
+        <Button size="sm" onClick={() => setAdding((v) => !v)}>
+          {adding ? <X size={16} /> : <UserPlus size={16} />} {adding ? t("cancel") : t("addClient")}
+        </Button>
+      </div>
+
+      {adding && <AddClientForm onDone={() => { setAdding(false); load(); loadCount(); }} />}
+
+      {!clients ? (
+        <Spinner />
+      ) : !clients.length ? (
+        <Empty icon={<Users size={24} />} sub={t("clientsEmptySub")}>
+          {t("clientsEmpty")}
+        </Empty>
+      ) : (
+        clients.map((c) => <ClientRow key={c.id} c={c} />)
+      )}
+    </div>
+  );
+}
+
+function ClientRow({ c }: { c: Client }) {
+  const { t } = useApp();
+  const nav = useNav();
+  const name = c.last_name ? `${c.name} ${c.last_name}` : c.name;
+  return (
+    <button
+      onClick={() => {
+        haptic();
+        nav.push({ name: "clientDetail", id: c.id });
+      }}
+      className="w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 transition active:scale-[.99] hover:shadow-lg2"
+    >
+      <div className="flex items-center gap-3">
+        <span className="w-10 h-10 shrink-0 rounded-xl bg-primary-soft text-primary flex items-center justify-center">
+          <Users size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-extrabold truncate">{name}</span>
+            {c.new_match_count > 0 && <Badge color="red">{t("matchN").replace("{n}", String(c.new_match_count))}</Badge>}
+          </div>
+          {c.phone && <div className="text-[13px] text-muted truncate">{c.phone}</div>}
+          <div className="text-[12.5px] text-muted">
+            {t("activeRequestsN").replace("{n}", String(c.active_requests))}
+            {c.created_by_name ? " · " + c.created_by_name : ""}
+          </div>
+        </div>
+        <ChevronRight size={18} className="text-muted shrink-0" />
+      </div>
+    </button>
+  );
+}
+
+function AddClientForm({ onDone }: { onDone: () => void }) {
+  const { t, toast } = useApp();
+  const [name, setName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [showReq, setShowReq] = useState(false);
+  const [crit, setCrit] = useState<Criteria>(emptyCriteria());
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!name.trim()) {
+      toast(t("clientNameReq"), "err");
+      return;
+    }
+    setSaving(true);
+    const body: Record<string, unknown> = { name: name.trim(), last_name: lastName.trim() || null, phone: phone.trim() || null };
+    if (showReq && criteriaNonEmpty(crit)) body.request = criteriaToBody(crit);
+    const r = await api<{ client: Client; found: number }>("/api/v1/clients", { method: "POST", body });
+    setSaving(false);
+    if (r.ok && r.data) {
+      const found = r.data.found || 0;
+      toast(found > 0 ? t("clientSavedFound").replace("{n}", String(found)) : t("clientSaved"), "ok");
+      onDone();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  return (
+    <Card className="mb-1">
+      <Field label={t("clientName")}>
+        <Input value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field label={t("clientLastName")}>
+        <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
+      </Field>
+      <Field label={t("clientPhone")}>
+        <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </Field>
+      <button
+        onClick={() => setShowReq((v) => !v)}
+        className="mt-3 text-[13px] font-bold text-primary inline-flex items-center gap-1.5 active:scale-95 transition"
+      >
+        <Plus size={15} /> {showReq ? t("hideWanted") : t("addWanted")}
+      </button>
+      {showReq && (
+        <>
+          <Hint>{t("wantedHint")}</Hint>
+          <CriteriaEditor value={crit} onChange={setCrit} />
+        </>
+      )}
+      <Button full className="mt-4" disabled={saving} onClick={save}>
+        {t("saveClient")}
+      </Button>
+    </Card>
+  );
+}
+
+// ── Экран: карточка клиента ─────────────────────────────────────────
+export function ClientDetailScreen({ id }: { id: number }) {
+  const { t, L, lang, toast, user } = useApp();
+  const nav = useNav();
+  const [c, setC] = useState<Client | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [addReq, setAddReq] = useState(false);
+  const [crit, setCrit] = useState<Criteria>(emptyCriteria());
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  async function load() {
+    const r = await api<Client>("/api/v1/clients/" + id);
+    if (r.ok && r.data) {
+      setC(r.data);
+      setErr(null);
+    } else setErr(errText(r.data, r.status));
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  async function addRequest() {
+    if (!criteriaNonEmpty(crit)) {
+      toast(t("reqEmpty"), "err");
+      return;
+    }
+    setSaving(true);
+    const r = await api<{ found: number }>("/api/v1/clients/" + id + "/requests", { method: "POST", body: criteriaToBody(crit) });
+    setSaving(false);
+    if (r.ok && r.data) {
+      const found = r.data.found || 0;
+      toast(found > 0 ? t("reqSavedFound").replace("{n}", String(found)) : t("reqSaved"), "ok");
+      setAddReq(false);
+      setCrit(emptyCriteria());
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  async function rescan(reqId: number) {
+    toast(t("rescanning"), "info");
+    const r = await api<{ found: number }>("/api/v1/clients/requests/" + reqId + "/rescan", { method: "POST" });
+    if (r.ok && r.data) {
+      const found = r.data.found || 0;
+      toast(found > 0 ? t("reqSavedFound").replace("{n}", String(found)) : t("rescanNone"), found > 0 ? "ok" : "info");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  async function closeRequest(reqId: number) {
+    const r = await api("/api/v1/clients/requests/" + reqId, { method: "PATCH", body: { status: "fulfilled" } });
+    if (r.ok) {
+      toast(t("saved"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  async function delRequest(reqId: number) {
+    if (!(await confirmDialog(t("delReqQ")))) return;
+    const r = await api("/api/v1/clients/requests/" + reqId, { method: "DELETE" });
+    if (r.ok) {
+      toast(t("done"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  async function delClient() {
+    if (!(await confirmDialog(t("delClientQ")))) return;
+    const r = await api("/api/v1/clients/" + id, { method: "DELETE" });
+    if (r.ok) {
+      toast(t("done"), "ok");
+      nav.pop();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  if (err) return <Empty>{err}</Empty>;
+  if (!c) return <Spinner />;
+  const name = c.last_name ? `${c.name} ${c.last_name}` : c.name;
+
+  return (
+    <div>
+      <Card>
+        {editing ? (
+          <ClientEdit c={c} onDone={() => { setEditing(false); load(); }} />
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[18px] font-extrabold truncate">{name}</div>
+                {c.phone && (
+                  <a href={"tel:" + c.phone} className="text-[14px] text-primary font-bold inline-flex items-center gap-1.5 mt-0.5">
+                    <Phone size={14} /> {c.phone}
+                  </a>
+                )}
+                {c.created_by_name && <div className="text-[12.5px] text-muted mt-0.5">{t("addedBy")}: {c.created_by_name}</div>}
+              </div>
+              <button onClick={() => setEditing(true)} className="shrink-0 w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center active:scale-90">
+                <Pencil size={16} />
+              </button>
+            </div>
+            {c.note && <Hint>{c.note}</Hint>}
+          </>
+        )}
+      </Card>
+
+      <div className="flex items-center justify-between mt-4 mx-0.5 mb-1.5">
+        <span className="text-[14px] font-extrabold tracking-tight">{t("wantedTitle")}</span>
+        <button onClick={() => setAddReq((v) => !v)} className="text-[13px] font-bold text-primary inline-flex items-center gap-1 active:scale-95">
+          <Plus size={15} /> {t("addRequest")}
+        </button>
+      </div>
+
+      {addReq && (
+        <Card className="mb-2">
+          <Hint>{t("wantedHint")}</Hint>
+          <CriteriaEditor value={crit} onChange={setCrit} />
+          <Button full className="mt-4" disabled={saving} onClick={addRequest}>
+            {t("saveRequestBtn")}
+          </Button>
+        </Card>
+      )}
+
+      {!c.requests.length && !addReq && <Empty sub={t("noRequestsSub")}>{t("noRequests")}</Empty>}
+
+      {c.requests.map((r) => (
+        <Card key={r.id} className="mt-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="font-bold text-[14px] leading-snug">{requestLabel(r, L, t)}</div>
+              {r.note && <div className="text-[12.5px] text-muted mt-0.5">{r.note}</div>}
+              <div className="text-[12px] text-muted mt-1">{fmtDate(r.created_at, lang)}</div>
+            </div>
+            <span className="flex flex-col items-end gap-1 shrink-0">
+              {r.status !== "active" && <Badge color="gray">{t("reqStatus_" + r.status)}</Badge>}
+              {r.match_count > 0 && (
+                <Badge color={r.new_match_count > 0 ? "red" : "green"}>
+                  {t("foundN").replace("{n}", String(r.match_count))}
+                </Badge>
+              )}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <Button size="sm" variant="ghost" onClick={() => rescan(r.id)}>
+              <RefreshCw size={14} /> {t("rescan")}
+            </Button>
+            {r.status === "active" ? (
+              <Button size="sm" variant="ghost" onClick={() => closeRequest(r.id)}>
+                {t("closeRequest")}
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Button size="sm" variant="danger" onClick={() => delRequest(r.id)}>
+              <Trash2 size={14} />
+            </Button>
+          </div>
+        </Card>
+      ))}
+
+      <Button full variant="danger" className="mt-5" onClick={delClient}>
+        <Trash2 size={16} /> {t("delClient")}
+      </Button>
+    </div>
+  );
+}
+
+function ClientEdit({ c, onDone }: { c: Client; onDone: () => void }) {
+  const { t, toast } = useApp();
+  const [name, setName] = useState(c.name);
+  const [lastName, setLastName] = useState(c.last_name || "");
+  const [phone, setPhone] = useState(c.phone || "");
+  const [note, setNote] = useState(c.note || "");
+  const [saving, setSaving] = useState(false);
+  async function save() {
+    setSaving(true);
+    const r = await api("/api/v1/clients/" + c.id, {
+      method: "PATCH",
+      body: { name: name.trim(), last_name: lastName.trim(), phone: phone.trim(), note: note.trim() },
+    });
+    setSaving(false);
+    if (r.ok) {
+      toast(t("saved"), "ok");
+      onDone();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  return (
+    <div>
+      <Field label={t("clientName")}>
+        <Input value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field label={t("clientLastName")}>
+        <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
+      </Field>
+      <Field label={t("clientPhone")}>
+        <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </Field>
+      <Field label={t("clientNote")}>
+        <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+      </Field>
+      <div className="grid grid-cols-2 gap-2 mt-4">
+        <Button variant="ghost" onClick={onDone}>{t("cancel")}</Button>
+        <Button disabled={saving} onClick={save}>{t("saveChanges")}</Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Экран: совпадения ───────────────────────────────────────────────
+export function MatchesScreen() {
+  const { t, lang } = useApp();
+  const nav = useNav();
+  const [matches, setMatches] = useState<Match[] | null>(null);
+
+  async function load() {
+    const r = await api<Match[]>("/api/v1/clients/matches");
+    setMatches(r.ok && Array.isArray(r.data) ? r.data : []);
+    // Открыли список → помечаем новые как просмотренные (значок гаснет).
+    api("/api/v1/clients/matches/seen", { method: "POST" });
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function setStatus(m: Match, status: string) {
+    const r = await api("/api/v1/clients/matches/" + m.id + "/status", { method: "POST", body: { status } });
+    if (r.ok) load();
+  }
+
+  if (!matches) return <Spinner />;
+  if (!matches.length) return <Empty icon={<Bell size={24} />} sub={t("matchesEmptySub")}>{t("matchesEmpty")}</Empty>;
+
+  return (
+    <div>
+      <Hint>{t("matchesHint")}</Hint>
+      {matches.map((m) => (
+        <Card key={m.id} className="mt-2.5">
+          <button
+            onClick={() => {
+              haptic();
+              nav.push({ name: "clientDetail", id: m.client_id });
+            }}
+            className="w-full text-left flex items-center gap-2 mb-1"
+          >
+            <Bell size={15} className={m.status === "new" ? "text-rose-500" : "text-muted"} />
+            <span className="font-extrabold truncate flex-1">{m.client_name}</span>
+            {m.status === "new" && <Badge color="red">{t("matchNew")}</Badge>}
+            {m.status === "offered" && <Badge color="green">{t("matchOffered")}</Badge>}
+          </button>
+          {m.request_label && <div className="text-[12px] text-muted mb-1">{t("wanted")}: {m.request_label}</div>}
+          <ApartmentCard o={m.apartment} />
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>
+              {t("markOffered")}
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => setStatus(m, "dismissed")}>
+              {t("dismissMatch")}
+            </Button>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ── Экран: «Запомнить для клиента» (из поиска) ──────────────────────
+export function SaveRequestScreen({ criteria }: { criteria: SearchParams }) {
+  const { t, toast } = useApp();
+  const nav = useNav();
+  const [mode, setMode] = useState<"new" | "existing">("new");
+  const [clients, setClients] = useState<Client[]>([]);
+  const [pickId, setPickId] = useState<number | null>(null);
+  const [name, setName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [crit, setCrit] = useState<Criteria>(paramsToCriteria(criteria));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api<Client[]>("/api/v1/clients").then((r) => {
+      if (r.ok && Array.isArray(r.data)) setClients(r.data);
+    });
+  }, []);
+
+  async function save() {
+    if (!criteriaNonEmpty(crit)) {
+      toast(t("reqEmpty"), "err");
+      return;
+    }
+    const reqBody = criteriaToBody(crit);
+    setSaving(true);
+    let ok = false;
+    let found = 0;
+    let clientId: number | null = null;
+    if (mode === "new") {
+      if (!name.trim()) {
+        setSaving(false);
+        toast(t("clientNameReq"), "err");
+        return;
+      }
+      const r = await api<{ client: Client; found: number }>("/api/v1/clients", {
+        method: "POST",
+        body: { name: name.trim(), last_name: lastName.trim() || null, phone: phone.trim() || null, request: reqBody },
+      });
+      ok = r.ok;
+      if (r.ok && r.data) { found = r.data.found || 0; clientId = r.data.client.id; }
+      else toast(errText(r.data, r.status), "err");
+    } else {
+      if (!pickId) {
+        setSaving(false);
+        toast(t("pickClient"), "err");
+        return;
+      }
+      const r = await api<{ found: number }>("/api/v1/clients/" + pickId + "/requests", { method: "POST", body: reqBody });
+      ok = r.ok;
+      if (r.ok && r.data) { found = r.data.found || 0; clientId = pickId; }
+      else toast(errText(r.data, r.status), "err");
+    }
+    setSaving(false);
+    if (ok && clientId) {
+      toast(found > 0 ? t("reqSavedFound").replace("{n}", String(found)) : t("reqSaved"), "ok");
+      nav.pop();
+      nav.push({ name: "clientDetail", id: clientId });
+    }
+  }
+
+  return (
+    <div>
+      <Hint>{t("saveReqHint")}</Hint>
+      <Card className="mt-2">
+        <div className="flex gap-1 p-1.5 rounded-[14px] bg-[var(--soft)] mb-1">
+          {(["new", "existing"] as const).map((mm) => (
+            <button
+              key={mm}
+              onClick={() => setMode(mm)}
+              className={
+                "flex-1 px-3 py-2.5 rounded-[10px] text-[13px] font-bold transition " +
+                (mode === mm ? "bg-card text-text shadow-soft" : "text-muted")
+              }
+            >
+              {mm === "new" ? t("newClient") : t("existingClient")}
+            </button>
+          ))}
+        </div>
+        {mode === "new" ? (
+          <>
+            <Field label={t("clientName")}>
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field label={t("clientLastName")}>
+              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            </Field>
+            <Field label={t("clientPhone")}>
+              <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </Field>
+          </>
+        ) : (
+          <Field label={t("chooseClient")}>
+            <Select value={pickId ?? ""} onChange={(e) => setPickId(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">{t("notSet")}</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.last_name ? `${c.name} ${c.last_name}` : c.name}
+                  {c.phone ? ` · ${c.phone}` : ""}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+      </Card>
+
+      <div className="text-[12px] font-extrabold uppercase tracking-wider text-primary mt-4 mb-1 mx-0.5">{t("wantedTitle")}</div>
+      <Card>
+        <CriteriaEditor value={crit} onChange={setCrit} />
+      </Card>
+
+      <Button full className="mt-4" disabled={saving} onClick={save}>
+        {t("rememberForClient")}
+      </Button>
+    </div>
+  );
+}

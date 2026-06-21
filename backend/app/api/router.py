@@ -7,6 +7,7 @@ from app.api.routes import (
     agencies,
     apartments,
     auth,
+    clients,
     dictionaries,
     exports,
     imports,
@@ -25,6 +26,7 @@ api_router.include_router(invites.router)
 api_router.include_router(team.router)
 api_router.include_router(dictionaries.router)
 api_router.include_router(apartments.router)
+api_router.include_router(clients.router)
 api_router.include_router(photos.router)
 api_router.include_router(sheets.router)
 api_router.include_router(imports.router)

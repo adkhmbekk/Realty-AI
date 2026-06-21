@@ -21,7 +21,11 @@ export type Route =
   | { name: "team" }
   | { name: "invites" }
   | { name: "analytics" }
-  | { name: "agentDetail"; userId: number; agentName: string };
+  | { name: "agentDetail"; userId: number; agentName: string }
+  | { name: "clients" }
+  | { name: "clientDetail"; id: number }
+  | { name: "matches" }
+  | { name: "saveRequest"; criteria: SearchParams };
 
 interface NavCtx {
   stack: Route[];

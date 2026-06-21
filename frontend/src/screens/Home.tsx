@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { BarChart3, Mail, Plus, Search, Settings as SettingsIcon, User, Users } from "lucide-react";
+import { BarChart3, ChevronRight, Mail, Plus, Search, Settings as SettingsIcon, User, Users } from "lucide-react";
 import { useApp } from "../store";
 import { useNav, Route } from "../nav";
 import { api } from "../api";
@@ -130,6 +130,49 @@ function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: s
   );
 }
 
+// Вход в клиентскую базу + значок новых совпадений (уведомления в приложении).
+function ClientsEntry() {
+  const { t } = useApp();
+  const nav = useNav();
+  const [newCount, setNewCount] = useState(0);
+  useEffect(() => {
+    api<{ new_count: number }>("/api/v1/clients/matches/summary").then((r) => {
+      if (r.ok && r.data) setNewCount(r.data.new_count);
+    });
+  }, []);
+  const hot = newCount > 0;
+  return (
+    <button
+      onClick={() => {
+        haptic();
+        nav.push({ name: "clients" });
+      }}
+      className={
+        "w-full flex items-center gap-3 rounded-xl2 border p-4 mb-4 transition active:scale-[.99] " +
+        (hot ? "text-white shadow-glow border-transparent" : "bg-card border-line shadow-soft hover:shadow-lg2")
+      }
+      style={hot ? { background: "var(--grad)" } : undefined}
+    >
+      <span className={"w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 " + (hot ? "bg-white/20" : "bg-primary-soft text-primary")}>
+        <Users size={24} />
+      </span>
+      <div className="min-w-0 flex-1 text-left">
+        <div className="text-[16px] font-extrabold">{t("clientsTitle")}</div>
+        <div className={"text-[13px] mt-0.5 " + (hot ? "opacity-90" : "text-muted")}>
+          {hot ? t("newMatchesN").replace("{n}", String(newCount)) : t("clientsHomeSub")}
+        </div>
+      </div>
+      {hot ? (
+        <span className="shrink-0 min-w-[26px] h-[26px] px-1.5 rounded-full bg-white/25 text-white text-[13px] font-extrabold flex items-center justify-center">
+          {newCount}
+        </span>
+      ) : (
+        <ChevronRight size={18} className="text-muted shrink-0" />
+      )}
+    </button>
+  );
+}
+
 export function HomeScreen() {
   const { t, user } = useApp();
   const nav = useNav();
@@ -158,6 +201,7 @@ export function HomeScreen() {
     <div>
       <Hero />
       <Stats />
+      <ClientsEntry />
       <div className="flex items-center justify-between mt-1 mx-0.5 mb-2.5">
         <span className="text-[14px] font-extrabold tracking-tight">{t("quickActions")}</span>
       </div>

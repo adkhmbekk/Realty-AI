@@ -26,6 +26,7 @@ import {
   ObjectList,
   SearchScreen,
 } from "./screens/Apartments";
+import { ClientDetailScreen, ClientsScreen, MatchesScreen, SaveRequestScreen } from "./screens/Clients";
 
 type Phase = "loading" | "open" | "join" | "ready" | "suspended";
 
@@ -96,6 +97,14 @@ function titleKeyFor(route: Route): string | null {
       return "analytics";
     case "agentDetail":
       return route.agentName;
+    case "clients":
+      return "clientsTitle";
+    case "clientDetail":
+      return "clientCard";
+    case "matches":
+      return "matchesTitle";
+    case "saveRequest":
+      return "saveAsRequest";
   }
 }
 
@@ -120,7 +129,7 @@ function RouteView({ route }: { route: Route }) {
     case "search":
       return <SearchScreen />;
     case "objectList":
-      return <ObjectList params={route.params} />;
+      return <ObjectList params={route.params} allowSaveRequest={route.titleKey === "findObject"} />;
     case "database":
       return <DatabaseScreen />;
     case "duplicates":
@@ -139,6 +148,14 @@ function RouteView({ route }: { route: Route }) {
       return <AnalyticsScreen />;
     case "agentDetail":
       return <AgentDetailScreen userId={route.userId} agentName={route.agentName} />;
+    case "clients":
+      return <ClientsScreen />;
+    case "clientDetail":
+      return <ClientDetailScreen id={route.id} />;
+    case "matches":
+      return <MatchesScreen />;
+    case "saveRequest":
+      return <SaveRequestScreen criteria={route.criteria} />;
   }
 }
 

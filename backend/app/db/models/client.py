@@ -1,0 +1,43 @@
+"""
+Таблица "clients" — клиенты (покупатели) агентства.
+
+Каждый клиент принадлежит агентству и «закреплён» за агентом (created_by):
+агент видит только своих клиентов, главный администратор — всех (и может
+переназначить владельца, если агент уволился). Телефон клиента —
+конфиденциальные данные (как owner_phone у объекта), клиентам не показывается.
+"""
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import BigInteger, DateTime, ForeignKey, String, func, text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+
+
+class Client(Base):
+    __tablename__ = "clients"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    agency_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("agencies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Агент-владелец клиента. Личные клиенты: агент видит только своих.
+    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    # active / archived
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, default="active", server_default=text("'active'")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

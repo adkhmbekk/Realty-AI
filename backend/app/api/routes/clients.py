@@ -1,0 +1,174 @@
+"""
+Эндпоинты клиентской базы: клиенты, заявки («что ищет»), совпадения.
+
+Все операции изолированы по агентству (agency_id берётся из пропуска). Клиенты
+личные: агент видит только своих, администратор — всех. Уведомления о совпадениях
+— внутри приложения (значок-счётчик + список «Совпадения»).
+"""
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.dependencies import require_agency_member
+from app.db.models.user import User
+from app.db.session import get_db
+from app.schemas.client import (
+    ClientCreate,
+    ClientOut,
+    ClientUpdate,
+    MatchOut,
+    MatchSummaryOut,
+    RequestCreate,
+    RequestOut,
+    RequestUpdate,
+)
+from app.services import client_service
+
+router = APIRouter(prefix="/clients", tags=["clients"])
+
+
+class MatchStatusIn(BaseModel):
+    status: str
+
+
+@router.get("", response_model=List[ClientOut])
+def list_clients(
+    q: Optional[str] = Query(None, description="Поиск по имени/фамилии/телефону."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Список клиентов: агент видит своих, администратор — всех."""
+    return client_service.list_clients(db, current_user.agency_id, current_user, q=q)
+
+
+@router.post("", status_code=201)
+def create_client(
+    body: ClientCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Создать клиента (+ необязательно первую заявку). Возвращает клиента и
+    сколько подходящих объектов уже есть в базе (found)."""
+    client, found = client_service.create_client(db, current_user.agency_id, current_user, body)
+    return {"client": client, "found": found}
+
+
+# ── Совпадения (объявлены ДО /{client_id}, иначе слово попадёт в id) ──
+@router.get("/matches", response_model=List[MatchOut])
+def list_matches(
+    status: Optional[str] = Query(None, description="Фильтр: new / seen / offered / dismissed."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Список совпадений «заявка ↔ объект» (свои — агенту, все — администратору)."""
+    statuses = [status] if status else ["new", "seen", "offered"]
+    return client_service.list_matches(db, current_user.agency_id, current_user, statuses=statuses)
+
+
+@router.get("/matches/summary", response_model=MatchSummaryOut)
+def matches_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Сколько новых совпадений (для значка-счётчика)."""
+    return MatchSummaryOut(new_count=client_service.new_match_count(db, current_user.agency_id, current_user))
+
+
+@router.post("/matches/seen")
+def mark_all_seen(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Отметить все новые совпадения просмотренными (при открытии списка)."""
+    updated = client_service.mark_all_seen(db, current_user.agency_id, current_user)
+    return {"updated": updated}
+
+
+@router.post("/matches/{match_id}/status", status_code=204)
+def set_match_status(
+    match_id: int,
+    body: MatchStatusIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Сменить статус совпадения: seen / offered / dismissed / new."""
+    client_service.set_match_status(db, current_user.agency_id, current_user, match_id, body.status)
+
+
+# ── Заявки (объявлены ДО /{client_id}) ───────────────────────────────
+@router.patch("/requests/{request_id}", response_model=RequestOut)
+def update_request(
+    request_id: int,
+    body: RequestUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Изменить заявку (критерии и/или статус: active/fulfilled/cancelled)."""
+    return client_service.update_request(db, current_user.agency_id, current_user, request_id, body)
+
+
+@router.delete("/requests/{request_id}", status_code=204)
+def delete_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Удалить заявку (вместе с её совпадениями)."""
+    client_service.delete_request(db, current_user.agency_id, current_user, request_id)
+
+
+@router.post("/requests/{request_id}/rescan")
+def rescan_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Подобрать заново по существующей базе. Возвращает число новых совпадений."""
+    found = client_service.rescan_request(db, current_user.agency_id, current_user, request_id)
+    return {"found": found}
+
+
+# ── Клиент по id ─────────────────────────────────────────────────────
+@router.get("/{client_id}", response_model=ClientOut)
+def get_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Карточка клиента с его заявками и счётчиками совпадений."""
+    return client_service.get_client_detail(db, current_user.agency_id, current_user, client_id)
+
+
+@router.patch("/{client_id}", response_model=ClientOut)
+def update_client(
+    client_id: int,
+    body: ClientUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Изменить клиента (имя/телефон/заметка/статус; владельца — только админ)."""
+    return client_service.update_client(db, current_user.agency_id, current_user, client_id, body)
+
+
+@router.delete("/{client_id}", status_code=204)
+def delete_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Удалить клиента (вместе с заявками и совпадениями)."""
+    client_service.delete_client(db, current_user.agency_id, current_user, client_id)
+
+
+@router.post("/{client_id}/requests", status_code=201)
+def add_request(
+    client_id: int,
+    body: RequestCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Добавить заявку клиенту. Возвращает заявку и число уже подходящих объектов."""
+    request, found = client_service.add_request(db, current_user.agency_id, current_user, client_id, body)
+    return {"request": request, "found": found}

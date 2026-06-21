@@ -226,6 +226,54 @@ export interface SearchParams {
   [k: string]: unknown;
 }
 
+// ── Клиентская база ──────────────────────────────────────────────────
+export interface ClientRequest {
+  id: number;
+  client_id: number;
+  types?: string[] | null;
+  districts?: string[] | null;
+  rooms_min?: number | null;
+  rooms_max?: number | null;
+  floor_min?: number | null;
+  floor_max?: number | null;
+  land_area_min?: number | null;
+  land_area_max?: number | null;
+  price_min?: number | null;
+  price_max?: number | null;
+  currency?: string | null;
+  note?: string | null;
+  status: string;
+  created_at: string;
+  match_count: number;
+  new_match_count: number;
+}
+
+export interface Client {
+  id: number;
+  name: string;
+  last_name?: string | null;
+  phone?: string | null;
+  note?: string | null;
+  status: string;
+  created_by?: number | null;
+  created_by_name?: string | null;
+  created_at: string;
+  requests: ClientRequest[];
+  active_requests: number;
+  new_match_count: number;
+}
+
+export interface Match {
+  id: number;
+  status: string;
+  created_at: string;
+  request_id: number;
+  client_id: number;
+  client_name: string;
+  request_label?: string | null;
+  apartment: Apartment;
+}
+
 // История платежей/продлений подписки агентства (для владельца платформы).
 export interface AgencyPayment {
   id: number;

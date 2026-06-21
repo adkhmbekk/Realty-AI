@@ -164,6 +164,37 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Obyektning kamida bitta maydonini toʻldiring (masalan, nomi, tuman yoki narx).",
         "en": "Fill in at least one property field (e.g. title, district or price).",
     },
+    # Клиентская база
+    "client_not_found": {
+        "ru": "Клиент не найден.",
+        "uz": "Mijoz topilmadi.",
+        "en": "Client not found.",
+    },
+    "client_name_required": {
+        "ru": "Укажите имя клиента.",
+        "uz": "Mijoz ismini kiriting.",
+        "en": "Enter the client's name.",
+    },
+    "request_not_found": {
+        "ru": "Заявка не найдена.",
+        "uz": "Soʻrov topilmadi.",
+        "en": "Request not found.",
+    },
+    "request_empty": {
+        "ru": "Заполните хотя бы один критерий заявки (тип, район, комнаты, цена и т.п.).",
+        "uz": "Soʻrovning kamida bitta mezonini toʻldiring (turi, tuman, xonalar, narx va h.k.).",
+        "en": "Fill in at least one request criterion (type, district, rooms, price, etc.).",
+    },
+    "match_not_found": {
+        "ru": "Совпадение не найдено.",
+        "uz": "Moslik topilmadi.",
+        "en": "Match not found.",
+    },
+    "invalid_match_status": {
+        "ru": "Недопустимый статус совпадения.",
+        "uz": "Moslik holati yaroqsiz.",
+        "en": "Invalid match status.",
+    },
     # Отправка / шаринг
     "share_via_bot_not_configured": {
         "ru": "Отправка через бота недоступна: не настроен токен бота.",
