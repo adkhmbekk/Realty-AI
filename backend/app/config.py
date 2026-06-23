@@ -127,9 +127,17 @@ class Settings(BaseSettings):
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
 
+    # ─── Шифрование секретов в БД ────────────────────────────────────────
+    # Ключ Fernet для шифрования секретов в базе (Google refresh-токены),
+    # см. app/core/crypto.py. Хранится в .env на сервере — вне базы и бэкапов.
+    # Сгенерировать: python -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+    # Если не задан — секреты хранятся как есть (только для разработки/тестов).
+    app_encryption_key: Optional[str] = None
+
     @field_validator(
         "bot_token", "jwt_secret", "bot_username", "gemini_api_key",
-        "openrouter_api_key", "google_client_id", "google_client_secret", mode="before",
+        "openrouter_api_key", "google_client_id", "google_client_secret",
+        "app_encryption_key", mode="before",
     )
     @classmethod
     def _empty_string_to_none(cls, value):

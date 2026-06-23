@@ -6,8 +6,8 @@
   - id/URL созданной таблицы;
   - статус подключения и служебные метки для будущей двусторонней синхронизации.
 
-ВАЖНО (на будущее, перед продажей в аренду): refresh_token сейчас хранится как
-есть. Для продакшена его следует шифровать (ключ — в secret_dir).
+БЕЗОПАСНОСТЬ: refresh_token хранится ЗАШИФРОВАННЫМ (тип колонки EncryptedText,
+Fernet; ключ APP_ENCRYPTION_KEY в .env, вне базы и бэкапов) — см. app/core/crypto.py.
 """
 from datetime import datetime
 from typing import Optional
@@ -16,6 +16,7 @@ from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, String, Text, fun
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.types import EncryptedText
 
 
 class AgencySheet(Base):
@@ -25,7 +26,8 @@ class AgencySheet(Base):
         BigInteger, ForeignKey("agencies.id", ondelete="CASCADE"), primary_key=True
     )
     # Google refresh-токен (доступ к таблице от имени владельца агентства).
-    refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Хранится зашифрованным (EncryptedText) — в БД лежит "enc:...".
+    refresh_token: Mapped[Optional[str]] = mapped_column(EncryptedText, nullable=True)
     # Созданная таблица.
     spreadsheet_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     spreadsheet_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

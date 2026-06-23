@@ -65,6 +65,8 @@ services:
       # Синхронизация с Google Sheets (OAuth-приложение платформы).
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Ключ шифрования секретов в БД (Fernet) — Google refresh-токены.
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
       # Документация (/docs) по умолчанию выключена. Включить локально: true.
       ENABLE_DOCS: ${ENABLE_DOCS:-false}
       # Папка секретов — отдельный том, НЕ совпадающий с папкой фото и НЕ
