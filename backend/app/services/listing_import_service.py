@@ -399,12 +399,15 @@ def _gemini_generate(url: str, payload: dict) -> dict:
     raise AppError("import_ai_rate_limited", status.HTTP_429_TOO_MANY_REQUESTS)
 
 
-def _extract_with_ai(text: str, districts: List[str]) -> dict:
-    """Вызвать Google Gemini и получить структурированные поля объекта."""
+def _extract_with_ai(text: str, districts: List[str], model: Optional[str] = None) -> dict:
+    """Вызвать Google Gemini и получить структурированные поля объекта.
+
+    model=None → интерактивный импорт по ссылке (полная flash). Массовый импорт
+    передаёт более дешёвую модель явно (см. extract_fields_from_text)."""
     if not settings.gemini_api_key:
         raise AppError("import_ai_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE)
 
-    url = _GEMINI_URL.format(model=settings.import_ai_model)
+    url = _GEMINI_URL.format(model=model or settings.import_ai_model)
     payload = {
         "system_instruction": {"parts": [{"text": _system_prompt(districts)}]},
         "contents": [{"role": "user", "parts": [{"text": "Текст объявления:\n\n" + text}]}],
@@ -480,7 +483,8 @@ def extract_fields_from_text(text: str, districts: List[str]) -> dict:
     """
     if not text or len(text.strip()) < 20:
         return _clean({})
-    return _clean(_extract_with_ai(text, districts))
+    # Массовый/фоновый импорт — на более дешёвой модели (flash-lite).
+    return _clean(_extract_with_ai(text, districts, model=settings.import_ai_model_bulk))
 
 
 def derive_source_from_url(url: str) -> Optional[str]:
