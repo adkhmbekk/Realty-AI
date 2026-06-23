@@ -108,6 +108,14 @@ class Settings(BaseSettings):
     # Массовый/фоновый импорт. Отдельная настройка оставлена на случай, если
     # захотим разнести модели; сейчас совпадает с основной — дёшево везде.
     import_ai_model_bulk: str = "gemini-2.5-flash-lite"
+    # Запасной/основной ИИ-провайдер OpenRouter (OpenAI-совместимый). Бесплатные
+    # модели (`...:free`) — подстраховка, когда у Gemini нет денег/лимита.
+    openrouter_api_key: Optional[str] = None
+    openrouter_model: str = "openai/gpt-oss-120b:free"
+    # Порядок ИИ-провайдеров для импорта (через запятую): пробуем по очереди,
+    # берём первого, кто ответит. Допустимо: "gemini", "openrouter". Пример:
+    # "openrouter" (пока Gemini без денег) или "gemini,openrouter" (Gemini + запас).
+    import_ai_providers: str = "gemini"
     # Рендер JS-страниц безголовым Chromium (Playwright) — нужен для сайтов-
     # одностраничников (joymee, OLX и пр.), где данные подгружаются скриптами.
     # Если браузер не установлен — импорт тихо откатывается на обычный HTTP.
@@ -121,7 +129,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "bot_token", "jwt_secret", "bot_username", "gemini_api_key",
-        "google_client_id", "google_client_secret", mode="before",
+        "openrouter_api_key", "google_client_id", "google_client_secret", mode="before",
     )
     @classmethod
     def _empty_string_to_none(cls, value):

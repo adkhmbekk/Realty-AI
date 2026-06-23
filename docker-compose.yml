@@ -57,6 +57,11 @@ services:
       # функция просто вернёт понятную ошибку.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       IMPORT_AI_MODEL: ${IMPORT_AI_MODEL:-gemini-2.5-flash-lite}
+      # Запасной/основной ИИ — OpenRouter (бесплатные модели). Порядок провайдеров:
+      # "gemini" по умолчанию; на сервере ставим "openrouter", пока Gemini без денег.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-oss-120b:free}
+      IMPORT_AI_PROVIDERS: ${IMPORT_AI_PROVIDERS:-gemini}
       # Синхронизация с Google Sheets (OAuth-приложение платформы).
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

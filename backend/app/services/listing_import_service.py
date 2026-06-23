@@ -381,12 +381,15 @@ def _retry_after_seconds(resp: "httpx.Response", default: float) -> float:
     return default
 
 
-def _gemini_generate(url: str, payload: dict) -> dict:
-    """POST в Gemini с повторами при 429/503. Возвращает JSON ответа."""
+_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+
+def _post_with_retry(url, *, headers=None, params=None, json_body=None, timeout=45.0):
+    """POST с повторами при 429/503 — общий для Gemini и OpenRouter. Бесплатные
+    модели жёстко лимитируют частоту, поэтому без повторов почти все запросы при
+    массовом импорте отбивались бы. Возвращает httpx.Response."""
     for attempt in range(len(_RETRY_BACKOFF) + 1):
-        resp = httpx.post(
-            url, params={"key": settings.gemini_api_key}, json=payload, timeout=45.0
-        )
+        resp = httpx.post(url, headers=headers, params=params, json=json_body, timeout=timeout)
         if resp.status_code in (429, 503):
             if attempt < len(_RETRY_BACKOFF):
                 time.sleep(_retry_after_seconds(resp, _RETRY_BACKOFF[attempt]))
@@ -395,37 +398,123 @@ def _gemini_generate(url: str, payload: dict) -> dict:
             # обычной ошибки разбора, чтобы притормозить массовый импорт).
             raise AppError("import_ai_rate_limited", status.HTTP_429_TOO_MANY_REQUESTS)
         resp.raise_for_status()
-        return resp.json()
+        return resp
     raise AppError("import_ai_rate_limited", status.HTTP_429_TOO_MANY_REQUESTS)
 
 
-def _extract_with_ai(text: str, districts: List[str], model: Optional[str] = None) -> dict:
-    """Вызвать Google Gemini и получить структурированные поля объекта.
+def _loads_ai_json(content: str) -> dict:
+    """Распарсить JSON из ответа модели. Бесплатные модели иногда оборачивают JSON
+    в ```json ... ``` или добавляют текст — снимаем обёртку и выдираем {…}."""
+    content = (content or "").strip()
+    if content.startswith("```"):
+        content = re.sub(r"^```[a-zA-Z]*\s*", "", content)
+        content = re.sub(r"\s*```$", "", content).strip()
+    try:
+        return json.loads(content or "{}")
+    except Exception:  # noqa: BLE001
+        m = re.search(r"\{.*\}", content, re.DOTALL)
+        if not m:
+            raise
+        return json.loads(m.group(0))
 
-    model=None → интерактивный импорт по ссылке (полная flash). Массовый импорт
-    передаёт более дешёвую модель явно (см. extract_fields_from_text)."""
+
+def _extract_gemini(text: str, districts: List[str], model: str) -> dict:
+    """Извлечь поля через Google Gemini (REST)."""
     if not settings.gemini_api_key:
         raise AppError("import_ai_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE)
-
     url = _GEMINI_URL.format(model=model or settings.import_ai_model)
     payload = {
         "system_instruction": {"parts": [{"text": _system_prompt(districts)}]},
         "contents": [{"role": "user", "parts": [{"text": "Текст объявления:\n\n" + text}]}],
         "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
     }
-    try:
-        data = _gemini_generate(url, payload)
-        cands = data.get("candidates") or []
-        if not cands:
-            raise AppError("import_ai_failed", status.HTTP_502_BAD_GATEWAY)
-        parts = (cands[0].get("content") or {}).get("parts") or []
-        content = "".join(p.get("text", "") for p in parts).strip() or "{}"
-        return json.loads(content)
-    except AppError:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Импорт: ошибка AI-разбора (Gemini): %s", exc)
-        raise AppError("import_ai_failed", status.HTTP_502_BAD_GATEWAY) from exc
+    resp = _post_with_retry(url, params={"key": settings.gemini_api_key}, json_body=payload)
+    data = resp.json()
+    cands = data.get("candidates") or []
+    if not cands:
+        raise AppError("import_ai_failed", status.HTTP_502_BAD_GATEWAY)
+    parts = (cands[0].get("content") or {}).get("parts") or []
+    content = "".join(p.get("text", "") for p in parts).strip() or "{}"
+    return _loads_ai_json(content)
+
+
+def _extract_openrouter(text: str, districts: List[str], model: str) -> dict:
+    """Извлечь поля через OpenRouter (OpenAI-совместимый API). Бесплатная
+    подстраховка / основной провайдер, когда у Gemini нет денег/лимита."""
+    if not settings.openrouter_api_key:
+        raise AppError("import_ai_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE)
+    payload = {
+        "model": model or settings.openrouter_model,
+        "messages": [
+            {"role": "system", "content": _system_prompt(districts)},
+            {"role": "user", "content": "Текст объявления:\n\n" + text},
+        ],
+        "temperature": 0,
+        "response_format": {"type": "json_object"},
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.openrouter_api_key}",
+        "Content-Type": "application/json",
+        # OpenRouter просит указывать источник (необязательно, для аналитики).
+        "HTTP-Referer": settings.public_base_url,
+        "X-Title": "Realty-AI",
+    }
+    resp = _post_with_retry(_OPENROUTER_URL, headers=headers, json_body=payload, timeout=60.0)
+    data = resp.json()
+    choices = data.get("choices") or []
+    if not choices:
+        raise AppError("import_ai_failed", status.HTTP_502_BAD_GATEWAY)
+    content = (choices[0].get("message") or {}).get("content") or ""
+    return _loads_ai_json(content)
+
+
+_AI_PROVIDERS = {"gemini": _extract_gemini, "openrouter": _extract_openrouter}
+
+
+def _provider_order() -> List[str]:
+    """Порядок провайдеров из settings.import_ai_providers — только настроенные
+    (с ключом). Напр. 'openrouter' (Gemini без денег) или 'gemini,openrouter'."""
+    order: List[str] = []
+    for p in (settings.import_ai_providers or "").split(","):
+        p = p.strip().lower()
+        if p in order or p not in _AI_PROVIDERS:
+            continue
+        if p == "gemini" and not settings.gemini_api_key:
+            continue
+        if p == "openrouter" and not settings.openrouter_api_key:
+            continue
+        order.append(p)
+    return order
+
+
+def _extract_with_ai(text: str, districts: List[str], model: Optional[str] = None) -> dict:
+    """Извлечь поля объекта через ИИ. Пробуем провайдеров по порядку
+    (settings.import_ai_providers), берём первого, кто ответит. model — модель
+    Gemini (интерактив/массовый); OpenRouter использует свою (openrouter_model)."""
+    order = _provider_order()
+    if not order:
+        raise AppError("import_ai_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE)
+    rate_limited = False
+    for prov in order:
+        try:
+            if prov == "gemini":
+                return _extract_gemini(text, districts, model or settings.import_ai_model)
+            return _extract_openrouter(text, districts, settings.openrouter_model)
+        except AppError as exc:
+            if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+                rate_limited = True
+            logger.info("Импорт: провайдер %s не дал результат (%s), пробую дальше",
+                        prov, exc.status_code)
+            continue
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Импорт: провайдер %s — ошибка разбора: %s", prov, exc)
+            continue
+    # Никто не справился. 429 (лимит частоты) пробрасываем отдельно — массовый
+    # импорт по нему делает паузу и повторяет позже, а не помечает пост ошибкой.
+    raise AppError(
+        "import_ai_rate_limited" if rate_limited else "import_ai_failed",
+        status.HTTP_429_TOO_MANY_REQUESTS if rate_limited else status.HTTP_502_BAD_GATEWAY,
+    )
 
 
 # ── Пост-обработка ───────────────────────────────────────────────────
