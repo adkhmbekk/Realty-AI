@@ -70,19 +70,32 @@ def _block_heavy(route):
     """Не качать сами картинки/шрифты/видео — ссылки в DOM остаются, а грузится
     страница в разы быстрее и стабильнее.
 
-    Заодно ЗАЩИТА от SSRF: режем любые запросы со схемой кроме http/https
-    (file:, data:, blob:, ftp:) — на случай внутреннего редиректа страницы или
-    meta-refresh, который иначе заставил бы Chromium прочитать локальный файл."""
+    ЗАЩИТА от SSRF: (1) режем любые схемы кроме http/https (file:, data:, blob:,
+    ftp:); (2) проверяем КАЖДЫЙ под-запрос на публичность адреса — открытая
+    страница могла бы через xhr/fetch/img/redirect заставить наш Chromium сходить
+    на внутренний адрес (localhost, 10.x, link-local, *.internal и т.п.). Любой
+    непубличный/непроверяемый запрос обрываем."""
     try:
-        scheme = urlparse(route.request.url).scheme.lower()
-        if scheme not in ("http", "https"):
+        url = route.request.url
+        if urlparse(url).scheme.lower() not in ("http", "https"):
             route.abort()
-        elif route.request.resource_type in ("image", "media", "font"):
+            return
+        if route.request.resource_type in ("image", "media", "font"):
             route.abort()
-        else:
-            route.continue_()
+            return
+        # Резолвим хост и режем приватные/loopback/link-local диапазоны (бросает).
+        try:
+            photo_service._assert_public_url(url)
+        except Exception:  # noqa: BLE001
+            route.abort()
+            return
+        route.continue_()
     except Exception:  # noqa: BLE001
-        pass
+        # Не смогли проверить/обработать — безопаснее оборвать, чем пропустить.
+        try:
+            route.abort()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _render(url: str, timeout_ms: int) -> Tuple[str, str, List[str]]:
