@@ -56,7 +56,7 @@ services:
       # Импорт объявления по ссылке (AI-разбор через Google Gemini). Без ключа
       # функция просто вернёт понятную ошибку.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      IMPORT_AI_MODEL: ${IMPORT_AI_MODEL:-gemini-2.5-flash}
+      IMPORT_AI_MODEL: ${IMPORT_AI_MODEL:-gemini-2.5-flash-lite}
       # Синхронизация с Google Sheets (OAuth-приложение платформы).
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
