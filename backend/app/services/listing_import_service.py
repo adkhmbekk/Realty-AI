@@ -487,28 +487,54 @@ def _provider_order() -> List[str]:
     return order
 
 
+# Бесплатные модели НЕСТАБИЛЬНЫ: один и тот же текст то разбирается верно, то
+# отдаёт мусор (невалидный JSON) или пусто (все поля null) — даже при
+# temperature=0. Поэтому при «мягком» сбое (ошибка разбора ИЛИ пустой результат)
+# повторяем запрос несколько раз — это резко поднимает долю успешных разборов.
+_AI_SOFT_RETRIES = 2
+
+
+def _is_empty_result(data: dict) -> bool:
+    """Валидный JSON, но модель ничего не извлекла (все поля пустые)."""
+    if not data:
+        return True
+    return not any(v not in (None, "", [], {}) for v in data.values())
+
+
 def _extract_with_ai(text: str, districts: List[str], model: Optional[str] = None) -> dict:
     """Извлечь поля объекта через ИИ. Пробуем провайдеров по порядку
-    (settings.import_ai_providers), берём первого, кто ответит. model — модель
-    Gemini (интерактив/массовый); OpenRouter использует свою (openrouter_model)."""
+    (settings.import_ai_providers), берём первого, кто ответит. На «мягкий» сбой
+    (мусор/пусто) повторяем тот же провайдер до _AI_SOFT_RETRIES раз. model —
+    модель Gemini (интерактив/массовый); OpenRouter использует свою."""
     order = _provider_order()
     if not order:
         raise AppError("import_ai_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE)
     rate_limited = False
     for prov in order:
-        try:
-            if prov == "gemini":
-                return _extract_gemini(text, districts, model or settings.import_ai_model)
-            return _extract_openrouter(text, districts, settings.openrouter_model)
-        except AppError as exc:
-            if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
-                rate_limited = True
-            logger.info("Импорт: провайдер %s не дал результат (%s), пробую дальше",
-                        prov, exc.status_code)
-            continue
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Импорт: провайдер %s — ошибка разбора: %s", prov, exc)
-            continue
+        for attempt in range(_AI_SOFT_RETRIES + 1):
+            try:
+                if prov == "gemini":
+                    data = _extract_gemini(text, districts, model or settings.import_ai_model)
+                else:
+                    data = _extract_openrouter(text, districts, settings.openrouter_model)
+            except AppError as exc:
+                if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+                    rate_limited = True
+                    break  # лимит частоты — не долбим, к следующему провайдеру / пауза
+                logger.info("Импорт: %s сбой разбора (%s), попытка %d",
+                            prov, exc.status_code, attempt + 1)
+                continue  # мусорный ответ бесплатной модели — повторим
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Импорт: %s сбой разбора: %s (попытка %d)", prov, exc, attempt + 1)
+                continue
+            # HTTP/JSON ок. Если пусто — возможно, флапнула бесплатная модель:
+            # повторяем; на последней попытке отдаём как есть (это нормальный
+            # «не объявление», его отсеют выше по структурным полям).
+            if _is_empty_result(data) and attempt < _AI_SOFT_RETRIES:
+                logger.info("Импорт: %s вернул пусто, повтор %d", prov, attempt + 1)
+                continue
+            return data
+        # этот провайдер исчерпал попытки — пробуем следующего
     # Никто не справился. 429 (лимит частоты) пробрасываем отдельно — массовый
     # импорт по нему делает паузу и повторяет позже, а не помечает пост ошибкой.
     raise AppError(
