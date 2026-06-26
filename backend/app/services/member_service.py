@@ -20,6 +20,12 @@ from app.schemas.team import MemberUpdate
 ASSIGNABLE_ROLES = ("agency_admin", "agent")
 
 
+def _bump_session_epoch(member: User) -> None:
+    """Сделать недействительными ВСЕ текущие пропуска сотрудника сразу
+    (мгновенный отзыв доступа на всех устройствах, включая длинный refresh)."""
+    member.session_epoch = (member.session_epoch or 0) + 1
+
+
 def _name(u: Optional[User]) -> Optional[str]:
     if u is None:
         return None
@@ -88,6 +94,10 @@ def update_member(
 
     if payload.is_active is not None and payload.is_active != member.is_active:
         member.is_active = payload.is_active
+        # Отключение — гасим все его сессии (в т.ч. длинный refresh), чтобы
+        # текущий пропуск перестал работать сразу и не «воскрес» при включении.
+        if not payload.is_active:
+            _bump_session_epoch(member)
         _audit(
             db, current_user,
             "member_enabled" if payload.is_active else "member_disabled", member,
@@ -126,7 +136,35 @@ def remove_member(
     member.role = "agent"
     member.is_owner = False
     member.is_active = False
+    _bump_session_epoch(member)  # мгновенно завершить все его сессии
     db.commit()
+
+
+def revoke_sessions(
+    db: Session, agency_id: int, current_user: User, member_id: int
+) -> User:
+    """
+    «Выйти со всех устройств»: мгновенно завершить все сеансы сотрудника, НЕ
+    отключая его (он сможет войти заново). Полезно при потере/краже телефона.
+
+    Права те же, что и при изменении сотрудника: действия над администратором
+    агентства доступны только главному админу; над главным — нельзя (только он
+    сам над собой).
+    """
+    member = user_repo.get_member(db, agency_id, member_id)
+    if member is None:
+        raise AppError("member_not_found", status.HTTP_404_NOT_FOUND)
+    is_self = member.id == current_user.id
+    if member.role == "agency_admin" and not is_self and not current_user.is_owner:
+        raise AppError("only_owner_manage_admins", status.HTTP_403_FORBIDDEN)
+    if member.is_owner and not is_self:
+        raise AppError("cannot_change_owner", status.HTTP_403_FORBIDDEN)
+
+    _bump_session_epoch(member)
+    _audit(db, current_user, "member_sessions_revoked", member)
+    db.commit()
+    db.refresh(member)
+    return member
 
 
 def transfer_ownership(

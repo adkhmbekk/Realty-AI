@@ -57,6 +57,19 @@ def remove_member(
     member_service.remove_member(db, current_user.agency_id, current_user, member_id)
 
 
+@router.post("/{member_id}/revoke", response_model=MemberOut)
+def revoke_member_sessions(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_admin),
+):
+    """«Выйти со всех устройств»: мгновенно завершить все сеансы сотрудника
+    (без отключения — он сможет войти заново)."""
+    return member_service.revoke_sessions(
+        db, current_user.agency_id, current_user, member_id
+    )
+
+
 @router.post("/{member_id}/owner", response_model=MemberOut)
 def transfer_ownership(
     member_id: int,

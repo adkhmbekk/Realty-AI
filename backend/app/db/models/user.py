@@ -11,7 +11,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, String, func
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -46,6 +46,12 @@ class User(Base):
     is_owner: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Деактивация сотрудника без удаления его истории.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Версия сессии: бамп этого числа мгновенно делает недействительными все
+    # ранее выданные пропуска (access+refresh) — «выйти со всех устройств» и
+    # надёжный отзыв доступа при отключении/исключении сотрудника.
+    session_epoch: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

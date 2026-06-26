@@ -58,6 +58,14 @@ export function TeamScreen() {
       load();
     } else toast(errText(r.data, r.status), "err");
   }
+  async function revokeSessions(m: Member) {
+    if (!(await confirmDialog(t("revokeSessionsQ")))) return;
+    const r = await api("/api/v1/team/" + m.id + "/revoke", { method: "POST" });
+    if (r.ok) {
+      toast(t("sessionsRevoked"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
 
   if (err) return <Empty>{err}</Empty>;
   if (!members) return <Spinner />;
@@ -104,6 +112,11 @@ export function TeamScreen() {
                   <Button full size="sm" variant={m.is_active ? "danger" : "ghost"} onClick={() => toggleActive(m)}>
                     {m.is_active ? t("disable") : t("enable")}
                   </Button>
+                  {m.is_active && (
+                    <Button full size="sm" variant="ghost" onClick={() => revokeSessions(m)}>
+                      {t("revokeSessions")}
+                    </Button>
+                  )}
                   {meOwner && (
                     <>
                       <div className="grid grid-cols-2 gap-2">

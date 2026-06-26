@@ -65,6 +65,11 @@ def get_current_user(
     if user is None or not user.is_active:
         raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
 
+    # Мгновенный отзыв: пропуск с устаревшей «версией сессии» больше не действует
+    # (сотрудника отключили/исключили или нажали «выйти со всех устройств»).
+    if (payload.get("epoch") or 0) != (getattr(user, "session_epoch", 0) or 0):
+        raise AppError("session_revoked", status.HTTP_401_UNAUTHORIZED)
+
     # Acting-контекст: суперадмин «вошёл» в СВОЁ личное агентство. Владение
     # перепроверяем из БД на КАЖДОМ запросе — claim'у из токена не доверяем.
     act_as = payload.get("act_as_agency_id")

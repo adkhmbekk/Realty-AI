@@ -104,6 +104,9 @@ def refresh_session(
     user = user_repo.get_by_id(db, payload.get("user_id"))
     if user is None or not user.is_active:
         raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+    # Мгновенный отзыв: refresh-токен с устаревшей версией сессии недействителен.
+    if (payload.get("epoch") or 0) != (getattr(user, "session_epoch", 0) or 0):
+        raise AppError("session_revoked", status.HTTP_401_UNAUTHORIZED)
     return build_auth_response(db, user, act_as_agency_id=act_as_agency_id)
 
 
@@ -118,6 +121,10 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
     агентства (role=agency_admin, is_owner). Владение перепроверяем из БД; если
     не подтвердилось — молча отдаём обычную сессию (acting «отвалился»).
     """
+    # «Версия сессии» пользователя — кладём в оба пропуска (access+refresh).
+    # Её бамп (отключение/исключение/«выйти со всех устройств») мгновенно
+    # обесценивает все ранее выданные пропуска этого человека.
+    epoch = getattr(user, "session_epoch", 0) or 0
     acting_agency = None
     if act_as_agency_id is not None and getattr(user, "role", None) == "superadmin":
         agency = agency_repo.get_by_id(db, act_as_agency_id)
@@ -132,9 +139,10 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
                 "agency_id": acting_agency.id,
                 "role": "agency_admin",
                 "act_as_agency_id": acting_agency.id,
+                "epoch": epoch,
             }
         )
-        refresh_token = security.create_refresh_token({"user_id": user.id})
+        refresh_token = security.create_refresh_token({"user_id": user.id, "epoch": epoch})
         return {
             "access_token": token,
             "refresh_token": refresh_token,
@@ -168,9 +176,10 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
             "telegram_id": user.telegram_id,
             "agency_id": user.agency_id,
             "role": user.role,
+            "epoch": epoch,
         }
     )
-    refresh_token = security.create_refresh_token({"user_id": user.id})
+    refresh_token = security.create_refresh_token({"user_id": user.id, "epoch": epoch})
 
     return {
         "access_token": token,

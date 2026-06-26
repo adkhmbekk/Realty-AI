@@ -59,6 +59,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Yaroqsiz yoki muddati oʻtgan kirish. Qaytadan kiring.",
         "en": "Invalid or expired session. Please sign in again.",
     },
+    "session_revoked": {
+        "ru": "Доступ отозван. Войдите заново.",
+        "uz": "Kirish bekor qilindi. Qaytadan kiring.",
+        "en": "Access revoked. Please sign in again.",
+    },
     "user_not_found_or_inactive": {
         "ru": "Пользователь не найден или деактивирован.",
         "uz": "Foydalanuvchi topilmadi yoki oʻchirilgan.",

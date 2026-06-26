@@ -278,7 +278,11 @@ def create_refresh_token(data: dict) -> str:
     БЕЗ повторной проверки initData (которое Telegram «протухает» через час).
     Это решает «тихий тупик»: сессия дольше часа больше не упирается в стену.
     """
-    to_encode = {"user_id": data.get("user_id"), "type": "refresh"}
+    to_encode = {
+        "user_id": data.get("user_id"),
+        "epoch": data.get("epoch", 0),
+        "type": "refresh",
+    }
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.refresh_expire_minutes
     )
