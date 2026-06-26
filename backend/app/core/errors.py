@@ -159,6 +159,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Obyektning yaroqsiz holati.",
         "en": "Invalid property status.",
     },
+    "invalid_currency": {
+        "ru": "Недопустимая валюта. Доступно: USD, UZS, EUR.",
+        "uz": "Yaroqsiz valyuta. Mavjud: USD, UZS, EUR.",
+        "en": "Invalid currency. Allowed: USD, UZS, EUR.",
+    },
+    "range_min_gt_max": {
+        "ru": "Нижняя граница больше верхней. Проверьте диапазоны (комнаты, этаж, цена и т.п.).",
+        "uz": "Quyi chegara yuqoridan katta. Diapazonlarni tekshiring (xonalar, qavat, narx va h.k.).",
+        "en": "The minimum is greater than the maximum. Check the ranges (rooms, floor, price, etc.).",
+    },
     "empty_apartment": {
         "ru": "Заполните хотя бы одно поле объекта (например, наименование, район или цену).",
         "uz": "Obyektning kamida bitta maydonini toʻldiring (masalan, nomi, tuman yoki narx).",
@@ -194,6 +204,21 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Недопустимый статус совпадения.",
         "uz": "Moslik holati yaroqsiz.",
         "en": "Invalid match status.",
+    },
+    "invalid_client_status": {
+        "ru": "Недопустимый статус клиента. Доступно: active, archived.",
+        "uz": "Mijozning yaroqsiz holati. Mavjud: active, archived.",
+        "en": "Invalid client status. Allowed: active, archived.",
+    },
+    "invalid_request_status": {
+        "ru": "Недопустимый статус заявки. Доступно: active, fulfilled, cancelled.",
+        "uz": "Soʻrovning yaroqsiz holati. Mavjud: active, fulfilled, cancelled.",
+        "en": "Invalid request status. Allowed: active, fulfilled, cancelled.",
+    },
+    "invalid_owner": {
+        "ru": "Нельзя назначить этого сотрудника владельцем клиента: он не из вашего агентства или отключён.",
+        "uz": "Bu xodimni mijoz egasi qilib boʻlmaydi: u agentligingizdan emas yoki oʻchirilgan.",
+        "en": "Cannot assign this member as the client owner: not in your agency or deactivated.",
     },
     # Отправка / шаринг
     "share_via_bot_not_configured": {

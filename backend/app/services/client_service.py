@@ -354,18 +354,27 @@ def update_client(db: Session, agency_id: int, user, client_id: int, payload: Cl
         c.phone = payload.phone.strip() or None
     if payload.note is not None:
         c.note = payload.note.strip() or None
-    if payload.status in ("active", "archived"):
+    if payload.status is not None:
+        if payload.status not in ("active", "archived"):
+            raise AppError("invalid_client_status", status.HTTP_400_BAD_REQUEST)
         c.status = payload.status
-    # Переназначить клиента другому агенту может только администратор.
+    # Переназначить клиента другому агенту может только администратор — и только на
+    # АКТИВНОГО сотрудника СВОЕГО агентства (защита от «увода» и висячих владельцев).
     if payload.owner_id is not None and _can_see_all(user):
+        target = user_repo.get_by_id(db, payload.owner_id)
+        if target is None or target.agency_id != agency_id or not target.is_active:
+            raise AppError("invalid_owner", status.HTTP_400_BAD_REQUEST)
         c.created_by = payload.owner_id
     db.commit()
     return get_client_detail(db, agency_id, user, client_id)
 
 
 def delete_client(db: Session, agency_id: int, user, client_id: int) -> None:
+    # Мягкое удаление: помечаем «archived», НЕ стираем — история заявок и
+    # совпадений сохраняется. В списке клиентов архивные не показываются;
+    # вернуть можно, сменив статус обратно на active.
     c = _load_client_for_user(db, agency_id, user, client_id)
-    db.delete(c)  # каскад удалит заявки и совпадения
+    c.status = "archived"
     db.commit()
 
 
@@ -388,7 +397,9 @@ def update_request(db: Session, agency_id: int, user, request_id: int, payload: 
     for f in _CRITERIA_FIELDS + ("currency", "note"):
         if f in data:
             setattr(req, f, data[f] if data[f] not in ("",) else None)
-    if data.get("status") in ("active", "fulfilled", "cancelled"):
+    if "status" in data and data["status"] is not None:
+        if data["status"] not in ("active", "fulfilled", "cancelled"):
+            raise AppError("invalid_request_status", status.HTTP_400_BAD_REQUEST)
         req.status = data["status"]
     db.commit()
     # Критерии могли измениться — досканируем базу (новые совпадения добавятся).

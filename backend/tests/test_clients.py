@@ -4,12 +4,13 @@
 дедуп совпадений и счётчик новых. На SQLite в памяти (фикстура db из conftest).
 """
 import pytest
+from pydantic import ValidationError
 
 from app.core.errors import AppError
 from app.db.models.agency import Agency
-from app.repositories import user_repo
+from app.repositories import client_repo, user_repo
 from app.schemas.apartment import ApartmentCreate
-from app.schemas.client import ClientCreate, RequestCreate
+from app.schemas.client import ClientCreate, ClientUpdate, RequestCreate, RequestUpdate
 from app.services import apartment_service, client_service
 
 
@@ -138,3 +139,65 @@ def test_isolation_between_agencies(db):
     )
     assert found == 0
     assert client_service.run_matching_tick(db, lookback_minutes=100000) == 0
+
+
+def test_delete_client_soft_archives(db):
+    agency, admin, agent = _setup(db)
+    _apt(db, agency.id, agent.id, type="Квартира", district="Юнусабад", rooms=5, price=100000, currency="USD")
+    out, found = client_service.create_client(
+        db, agency.id, agent, ClientCreate(name="Архивный", request=RequestCreate(districts=["Юнусабад"])),
+    )
+    assert found == 1
+    req_id = client_service.get_client_detail(db, agency.id, agent, out.id).requests[0].id
+    # «Удаление» = архивирование: клиент остаётся в БД, но пропадает из списка.
+    client_service.delete_client(db, agency.id, agent, out.id)
+    c = client_repo.get_client(db, agency.id, out.id)
+    assert c is not None and c.status == "archived"
+    assert all(x.id != out.id for x in client_service.list_clients(db, agency.id, agent))
+    # История заявок сохранилась.
+    assert client_repo.get_request(db, agency.id, req_id) is not None
+    # Возврат из архива — статус active.
+    client_service.update_client(db, agency.id, agent, out.id, ClientUpdate(status="active"))
+    assert any(x.id == out.id for x in client_service.list_clients(db, agency.id, agent))
+
+
+def test_owner_reassign_validated(db):
+    agency, admin, agent = _setup(db)
+    agency2 = Agency(name="B", status="active", timezone="Asia/Tashkent", default_currency="USD")
+    db.add(agency2)
+    db.flush()
+    foreign = user_repo.create(db, telegram_id=77, role="agent", agency_id=agency2.id)
+    db.commit()
+    out, _ = client_service.create_client(db, agency.id, admin, ClientCreate(name="К"))
+    # Несуществующий владелец — ошибка.
+    with pytest.raises(AppError):
+        client_service.update_client(db, agency.id, admin, out.id, ClientUpdate(owner_id=999999))
+    # Сотрудник чужого агентства — ошибка.
+    with pytest.raises(AppError):
+        client_service.update_client(db, agency.id, admin, out.id, ClientUpdate(owner_id=foreign.id))
+    # Свой активный агент — ок.
+    res = client_service.update_client(db, agency.id, admin, out.id, ClientUpdate(owner_id=agent.id))
+    assert res.created_by == agent.id
+
+
+def test_invalid_statuses_rejected(db):
+    agency, admin, agent = _setup(db)
+    out, _ = client_service.create_client(
+        db, agency.id, agent, ClientCreate(name="С", request=RequestCreate(districts=["Юнусабад"])),
+    )
+    req_id = client_service.get_client_detail(db, agency.id, agent, out.id).requests[0].id
+    with pytest.raises(AppError):
+        client_service.update_client(db, agency.id, agent, out.id, ClientUpdate(status="deleted"))
+    with pytest.raises(AppError):
+        client_service.update_request(db, agency.id, agent, req_id, RequestUpdate(status="done"))
+
+
+def test_request_range_and_currency_validation(db):
+    # min > max — отклоняется схемой (422).
+    with pytest.raises(ValidationError):
+        RequestCreate(rooms_min=5, rooms_max=2)
+    with pytest.raises(ValidationError):
+        RequestCreate(price_min=100000, price_max=50000)
+    # Неизвестная валюта — отклоняется.
+    with pytest.raises(ValidationError):
+        RequestCreate(districts=["Юнусабад"], currency="RUB")

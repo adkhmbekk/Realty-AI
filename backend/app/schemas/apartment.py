@@ -13,10 +13,13 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Допустимые статусы объекта (единый список для валидации).
 ApartmentStatus = Literal["active", "deposit", "sold"]
+
+# Разрешённые валюты (единый белый список для объектов и заявок клиентов).
+ALLOWED_CURRENCIES = {"USD", "UZS", "EUR"}
 
 # Допустимые значения поля «мебель и техника».
 FurnitureAppliances = Literal[
@@ -26,32 +29,32 @@ FurnitureAppliances = Literal[
 
 # Поля, общие для создания и редактирования объекта.
 class _ApartmentBase(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=200)
     # Номер собственника (конфиденциально — виден только команде).
-    owner_phone: Optional[str] = None
-    district: Optional[str] = None
-    address: Optional[str] = None
-    type: Optional[str] = None
+    owner_phone: Optional[str] = Field(default=None, max_length=64)
+    district: Optional[str] = Field(default=None, max_length=120)
+    address: Optional[str] = Field(default=None, max_length=300)
+    type: Optional[str] = Field(default=None, max_length=60)
     rooms: Optional[int] = None
     floor: Optional[int] = None
     total_floors: Optional[int] = None
     area: Optional[float] = None
     # Площадь участка в сотках (для типа «Участок»).
     land_area: Optional[float] = None
-    condition: Optional[str] = None
+    condition: Optional[str] = Field(default=None, max_length=60)
     # Мебель и техника (один параметр с вариантами).
     furniture_appliances: Optional[FurnitureAppliances] = None
     price: Optional[float] = None
     currency: Optional[str] = None
-    description: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=4000)
     # Внутренний комментарий (не виден при шаринге).
-    comment: Optional[str] = None
+    comment: Optional[str] = Field(default=None, max_length=4000)
     # Ссылка на фото объекта.
-    photo_url: Optional[str] = None
+    photo_url: Optional[str] = Field(default=None, max_length=1000)
     # Ссылка на источник (OLX, Telegram и т.д.).
-    source_link: Optional[str] = None
+    source_link: Optional[str] = Field(default=None, max_length=1000)
     # Источник — название канала/площадки (внутреннее, не уходит клиенту).
-    source: Optional[str] = None
+    source: Optional[str] = Field(default=None, max_length=200)
 
     @field_validator("rooms", "floor", "total_floors")
     @classmethod
@@ -73,7 +76,11 @@ class _ApartmentBase(BaseModel):
         if value is None:
             return None
         value = value.strip().upper()
-        return value or None
+        if not value:
+            return None
+        if value not in ALLOWED_CURRENCIES:
+            raise ValueError("invalid_currency")
+        return value
 
 
 class ApartmentCreate(_ApartmentBase):
