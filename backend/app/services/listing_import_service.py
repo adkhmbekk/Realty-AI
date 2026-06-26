@@ -385,11 +385,21 @@ _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 def _post_with_retry(url, *, headers=None, params=None, json_body=None, timeout=45.0):
-    """POST с повторами при 429/503 — общий для Gemini и OpenRouter. Бесплатные
-    модели жёстко лимитируют частоту, поэтому без повторов почти все запросы при
-    массовом импорте отбивались бы. Возвращает httpx.Response."""
+    """POST с повторами при 429/503 и при кратковременных сетевых сбоях — общий
+    для Gemini и OpenRouter. Бесплатные модели жёстко лимитируют частоту (429), а
+    внутри Docker/WSL изредка кратко «проваливается» DNS (ConnectError) — в обоих
+    случаях без повторов почти все запросы при массовом импорте отбивались бы.
+    Возвращает httpx.Response."""
     for attempt in range(len(_RETRY_BACKOFF) + 1):
-        resp = httpx.post(url, headers=headers, params=params, json=json_body, timeout=timeout)
+        try:
+            resp = httpx.post(url, headers=headers, params=params, json=json_body, timeout=timeout)
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            # Не удалось установить соединение (часто — кратковременный сбой DNS
+            # встроенного резолвера Docker/WSL). Ждём и повторяем, а не валим импорт.
+            if attempt < len(_RETRY_BACKOFF):
+                time.sleep(_RETRY_BACKOFF[attempt])
+                continue
+            raise AppError("import_ai_failed", status.HTTP_502_BAD_GATEWAY) from exc
         if resp.status_code in (429, 503):
             if attempt < len(_RETRY_BACKOFF):
                 time.sleep(_retry_after_seconds(resp, _RETRY_BACKOFF[attempt]))

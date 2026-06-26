@@ -51,6 +51,30 @@ def _is_telegram_url(url: str) -> bool:
     return any(host == h or host.endswith("." + h) for h in _ALLOWED_IMPORT_HOSTS)
 
 
+# Внутри Docker/WSL «встроенный» DNS-резолвер изредка кратковременно
+# «проваливается» (getaddrinfo: Temporary failure in name resolution), хотя
+# интернет есть. Чтобы импорт не падал на ровном месте, несколько раз повторяем
+# разрешение имени с короткой паузой — это переживает кратковременные сбои DNS.
+_DNS_RETRY_BACKOFF = (0.5, 1.5, 3.0)
+
+
+def _resolve_host(host: str):
+    """getaddrinfo с повторами при кратковременном сбое DNS (Docker/WSL).
+
+    Возвращает список infos (как socket.getaddrinfo) либо бросает
+    AppError('link_host_unresolved'), исчерпав попытки.
+    """
+    last_exc: Optional[Exception] = None
+    for delay in (0.0,) + _DNS_RETRY_BACKOFF:
+        if delay:
+            time.sleep(delay)
+        try:
+            return socket.getaddrinfo(host, None)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+    raise AppError("link_host_unresolved", status.HTTP_400_BAD_REQUEST) from last_exc
+
+
 def _assert_public_url(url: str) -> None:
     """
     Защита от SSRF (подмены адреса). Разрешаем загрузку только по http/https и
@@ -64,10 +88,7 @@ def _assert_public_url(url: str) -> None:
     host = parsed.hostname
     if not host:
         raise AppError("invalid_link", status.HTTP_400_BAD_REQUEST)
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except Exception:  # noqa: BLE001
-        raise AppError("link_host_unresolved", status.HTTP_400_BAD_REQUEST)
+    infos = _resolve_host(host)
     for info in infos:
         ip_str = info[4][0]
         try:
