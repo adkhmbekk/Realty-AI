@@ -134,6 +134,7 @@ export interface AgencySettings {
   default_currency: string;
   contact_phone?: string | null;
   contact_username?: string | null;
+  support_url?: string | null;
 }
 
 export interface Member {

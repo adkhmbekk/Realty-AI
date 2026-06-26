@@ -8,6 +8,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.config import settings as cfg
 from app.core.dependencies import require_agency_member, require_agency_owner
 from app.db.models.user import User
 from app.db.session import get_db
@@ -29,6 +30,8 @@ def get_settings(
     owner = user_repo.get_owner(db, current_user.agency_id)
     if owner is not None and getattr(owner, "username", None):
         out.contact_username = "@" + owner.username
+    # Контакт поддержки — общий для всех агентств (из настройки SUPPORT_URL).
+    out.support_url = cfg.support_url or None
     return out
 
 

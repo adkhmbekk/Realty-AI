@@ -172,6 +172,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     newClient: "Новый клиент", existingClient: "Существующий", chooseClient: "Выберите клиента", pickClient: "Выберите клиента.",
     rememberForClient: "Запомнить для клиента", rememberForClientSub: "Нет подходящего? Сохраним как заявку",
     saveAsRequest: "Заявка клиента", from: "от",
+    support: "Поддержка", supportText: "Есть вопрос или проблема? Напишите нам — поможем.", contactSupport: "Написать в поддержку",
     buildVersion: "Версия",
   },
   uz: {
@@ -342,6 +343,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     newClient: "Yangi mijoz", existingClient: "Mavjud", chooseClient: "Mijozni tanlang", pickClient: "Mijozni tanlang.",
     rememberForClient: "Mijoz uchun eslab qolish", rememberForClientSub: "Mos kelmadimi? Soʻrov sifatida saqlaymiz",
     saveAsRequest: "Mijoz soʻrovi", from: "dan",
+    support: "Yordam", supportText: "Savol yoki muammo bormi? Bizga yozing — yordam beramiz.", contactSupport: "Yordamga yozish",
     buildVersion: "Versiya",
   },
   en: {
@@ -512,6 +514,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     newClient: "New client", existingClient: "Existing", chooseClient: "Choose a client", pickClient: "Choose a client.",
     rememberForClient: "Remember for a client", rememberForClientSub: "Nothing suitable? Save as a request",
     saveAsRequest: "Client request", from: "from",
+    support: "Support", supportText: "Have a question or problem? Message us — we'll help.", contactSupport: "Contact support",
     buildVersion: "Version",
   },
 };

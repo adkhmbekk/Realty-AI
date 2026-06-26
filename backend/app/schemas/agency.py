@@ -107,6 +107,9 @@ class AgencySettingsOut(BaseModel):
     contact_phone: Optional[str] = None
     # Telegram-логин владельца агентства (@username), показывается клиентам в карточке.
     contact_username: Optional[str] = None
+    # Контакт поддержки платформы (общий для всех агентств): ссылка на Telegram,
+    # открывается кнопкой «Поддержка» в приложении. Берётся из настройки SUPPORT_URL.
+    support_url: Optional[str] = None
 
 
 class AgencySettingsUpdate(BaseModel):

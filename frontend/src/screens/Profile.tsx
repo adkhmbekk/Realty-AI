@@ -1,12 +1,14 @@
-import { User } from "lucide-react";
+import { User, LifeBuoy } from "lucide-react";
 import { useApp } from "../store";
-import { Card, Row, Hint } from "../components/ui";
+import { Card, Row, Hint, Button } from "../components/ui";
+import { openTelegramLink } from "../telegram";
 import { fmtDate, daysLeft, initials } from "../utils";
 
 export function ProfileScreen() {
   const { t, L, lang, user, settings } = useApp();
   if (!user) return null;
   const displayName = user.full_name || (user.username ? "@" + user.username : t("notSet"));
+  const supportUrl = settings?.support_url || null;
   return (
     <div>
       {/* Личная шапка с аватаром-инициалами */}
@@ -35,6 +37,19 @@ export function ProfileScreen() {
         <Card className="mt-3">
           <Row label={t("subUntil")} value={fmtDate(settings.subscription_expires_at, lang, settings.timezone)} />
           <Row label={t("daysLeft")} value={daysLeft(settings.subscription_expires_at)} />
+        </Card>
+      )}
+      {/* Поддержка: связаться с нами (открывает чат в Telegram). */}
+      {supportUrl && (
+        <Card className="mt-3">
+          <div className="flex items-center gap-2.5 mb-1.5">
+            <LifeBuoy size={18} className="text-primary" />
+            <span className="font-extrabold">{t("support")}</span>
+          </div>
+          <p className="text-[13px] text-muted mb-3">{t("supportText")}</p>
+          <Button full size="sm" onClick={() => openTelegramLink(supportUrl)}>
+            {t("contactSupport")}
+          </Button>
         </Card>
       )}
       {/* Версия сборки — чтобы было видно, что приложение обновилось до свежей. */}
