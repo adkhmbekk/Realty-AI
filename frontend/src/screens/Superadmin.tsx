@@ -6,8 +6,161 @@ import { useNav } from "../nav";
 import { useActing } from "../acting";
 import { api, errText } from "../api";
 import { Badge, Button, Card, Empty, Field, Input, Row, Spinner } from "../components/ui";
-import type { AgencyOut, AgencyPayment, PaymentsSummary } from "../types";
+import type { AgencyActivity, AgencyOut, AgencyPayment, AgencyUsage, PaymentsSummary } from "../types";
 import { fmtAmount, fmtDate } from "../utils";
+
+// ── Наблюдение за агентствами: «светофор» + относительное время ──────
+function engagementMeta(eng: string): { dot: string; labelKey: string } {
+  switch (eng) {
+    case "active":
+      return { dot: "bg-emerald-500", labelKey: "engActive" };
+    case "quiet":
+      return { dot: "bg-amber-500", labelKey: "engQuiet" };
+    case "asleep":
+      return { dot: "bg-rose-500", labelKey: "engAsleep" };
+    default:
+      return { dot: "bg-slate-400", labelKey: "engNew" };
+  }
+}
+
+function fmtAgo(iso: string | null | undefined, t: (k: string) => string): string {
+  if (!iso) return "—";
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return "—";
+  const min = Math.floor((Date.now() - ts) / 60000);
+  if (min < 60) return t("agoJustNow");
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} ${t("agoHours")}`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return t("agoYesterday");
+  return `${d} ${t("agoDays")}`;
+}
+
+// Маленький блок «число + подпись» (для Сегодня/Вчера/Позавчера).
+function StatBox({ n, label }: { n: number; label: string }) {
+  return (
+    <div className="rounded-xl bg-[var(--soft)] py-2 text-center">
+      <div className="text-[18px] font-extrabold text-primary leading-none">{n}</div>
+      <div className="text-[11px] text-muted mt-1">{label}</div>
+    </div>
+  );
+}
+
+// Полоска доли источника (как добавляют).
+function SrcBar({ label, v, total }: { label: string; v: number; total: number }) {
+  const pct = total > 0 ? Math.round((v / total) * 100) : 0;
+  return (
+    <div className="mb-1.5">
+      <div className="flex justify-between text-[12px] mb-0.5">
+        <span>{label}</span>
+        <span className="text-muted">{v} · {pct}%</span>
+      </div>
+      <div className="h-2 rounded-full bg-[var(--soft)] overflow-hidden">
+        <div className="h-full bg-primary/70" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// Подробный отчёт об активности агентства (внутри карточки агентства).
+function AgencyActivityPanel({ id }: { id: number }) {
+  const { t } = useApp();
+  const [a, setA] = useState<AgencyActivity | null>(null);
+  useEffect(() => {
+    api<AgencyActivity>(`/api/v1/agencies/${id}/activity`).then((r) => {
+      if (r.ok && r.data) setA(r.data);
+    });
+  }, [id]);
+  if (!a) return null;
+  const max = Math.max(1, ...a.daily.map((d) => d.added));
+  const srcTotal = a.source_manual + a.source_link + a.source_channel;
+
+  return (
+    <div className="mt-4">
+      <div className="text-[13px] font-extrabold uppercase tracking-wider text-muted mx-0.5 mb-2">
+        {t("activityReport")}
+      </div>
+
+      {/* Объекты: всего, по статусам, продажа/аренда */}
+      <Card>
+        <div className="flex items-center justify-between">
+          <span className="font-bold">{t("actObjects")}</span>
+          <span className="font-extrabold text-primary">{a.objects_total}</span>
+        </div>
+        <div className="text-[12.5px] text-muted mt-1">
+          {t("statusActive")} {a.active} · {t("statusDeposit")} {a.deposit} · {t("statusSold")} {a.sold} · {t("statusRented")} {a.rented}
+        </div>
+        <div className="text-[12.5px] text-muted">
+          {t("dealSale")} {a.sale} · {t("dealRent")} {a.rent}
+        </div>
+      </Card>
+
+      {/* Добавлено по дням — главное для нового агентства */}
+      <Card className="mt-2">
+        <div className="grid grid-cols-3 gap-2 mb-2.5">
+          <StatBox n={a.added_today} label={t("actAddedDay")} />
+          <StatBox n={a.added_yesterday} label={t("actAddedYest")} />
+          <StatBox n={a.added_2d} label={t("actAdded2d")} />
+        </div>
+        <div className="text-[11px] text-muted mb-1">{t("actByDay")}</div>
+        <div className="flex items-end gap-1 h-16">
+          {a.daily.map((d) => (
+            <div
+              key={d.date}
+              className="flex-1 flex flex-col items-center justify-end h-full"
+              title={`${d.date}: ${d.added}`}
+            >
+              {d.added > 0 && <span className="text-[9px] text-muted leading-none mb-0.5">{d.added}</span>}
+              <div
+                className="w-full rounded-t bg-primary/70"
+                style={{ height: `${d.added > 0 ? Math.max(10, (d.added / max) * 100) : 3}%` }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="text-[11px] text-muted mt-1.5">
+          {t("actWeek")}: +{a.added_7d} · {t("actMonth")}: +{a.added_30d}
+        </div>
+      </Card>
+
+      {/* Как добавляют */}
+      {srcTotal > 0 && (
+        <Card className="mt-2">
+          <div className="font-bold mb-1.5">{t("howAdded")}</div>
+          <SrcBar label={t("addManual")} v={a.source_manual} total={srcTotal} />
+          <SrcBar label={t("addLink")} v={a.source_link} total={srcTotal} />
+          <SrcBar label={t("addChannel")} v={a.source_channel} total={srcTotal} />
+        </Card>
+      )}
+
+      {/* Активность команды */}
+      <Card className="mt-2">
+        <div className="font-bold mb-1">{t("teamActivity")}</div>
+        <Row label={`${t("actLogins")} (7 / 30)`} value={`${a.logins_7d} / ${a.logins_30d}`} />
+        <Row label={t("actActiveUsers")} value={`${a.active_users} / ${a.total_users}`} />
+        <Row label={t("lastActivity")} value={fmtAgo(a.last_activity_at, t)} />
+      </Card>
+
+      {/* По сотрудникам */}
+      {a.employees.length > 0 && (
+        <Card className="mt-2">
+          <div className="font-bold mb-1.5">{t("byEmployee")}</div>
+          {a.employees.map((e) => (
+            <div
+              key={e.user_id ?? e.name}
+              className="flex items-center justify-between py-1.5 border-b border-line last:border-0"
+            >
+              <span className="truncate font-medium">{e.name || "—"}</span>
+              <span className="text-[12px] text-muted shrink-0 ml-2">
+                +{e.added} · {e.last_login_at ? fmtAgo(e.last_login_at, t) : t("neverIn")}
+              </span>
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
 
 function effectiveStatus(a: AgencyOut): string {
   if (a.status === "frozen") return "frozen";
@@ -39,6 +192,34 @@ function payActionLabel(action: string, t: (k: string) => string): string {
 function fmtTotals(arr: { currency: string; amount: number }[]): string {
   if (!arr.length) return "—";
   return arr.map((c) => `${fmtAmount(c.amount)} ${c.currency}`).join(" · ");
+}
+
+// Свод использования по всем агентствам (вовлечённость + объекты).
+function UsageSummary({ usage }: { usage: AgencyUsage[] }) {
+  const { t } = useApp();
+  const by = (e: string) => usage.filter((u) => u.engagement === e).length;
+  const objects = usage.reduce((s, u) => s + u.objects_total, 0);
+  const today = usage.reduce((s, u) => s + u.added_today, 0);
+  const week = usage.reduce((s, u) => s + u.added_7d, 0);
+  const dot = (c: string, k: string, n: number) => (
+    <span className="inline-flex items-center gap-1">
+      <span className={`w-2 h-2 rounded-full ${c}`} /> {t(k)} {n}
+    </span>
+  );
+  return (
+    <Card className="mt-3">
+      <div className="font-extrabold mb-1.5">{t("usageTitle")}</div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px]">
+        {dot("bg-emerald-500", "engActive", by("active"))}
+        {dot("bg-amber-500", "engQuiet", by("quiet"))}
+        {dot("bg-rose-500", "engAsleep", by("asleep"))}
+        {dot("bg-slate-400", "engNew", by("new"))}
+      </div>
+      <div className="text-[12.5px] text-muted mt-1.5">
+        {t("actObjects")}: {objects} · {t("actAddedDay")} +{today} · {t("actWeek")} +{week}
+      </div>
+    </Card>
+  );
 }
 
 // Свод по платежам всех агентств (общий итог + статистика).
@@ -103,6 +284,7 @@ export function AgenciesScreen() {
   const { t, lang, toast } = useApp();
   const nav = useNav();
   const [list, setList] = useState<AgencyOut[] | null>(null);
+  const [usage, setUsage] = useState<Record<number, AgencyUsage>>({});
   const [err, setErr] = useState<string | null>(null);
 
   async function load() {
@@ -111,17 +293,24 @@ export function AgenciesScreen() {
       setList(r.data);
       setErr(null);
     } else setErr(`${t("notFound")} (${r.status})`);
+    const u = await api<AgencyUsage[]>("/api/v1/agencies/usage");
+    if (u.ok && Array.isArray(u.data)) {
+      setUsage(Object.fromEntries(u.data.map((x) => [x.agency_id, x])));
+    }
   }
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const usageList = Object.values(usage);
+
   return (
     <div>
       <Button full onClick={() => nav.push({ name: "agencyCreate" })}>
         <Plus size={18} /> {t("createAgency")}
       </Button>
+      {usageList.length > 0 && <UsageSummary usage={usageList} />}
       <RevenuePanel />
       <div className="mt-3">
         {err ? (
@@ -135,6 +324,8 @@ export function AgenciesScreen() {
             const adminTxt = a.admin_name
               ? a.admin_name + (a.admin_telegram_id ? ` (ID ${a.admin_telegram_id})` : "")
               : t("notAssigned");
+            const u = usage[a.id];
+            const meta = u ? engagementMeta(u.engagement) : null;
             return (
               <button
                 key={a.id}
@@ -145,6 +336,17 @@ export function AgenciesScreen() {
                   <span className="font-extrabold">{a.name}</span>
                   {statusBadge(a, t)}
                 </div>
+                {u && meta && (
+                  <div className="text-[13px] mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="inline-flex items-center gap-1.5 font-bold">
+                      <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
+                      {t(meta.labelKey)}
+                    </span>
+                    <span className="text-muted">· {u.objects_total} {t("actObjects").toLowerCase()}</span>
+                    <span className="text-muted">· {t("actAddedDay")} +{u.added_today}</span>
+                    {u.last_activity_at && <span className="text-muted">· {fmtAgo(u.last_activity_at, t)}</span>}
+                  </div>
+                )}
                 {a.project_name && (
                   <div className="text-[13px] text-muted mt-1">
                     {t("projectName")}: {a.project_name}
@@ -459,6 +661,7 @@ export function AgencyManageScreen({ id }: { id: number }) {
           {t("deleteAgency")}
         </Button>
       </div>
+      <AgencyActivityPanel id={id} />
       <PaymentHistory id={id} refresh={payKey} />
     </div>
   );

@@ -137,3 +137,62 @@ class AgencyOut(BaseModel):
     # Заполняется сервисом; в самой модели Agency этих полей нет.
     admin_telegram_id: Optional[int] = None
     admin_name: Optional[str] = None
+
+
+# ── Наблюдение за агентствами (использование) ────────────────────────
+# Уровень вовлечённости (engagement): active / quiet / asleep / new — «светофор».
+class AgencyUsageOut(BaseModel):
+    """Компактная сводка использования агентства (для списка агентств)."""
+    agency_id: int
+    objects_total: int = 0
+    added_today: int = 0
+    added_7d: int = 0
+    added_30d: int = 0
+    logins_7d: int = 0
+    active_users: int = 0
+    total_users: int = 0
+    last_activity_at: Optional[datetime] = None
+    engagement: str = "new"
+
+
+class DailyCountOut(BaseModel):
+    # Дата (YYYY-MM-DD, в часовом поясе агентства) и сколько объектов добавлено.
+    date: str
+    added: int
+
+
+class EmployeeActivityOut(BaseModel):
+    user_id: Optional[int] = None
+    name: Optional[str] = None
+    last_login_at: Optional[datetime] = None
+    added: int = 0
+
+
+class AgencyActivityOut(BaseModel):
+    """Подробный отчёт об активности агентства (карточка агентства)."""
+    objects_total: int = 0
+    # Объекты по статусам и типам сделки.
+    active: int = 0
+    deposit: int = 0
+    sold: int = 0
+    rented: int = 0
+    sale: int = 0
+    rent: int = 0
+    # Добавлено объектов: по дням (для нового агентства — главное).
+    added_today: int = 0
+    added_yesterday: int = 0
+    added_2d: int = 0
+    added_7d: int = 0
+    added_30d: int = 0
+    daily: List[DailyCountOut] = []
+    # Как добавляют: вручную / по ссылке (площадка) / из Telegram-канала.
+    source_manual: int = 0
+    source_link: int = 0
+    source_channel: int = 0
+    # Активность команды.
+    logins_7d: int = 0
+    logins_30d: int = 0
+    active_users: int = 0
+    total_users: int = 0
+    last_activity_at: Optional[datetime] = None
+    employees: List[EmployeeActivityOut] = []

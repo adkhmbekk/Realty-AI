@@ -300,6 +300,57 @@ export interface CurrencyTotal {
   count: number;
 }
 
+// ── Наблюдение за агентствами (использование) ───────────────────────
+export interface AgencyUsage {
+  agency_id: number;
+  objects_total: number;
+  added_today: number;
+  added_7d: number;
+  added_30d: number;
+  logins_7d: number;
+  active_users: number;
+  total_users: number;
+  last_activity_at?: string | null;
+  engagement: string; // active | quiet | asleep | new
+}
+
+export interface DailyCount {
+  date: string; // YYYY-MM-DD
+  added: number;
+}
+
+export interface EmployeeActivity {
+  user_id?: number | null;
+  name?: string | null;
+  last_login_at?: string | null;
+  added: number;
+}
+
+export interface AgencyActivity {
+  objects_total: number;
+  active: number;
+  deposit: number;
+  sold: number;
+  rented: number;
+  sale: number;
+  rent: number;
+  added_today: number;
+  added_yesterday: number;
+  added_2d: number;
+  added_7d: number;
+  added_30d: number;
+  daily: DailyCount[];
+  source_manual: number;
+  source_link: number;
+  source_channel: number;
+  logins_7d: number;
+  logins_30d: number;
+  active_users: number;
+  total_users: number;
+  last_activity_at?: string | null;
+  employees: EmployeeActivity[];
+}
+
 // Свод платежей по всем агентствам.
 export interface PaymentsSummary {
   all_time: CurrencyTotal[];

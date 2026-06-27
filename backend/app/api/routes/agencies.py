@@ -13,18 +13,20 @@ from app.db.models.user import User
 from app.db.session import get_db
 from app.repositories import agency_repo
 from app.schemas.agency import (
+    AgencyActivityOut,
     AgencyAdminUpdate,
     AgencyAuditOut,
     AgencyCreate,
     AgencyOut,
     AgencyPaymentOut,
+    AgencyUsageOut,
     PaymentsSummaryOut,
     AgencySubscriptionUpdate,
     AgencyUpdate,
     PersonalAgencyCreate,
 )
 from app.schemas.auth import AuthResponse
-from app.services import agency_service, auth_service
+from app.services import agency_service, agency_usage_service, auth_service
 
 router = APIRouter(prefix="/agencies", tags=["agencies"])
 
@@ -51,6 +53,16 @@ def list_agencies(
     agencies = agency_repo.get_clients(db)
     agency_service.attach_admins(db, agencies)
     return agencies
+
+
+# ВНИМАНИЕ: /usage объявлен ДО /{agency_id}/..., чтобы слово не приняли за id.
+@router.get("/usage", response_model=List[AgencyUsageOut])
+def agencies_usage(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Сводка использования по всем клиентским агентствам (для «светофора» в списке)."""
+    return agency_usage_service.usage_list(db)
 
 
 # ── Личные агентства владельца платформы ────────────────────────────────────
@@ -188,3 +200,14 @@ def list_audit(
 ):
     """Журнал действий по агентству (вход, приглашения, роли, подписка и т.д.)."""
     return agency_service.list_audit(db, agency_id)
+
+
+@router.get("/{agency_id}/activity", response_model=AgencyActivityOut)
+def agency_activity(
+    agency_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Подробный отчёт об активности агентства: объекты по дням, как добавляют,
+    активность команды, по сотрудникам."""
+    return agency_usage_service.activity(db, agency_id)
