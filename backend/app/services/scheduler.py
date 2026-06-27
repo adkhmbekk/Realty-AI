@@ -189,7 +189,9 @@ def _sheets_loop() -> None:
 
 
 # Как часто проверять «слушаемые» Telegram-каналы и добавлять новые посты.
-AUTOIMPORT_INTERVAL_SECONDS = 180
+# 10 минут: реже опрос = меньше нагрузка на общий ключ Gemini (меньше 503); новые
+# посты появляются в базе с задержкой до ~10 мин — для риелторов это нормально.
+AUTOIMPORT_INTERVAL_SECONDS = 600
 
 
 def _autoimport_loop() -> None:
