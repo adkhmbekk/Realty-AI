@@ -186,6 +186,8 @@ export const I18N: Record<Lang, Record<string, string>> = {
     teamActivity: "Активность команды", actLogins: "Заходов", actActiveUsers: "Активных сотрудников", lastActivity: "Последняя активность",
     byEmployee: "По сотрудникам", neverIn: "не заходил", noActivityYet: "Активности пока нет", activityReport: "Активность",
     agoJustNow: "только что", agoHours: "ч назад", agoDays: "дн назад", agoToday: "сегодня", agoYesterday: "вчера",
+    agencyPhone: "Номер агентства", agencyPhoneHint: "Телефон человека, который открыл агентство (необязательно, можно заполнить позже).",
+    agencyPhoneOpt: "Номер агентства (необязательно)", setPhonePrompt: "Номер телефона агентства:", changePhone: "Изменить номер",
     buildVersion: "Версия",
   },
   uz: {
@@ -370,6 +372,8 @@ export const I18N: Record<Lang, Record<string, string>> = {
     teamActivity: "Jamoa faolligi", actLogins: "Kirishlar", actActiveUsers: "Faol xodimlar", lastActivity: "Soʻnggi faollik",
     byEmployee: "Xodimlar boʻyicha", neverIn: "kirmagan", noActivityYet: "Hozircha faollik yoʻq", activityReport: "Faollik",
     agoJustNow: "hozirgina", agoHours: "soat oldin", agoDays: "kun oldin", agoToday: "bugun", agoYesterday: "kecha",
+    agencyPhone: "Agentlik raqami", agencyPhoneHint: "Agentlikni ochgan odamning telefoni (ixtiyoriy, keyin ham toʻldirish mumkin).",
+    agencyPhoneOpt: "Agentlik raqami (ixtiyoriy)", setPhonePrompt: "Agentlik telefon raqami:", changePhone: "Raqamni oʻzgartirish",
     buildVersion: "Versiya",
   },
   en: {
@@ -554,6 +558,8 @@ export const I18N: Record<Lang, Record<string, string>> = {
     teamActivity: "Team activity", actLogins: "Logins", actActiveUsers: "Active members", lastActivity: "Last activity",
     byEmployee: "By member", neverIn: "no login", noActivityYet: "No activity yet", activityReport: "Activity",
     agoJustNow: "just now", agoHours: "h ago", agoDays: "d ago", agoToday: "today", agoYesterday: "yesterday",
+    agencyPhone: "Agency phone", agencyPhoneHint: "Phone of the person who opened the agency (optional, can be filled later).",
+    agencyPhoneOpt: "Agency phone (optional)", setPhonePrompt: "Agency phone number:", changePhone: "Change phone",
     buildVersion: "Version",
   },
 };

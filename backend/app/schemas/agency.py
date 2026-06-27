@@ -14,6 +14,8 @@ class AgencyCreate(BaseModel):
     admin_username: Optional[str] = Field(default=None, max_length=64)
     # На сколько дней открыть подписку при создании.
     subscription_days: int = Field(default=30, ge=1, le=3650)
+    # Необязательный телефон человека, открывшего агентство (можно указать позже).
+    client_phone: Optional[str] = Field(default=None, max_length=64)
 
 
 class PersonalAgencyCreate(BaseModel):
@@ -81,8 +83,10 @@ class AgencyAuditOut(BaseModel):
 
 
 class AgencyUpdate(BaseModel):
-    # Переименование агентства.
+    # Переименование агентства и/или правка телефона открывшего агентство.
     name: Optional[str] = Field(default=None, max_length=120)
+    # Телефон человека, открывшего агентство. Пустая строка очищает поле.
+    client_phone: Optional[str] = Field(default=None, max_length=64)
 
 
 class AgencyAdminUpdate(BaseModel):
@@ -133,6 +137,8 @@ class AgencyOut(BaseModel):
     created_at: datetime
     # Личное агентство владельца платформы (если задано — это «моё» агентство).
     owner_telegram_id: Optional[int] = None
+    # Телефон человека, открывшего агентство (необязательный, виден суперадмину).
+    client_phone: Optional[str] = None
     # Текущий администратор агентства (для панели суперадмина).
     # Заполняется сервисом; в самой модели Agency этих полей нет.
     admin_telegram_id: Optional[int] = None

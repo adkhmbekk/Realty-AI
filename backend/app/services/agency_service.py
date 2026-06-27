@@ -89,6 +89,10 @@ def create_agency_with_admin(
         subscription_days=payload.subscription_days,
     )
 
+    # 1.0. Необязательный телефон открывшего агентство (можно заполнить позже).
+    if payload.client_phone and payload.client_phone.strip():
+        agency.client_phone = payload.client_phone.strip()
+
     # 1.1. Сразу наполняем агентство значениями по умолчанию (районы, типы).
     seeding_service.seed_agency_defaults(db, agency.id)
 
@@ -284,9 +288,13 @@ def _get_agency_or_404(db: Session, agency_id: int) -> Agency:
 
 
 def rename_agency(
-    db: Session, agency_id: int, name: Optional[str], actor: Optional[User] = None
+    db: Session,
+    agency_id: int,
+    name: Optional[str],
+    actor: Optional[User] = None,
+    client_phone: Optional[str] = None,
 ) -> Agency:
-    """Переименовать агентство (суперадмин)."""
+    """Переименовать агентство и/или задать телефон открывшего его (суперадмин)."""
     agency = _get_agency_or_404(db, agency_id)
     if name is not None:
         new_name = name.strip()
@@ -298,6 +306,9 @@ def rename_agency(
             db, action="agency_renamed", agency_id=agency.id,
             target=new_name, note=f"было: {old}", **_actor_fields(actor),
         )
+    # Телефон открывшего агентство: можно заполнить позже; пустая строка очищает.
+    if client_phone is not None:
+        agency.client_phone = client_phone.strip() or None
     db.commit()
     db.refresh(agency)
     return agency

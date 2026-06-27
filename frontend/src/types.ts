@@ -123,6 +123,8 @@ export interface AgencyOut {
   created_at: string;
   // Личное агентство владельца платформы (если задано — это «моё»).
   owner_telegram_id?: number | null;
+  // Телефон человека, открывшего агентство (необязательный, виден владельцу).
+  client_phone?: string | null;
   admin_telegram_id?: number | null;
   admin_name?: string | null;
 }

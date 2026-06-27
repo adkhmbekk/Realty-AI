@@ -5,7 +5,7 @@ import { useApp } from "../store";
 import { useNav } from "../nav";
 import { useActing } from "../acting";
 import { api, errText } from "../api";
-import { Badge, Button, Card, Empty, Field, Input, Row, Spinner } from "../components/ui";
+import { Badge, Button, Card, Empty, Field, Hint, Input, Row, Spinner } from "../components/ui";
 import type { AgencyActivity, AgencyOut, AgencyPayment, AgencyUsage, PaymentsSummary } from "../types";
 import { fmtAmount, fmtDate } from "../utils";
 
@@ -457,6 +457,7 @@ export function AgencyCreateScreen() {
   const [adminId, setAdminId] = useState("");
   const [adminUser, setAdminUser] = useState("");
   const [days, setDays] = useState("30");
+  const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function create() {
@@ -478,6 +479,7 @@ export function AgencyCreateScreen() {
     };
     const u = adminUser.trim();
     if (u) body.admin_username = u;
+    if (phone.trim()) body.client_phone = phone.trim();
     const r = await api("/api/v1/agencies", { method: "POST", body });
     setSaving(false);
     if (r.ok) {
@@ -500,6 +502,10 @@ export function AgencyCreateScreen() {
       <Field label={t("subDays")}>
         <Input inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
       </Field>
+      <Field label={t("agencyPhoneOpt")}>
+        <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </Field>
+      <Hint>{t("agencyPhoneHint")}</Hint>
       <Button full className="mt-4" disabled={saving} onClick={create}>
         {t("createAgency")}
       </Button>
@@ -599,6 +605,16 @@ export function AgencyManageScreen({ id }: { id: number }) {
       load();
     } else toast(errText(r.data, r.status), "err");
   }
+  async function changePhone() {
+    const v = window.prompt(t("setPhonePrompt"), a!.client_phone || "");
+    if (v === null) return;
+    // Пустая строка очищает номер (бэкенд приводит к NULL).
+    const r = await api("/api/v1/agencies/" + id, { method: "PATCH", body: { client_phone: v.trim() } });
+    if (r.ok) {
+      toast(t("saved"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
   async function changeAdmin() {
     const idStr = window.prompt(t("promptAdminId"), "");
     if (idStr === null) return;
@@ -640,6 +656,7 @@ export function AgencyManageScreen({ id }: { id: number }) {
         <Row label={t("activatedAt")} value={fmtDate(a.activated_at || a.created_at, lang)} />
         <Row label={t("subUntil")} value={fmtDate(a.subscription_expires_at, lang)} />
         <Row label={t("admin")} value={adminTxt} />
+        <Row label={t("agencyPhone")} value={a.client_phone || t("notSet")} />
       </Card>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button full size="sm" variant="ghost" onClick={extend}>
@@ -653,6 +670,9 @@ export function AgencyManageScreen({ id }: { id: number }) {
         </Button>
         <Button full size="sm" variant="ghost" onClick={changeAdmin}>
           {t("changeAdmin")}
+        </Button>
+        <Button full size="sm" variant="ghost" onClick={changePhone}>
+          {t("changePhone")}
         </Button>
         <Button full size="sm" variant={frozen ? "ghost" : "danger"} onClick={() => sub(frozen ? "activate" : "freeze")}>
           {frozen ? t("activate") : t("freeze")}

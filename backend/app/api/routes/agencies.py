@@ -117,8 +117,10 @@ def update_agency(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_superadmin),
 ):
-    """Переименовать агентство."""
-    agency = agency_service.rename_agency(db, agency_id, body.name, actor=current_user)
+    """Переименовать агентство и/или задать телефон открывшего его."""
+    agency = agency_service.rename_agency(
+        db, agency_id, body.name, actor=current_user, client_phone=body.client_phone
+    )
     agency_service.attach_admins(db, [agency])
     return agency
 
