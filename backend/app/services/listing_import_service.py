@@ -364,10 +364,15 @@ def _system_prompt(districts: List[str]) -> str:
     )
 
 
-# Паузы (сек) перед повторными попытками при ответе «слишком часто» (429) или
-# временной недоступности (503). Бесплатный Gemini жёстко лимитирует частоту —
-# без повторов почти все запросы при массовом импорте отбивались бы (429).
-_RETRY_BACKOFF = (3, 8, 18)
+# Паузы (сек) перед повторными попытками к ИИ.
+#  - 429/503 (лимит частоты / перегрузка Gemini): ЖДЁМ Gemini — он основной и
+#    оплачен. Бэкофф короткий и ограниченный, чтобы ОДИН запрос массового импорта
+#    не висел дольше таймаута; «подождать подольше» обеспечивает пауза-и-повтор на
+#    фронте (он переспрашивает тот же пост позже). На запасной (OpenRouter) уходим
+#    ТОЛЬКО при 429 (лимит/кончились деньги); на 503 (перегрузка) — ждём Gemini.
+#  - сетевой сбой/DNS (ConnectError — грабли Docker/WSL): короткий повтор.
+_BACKOFF_RETRY = (3, 8)
+_BACKOFF_NET = (1.5, 4)
 
 
 def _retry_after_seconds(resp: "httpx.Response", default: float) -> float:
@@ -385,31 +390,34 @@ _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 def _post_with_retry(url, *, headers=None, params=None, json_body=None, timeout=45.0):
-    """POST с повторами при 429/503 и при кратковременных сетевых сбоях — общий
-    для Gemini и OpenRouter. Бесплатные модели жёстко лимитируют частоту (429), а
-    внутри Docker/WSL изредка кратко «проваливается» DNS (ConnectError) — в обоих
-    случаях без повторов почти все запросы при массовом импорте отбивались бы.
-    Возвращает httpx.Response."""
-    for attempt in range(len(_RETRY_BACKOFF) + 1):
+    """POST с повторами — общий для Gemini и OpenRouter. На 429/503 (лимит/перегрузка)
+    терпеливо повторяем (Gemini основной и оплачен — ждём его), но КОРОТКО, чтобы
+    один запрос массового импорта не висел дольше таймаута. Исчерпав повторы, бросаем
+    import_ai_rate_limited С ИСХОДНЫМ кодом (429 или 503): выше (_extract_with_ai)
+    503 = ждать Gemini (не уходить на запасной), 429 = можно уйти на запасной. На
+    сетевой сбой/DNS (ConnectError, Docker/WSL) — короткий повтор. Возвращает Response."""
+    attempt = 0
+    while True:
         try:
             resp = httpx.post(url, headers=headers, params=params, json=json_body, timeout=timeout)
         except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
             # Не удалось установить соединение (часто — кратковременный сбой DNS
-            # встроенного резолвера Docker/WSL). Ждём и повторяем, а не валим импорт.
-            if attempt < len(_RETRY_BACKOFF):
-                time.sleep(_RETRY_BACKOFF[attempt])
+            # встроенного резолвера Docker/WSL). Коротко ждём и повторяем.
+            if attempt < len(_BACKOFF_NET):
+                time.sleep(_BACKOFF_NET[attempt])
+                attempt += 1
                 continue
             raise AppError("import_ai_failed", status.HTTP_502_BAD_GATEWAY) from exc
         if resp.status_code in (429, 503):
-            if attempt < len(_RETRY_BACKOFF):
-                time.sleep(_retry_after_seconds(resp, _RETRY_BACKOFF[attempt]))
+            if attempt < len(_BACKOFF_RETRY):
+                time.sleep(_retry_after_seconds(resp, _BACKOFF_RETRY[attempt]))
+                attempt += 1
                 continue
-            # Повторы исчерпаны — это именно лимит частоты (важно отличать от
-            # обычной ошибки разбора, чтобы притормозить массовый импорт).
-            raise AppError("import_ai_rate_limited", status.HTTP_429_TOO_MANY_REQUESTS)
+            # Повторы исчерпаны. Код СОХРАНЯЕМ (429/503) — по нему вызывающий решает,
+            # ждать Gemini (503) или уйти на запасного провайдера (429).
+            raise AppError("import_ai_rate_limited", resp.status_code)
         resp.raise_for_status()
         return resp
-    raise AppError("import_ai_rate_limited", status.HTTP_429_TOO_MANY_REQUESTS)
 
 
 def _loads_ai_json(content: str) -> dict:
@@ -513,13 +521,16 @@ def _is_empty_result(data: dict) -> bool:
 
 def _extract_with_ai(text: str, districts: List[str], model: Optional[str] = None) -> dict:
     """Извлечь поля объекта через ИИ. Пробуем провайдеров по порядку
-    (settings.import_ai_providers), берём первого, кто ответит. На «мягкий» сбой
-    (мусор/пусто) повторяем тот же провайдер до _AI_SOFT_RETRIES раз. model —
-    модель Gemini (интерактив/массовый); OpenRouter использует свою."""
+    (settings.import_ai_providers). Gemini основной и оплачен: на его временную
+    ПЕРЕГРУЗКУ (503) НЕ уходим на запасной, а тормозим (массовый импорт сделает
+    паузу и повторит этот пост на Gemini). На запасной (OpenRouter) уходим только
+    при 429 (лимит частоты / у Gemini кончились деньги). На «мягкий» сбой
+    (мусор/пусто) повторяем тот же провайдер до _AI_SOFT_RETRIES раз."""
     order = _provider_order()
     if not order:
         raise AppError("import_ai_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE)
     rate_limited = False
+    overloaded = False  # Gemini вернул 503 (перегрузка) — ждём его, не уходим на запасной
     for prov in order:
         for attempt in range(_AI_SOFT_RETRIES + 1):
             try:
@@ -528,12 +539,17 @@ def _extract_with_ai(text: str, districts: List[str], model: Optional[str] = Non
                 else:
                     data = _extract_openrouter(text, districts, settings.openrouter_model)
             except AppError as exc:
+                # 503 у Gemini — временная перегрузка модели. Gemini оплачен и
+                # основной, поэтому НЕ уходим на запасной: ждём Gemini (пауза-повтор).
+                if prov == "gemini" and exc.status_code == status.HTTP_503_SERVICE_UNAVAILABLE:
+                    overloaded = True
+                    break
                 if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
                     rate_limited = True
-                    break  # лимит частоты — не долбим, к следующему провайдеру / пауза
+                    break  # лимит / кончились деньги — можно к следующему провайдеру
                 logger.info("Импорт: %s сбой разбора (%s), попытка %d",
                             prov, exc.status_code, attempt + 1)
-                continue  # мусорный ответ бесплатной модели — повторим
+                continue  # мусорный ответ модели — повторим
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Импорт: %s сбой разбора: %s (попытка %d)", prov, exc, attempt + 1)
                 continue
@@ -544,7 +560,12 @@ def _extract_with_ai(text: str, districts: List[str], model: Optional[str] = Non
                 logger.info("Импорт: %s вернул пусто, повтор %d", prov, attempt + 1)
                 continue
             return data
-        # этот провайдер исчерпал попытки — пробуем следующего
+        # Перегрузка Gemini (503): НЕ уходим на запасной — ждём Gemini. Тормозим
+        # массовый импорт (фронт сделает паузу и повторит этот пост позже). На
+        # запасной (OpenRouter) уходим только при 429 — это следующий провайдер.
+        if prov == "gemini" and overloaded:
+            raise AppError("import_ai_rate_limited", status.HTTP_429_TOO_MANY_REQUESTS)
+        # провайдер исчерпал попытки — пробуем следующего
     # Никто не справился. 429 (лимит частоты) пробрасываем отдельно — массовый
     # импорт по нему делает паузу и повторяет позже, а не помечает пост ошибкой.
     raise AppError(
