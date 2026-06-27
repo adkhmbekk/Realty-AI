@@ -74,7 +74,7 @@ def _notify_mass_deletion_blocked(db: Session, agency_id: int, count: int) -> No
         logger.info("Sheets: не удалось предупредить об отменённом удалении: %s", exc)
 
 # ── Подписи enum-значений в таблице (человекочитаемые) ───────────────
-STATUS_LABELS = {"active": "Активен", "deposit": "Задаток", "sold": "Продан"}
+STATUS_LABELS = {"active": "Активен", "deposit": "Задаток", "sold": "Продан", "rented": "Сдан"}
 STATUS_BY_LABEL = {v: k for k, v in STATUS_LABELS.items()}
 FA_LABELS = {
     "furniture_and_appliances": "Мебель и техника",
@@ -107,7 +107,7 @@ _ENUM_OK = {
     "type": set(OBJ_TYPE_VALUES),
     "condition": set(OBJ_COND_VALUES),
     "currency": set(CURRENCIES),
-    "status": {"active", "deposit", "sold"},
+    "status": {"active", "deposit", "sold", "rented"},
     "furniture_appliances": {"furniture_and_appliances", "furniture_only", "appliances_only", "none"},
 }
 # Маркер «в ячейке мусор» (например, буквы в числовом поле) — такое поле не тянем.

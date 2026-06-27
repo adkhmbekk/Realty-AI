@@ -37,6 +37,7 @@ def _build_conditions(
     status: Optional[str],
     districts: Optional[Sequence[str]],
     types: Optional[Sequence[str]],
+    deal_type: Optional[str] = None,
     rooms: Optional[Sequence[int]],
     floor_min: Optional[int],
     floor_max: Optional[int],
@@ -63,10 +64,14 @@ def _build_conditions(
         conditions.append(Apartment.deleted_at.is_(None))
 
     if status == "unsold":
-        # Всё, кроме проданных (для раздела «Моя база»).
-        conditions.append(Apartment.status != "sold")
+        # «В работе»: всё, кроме закрытых сделок — продано (sold) и сдано (rented).
+        conditions.append(Apartment.status.notin_(["sold", "rented"]))
     elif status:
         conditions.append(Apartment.status == status)
+    # Тип сделки (продажа/аренда). Важно: цена аренды и продажи несравнимы, поэтому
+    # фильтр цены имеет смысл только в пределах одного типа сделки.
+    if deal_type:
+        conditions.append(Apartment.deal_type == deal_type)
     if districts:
         conditions.append(Apartment.district.in_(list(districts)))
     if types:
@@ -133,6 +138,7 @@ def search(
     status: Optional[str] = "active",
     districts: Optional[Sequence[str]] = None,
     types: Optional[Sequence[str]] = None,
+    deal_type: Optional[str] = None,
     rooms: Optional[Sequence[int]] = None,
     floor_min: Optional[int] = None,
     floor_max: Optional[int] = None,
@@ -161,6 +167,7 @@ def search(
         status=status,
         districts=districts,
         types=types,
+        deal_type=deal_type,
         rooms=rooms,
         floor_min=floor_min,
         floor_max=floor_max,

@@ -41,6 +41,8 @@ OBJ_COND_VALUES = [
 ]
 FA_VALUES = ["furniture_and_appliances", "furniture_only", "appliances_only", "none"]
 CURRENCIES = ["USD", "UZS", "EUR"]
+DEAL_TYPE_VALUES = ["sale", "rent"]
+RENT_PERIOD_VALUES = ["month", "day"]
 LAND_TYPES = ("Земля", "Участок")
 # Типы с земельным участком (дом тоже): «Этаж» (floor) не заполняем; «Этажность»
 # (total_floors) и «Соток» (land_area) — заполняем. Зеркало фронта (hasLandArea).
@@ -330,6 +332,15 @@ def _system_prompt(districts: List[str]) -> str:
         "других объектов с ценами). ИГНОРИРУЙ его — извлекай ТОЛЬКО основной "
         "объект (обычно он в начале страницы). Если основного объекта в тексте "
         "нет (например, объявление удалено) — верни все поля null.\n"
+        "- deal_type: 'rent' если это АРЕНДА/СДАЧА (аренда, сдаётся, сдаю, сдам, "
+        "ижара, ijara, ijaraga beriladi, arendaga, oylik/oyiga, kunlik/kuniga, "
+        "посуточно, на длительный срок); 'sale' если ПРОДАЖА (продаётся, продаю, "
+        "продам, sotiladi, sotuvga). Если явно не указано — 'sale'.\n"
+        "- rent_period: ТОЛЬКО для аренды — 'day' если посуточно/на сутки (kunlik, "
+        "kuniga, сутки, посуточно), иначе 'month' (помесячно, oylik, в месяц, за "
+        "месяц). Для продажи rent_period = null.\n"
+        "- Цена при аренде (price) — это арендная ставка (за месяц или за сутки), "
+        "как указано в объявлении; правило «цена за м²» к аренде не применяй.\n"
         f"- type: выбери РОВНО одно из списка {OBJ_TYPE_VALUES}. Если объект — земельный "
         "участок, выбирай «Участок» (или «Земля»).\n"
         "- Для типа «Дом», «Земля» или «Участок» заполни land_area (площадь в сотках) "
@@ -356,7 +367,8 @@ def _system_prompt(districts: List[str]) -> str:
         "попала в отдельные поля (особенности, инфраструктура, условия и т.п.). Не "
         "выдумывай факты.\n"
         "- Чего в тексте нет — ставь null. Ничего не придумывай.\n\n"
-        "Верни ТОЛЬКО JSON-объект (без пояснений) с ключами: name (строка), type (строка), "
+        "Верни ТОЛЬКО JSON-объект (без пояснений) с ключами: deal_type (строка 'sale'/'rent'), "
+        "rent_period (строка 'month'/'day' или null), name (строка), type (строка), "
         "district (строка), address (строка), rooms (целое), floor (целое), total_floors "
         "(целое), land_area (число), area (число), condition (строка), furniture_appliances "
         "(строка), price (число), currency (строка), owner_phone (строка), description "
@@ -513,10 +525,17 @@ _AI_SOFT_RETRIES = 2
 
 
 def _is_empty_result(data: dict) -> bool:
-    """Валидный JSON, но модель ничего не извлекла (все поля пустые)."""
+    """Валидный JSON, но модель ничего не извлекла (все поля пустые).
+
+    deal_type/rent_period НЕ считаем значимыми: модель часто ставит deal_type='sale'
+    по умолчанию даже для мусора — иначе пустой результат не распознавался бы."""
     if not data:
         return True
-    return not any(v not in (None, "", [], {}) for v in data.values())
+    return not any(
+        v not in (None, "", [], {})
+        for k, v in data.items()
+        if k not in ("deal_type", "rent_period")
+    )
 
 
 def _extract_with_ai(text: str, districts: List[str], model: Optional[str] = None) -> dict:
@@ -582,6 +601,8 @@ def _clean(data: dict) -> dict:
         return v or None
 
     out = {
+        "deal_type": s(data.get("deal_type")),
+        "rent_period": s(data.get("rent_period")),
         "name": s(data.get("name")),
         "type": s(data.get("type")),
         "district": s(data.get("district")),
@@ -598,6 +619,13 @@ def _clean(data: dict) -> dict:
         "owner_phone": s(data.get("owner_phone")),
         "description": s(data.get("description")),
     }
+    # Тип сделки: что не 'rent' — то продажа (безопасное значение по умолчанию).
+    out["deal_type"] = "rent" if out["deal_type"] == "rent" else "sale"
+    # Срок аренды — только для аренды; иначе null. Непонятное у аренды → 'month'.
+    if out["deal_type"] == "rent":
+        out["rent_period"] = out["rent_period"] if out["rent_period"] in RENT_PERIOD_VALUES else "month"
+    else:
+        out["rent_period"] = None
     # Валидируем по белым спискам (мусор → null).
     if out["type"] not in OBJ_TYPE_VALUES:
         out["type"] = None
@@ -675,7 +703,11 @@ def import_preview(url: str, districts: List[str]) -> dict:
     warnings: List[str] = []
     if not images:
         warnings.append("no_photos")
-    has_any = any(v is not None for v in fields.values())
+    # deal_type всегда заполнен ('sale' по умолчанию) — для оценки «мало данных»
+    # его и срок аренды не учитываем.
+    has_any = any(
+        v is not None for k, v in fields.items() if k not in ("deal_type", "rent_period")
+    )
     if not has_any:
         warnings.append("few_fields")
 

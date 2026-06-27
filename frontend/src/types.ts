@@ -27,6 +27,9 @@ export interface Apartment {
   id: number;
   display_id: string;
   status: string;
+  // Тип сделки: "sale" (продажа) | "rent" (аренда). Срок аренды: "month" | "day".
+  deal_type?: string | null;
+  rent_period?: string | null;
   name?: string | null;
   owner_phone?: string | null;
   district?: string | null;
@@ -162,6 +165,8 @@ export interface Invite {
 // Результат предпросмотра импорта объявления по ссылке (AI-разбор).
 export interface ListingImport {
   name?: string | null;
+  deal_type?: string | null;
+  rent_period?: string | null;
   type?: string | null;
   district?: string | null;
   address?: string | null;
@@ -209,6 +214,7 @@ export interface ApartmentPhoto {
 
 export interface SearchParams {
   status?: string;
+  deal_type?: string;
   districts?: string[];
   types?: string[];
   rooms_min?: string | number;
@@ -231,6 +237,7 @@ export interface SearchParams {
 export interface ClientRequest {
   id: number;
   client_id: number;
+  deal_type?: string | null;
   types?: string[] | null;
   districts?: string[] | null;
   rooms_min?: number | null;

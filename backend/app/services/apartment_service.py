@@ -36,11 +36,13 @@ from app.services import photo_service, telegram_service
 
 # Допустимые статусы объекта.
 STATUS_ACTIVE = "active"
-STATUS_DEPOSIT = "deposit"     # задаток внесён — объект «придержан»
+STATUS_DEPOSIT = "deposit"     # задаток/бронь — объект «придержан»
 STATUS_SOLD = "sold"
-VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD)
-# Статусы, при которых объект считается снятым с продажи (фиксируем дату).
-_CLOSED_STATUSES = (STATUS_SOLD,)
+STATUS_RENTED = "rented"       # сдан в аренду (терминальный статус аренды)
+VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD, STATUS_RENTED)
+# Статусы, при которых объект считается снятым (фиксируем дату): продан или сдан.
+# Для аренды это не навсегда — статус можно вернуть в active, дата сбросится.
+_CLOSED_STATUSES = (STATUS_SOLD, STATUS_RENTED)
 
 # Типы «Земля» и «Участок» (исторический список).
 LAND_TYPES = ("Земля", "Участок")
@@ -50,6 +52,7 @@ LAND_AREA_TYPES = ("Дом", "Земля", "Участок")
 
 # Поля, изменение которых отражаем в журнале (в порядке формы).
 _TRACKED_FIELDS = (
+    "deal_type", "rent_period",
     "name", "type", "district", "address", "rooms", "floor", "total_floors",
     "area", "land_area", "condition", "furniture_appliances", "price", "currency",
     "owner_phone", "description", "comment", "photo_url", "source_link",
@@ -128,10 +131,15 @@ def create_apartment(
     display_id = _next_display_id(db, agency_id)
 
     new_status = payload.status or STATUS_ACTIVE
+    # Тип сделки: по умолчанию продажа. У продажи срока аренды быть не может.
+    deal_type = payload.deal_type or "sale"
+    rent_period = payload.rent_period if deal_type == "rent" else None
     apartment = Apartment(
         agency_id=agency_id,
         display_id=display_id,
         status=new_status,
+        deal_type=deal_type,
+        rent_period=rent_period,
         created_by=created_by,
         name=payload.name,
         owner_phone=payload.owner_phone,
@@ -177,6 +185,7 @@ def search_apartments(
     status_filter: Optional[str] = STATUS_ACTIVE,
     districts: Optional[Sequence[str]] = None,
     types: Optional[Sequence[str]] = None,
+    deal_type: Optional[str] = None,
     rooms: Optional[Sequence[int]] = None,
     floor_min: Optional[int] = None,
     floor_max: Optional[int] = None,
@@ -201,6 +210,7 @@ def search_apartments(
         status=status_filter,
         districts=districts,
         types=types,
+        deal_type=deal_type,
         rooms=rooms,
         floor_min=floor_min,
         floor_max=floor_max,
@@ -322,11 +332,13 @@ def get_stats(db: Session, agency_id: int) -> dict:
     active = counts.get(STATUS_ACTIVE, 0)
     deposit = counts.get(STATUS_DEPOSIT, 0)
     sold = counts.get(STATUS_SOLD, 0)
-    total = active + deposit + sold
+    rented = counts.get(STATUS_RENTED, 0)
+    total = active + deposit + sold + rented
     return {
         "active": active,
         "deposit": deposit,
         "sold": sold,
+        "rented": rented,
         "total": total,
     }
 
@@ -357,6 +369,10 @@ def _agency_contact_username(db: Session, agency_id: int) -> Optional[str]:
     return None
 
 
+# Суффикс цены для аренды (карточка «Поделиться»): «/мес» или «/сутки».
+_RENT_SUFFIX = {"month": "/мес", "day": "/сутки"}
+
+
 def _format_price(apartment: Apartment) -> Optional[str]:
     if apartment.price is None:
         return None
@@ -367,7 +383,11 @@ def _format_price(apartment: Apartment) -> Optional[str]:
         price_str = f"{price_int:,}".replace(",", " ") if price == price_int else f"{price}"
     except Exception:  # noqa: BLE001
         price_str = str(price)
-    return f"{price_str} {apartment.currency}".strip()
+    out = f"{price_str} {apartment.currency}".strip()
+    # Для аренды добавляем период (за месяц/сутки), чтобы клиент не путал со сделкой.
+    if getattr(apartment, "deal_type", "sale") == "rent":
+        out += _RENT_SUFFIX.get(apartment.rent_period or "month", "/мес")
+    return out
 
 
 def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
@@ -389,6 +409,10 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
     if apartment.name:
         lines.append(f"🏠 {apartment.name}")
     lines.append(f"№ {apartment.display_id}")
+    # Для аренды явно помечаем тип сделки и период (продажа — по умолчанию).
+    if getattr(apartment, "deal_type", "sale") == "rent":
+        period = "за сутки" if apartment.rent_period == "day" else "за месяц"
+        lines.append(f"🤝 Аренда ({period})")
 
     # Описание — сразу после наименования (или первым, если наименования нет).
     if apartment.description:
@@ -444,6 +468,8 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
     return {
         "display_id": apartment.display_id,
         "status": apartment.status,
+        "deal_type": apartment.deal_type,
+        "rent_period": apartment.rent_period,
         "name": apartment.name,
         "district": apartment.district,
         "address": apartment.address,
@@ -497,7 +523,8 @@ def get_analytics(db: Session, agency_id: int) -> dict:
     active = counts.get(STATUS_ACTIVE, 0)
     deposit = counts.get(STATUS_DEPOSIT, 0)
     sold = counts.get(STATUS_SOLD, 0)
-    total = active + deposit + sold
+    rented = counts.get(STATUS_RENTED, 0)
+    total = active + deposit + sold + rented
 
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)

@@ -42,6 +42,11 @@ class ClientRequest(Base):
         nullable=False,
         index=True,
     )
+    # Тип сделки заявки: 'sale' (хочет купить) или 'rent' (хочет снять). По
+    # умолчанию — продажа. Подбор сверяет тип: покупателю не предлагаем аренду.
+    deal_type: Mapped[str] = mapped_column(
+        String, nullable=False, default="sale", server_default=text("'sale'")
+    )
     # Критерии — зеркало фильтров поиска объектов.
     types: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     districts: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)

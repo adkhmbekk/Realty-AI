@@ -107,6 +107,8 @@ function ObjectForm({
   const full = !!initial?.id;
 
   const [f, setF] = useState({
+    deal_type: o.deal_type ?? "sale",
+    rent_period: o.rent_period ?? "month",
     name: o.name ?? "",
     type: o.type ?? "",
     district: o.district ?? "",
@@ -132,7 +134,11 @@ function ObjectForm({
 
   function submit() {
     const land = hasLandArea(f.type);
+    const isRent = f.deal_type === "rent";
     const fields: Record<string, unknown> = {
+      deal_type: f.deal_type || "sale",
+      // Срок аренды — только для аренды; для продажи отправляем null (очистка).
+      rent_period: isRent ? f.rent_period || "month" : null,
       name: f.name.trim() || null,
       type: f.type || null,
       district: f.district || null,
@@ -171,6 +177,31 @@ function ObjectForm({
   return (
     <Card>
       <Sec>{t("sectionMain")}</Sec>
+      {/* Тип сделки: продажа / аренда. Для аренды — выбор срока (месяц/сутки). */}
+      <div className="mb-1">
+        <div className="text-[12px] font-bold text-muted mb-1.5">{t("dealType")}</div>
+        <Segmented
+          value={f.deal_type as "sale" | "rent"}
+          onChange={(v) => set("deal_type", v)}
+          options={[
+            { value: "sale", label: t("dealSale") },
+            { value: "rent", label: t("dealRent") },
+          ]}
+        />
+      </div>
+      {f.deal_type === "rent" && (
+        <div className="mb-1 mt-2">
+          <div className="text-[12px] font-bold text-muted mb-1.5">{t("rentPeriodLbl")}</div>
+          <Segmented
+            value={f.rent_period as "month" | "day"}
+            onChange={(v) => set("rent_period", v)}
+            options={[
+              { value: "month", label: t("rentMonth") },
+              { value: "day", label: t("rentDay") },
+            ]}
+          />
+        </div>
+      )}
       {/* Ссылка на пост и источник (канал) — наверху, чтобы при добавлении
           по ссылке всё было сразу под рукой. */}
       <Field label={t("f_source")}>
@@ -243,7 +274,7 @@ function ObjectForm({
           </Field>
         </div>
         <div className="flex-1">
-          <Field label={t("f_price")}>
+          <Field label={f.deal_type === "rent" ? t("priceRent") : t("f_price")}>
             <Input inputMode="numeric" value={f.price} onChange={(e) => set("price", e.target.value)} />
           </Field>
         </div>
@@ -311,6 +342,10 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
   // Наименование (если задано вручную) — первым.
   if (o.name) lines.push("🏠 " + o.name);
   lines.push("№ " + (o.display_id || ""));
+  // Для аренды явно помечаем тип сделки и период.
+  if (o.deal_type === "rent") {
+    lines.push("🤝 " + t("dealRent") + " (" + (o.rent_period === "day" ? t("rentDay") : t("rentMonth")) + ")");
+  }
   // Описание — сразу после наименования (или первым, если наименования нет).
   if (o.description) {
     lines.push("");
@@ -333,7 +368,7 @@ function buildShareCard(o: Apartment, L: ReturnType<typeof useApp>["L"], t: (k: 
   if (o.condition) d.push("🔧 " + L.condLabel(o.condition));
   const fa = L.faLabel(o.furniture_appliances);
   if (fa) d.push("🛋 " + fa);
-  if (o.price != null) d.push("💵 " + t("f_price") + ": " + o.price + " " + (o.currency || ""));
+  if (o.price != null) d.push("💵 " + t("f_price") + ": " + o.price + " " + (o.currency || "") + L.priceSuffix(o.deal_type, o.rent_period));
   // Ссылку-источник клиенту НЕ показываем (никаких ссылок в карточке).
   if (d.length) {
     lines.push("");
@@ -554,6 +589,7 @@ export function ApartmentCard({ o }: { o: Apartment }) {
     active: "border-l-emerald-500",
     deposit: "border-l-amber-500",
     sold: "border-l-slate-400",
+    rented: "border-l-slate-400",
     archived: "border-l-slate-400",
   };
   return (
@@ -579,15 +615,18 @@ export function ApartmentCard({ o }: { o: Apartment }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-extrabold">№{o.display_id}</span>
-            <Badge color={STATUS_BADGE[o.status] || "gray"}>{L.statusLabel(o.status)}</Badge>
+            <span className="font-extrabold flex items-center gap-1.5 min-w-0">
+              <span className="shrink-0">№{o.display_id}</span>
+              {o.deal_type === "rent" && <Badge color="blue">{t("dealRent")}</Badge>}
+            </span>
+            <Badge color={STATUS_BADGE[o.status] || "gray"}>{L.statusLabel(o.status, o.deal_type)}</Badge>
           </div>
           {o.name && <div className="text-[13px] text-muted truncate">{o.name}</div>}
           <div className="text-[13px] text-muted">{parts || t("notSet")}</div>
           <div className="text-[13px] text-muted">
             {fmtPrice(o.price, o.currency) ? (
               <>
-                {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency)}</span>
+                {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency)}{L.priceSuffix(o.deal_type, o.rent_period)}</span>
               </>
             ) : (
               <span className="text-muted">{t("priceNotSet")}</span>
@@ -863,6 +902,8 @@ export function AddObjectScreen() {
       // Наименование намеренно НЕ заполняем из ИИ — пользователь вводит его сам
       // (или оставляет пустым). См. пожелание заказчика.
       name: null,
+      deal_type: r.deal_type ?? "sale",
+      rent_period: r.rent_period ?? "month",
       type: r.type ?? null,
       district: r.district ?? null,
       address: r.address ?? null,
@@ -994,6 +1035,7 @@ export function SearchScreen() {
   const nav = useNav();
   const districts = useDistricts();
   const [status, setStatus] = useState("all");
+  const [deal, setDeal] = useState("");
   const [types, setTypes] = useState<string[]>([]);
   const [dist, setDist] = useState<string[]>([]);
   const [q, setQ] = useState("");
@@ -1018,6 +1060,7 @@ export function SearchScreen() {
 
   function run() {
     const params: SearchParams = { status };
+    if (deal) params.deal_type = deal;
     if (types.length) params.types = types;
     if (dist.length) params.districts = dist;
     if (q.trim()) params.q = q.trim();
@@ -1037,15 +1080,39 @@ export function SearchScreen() {
     nav.push({ name: "objectList", params, titleKey: "findObject" });
   }
 
-  const statusOpts: { value: string; label: string }[] = [
-    { value: "all", label: t("notSet") },
-    { value: "active", label: t("statusActive") },
-    { value: "deposit", label: t("statusDeposit") },
-    { value: "sold", label: t("statusSold") },
-  ];
+  // Статусы зависят от типа сделки: у аренды «свободна/бронь/сдан».
+  const statusOpts: { value: string; label: string }[] =
+    deal === "rent"
+      ? [
+          { value: "all", label: t("notSet") },
+          { value: "active", label: t("rentFree") },
+          { value: "deposit", label: t("rentReserved") },
+          { value: "rented", label: t("statusRented") },
+        ]
+      : [
+          { value: "all", label: t("notSet") },
+          { value: "active", label: t("statusActive") },
+          { value: "deposit", label: t("statusDeposit") },
+          { value: "sold", label: t("statusSold") },
+        ];
 
   return (
     <Card>
+      <div className="mb-3">
+        <div className="text-[12px] font-bold text-muted mb-1.5">{t("dealType")}</div>
+        <Segmented
+          value={deal as "" | "sale" | "rent"}
+          onChange={(v) => {
+            setDeal(v);
+            setStatus("all"); // статусы у продажи/аренды разные — сбрасываем
+          }}
+          options={[
+            { value: "", label: t("dealAll") },
+            { value: "sale", label: t("dealSale") },
+            { value: "rent", label: t("dealRent") },
+          ]}
+        />
+      </div>
       <Field label={t("searchText")}>
         <Input value={q} onChange={(e) => setQ(e.target.value)} />
       </Field>
@@ -1150,8 +1217,9 @@ export function SearchScreen() {
 export function DatabaseScreen() {
   const { t } = useApp();
   const nav = useNav();
-  const views = ["unsold", "sold", "archived"] as const;
-  const [view, setView] = useState<(typeof views)[number]>("unsold");
+  const views = ["working", "closed", "archived"] as const;
+  const [view, setView] = useState<(typeof views)[number]>("working");
+  const [deal, setDeal] = useState("");
   const [showFilter, setShowFilter] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -1195,6 +1263,21 @@ export function DatabaseScreen() {
         </button>
       </div>
 
+      <div className="mb-2">
+        <Segmented
+          value={deal as "" | "sale" | "rent"}
+          onChange={(v) => {
+            haptic();
+            setDeal(v);
+          }}
+          options={[
+            { value: "", label: t("dealAll") },
+            { value: "sale", label: t("dealSale") },
+            { value: "rent", label: t("dealRent") },
+          ]}
+        />
+      </div>
+
       <Segmented
         value={view}
         onChange={(v) => {
@@ -1202,8 +1285,8 @@ export function DatabaseScreen() {
           setView(v);
         }}
         options={[
-          { value: "unsold", label: t("tabWorking") },
-          { value: "sold", label: t("statusSold") },
+          { value: "working", label: t("tabWorking") },
+          { value: "closed", label: deal === "rent" ? t("statusRented") : t("statusSold") },
           { value: "archived", label: t("archive") },
         ]}
       />
@@ -1250,7 +1333,14 @@ export function DatabaseScreen() {
         {view === "archived" ? (
           <ArchiveScreen createdFrom={from || undefined} createdTo={to || undefined} />
         ) : (
-          <ObjectList params={{ status: view, created_from: from || undefined, created_to: to || undefined }} />
+          <ObjectList
+            params={{
+              status: view === "working" ? "unsold" : deal === "rent" ? "rented" : "sold",
+              deal_type: deal || undefined,
+              created_from: from || undefined,
+              created_to: to || undefined,
+            }}
+          />
         )}
       </Swipeable>
     </div>
@@ -1382,7 +1472,7 @@ function ArchiveCard({ o }: { o: Apartment }) {
     >
       <div className="flex items-center justify-between gap-2">
         <span className="font-extrabold">№{o.display_id}</span>
-        <Badge color="gray">{L.statusLabel(o.status)}</Badge>
+        <Badge color="gray">{L.statusLabel(o.status, o.deal_type)}</Badge>
       </div>
       {o.name && <div className="text-[13px] text-muted truncate">{o.name}</div>}
       <div className="text-[13px] text-muted">{parts || t("notSet")}</div>
@@ -1454,19 +1544,39 @@ export function ArchiveScreen({ createdFrom, createdTo }: { createdFrom?: string
 }
 
 // ── Экран: карточка объекта ─────────────────────────────────────────
-const STATUS_TRANSITIONS: Record<string, { to: string; key: string }[]> = {
-  active: [
-    { to: "deposit", key: "toDeposit" },
-    { to: "sold", key: "toSold" },
-  ],
-  deposit: [
-    { to: "active", key: "removeDeposit" },
-    { to: "sold", key: "toSold" },
-  ],
-  sold: [{ to: "active", key: "backToActive" }],
-};
+// Доступные переходы статуса зависят от типа сделки. Аренда: свободна → бронь →
+// сдан → снова свободна. Продажа: активен → задаток → продан → снова активен.
+function statusTransitions(status: string, dealType?: string | null): { to: string; key: string }[] {
+  if (dealType === "rent") {
+    const TX: Record<string, { to: string; key: string }[]> = {
+      active: [
+        { to: "deposit", key: "toReserve" },
+        { to: "rented", key: "toRented" },
+      ],
+      deposit: [
+        { to: "active", key: "removeReserve" },
+        { to: "rented", key: "toRented" },
+      ],
+      rented: [{ to: "active", key: "backToFree" }],
+    };
+    return TX[status] || [];
+  }
+  const TX: Record<string, { to: string; key: string }[]> = {
+    active: [
+      { to: "deposit", key: "toDeposit" },
+      { to: "sold", key: "toSold" },
+    ],
+    deposit: [
+      { to: "active", key: "removeDeposit" },
+      { to: "sold", key: "toSold" },
+    ],
+    sold: [{ to: "active", key: "backToActive" }],
+  };
+  return TX[status] || [];
+}
 
 const EV_FIELD_KEYS: Record<string, string> = {
+  deal_type: "f_dealType", rent_period: "f_rentPeriod",
   name: "f_name", type: "f_type", district: "f_district", address: "f_address", rooms: "f_rooms",
   floor: "f_floor", total_floors: "f_tfloors", area: "f_area", price: "f_price", currency: "f_currency",
   condition: "f_condition", furniture_appliances: "f_furniture", owner_phone: "f_owner_phone",
@@ -1502,7 +1612,10 @@ export function ObjectDetailScreen({ id }: { id: number }) {
   if (loading || !o) return <Spinner />;
 
   const withLand = hasLandArea(o.type);
+  const isRent = o.deal_type === "rent";
   const rows: [string | null, React.ReactNode][] = [
+    // Тип сделки: для аренды показываем и срок (за месяц/сутки).
+    [t("dealType"), isRent ? `${t("dealRent")} · ${o.rent_period === "day" ? t("rentDay") : t("rentMonth")}` : t("dealSale")],
     [t("f_name"), o.name],
     [t("f_type"), o.type ? L.typeLabel(o.type) : null],
     [t("f_district"), o.district],
@@ -1512,14 +1625,16 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     withLand ? [t("f_land_area"), o.land_area] : [t("f_floor"), o.floor],
     [t("f_tfloors"), o.total_floors],
     [t("f_area"), o.area],
-    [t("f_price"), fmtPrice(o.price, o.currency)],
+    [isRent ? t("priceRent") : t("f_price"), o.price != null ? `${fmtPrice(o.price, o.currency)}${L.priceSuffix(o.deal_type, o.rent_period)}` : null],
     [t("f_condition"), o.condition ? L.condLabel(o.condition) : null],
     [t("f_furniture"), L.faLabel(o.furniture_appliances)],
     [t("f_owner_phone"), o.owner_phone],
     [t("f_sourceName"), o.source],
     [t("f_desc"), o.description],
     [t("addedBy"), o.created_by_name],
-    o.status === "sold" && o.archived_at ? [t("soldDate"), fmtDate(o.archived_at, lang, settings?.timezone)] : [null, null],
+    (o.status === "sold" || o.status === "rented") && o.archived_at
+      ? [isRent ? t("statusRented") : t("soldDate"), fmtDate(o.archived_at, lang, settings?.timezone)]
+      : [null, null],
   ];
 
   async function setStatus(to: string) {
@@ -1603,8 +1718,11 @@ export function ObjectDetailScreen({ id }: { id: number }) {
       <PhotoGallery apartmentId={id} onChange={() => load(true)} />
       <Card>
         <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-[16px] font-extrabold">№{o.display_id}</span>
-          <Badge color={badgeColor}>{L.statusLabel(o.status)}</Badge>
+          <span className="text-[16px] font-extrabold flex items-center gap-1.5">
+            №{o.display_id}
+            {o.deal_type === "rent" && <Badge color="blue">{t("dealRent")}</Badge>}
+          </span>
+          <Badge color={badgeColor}>{L.statusLabel(o.status, o.deal_type)}</Badge>
         </div>
         {rows
           .filter(([k, v]) => k != null && v != null && v !== "")
@@ -1648,18 +1766,18 @@ export function ObjectDetailScreen({ id }: { id: number }) {
       ) : (
       <div className="mt-4 space-y-3.5">
         {/* Статус объекта */}
-        {(STATUS_TRANSITIONS[o.status] || []).length > 0 && (
+        {statusTransitions(o.status, o.deal_type).length > 0 && (
           <div>
             <div className="text-[11px] font-bold uppercase tracking-wider text-muted mx-0.5 mb-1.5">
               {t("secStatus")}
             </div>
             <div className="flex gap-2">
-              {(STATUS_TRANSITIONS[o.status] || []).map((tr) => (
+              {statusTransitions(o.status, o.deal_type).map((tr) => (
                 <Button
                   key={tr.to}
                   size="sm"
                   className="flex-1"
-                  variant={tr.to === "sold" ? "soft" : "ghost"}
+                  variant={tr.to === "sold" || tr.to === "rented" ? "soft" : "ghost"}
                   disabled={busy}
                   onClick={() => setStatus(tr.to)}
                 >

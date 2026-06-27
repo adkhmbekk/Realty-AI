@@ -13,10 +13,15 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Допустимые статусы объекта (единый список для валидации).
-ApartmentStatus = Literal["active", "deposit", "sold"]
+# 'rented' («Сдан») — терминальный статус аренды (аналог 'sold' для продажи).
+ApartmentStatus = Literal["active", "deposit", "sold", "rented"]
+
+# Тип сделки и срок аренды.
+DealType = Literal["sale", "rent"]
+RentPeriod = Literal["month", "day"]
 
 # Разрешённые валюты (единый белый список для объектов и заявок клиентов).
 ALLOWED_CURRENCIES = {"USD", "UZS", "EUR"}
@@ -29,6 +34,9 @@ FurnitureAppliances = Literal[
 
 # Поля, общие для создания и редактирования объекта.
 class _ApartmentBase(BaseModel):
+    # Тип сделки (продажа/аренда) и срок аренды (месяц/сутки, только для аренды).
+    deal_type: Optional[DealType] = None
+    rent_period: Optional[RentPeriod] = None
     name: Optional[str] = Field(default=None, max_length=200)
     # Номер собственника (конфиденциально — виден только команде).
     owner_phone: Optional[str] = Field(default=None, max_length=64)
@@ -82,6 +90,13 @@ class _ApartmentBase(BaseModel):
             raise ValueError("invalid_currency")
         return value
 
+    @model_validator(mode="after")
+    def _rent_consistency(self):
+        # У продажи срока аренды быть не может (согласованность данных).
+        if self.deal_type == "sale":
+            self.rent_period = None
+        return self
+
 
 class ApartmentCreate(_ApartmentBase):
     """При создании все поля необязательны; display_id генерируется системой."""
@@ -108,6 +123,8 @@ class ApartmentOut(BaseModel):
     id: int
     display_id: str
     status: str
+    deal_type: str = "sale"
+    rent_period: Optional[str] = None
     name: Optional[str] = None
     owner_phone: Optional[str] = None
     district: Optional[str] = None
@@ -144,6 +161,8 @@ class ApartmentShareOut(BaseModel):
     """
     display_id: str
     status: str
+    deal_type: str = "sale"
+    rent_period: Optional[str] = None
     name: Optional[str] = None
     district: Optional[str] = None
     address: Optional[str] = None
@@ -197,6 +216,7 @@ class ApartmentStatsOut(BaseModel):
     active: int
     deposit: int
     sold: int
+    rented: int = 0
     total: int
 
 
@@ -281,6 +301,9 @@ class ListingImportOut(BaseModel):
     Ничего на этом шаге НЕ сохраняется.
     """
     name: Optional[str] = None
+    # Тип сделки и срок аренды, определённые ИИ из текста объявления.
+    deal_type: Optional[str] = None
+    rent_period: Optional[str] = None
     type: Optional[str] = None
     district: Optional[str] = None
     address: Optional[str] = None

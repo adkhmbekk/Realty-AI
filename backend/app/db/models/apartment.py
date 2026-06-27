@@ -40,8 +40,18 @@ class Apartment(Base):
         # Человекочитаемый ID уникален в пределах агентства.
         UniqueConstraint("agency_id", "display_id", name="uq_apartments_agency_display"),
         # Целостность значений на уровне БД (нельзя записать «кривой» статус).
+        # 'rented' («Сдан») — терминальный статус для аренды (как 'sold' для продажи).
         CheckConstraint(
-            "status IN ('active','deposit','sold')", name="ck_apartments_status"
+            "status IN ('active','deposit','sold','rented')", name="ck_apartments_status"
+        ),
+        # Тип сделки: продажа или аренда (по умолчанию продажа).
+        CheckConstraint(
+            "deal_type IN ('sale','rent')", name="ck_apartments_deal_type"
+        ),
+        # Срок аренды: месяц/сутки (или NULL — для продажи).
+        CheckConstraint(
+            "rent_period IS NULL OR rent_period IN ('month','day')",
+            name="ck_apartments_rent_period",
         ),
         CheckConstraint(
             "furniture_appliances IS NULL OR furniture_appliances IN "
@@ -55,6 +65,7 @@ class Apartment(Base):
         Index("ix_apartments_agency_status", "agency_id", "status"),
         Index("ix_apartments_agency_district", "agency_id", "district"),
         Index("ix_apartments_agency_type", "agency_id", "type"),
+        Index("ix_apartments_agency_deal", "agency_id", "deal_type"),
         Index("ix_apartments_agency_rooms", "agency_id", "rooms"),
         Index("ix_apartments_agency_price", "agency_id", "price"),
         Index("ix_apartments_agency_created", "agency_id", "created_at"),
@@ -71,8 +82,15 @@ class Apartment(Base):
     )
     # Человекочитаемый ID, например "0001".
     display_id: Mapped[str] = mapped_column(String, nullable=False)
-    # Статус объекта: active (в продаже) / deposit (задаток) / sold (продан).
+    # Статус объекта. Продажа: active (в продаже) / deposit (задаток) / sold (продан).
+    # Аренда: active (свободна) / deposit (бронь) / rented (сдан).
     status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+    # Тип сделки: 'sale' (продажа) или 'rent' (аренда). По умолчанию — продажа.
+    deal_type: Mapped[str] = mapped_column(
+        String, nullable=False, default="sale", server_default="sale"
+    )
+    # Срок аренды: 'month' (за месяц) / 'day' (за сутки). Для продажи — NULL.
+    rent_period: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Номер собственника (конфиденциально — не показывается при шаринге).

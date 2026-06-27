@@ -24,6 +24,7 @@ import {
   Field,
   Hint,
   Input,
+  Segmented,
   Select,
   Spinner,
   Textarea,
@@ -51,6 +52,7 @@ function useDistricts(): DictItem[] {
 
 // ── Критерии заявки (контролируемая форма) ──────────────────────────
 export type Criteria = {
+  deal_type: string;
   types: string[];
   districts: string[];
   rooms_min: string;
@@ -67,6 +69,7 @@ export type Criteria = {
 
 export function emptyCriteria(): Criteria {
   return {
+    deal_type: "sale",
     types: [],
     districts: [],
     rooms_min: "",
@@ -85,6 +88,7 @@ export function emptyCriteria(): Criteria {
 export function paramsToCriteria(p: SearchParams): Criteria {
   const s = (v: unknown) => (v != null && v !== "" ? String(v) : "");
   return {
+    deal_type: (p.deal_type as string) || "sale",
     types: (p.types as string[]) || [],
     districts: (p.districts as string[]) || [],
     rooms_min: s(p.rooms_min),
@@ -132,6 +136,8 @@ export function criteriaToBody(c: Criteria): Record<string, unknown> {
   const showLand = c.types.some(hasLandArea);
   const showFloor = c.types.length === 0 || c.types.some((t) => !hasLandArea(t));
   const body: Record<string, unknown> = {};
+  // Тип сделки заявки всегда передаём (продажа по умолчанию).
+  body.deal_type = c.deal_type || "sale";
   if (c.types.length) body.types = c.types;
   if (c.districts.length) body.districts = c.districts;
   if (intOrU(c.rooms_min) != null) body.rooms_min = intOrU(c.rooms_min);
@@ -154,6 +160,8 @@ export function criteriaToBody(c: Criteria): Record<string, unknown> {
 // Человекочитаемая подпись заявки («Квартира · Юнусабад · 4–5 · до 120000 USD»).
 export function requestLabel(r: ClientRequest, L: ReturnType<typeof useApp>["L"], t: (k: string) => string): string {
   const parts: string[] = [];
+  // Тип сделки впереди (аренда/продажа), чтобы агент сразу видел, что ищет клиент.
+  parts.push(r.deal_type === "rent" ? t("dealRent") : t("dealSale"));
   if (r.types && r.types.length) parts.push(r.types.map((x) => L.typeLabel(x)).join("/"));
   if (r.districts && r.districts.length) parts.push(r.districts.join(", "));
   const range = (lo?: number | null, hi?: number | null, suf = "") => {
@@ -182,7 +190,19 @@ export function CriteriaEditor({ value, onChange }: { value: Criteria; onChange:
 
   return (
     <div>
+      {/* Тип сделки заявки: ищет купить или снять. */}
       <div className="mt-2">
+        <div className="text-[12px] font-bold text-muted mb-1.5">{t("dealType")}</div>
+        <Segmented
+          value={(value.deal_type || "sale") as "sale" | "rent"}
+          onChange={(v) => set("deal_type", v)}
+          options={[
+            { value: "sale", label: t("dealSale") },
+            { value: "rent", label: t("dealRent") },
+          ]}
+        />
+      </div>
+      <div className="mt-3">
         <div className="text-[12px] font-bold text-muted mb-1.5">{t("f_type")}</div>
         <Chips
           options={OBJ_TYPE_VALUES.map((v) => ({ value: v, label: L.typeLabel(v) }))}

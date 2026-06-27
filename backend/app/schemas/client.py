@@ -9,12 +9,14 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.apartment import ALLOWED_CURRENCIES, ApartmentOut
+from app.schemas.apartment import ALLOWED_CURRENCIES, ApartmentOut, DealType
 
 
 # ── Заявка («что ищет») ──────────────────────────────────────────────
 class RequestCriteria(BaseModel):
     """Критерии заявки — зеркало фильтров поиска (можно несколько типов/районов)."""
+    # Тип сделки: 'sale' (купить) или 'rent' (снять). По умолчанию — продажа.
+    deal_type: Optional[DealType] = None
     types: Optional[List[str]] = None
     districts: Optional[List[str]] = None
     rooms_min: Optional[int] = None
@@ -69,6 +71,7 @@ class RequestOut(BaseModel):
 
     id: int
     client_id: int
+    deal_type: str = "sale"
     types: Optional[List[str]] = None
     districts: Optional[List[str]] = None
     rooms_min: Optional[int] = None

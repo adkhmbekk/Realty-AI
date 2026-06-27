@@ -74,6 +74,10 @@ def apartment_matches_request(apt: Apartment, req: ClientRequest) -> bool:
     Подходит ли объект под заявку. Зеркало условий apartment_repo._build_conditions:
     указанные критерии должны выполняться; цена сравнивается только в той же валюте.
     """
+    # Тип сделки должен совпадать: покупателю не предлагаем аренду и наоборот
+    # (цена $500/мес и $50 000 несравнимы — иначе подбор завалит покупателя арендой).
+    if (getattr(req, "deal_type", "sale") or "sale") != (getattr(apt, "deal_type", "sale") or "sale"):
+        return False
     if req.types and apt.type not in req.types:
         return False
     if req.districts and apt.district not in req.districts:
@@ -103,6 +107,7 @@ def apartment_matches_request(apt: Apartment, req: ClientRequest) -> bool:
 def _request_to_search_params(req: ClientRequest) -> dict:
     return dict(
         status="active",
+        deal_type=getattr(req, "deal_type", "sale") or "sale",
         types=req.types or None,
         districts=req.districts or None,
         rooms_min=req.rooms_min,
@@ -122,6 +127,7 @@ def _new_request(agency_id: int, client_id: int, created_by: Optional[int], c: R
         agency_id=agency_id,
         client_id=client_id,
         created_by=created_by,
+        deal_type=(c.deal_type or "sale"),
         types=c.types or None,
         districts=c.districts or None,
         rooms_min=c.rooms_min,
@@ -236,6 +242,7 @@ def _request_to_out(req: ClientRequest, counts: Optional[Tuple[int, int]] = None
     return RequestOut(
         id=req.id,
         client_id=req.client_id,
+        deal_type=getattr(req, "deal_type", "sale") or "sale",
         types=req.types,
         districts=req.districts,
         rooms_min=req.rooms_min,
@@ -397,6 +404,9 @@ def update_request(db: Session, agency_id: int, user, request_id: int, payload: 
     for f in _CRITERIA_FIELDS + ("currency", "note"):
         if f in data:
             setattr(req, f, data[f] if data[f] not in ("",) else None)
+    # Тип сделки заявки (продажа/аренда) — только валидное значение, без None.
+    if data.get("deal_type") in ("sale", "rent"):
+        req.deal_type = data["deal_type"]
     if "status" in data and data["status"] is not None:
         if data["status"] not in ("active", "fulfilled", "cancelled"):
             raise AppError("invalid_request_status", status.HTTP_400_BAD_REQUEST)

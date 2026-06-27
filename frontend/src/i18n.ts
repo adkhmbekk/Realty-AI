@@ -173,6 +173,12 @@ export const I18N: Record<Lang, Record<string, string>> = {
     rememberForClient: "Запомнить для клиента", rememberForClientSub: "Нет подходящего? Сохраним как заявку",
     saveAsRequest: "Заявка клиента", from: "от",
     support: "Поддержка", supportText: "Есть вопрос или проблема? Напишите нам — поможем.", contactSupport: "Написать в поддержку",
+    dealType: "Тип сделки", dealSale: "Продажа", dealRent: "Аренда", dealAll: "Все",
+    rentPeriodLbl: "Срок аренды", rentMonth: "За месяц", rentDay: "За сутки",
+    perMonthShort: "/мес", perDayShort: "/сутки", priceRent: "Цена аренды",
+    statusRented: "Сдан", rentFree: "Свободна", rentReserved: "Бронь",
+    toRented: "Сдан", toReserve: "Бронь", removeReserve: "Снять бронь", backToFree: "Вернуть в свободные",
+    f_dealType: "Тип сделки", f_rentPeriod: "Срок аренды",
     buildVersion: "Версия",
   },
   uz: {
@@ -344,6 +350,12 @@ export const I18N: Record<Lang, Record<string, string>> = {
     rememberForClient: "Mijoz uchun eslab qolish", rememberForClientSub: "Mos kelmadimi? Soʻrov sifatida saqlaymiz",
     saveAsRequest: "Mijoz soʻrovi", from: "dan",
     support: "Yordam", supportText: "Savol yoki muammo bormi? Bizga yozing — yordam beramiz.", contactSupport: "Yordamga yozish",
+    dealType: "Bitim turi", dealSale: "Sotuv", dealRent: "Ijara", dealAll: "Hammasi",
+    rentPeriodLbl: "Ijara muddati", rentMonth: "Oyiga", rentDay: "Kuniga",
+    perMonthShort: "/oy", perDayShort: "/kun", priceRent: "Ijara narxi",
+    statusRented: "Ijarada", rentFree: "Boʻsh", rentReserved: "Band",
+    toRented: "Ijaraga berildi", toReserve: "Band qilish", removeReserve: "Bandni olib tashlash", backToFree: "Boʻshga qaytarish",
+    f_dealType: "Bitim turi", f_rentPeriod: "Ijara muddati",
     buildVersion: "Versiya",
   },
   en: {
@@ -515,6 +527,12 @@ export const I18N: Record<Lang, Record<string, string>> = {
     rememberForClient: "Remember for a client", rememberForClientSub: "Nothing suitable? Save as a request",
     saveAsRequest: "Client request", from: "from",
     support: "Support", supportText: "Have a question or problem? Message us — we'll help.", contactSupport: "Contact support",
+    dealType: "Deal type", dealSale: "Sale", dealRent: "Rent", dealAll: "All",
+    rentPeriodLbl: "Rent term", rentMonth: "Per month", rentDay: "Per day",
+    perMonthShort: "/mo", perDayShort: "/day", priceRent: "Rent price",
+    statusRented: "Rented", rentFree: "Available", rentReserved: "Reserved",
+    toRented: "Rented", toReserve: "Reserve", removeReserve: "Unreserve", backToFree: "Back to available",
+    f_dealType: "Deal type", f_rentPeriod: "Rent term",
     buildVersion: "Version",
   },
 };
@@ -560,6 +578,7 @@ export const STATUS_BADGE: Record<string, "green" | "amber" | "gray" | "red"> = 
   active: "green",
   deposit: "amber",
   sold: "gray",
+  rented: "gray",
 };
 
 export function labelHelpers(lang: Lang, t: (k: string) => string) {
@@ -577,13 +596,32 @@ export function labelHelpers(lang: Lang, t: (k: string) => string) {
     faLabel(v?: string | null): string | null {
       return v && FA_LABEL_KEYS[v] ? t(FA_LABEL_KEYS[v]) : null;
     },
-    statusLabel(s: string) {
+    statusLabel(s: string, dealType?: string | null) {
+      // Для аренды статусы читаются иначе: свободна / бронь / сдан.
+      if (dealType === "rent") {
+        const m: Record<string, string> = {
+          active: t("rentFree"),
+          deposit: t("rentReserved"),
+          rented: t("statusRented"),
+          sold: t("statusRented"),
+        };
+        return m[s] || s;
+      }
       const map: Record<string, string> = {
         active: t("statusActive"),
         deposit: t("statusDeposit"),
         sold: t("statusSold"),
+        rented: t("statusRented"),
       };
       return map[s] || s;
+    },
+    // Подпись типа сделки и краткий суффикс цены для аренды («/мес», «/сутки»).
+    dealLabel(dealType?: string | null) {
+      return dealType === "rent" ? t("dealRent") : t("dealSale");
+    },
+    priceSuffix(dealType?: string | null, rentPeriod?: string | null) {
+      if (dealType !== "rent") return "";
+      return rentPeriod === "day" ? t("perDayShort") : t("perMonthShort");
     },
     roleLabel(role?: string | null, isOwner?: boolean | null) {
       // Владелец агентства (главный администратор) отображается отдельной подписью.
