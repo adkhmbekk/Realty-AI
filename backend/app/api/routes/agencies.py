@@ -1,7 +1,7 @@
 """
 Эндпоинты управления агентствами (только суперадмин).
 """
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, status
 
@@ -13,10 +13,13 @@ from app.db.models.user import User
 from app.db.session import get_db
 from app.repositories import agency_repo
 from app.schemas.agency import (
+    ActivationOut,
     AgencyActivityOut,
     AgencyAdminUpdate,
     AgencyAuditOut,
     AgencyCreate,
+    AgencyDraftCreate,
+    AgencyDraftOut,
     AgencyOut,
     AgencyPaymentOut,
     AgencyUsageOut,
@@ -26,7 +29,7 @@ from app.schemas.agency import (
     PersonalAgencyCreate,
 )
 from app.schemas.auth import AuthResponse
-from app.services import agency_service, agency_usage_service, auth_service
+from app.services import agency_service, agency_usage_service, auth_service, invite_service
 
 router = APIRouter(prefix="/agencies", tags=["agencies"])
 
@@ -41,6 +44,19 @@ def create_agency(
     agency = agency_service.create_agency_with_admin(db, body, actor=current_user)
     agency_service.attach_admins(db, [agency])
     return agency
+
+
+@router.post("/draft", response_model=AgencyDraftOut)
+def create_agency_draft(
+    body: AgencyDraftCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Создать агентство «по ссылке»: без Telegram ID админа. Возвращает агентство
+    (статус 'pending') и ссылку активации — кто откроет её, станет главным админом."""
+    agency, invite = agency_service.create_agency_draft(db, body, actor=current_user)
+    agency_service.attach_admins(db, [agency])
+    return AgencyDraftOut(agency=agency, activation=invite_service.activation_out(invite))
 
 
 @router.get("", response_model=List[AgencyOut])
@@ -213,3 +229,33 @@ def agency_activity(
     """Подробный отчёт об активности агентства: объекты по дням, как добавляют,
     активность команды, по сотрудникам."""
     return agency_usage_service.activity(db, agency_id)
+
+
+@router.get("/{agency_id}/activation", response_model=Optional[ActivationOut])
+def get_activation(
+    agency_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Текущая ссылка активации агентства (или null, если активировано/нет ссылки)."""
+    return agency_service.get_activation(db, agency_id)
+
+
+@router.post("/{agency_id}/activation", response_model=ActivationOut)
+def reissue_activation(
+    agency_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Пересоздать ссылку активации (старая отзывается, новая — на 7 дней)."""
+    return agency_service.reissue_activation(db, agency_id, actor=current_user)
+
+
+@router.delete("/{agency_id}/activation", status_code=204)
+def revoke_activation(
+    agency_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Отозвать ссылку активации (агентство останется черновиком без ссылки)."""
+    agency_service.revoke_activation(db, agency_id, actor=current_user)

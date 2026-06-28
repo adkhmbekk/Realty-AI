@@ -129,6 +129,19 @@ export interface AgencyOut {
   admin_name?: string | null;
 }
 
+// Ссылка активации агентства (создание «по ссылке»).
+export interface Activation {
+  code: string;
+  link?: string | null;
+  expires_at: string;
+  status: string; // active | expired | used
+}
+
+export interface AgencyDraftOut {
+  agency: AgencyOut;
+  activation: Activation;
+}
+
 export interface AgencySettings {
   id: number;
   name: string;

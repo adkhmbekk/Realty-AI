@@ -77,6 +77,25 @@ def create(
     return agency
 
 
+def create_pending(
+    db: Session, name: str, created_by: Optional[int], subscription_days: int
+) -> Agency:
+    """Создать агентство-черновик (ожидает активации по ссылке): без админа и
+    без запущенной подписки. Срок подписки запоминаем в pending_days и применяем
+    в момент активации."""
+    agency = Agency(
+        name=name,
+        status="pending",
+        subscription_expires_at=None,
+        activated_at=None,
+        pending_days=subscription_days,
+        created_by=created_by,
+    )
+    db.add(agency)
+    db.flush()
+    return agency
+
+
 def next_display_number(db: Session, agency_id: int) -> Optional[int]:
     """
     Атомарно увеличить сквозной счётчик номеров агентства и вернуть новый номер.

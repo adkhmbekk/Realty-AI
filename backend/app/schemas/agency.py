@@ -24,6 +24,23 @@ class PersonalAgencyCreate(BaseModel):
     name: str = Field(max_length=120)
 
 
+class AgencyDraftCreate(BaseModel):
+    # Создание агентства «по ссылке»: ID админа НЕ нужен — кто откроет ссылку
+    # активации, тот и станет главным админом. Подписка стартует с активации.
+    name: str = Field(max_length=120)
+    subscription_days: int = Field(default=30, ge=1, le=3650)
+    client_phone: Optional[str] = Field(default=None, max_length=64)
+
+
+class ActivationOut(BaseModel):
+    # Ссылка-активация агентства (для владельца платформы).
+    code: str
+    link: Optional[str] = None
+    expires_at: datetime
+    # active (действует) / expired (истекла) / used (уже активировано).
+    status: str
+
+
 class AgencySubscriptionUpdate(BaseModel):
     # extend — продлить на N дней (и сделать активной);
     # set — задать дату окончания вручную (и активировать);
@@ -143,6 +160,12 @@ class AgencyOut(BaseModel):
     # Заполняется сервисом; в самой модели Agency этих полей нет.
     admin_telegram_id: Optional[int] = None
     admin_name: Optional[str] = None
+
+
+class AgencyDraftOut(BaseModel):
+    # Результат создания черновика: само агентство + ссылка для активации.
+    agency: AgencyOut
+    activation: ActivationOut
 
 
 # ── Наблюдение за агентствами (использование) ────────────────────────

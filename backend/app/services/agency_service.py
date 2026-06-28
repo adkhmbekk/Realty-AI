@@ -14,7 +14,7 @@ from app.db.models.user import User
 from app.core.errors import AppError
 from app.core.subscription import agency_is_active
 from app.repositories import agency_repo, audit_repo, payment_repo, user_repo
-from app.schemas.agency import AgencyCreate
+from app.schemas.agency import AgencyCreate, AgencyDraftCreate
 from app.services import photo_service, seeding_service
 
 
@@ -127,6 +127,84 @@ def create_agency_with_admin(
     db.commit()
     db.refresh(agency)
     return agency
+
+
+def create_agency_draft(
+    db: Session, payload: AgencyDraftCreate, actor: Optional[User] = None
+):
+    """
+    Создать агентство «по ссылке» (черновик): без админа и без запущенной
+    подписки. Возвращает (agency, owner-invite). Кто откроет ссылку активации в
+    Telegram — станет главным админом, и подписка стартует с этого момента.
+    Так владельцу платформы не нужно вручную искать Telegram ID человека.
+    """
+    from app.services import invite_service  # локально — без круговых импортов
+
+    clean = (payload.name or "").strip()
+    if not clean:
+        raise AppError("agency_name_empty", status.HTTP_400_BAD_REQUEST)
+    agency = agency_repo.create_pending(
+        db,
+        name=clean,
+        created_by=(actor.telegram_id if actor else None),
+        subscription_days=payload.subscription_days,
+    )
+    if payload.client_phone and payload.client_phone.strip():
+        agency.client_phone = payload.client_phone.strip()
+    # Наполняем значениями по умолчанию (районы, типы) — чтобы к активации было готово.
+    seeding_service.seed_agency_defaults(db, agency.id)
+    invite = invite_service.create_owner_invite(
+        db, agency.id, created_by_user_id=(actor.id if actor else None)
+    )
+    audit_repo.add(
+        db, action="agency_created", agency_id=agency.id, target=clean,
+        note=f"черновик; активация по ссылке; подписка {payload.subscription_days} дн.",
+        **_actor_fields(actor),
+    )
+    db.commit()
+    db.refresh(agency)
+    db.refresh(invite)
+    return agency, invite
+
+
+def _require_pending(agency: Agency) -> None:
+    if agency.status != "pending":
+        raise AppError("agency_already_active", status.HTTP_409_CONFLICT)
+
+
+def get_activation(db: Session, agency_id: int):
+    """Текущая активная ссылка активации агентства (или None)."""
+    from app.services import invite_service
+
+    _get_agency_or_404(db, agency_id)
+    inv = invite_service.get_active_owner_invite(db, agency_id)
+    return invite_service.activation_out(inv) if inv else None
+
+
+def reissue_activation(db: Session, agency_id: int, actor: Optional[User] = None):
+    """Пересоздать ссылку активации (отозвать старую, выдать новую на 7 дней)."""
+    from app.services import invite_service
+
+    agency = _get_agency_or_404(db, agency_id)
+    _require_pending(agency)
+    inv = invite_service.reissue_owner_invite(
+        db, agency_id, created_by_user_id=(actor.id if actor else None)
+    )
+    audit_repo.add(db, action="activation_reissued", agency_id=agency_id, **_actor_fields(actor))
+    db.commit()
+    db.refresh(inv)
+    return invite_service.activation_out(inv)
+
+
+def revoke_activation(db: Session, agency_id: int, actor: Optional[User] = None) -> None:
+    """Отозвать ссылку активации (агентство останется черновиком без ссылки)."""
+    from app.services import invite_service
+
+    agency = _get_agency_or_404(db, agency_id)
+    _require_pending(agency)
+    invite_service.revoke_owner_invites(db, agency_id)
+    audit_repo.add(db, action="activation_revoked", agency_id=agency_id, **_actor_fields(actor))
+    db.commit()
 
 
 def list_personal_agencies(db: Session, owner_telegram_id: int) -> List[Agency]:

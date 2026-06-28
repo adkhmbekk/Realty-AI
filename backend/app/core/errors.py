@@ -113,6 +113,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Bu sizning shaxsiy agentligingiz emas — kirib boʻlmaydi.",
         "en": "This is not your personal agency — entry denied.",
     },
+    "agency_already_active": {
+        "ru": "Агентство уже активировано — ссылка активации больше не нужна.",
+        "uz": "Agentlik allaqachon faollashtirilgan — faollashtirish havolasi kerak emas.",
+        "en": "The agency is already activated — the activation link is no longer needed.",
+    },
     "personal_agency_name_required": {
         "ru": "Укажите название личного агентства.",
         "uz": "Shaxsiy agentlik nomini kiriting.",

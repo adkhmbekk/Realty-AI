@@ -1,13 +1,13 @@
-import { confirmDialog } from "../telegram";
+import { confirmDialog, openTelegramLink } from "../telegram";
 import { useEffect, useState } from "react";
-import { Briefcase, Building2, Plus } from "lucide-react";
+import { Briefcase, Building2, Copy, Link as LinkIcon, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { useActing } from "../acting";
 import { api, errText } from "../api";
 import { Badge, Button, Card, Empty, Field, Hint, Input, Row, Spinner } from "../components/ui";
-import type { AgencyActivity, AgencyOut, AgencyPayment, AgencyUsage, PaymentsSummary } from "../types";
-import { fmtAmount, fmtDate } from "../utils";
+import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, AgencyUsage, PaymentsSummary } from "../types";
+import { copyText, fmtAmount, fmtDate } from "../utils";
 
 // ── Наблюдение за агентствами: «светофор» + относительное время ──────
 function engagementMeta(eng: string): { dot: string; labelKey: string } {
@@ -174,6 +174,7 @@ function statusBadge(a: AgencyOut, t: (k: string) => string) {
     trial: { c: "green", k: "st_trial" },
     frozen: { c: "amber", k: "st_frozen" },
     expired: { c: "red", k: "st_expired" },
+    pending: { c: "amber", k: "st_pending" },
   };
   const m = map[eff] || { c: "gray" as const, k: eff };
   return <Badge color={m.c}>{map[eff] ? t(m.k) : eff}</Badge>;
@@ -192,6 +193,73 @@ function payActionLabel(action: string, t: (k: string) => string): string {
 function fmtTotals(arr: { currency: string; amount: number }[]): string {
   if (!arr.length) return "—";
   return arr.map((c) => `${fmtAmount(c.amount)} ${c.currency}`).join(" · ");
+}
+
+// Карточка ссылки активации агентства (создание «по ссылке»).
+function ActivationCard({
+  activation,
+  onReissue,
+  onRevoke,
+}: {
+  activation: Activation;
+  onReissue?: () => void;
+  onRevoke?: () => void;
+}) {
+  const { t, lang, toast } = useApp();
+  const link = activation.link || "";
+  async function copy() {
+    const ok = await copyText(link);
+    toast(ok ? t("copied") : t("copy"), ok ? "ok" : "info");
+  }
+  function share() {
+    if (!link) return;
+    const url =
+      "https://t.me/share/url?url=" +
+      encodeURIComponent(link) +
+      "&text=" +
+      encodeURIComponent(t("activationShareText"));
+    openTelegramLink(url);
+  }
+  return (
+    <Card className="mt-3">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span
+          className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow shrink-0"
+          style={{ background: "var(--grad)" }}
+        >
+          <LinkIcon size={16} />
+        </span>
+        <span className="font-extrabold">{t("activationTitle")}</span>
+      </div>
+      <Hint>{t("activationHint")}</Hint>
+      {link && (
+        <div className="mt-2 rounded-xl bg-[var(--soft)] border border-line px-3 py-2 text-[12px] break-all select-all">
+          {link}
+        </div>
+      )}
+      <div className="text-[12px] text-muted mt-1.5">
+        {t("activationExpires")}: {fmtDate(activation.expires_at, lang)}
+      </div>
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <Button size="sm" onClick={share}>
+          <Send size={15} /> {t("activationShare")}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={copy}>
+          <Copy size={15} /> {t("copyLink")}
+        </Button>
+        {onReissue && (
+          <Button size="sm" variant="ghost" onClick={onReissue}>
+            <RefreshCw size={15} /> {t("activationReissue")}
+          </Button>
+        )}
+        {onRevoke && (
+          <Button size="sm" variant="danger" onClick={onRevoke}>
+            <Trash2 size={15} /> {t("activationRevoke")}
+          </Button>
+        )}
+      </div>
+    </Card>
+  );
 }
 
 // Свод использования по всем агентствам (вовлечённость + объекты).
@@ -454,50 +522,61 @@ export function AgencyCreateScreen() {
   const { t, toast } = useApp();
   const nav = useNav();
   const [name, setName] = useState("");
-  const [adminId, setAdminId] = useState("");
-  const [adminUser, setAdminUser] = useState("");
   const [days, setDays] = useState("30");
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
+  // После создания — показываем ссылку активации (Telegram ID искать не нужно).
+  const [result, setResult] = useState<AgencyDraftOut | null>(null);
 
   async function create() {
     if (!name.trim()) {
       toast(t("emptyName"), "warn");
       return;
     }
-    const id = parseInt(adminId.trim(), 10);
-    if (Number.isNaN(id)) {
-      toast(t("badId"), "warn");
-      return;
-    }
     setSaving(true);
     const parsedDays = parseInt(days, 10);
     const body: Record<string, unknown> = {
       name: name.trim(),
-      admin_telegram_id: id,
       subscription_days: Number.isNaN(parsedDays) ? 30 : parsedDays,
     };
-    const u = adminUser.trim();
-    if (u) body.admin_username = u;
     if (phone.trim()) body.client_phone = phone.trim();
-    const r = await api("/api/v1/agencies", { method: "POST", body });
+    const r = await api<AgencyDraftOut>("/api/v1/agencies/draft", { method: "POST", body });
     setSaving(false);
-    if (r.ok) {
-      toast(t("agencyCreated"), "ok");
-      nav.pop();
+    if (r.ok && r.data) {
+      setResult(r.data);
+      toast(t("agencyDraftCreated"), "ok");
     } else toast(errText(r.data, r.status), "err");
+  }
+
+  if (result) {
+    return (
+      <div>
+        <Card>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span className="text-[16px] font-extrabold">{result.agency.name}</span>
+            {statusBadge(result.agency, t)}
+          </div>
+          <Row label="ID" value={result.agency.id} />
+        </Card>
+        <ActivationCard activation={result.activation} />
+        <Button
+          full
+          className="mt-4"
+          onClick={() => {
+            nav.pop();
+            nav.push({ name: "agencyManage", id: result.agency.id });
+          }}
+        >
+          {t("toAgency")}
+        </Button>
+      </div>
+    );
   }
 
   return (
     <Card>
       <Field label={t("agencyName")}>
         <Input value={name} onChange={(e) => setName(e.target.value)} />
-      </Field>
-      <Field label={t("adminTgId")}>
-        <Input inputMode="numeric" value={adminId} onChange={(e) => setAdminId(e.target.value)} />
-      </Field>
-      <Field label={t("adminUsername")}>
-        <Input value={adminUser} onChange={(e) => setAdminUser(e.target.value)} />
       </Field>
       <Field label={t("subDays")}>
         <Input inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
@@ -517,6 +596,7 @@ export function AgencyManageScreen({ id }: { id: number }) {
   const { t, lang, toast } = useApp();
   const nav = useNav();
   const [a, setA] = useState<AgencyOut | null>(null);
+  const [activation, setActivation] = useState<Activation | null>(null);
   const [loading, setLoading] = useState(true);
   const [payKey, setPayKey] = useState(0);
 
@@ -527,7 +607,30 @@ export function AgencyManageScreen({ id }: { id: number }) {
     if (r.ok && Array.isArray(r.data)) {
       const found = r.data.find((x) => x.id === id) || null;
       setA(found);
+      // У черновика (ожидает активации) подгружаем ссылку активации.
+      if (found && found.status === "pending") {
+        const av = await api<Activation>("/api/v1/agencies/" + id + "/activation");
+        setActivation(av.ok && av.data ? av.data : null);
+      } else {
+        setActivation(null);
+      }
     }
+  }
+
+  async function reissueActivation() {
+    const r = await api<Activation>("/api/v1/agencies/" + id + "/activation", { method: "POST" });
+    if (r.ok && r.data) {
+      setActivation(r.data);
+      toast(t("activationReissued"), "ok");
+    } else toast(errText(r.data, r.status), "err");
+  }
+  async function revokeActivation() {
+    if (!(await confirmDialog(t("activationRevokeQ")))) return;
+    const r = await api("/api/v1/agencies/" + id + "/activation", { method: "DELETE" });
+    if (r.ok) {
+      setActivation(null);
+      toast(t("activationRevoked"), "ok");
+    } else toast(errText(r.data, r.status), "err");
   }
   useEffect(() => {
     load();
@@ -644,6 +747,7 @@ export function AgencyManageScreen({ id }: { id: number }) {
     } else toast(errText(r.data, r.status), "err");
   }
 
+  const pending = a.status === "pending";
   return (
     <div>
       <Card>
@@ -653,36 +757,66 @@ export function AgencyManageScreen({ id }: { id: number }) {
         </div>
         {a.project_name && <Row label={t("projectName")} value={a.project_name} />}
         <Row label="ID" value={a.id} />
-        <Row label={t("activatedAt")} value={fmtDate(a.activated_at || a.created_at, lang)} />
-        <Row label={t("subUntil")} value={fmtDate(a.subscription_expires_at, lang)} />
-        <Row label={t("admin")} value={adminTxt} />
+        {!pending && <Row label={t("activatedAt")} value={fmtDate(a.activated_at || a.created_at, lang)} />}
+        {!pending && <Row label={t("subUntil")} value={fmtDate(a.subscription_expires_at, lang)} />}
+        {!pending && <Row label={t("admin")} value={adminTxt} />}
         <Row label={t("agencyPhone")} value={a.client_phone || t("notSet")} />
       </Card>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button full size="sm" variant="ghost" onClick={extend}>
-          {t("extendBtn")}
-        </Button>
-        <Button full size="sm" variant="ghost" onClick={changeDate}>
-          {t("changeDateBtn")}
-        </Button>
-        <Button full size="sm" variant="ghost" onClick={rename}>
-          {t("rename")}
-        </Button>
-        <Button full size="sm" variant="ghost" onClick={changeAdmin}>
-          {t("changeAdmin")}
-        </Button>
-        <Button full size="sm" variant="ghost" onClick={changePhone}>
-          {t("changePhone")}
-        </Button>
-        <Button full size="sm" variant={frozen ? "ghost" : "danger"} onClick={() => sub(frozen ? "activate" : "freeze")}>
-          {frozen ? t("activate") : t("freeze")}
-        </Button>
-        <Button full size="sm" variant="danger" onClick={del}>
-          {t("deleteAgency")}
-        </Button>
-      </div>
-      <AgencyActivityPanel id={id} />
-      <PaymentHistory id={id} refresh={payKey} />
+
+      {pending ? (
+        /* Черновик: главное — ссылка активации; полное управление появится после. */
+        <>
+          {activation ? (
+            <ActivationCard activation={activation} onReissue={reissueActivation} onRevoke={revokeActivation} />
+          ) : (
+            <Card className="mt-3">
+              <Hint>{t("activationNone")}</Hint>
+              <Button full className="mt-2" onClick={reissueActivation}>
+                <LinkIcon size={16} /> {t("activationCreate")}
+              </Button>
+            </Card>
+          )}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button full size="sm" variant="ghost" onClick={rename}>
+              {t("rename")}
+            </Button>
+            <Button full size="sm" variant="ghost" onClick={changePhone}>
+              {t("changePhone")}
+            </Button>
+            <Button full size="sm" variant="danger" onClick={del}>
+              {t("deleteAgency")}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button full size="sm" variant="ghost" onClick={extend}>
+              {t("extendBtn")}
+            </Button>
+            <Button full size="sm" variant="ghost" onClick={changeDate}>
+              {t("changeDateBtn")}
+            </Button>
+            <Button full size="sm" variant="ghost" onClick={rename}>
+              {t("rename")}
+            </Button>
+            <Button full size="sm" variant="ghost" onClick={changeAdmin}>
+              {t("changeAdmin")}
+            </Button>
+            <Button full size="sm" variant="ghost" onClick={changePhone}>
+              {t("changePhone")}
+            </Button>
+            <Button full size="sm" variant={frozen ? "ghost" : "danger"} onClick={() => sub(frozen ? "activate" : "freeze")}>
+              {frozen ? t("activate") : t("freeze")}
+            </Button>
+            <Button full size="sm" variant="danger" onClick={del}>
+              {t("deleteAgency")}
+            </Button>
+          </div>
+          <AgencyActivityPanel id={id} />
+          <PaymentHistory id={id} refresh={payKey} />
+        </>
+      )}
     </div>
   );
 }

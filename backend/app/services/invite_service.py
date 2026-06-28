@@ -22,9 +22,16 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.core import security
 from app.core.errors import AppError
-from app.repositories import audit_repo, invite_repo, user_repo
+from app.repositories import agency_repo, audit_repo, invite_repo, user_repo
+from app.schemas.agency import ActivationOut
 from app.schemas.invite import InviteCreate, InviteOut
 from app.services import auth_service
+
+# Спец-роль приглашения: активация агентства (приглашённый становится главным
+# админом и запускает подписку). Не путать с ролью пользователя (agency_admin).
+_OWNER_ROLE = "owner"
+# Срок жизни ссылки активации агентства (дней).
+ACTIVATION_DAYS = 7
 
 # Сколько байт случайности в коде (token_urlsafe даёт ~1.3 символа на байт).
 _CODE_BYTES = 9
@@ -108,7 +115,56 @@ def create_invite(
 
 
 def list_invites(db: Session, agency_id: int) -> List[InviteOut]:
-    return [_to_out(inv) for inv in invite_repo.get_all(db, agency_id)]
+    # Ссылки активации агентства (role='owner') в список приглашений сотрудников
+    # не показываем — это служебные ссылки для владельца платформы.
+    return [
+        _to_out(inv)
+        for inv in invite_repo.get_all(db, agency_id)
+        if inv.role != _OWNER_ROLE
+    ]
+
+
+# ── Активация агентства по ссылке (owner-приглашение) ─────────────────
+def activation_out(invite) -> ActivationOut:
+    return ActivationOut(
+        code=invite.code,
+        link=_join_link(invite.code),
+        expires_at=invite.expires_at,
+        status=_status_of(invite),
+    )
+
+
+def create_owner_invite(
+    db: Session, agency_id: int, created_by_user_id: Optional[int],
+    expires_in_days: int = ACTIVATION_DAYS,
+) -> "object":
+    """Создать ссылку активации агентства (без commit — коммитит вызывающий)."""
+    code = _generate_unique_code(db)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+    return invite_repo.create(
+        db, agency_id=agency_id, code=code, role=_OWNER_ROLE,
+        created_by=created_by_user_id, expires_at=expires_at,
+    )
+
+
+def get_active_owner_invite(db: Session, agency_id: int):
+    for inv in invite_repo.get_all(db, agency_id):
+        if inv.role == _OWNER_ROLE and _status_of(inv) == "active":
+            return inv
+    return None
+
+
+def revoke_owner_invites(db: Session, agency_id: int) -> None:
+    """Удалить все неиспользованные ссылки активации агентства."""
+    for inv in invite_repo.get_all(db, agency_id):
+        if inv.role == _OWNER_ROLE and inv.used_at is None:
+            invite_repo.delete(db, inv)
+
+
+def reissue_owner_invite(db: Session, agency_id: int, created_by_user_id: Optional[int]):
+    """Отозвать старые ссылки активации и создать новую (без commit)."""
+    revoke_owner_invites(db, agency_id)
+    return create_owner_invite(db, agency_id, created_by_user_id)
 
 
 def revoke_invite(db: Session, agency_id: int, invite_id: int) -> None:
@@ -155,6 +211,12 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
         part for part in [tg_user.get("first_name"), tg_user.get("last_name")] if part
     ) or None
 
+    # Ссылка активации агентства (role='owner') делает вступившего ГЛАВНЫМ
+    # админом (agency_admin + is_owner) и запускает подписку. Обычная ссылка —
+    # просто роль из приглашения (agent/agency_admin).
+    is_owner_invite = invite.role == _OWNER_ROLE
+    target_role = "agency_admin" if is_owner_invite else invite.role
+
     user = user_repo.get_by_telegram_id(db, telegram_id)
     if user is not None:
         if user.role == "superadmin":
@@ -163,8 +225,10 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
             raise AppError("already_in_agency", status.HTTP_409_CONFLICT)
         # Пользователь существовал без агентства — привязываем.
         user.agency_id = invite.agency_id
-        user.role = invite.role
+        user.role = target_role
         user.is_active = True
+        if is_owner_invite:
+            user.is_owner = True
         if username:
             user.username = username
         if full_name:
@@ -173,11 +237,22 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
         user = user_repo.create(
             db,
             telegram_id=telegram_id,
-            role=invite.role,
+            role=target_role,
             agency_id=invite.agency_id,
             username=username,
             full_name=full_name,
+            is_owner=is_owner_invite,
         )
+
+    # 4.1. Активация агентства-черновика: запускаем подписку с этого момента.
+    if is_owner_invite:
+        agency = agency_repo.get_by_id(db, invite.agency_id)
+        if agency is not None and agency.status == "pending":
+            days = agency.pending_days or 30
+            agency.status = "active"
+            agency.subscription_expires_at = datetime.now(timezone.utc) + timedelta(days=days)
+            agency.activated_at = datetime.now(timezone.utc)
+            agency.pending_days = None
 
     # 5. Помечаем приглашение использованным (одноразовое).
     invite.used_at = datetime.now(timezone.utc)
@@ -186,12 +261,12 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
 
     audit_repo.add(
         db,
-        action="member_joined",
+        action="agency_activated" if is_owner_invite else "member_joined",
         agency_id=invite.agency_id,
         actor_user_id=user.id,
         actor_telegram_id=telegram_id,
         actor_name=user.full_name or (("@" + username) if username else None),
-        note=f"роль: {invite.role}",
+        note="активация агентства" if is_owner_invite else f"роль: {invite.role}",
     )
 
     db.commit()

@@ -23,9 +23,11 @@ from app.db.base import Base
 class Agency(Base):
     __tablename__ = "agencies"
     __table_args__ = (
-        # Допустимые статусы подписки агентства (защита целостности на уровне БД).
+        # Допустимые статусы агентства (защита целостности на уровне БД).
+        # 'pending' — создано «черновиком», ждёт активации по ссылке (нет админа,
+        # подписка не запущена). После активации становится 'active'.
         CheckConstraint(
-            "status IN ('trial','active','frozen','expired')",
+            "status IN ('trial','active','frozen','expired','pending')",
             name="ck_agencies_status",
         ),
     )
@@ -74,6 +76,9 @@ class Agency(Base):
     owner_telegram_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, nullable=True, index=True
     )
+    # Для агентства-черновика (status='pending'): на сколько дней дать подписку
+    # при активации. После активации обнуляется (NULL).
+    pending_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Сквозной счётчик номеров объектов агентства (display_id «0001», «0002», …).
     # Раньше эту роль играл «служебный агент» в таблице agents; теперь счётчик
     # живёт прямо в агентстве и увеличивается атомарно (см. agency_repo).
