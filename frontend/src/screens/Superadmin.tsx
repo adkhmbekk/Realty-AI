@@ -212,6 +212,10 @@ function ActivationCard({
     const ok = await copyText(link);
     toast(ok ? t("copied") : t("copy"), ok ? "ok" : "info");
   }
+  async function doCopyCode() {
+    const ok = await copyText(activation.code);
+    toast(ok ? t("copied") : t("copy"), ok ? "ok" : "info");
+  }
   function share() {
     if (!link) return;
     const url =
@@ -246,6 +250,19 @@ function ActivationCard({
           </div>
         </>
       )}
+      {/* Код активации — запасной путь: если приложение попросит код, клиент
+          вставляет его (активирует агентство так же, как и переход по ссылке). */}
+      <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-primary-soft border border-primary/30 px-3 py-2">
+        <div className="min-w-0">
+          <div className="text-[11px] text-muted">{t("activationCode")}</div>
+          <div className="font-extrabold text-primary text-[15px] tracking-wide break-all select-all">
+            {activation.code}
+          </div>
+        </div>
+        <Button size="sm" variant="ghost" onClick={doCopyCode}>
+          <Copy size={15} /> {t("copyCode")}
+        </Button>
+      </div>
       <div className="text-[12px] text-muted mt-1.5">
         {t("activationExpires")}: {fmtDate(activation.expires_at, lang)}
       </div>
