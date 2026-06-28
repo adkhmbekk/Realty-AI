@@ -44,6 +44,18 @@ VALID_STATUSES = (STATUS_ACTIVE, STATUS_DEPOSIT, STATUS_SOLD, STATUS_RENTED)
 # Для аренды это не навсегда — статус можно вернуть в active, дата сбросится.
 _CLOSED_STATUSES = (STATUS_SOLD, STATUS_RENTED)
 
+
+def _status_allowed_for_deal(deal_type: Optional[str], status_value: str) -> bool:
+    """Совместимость статуса и типа сделки: 'sold' — только у продажи, 'rented' —
+    только у аренды (active/deposit допустимы для обоих). Чтобы нельзя было,
+    например, пометить продажу «сдан» или аренду «продан»."""
+    dt = deal_type or "sale"
+    if status_value == STATUS_SOLD:
+        return dt == "sale"
+    if status_value == STATUS_RENTED:
+        return dt == "rent"
+    return True
+
 # Типы «Земля» и «Участок» (исторический список).
 LAND_TYPES = ("Земля", "Участок")
 # Типы с земельным участком (дом тоже): «Этаж» не показываем; «Этажность» и
@@ -134,6 +146,9 @@ def create_apartment(
     # Тип сделки: по умолчанию продажа. У продажи срока аренды быть не может.
     deal_type = payload.deal_type or "sale"
     rent_period = payload.rent_period if deal_type == "rent" else None
+    # Статус должен соответствовать типу сделки (нельзя создать «продан» в аренде).
+    if not _status_allowed_for_deal(deal_type, new_status):
+        raise AppError("invalid_apartment_status", status.HTTP_400_BAD_REQUEST)
     apartment = Apartment(
         agency_id=agency_id,
         display_id=display_id,
@@ -277,6 +292,9 @@ def set_status(
     if new_status not in VALID_STATUSES:
         raise AppError("invalid_apartment_status", status.HTTP_400_BAD_REQUEST)
     apartment = get_apartment(db, agency_id, apartment_id)
+    # Статус должен соответствовать типу сделки (продажа↔sold, аренда↔rented).
+    if not _status_allowed_for_deal(apartment.deal_type, new_status):
+        raise AppError("invalid_apartment_status", status.HTTP_400_BAD_REQUEST)
     if apartment.status != new_status:
         apartment.status = new_status
         # Фиксируем дату снятия с продажи для архива/продажи; иначе сбрасываем.

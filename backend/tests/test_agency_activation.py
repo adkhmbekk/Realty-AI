@@ -4,6 +4,8 @@
 ссылку активации; кто откроет её в Telegram — становится главным админом, и
 подписка запускается с этого момента. Уровень сервисов, SQLite в памяти.
 """
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from app.core.errors import AppError
@@ -43,17 +45,23 @@ def test_claim_activates_agency_and_makes_owner(db, monkeypatch):
     agency, invite = _draft(db, owner, days=15)
 
     init_data = _sign_init_data(telegram_id=900100, username="boss")
+    before = datetime.now(timezone.utc)
     invite_service.redeem_invite(db, init_data, invite.code)
 
     # Открывший ссылку стал главным админом этого агентства.
     u = user_repo.get_by_telegram_id(db, 900100)
     assert u is not None
     assert u.role == "agency_admin" and u.is_owner is True and u.agency_id == agency.id
-    # Агентство активировано, подписка запущена, pending_days сброшен.
+    # Агентство активировано, подписка запущена на pending_days (15) дней, сброс.
     db.refresh(agency)
     assert agency.status == "active"
-    assert agency.subscription_expires_at is not None
     assert agency.pending_days is None
+    exp = agency.subscription_expires_at
+    assert exp is not None
+    if exp.tzinfo is None:  # SQLite отдаёт наивные даты
+        exp = exp.replace(tzinfo=timezone.utc)
+    delta = exp - before
+    assert timedelta(days=15) - timedelta(minutes=2) <= delta <= timedelta(days=15) + timedelta(minutes=2)
 
 
 def test_claim_blocked_if_already_in_agency(db, monkeypatch):
@@ -83,20 +91,40 @@ def test_claim_blocked_if_already_in_agency(db, monkeypatch):
     assert agency.status == "pending"
 
 
-def test_reissue_replaces_link(db):
+def test_reissue_replaces_link(db, monkeypatch):
+    from app.config import settings
+    from app.core import security
+
+    monkeypatch.setattr(settings, "bot_token", _TEST_BOT_TOKEN, raising=False)
+    security._seen_init_data.clear()
+
     owner = _superadmin(db)
     agency, invite = _draft(db, owner)
     new = agency_service.reissue_activation(db, agency.id, actor=owner)
     assert new.code != invite.code
     active = invite_service.get_active_owner_invite(db, agency.id)
     assert active is not None and active.code == new.code
+    # Старая ссылка больше НЕ действует (одноразовый отзыв).
+    with pytest.raises(AppError) as exc:
+        invite_service.redeem_invite(db, _sign_init_data(telegram_id=900300, username="old"), invite.code)
+    assert exc.value.key == "invite_not_found"
 
 
-def test_revoke_removes_link(db):
+def test_revoke_removes_link(db, monkeypatch):
+    from app.config import settings
+    from app.core import security
+
+    monkeypatch.setattr(settings, "bot_token", _TEST_BOT_TOKEN, raising=False)
+    security._seen_init_data.clear()
+
     owner = _superadmin(db)
-    agency, _invite = _draft(db, owner)
+    agency, invite = _draft(db, owner)
     agency_service.revoke_activation(db, agency.id, actor=owner)
     assert invite_service.get_active_owner_invite(db, agency.id) is None
+    # Отозванный код активировать нельзя.
+    with pytest.raises(AppError) as exc:
+        invite_service.redeem_invite(db, _sign_init_data(telegram_id=900400, username="rev"), invite.code)
+    assert exc.value.key == "invite_not_found"
 
 
 def test_activation_actions_blocked_when_active(db):

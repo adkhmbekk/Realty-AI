@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 from app.services.listing_import_service import _clean
 from app.services.client_service import apartment_matches_request
+from app.services.apartment_service import _status_allowed_for_deal
 
 
 # ── _clean: тип сделки и срок аренды ─────────────────────────────────
@@ -73,8 +74,20 @@ def test_rent_matches_rent():
     assert apartment_matches_request(rental, req) is True
 
 
+def test_status_deal_consistency():
+    # 'sold' — только продажа, 'rented' — только аренда; active/deposit — оба.
+    assert _status_allowed_for_deal("sale", "sold") is True
+    assert _status_allowed_for_deal("sale", "rented") is False
+    assert _status_allowed_for_deal("rent", "rented") is True
+    assert _status_allowed_for_deal("rent", "sold") is False
+    assert _status_allowed_for_deal("sale", "active") is True
+    assert _status_allowed_for_deal("rent", "deposit") is True
+    assert _status_allowed_for_deal(None, "sold") is True  # None → продажа
+
+
 def test_sale_matches_sale_by_default():
-    # Старые заявки/объекты без явного типа считаются продажей и подбираются.
-    req = _req(deal_type="sale")
-    sale = _apt(deal_type="sale", type="Квартира")
+    # Старые заявки/объекты БЕЗ явного типа (None) считаются продажей и подбираются
+    # — проверяем именно запасной путь (getattr ... or "sale").
+    req = _req(deal_type=None)
+    sale = _apt(deal_type=None, type="Квартира")
     assert apartment_matches_request(sale, req) is True

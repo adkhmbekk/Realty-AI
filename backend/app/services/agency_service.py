@@ -386,7 +386,14 @@ def rename_agency(
         )
     # Телефон открывшего агентство: можно заполнить позже; пустая строка очищает.
     if client_phone is not None:
-        agency.client_phone = client_phone.strip() or None
+        new_phone = client_phone.strip() or None
+        if agency.client_phone != new_phone:
+            agency.client_phone = new_phone
+            # Метку в журнал (без самого номера в note — это перс. данные).
+            audit_repo.add(
+                db, action="agency_updated", agency_id=agency.id,
+                target=agency.name, note="client_phone", **_actor_fields(actor),
+            )
     db.commit()
     db.refresh(agency)
     return agency

@@ -71,6 +71,19 @@ def _local_day_start_utc(now_utc: datetime, tz, days_ago: int = 0) -> datetime:
     return start_local.astimezone(timezone.utc)
 
 
+def _tz_name(tzname: Optional[str]) -> str:
+    """Безопасное имя пояса для SQL (func.timezone): кривое значение из БД не
+    должно ронять запрос активности — откатываемся на Asia/Tashkent."""
+    name = tzname or _FALLBACK_TZ
+    if ZoneInfo is None:
+        return _FALLBACK_TZ
+    try:
+        ZoneInfo(name)
+        return name
+    except Exception:  # noqa: BLE001
+        return _FALLBACK_TZ
+
+
 # ── Список: компактная сводка по всем клиентским агентствам ───────────
 def _count_by_agency(db: Session, ids, *extra) -> Dict[int, int]:
     q = (
@@ -156,10 +169,11 @@ def usage_list(db: Session) -> List[AgencyUsageOut]:
     since7 = now - timedelta(days=7)
     since30 = now - timedelta(days=30)
 
-    total_map = _count_by_agency(db, ids, Apartment.deleted_at.is_(None))
-    today_map = _count_by_agency(db, ids, Apartment.created_at >= today0)
-    d7_map = _count_by_agency(db, ids, Apartment.created_at >= since7)
-    d30_map = _count_by_agency(db, ids, Apartment.created_at >= since30)
+    nd = Apartment.deleted_at.is_(None)
+    total_map = _count_by_agency(db, ids, nd)
+    today_map = _count_by_agency(db, ids, nd, Apartment.created_at >= today0)
+    d7_map = _count_by_agency(db, ids, nd, Apartment.created_at >= since7)
+    d30_map = _count_by_agency(db, ids, nd, Apartment.created_at >= since30)
     logins7 = _logins_by_agency(db, ids, since7)
     last_act = _last_activity_by_agency(db, ids)
     users_total, users_active = _users_by_agency(db, ids, since7)
@@ -192,7 +206,7 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
     agency = agency_repo.get_by_id(db, agency_id)
     if agency is None:
         raise AppError("agency_not_found", http_status.HTTP_404_NOT_FOUND)
-    tzname = agency.timezone or _FALLBACK_TZ
+    tzname = _tz_name(agency.timezone)  # безопасно для func.timezone в SQL
     tz = _tz(tzname)
     now = datetime.now(timezone.utc)
 
@@ -221,7 +235,7 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
     bucket = func.date_trunc("day", func.timezone(tzname, Apartment.created_at))
     drows = db.execute(
         select(bucket, func.count())
-        .where(Apartment.agency_id == agency_id, Apartment.created_at >= since_daily)
+        .where(Apartment.agency_id == agency_id, not_deleted, Apartment.created_at >= since_daily)
         .group_by(bucket)
     ).all()
     dmap: Dict[object, int] = {}
@@ -239,8 +253,8 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
 
     since7 = now - timedelta(days=7)
     since30 = now - timedelta(days=30)
-    added_7d = _scalar_count(db, Apartment.agency_id == agency_id, Apartment.created_at >= since7)
-    added_30d = _scalar_count(db, Apartment.agency_id == agency_id, Apartment.created_at >= since30)
+    added_7d = _scalar_count(db, Apartment.agency_id == agency_id, not_deleted, Apartment.created_at >= since7)
+    added_30d = _scalar_count(db, Apartment.agency_id == agency_id, not_deleted, Apartment.created_at >= since30)
 
     # Как добавляют: вручную (source пуст) / по ссылке (домен) / из канала (@...).
     manual = link = channel = 0
@@ -292,7 +306,10 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
         )
         for u in users
     ]
-    employees.sort(key=lambda e: (e.added, e.last_login_at or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    # Сортировка: нормализуем last_login_at к aware-UTC, иначе при равном
+    # «added» сравнение naive vs aware дат бросило бы TypeError.
+    _min = datetime.min.replace(tzinfo=timezone.utc)
+    employees.sort(key=lambda e: (e.added, _as_utc(e.last_login_at) or _min), reverse=True)
 
     return AgencyActivityOut(
         objects_total=total,

@@ -559,11 +559,15 @@ export function AgencyCreateScreen() {
       toast(t("emptyName"), "warn");
       return;
     }
-    setSaving(true);
     const parsedDays = parseInt(days, 10);
+    if (Number.isNaN(parsedDays) || parsedDays <= 0) {
+      toast(t("badDate"), "warn");
+      return;
+    }
+    setSaving(true);
     const body: Record<string, unknown> = {
       name: name.trim(),
-      subscription_days: Number.isNaN(parsedDays) ? 30 : parsedDays,
+      subscription_days: parsedDays,
     };
     if (phone.trim()) body.client_phone = phone.trim();
     const r = await api<AgencyDraftOut>("/api/v1/agencies/draft", { method: "POST", body });

@@ -33,6 +33,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Черновики (status='pending') не пройдут старое ограничение — переводим их
+    # в 'expired' ДО пересоздания constraint, иначе downgrade упадёт.
+    op.execute("UPDATE agencies SET status='expired' WHERE status='pending'")
     op.drop_column("agencies", "pending_days")
     op.drop_constraint("ck_agencies_status", "agencies", type_="check")
     op.create_check_constraint(
