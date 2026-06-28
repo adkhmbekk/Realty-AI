@@ -1,5 +1,6 @@
 import { confirmDialog, openTelegramLink } from "../telegram";
 import { useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Briefcase, Building2, Copy, Link as LinkIcon, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
@@ -233,9 +234,17 @@ function ActivationCard({
       </div>
       <Hint>{t("activationHint")}</Hint>
       {link && (
-        <div className="mt-2 rounded-xl bg-[var(--soft)] border border-line px-3 py-2 text-[12px] break-all select-all">
-          {link}
-        </div>
+        <>
+          {/* QR на белом фоне — чтобы сканировался и в тёмной теме. */}
+          <div className="flex justify-center mt-3">
+            <div className="bg-white p-3 rounded-2xl shadow-soft">
+              <QRCodeSVG value={link} size={168} marginSize={2} />
+            </div>
+          </div>
+          <div className="mt-3 rounded-xl bg-[var(--soft)] border border-line px-3 py-2 text-[12px] break-all select-all">
+            {link}
+          </div>
+        </>
       )}
       <div className="text-[12px] text-muted mt-1.5">
         {t("activationExpires")}: {fmtDate(activation.expires_at, lang)}
