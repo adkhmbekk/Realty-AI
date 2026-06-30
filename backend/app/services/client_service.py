@@ -33,6 +33,7 @@ from app.schemas.client import (
     ActivityOut,
     ClientCreate,
     ClientOut,
+    ClientStatsOut,
     ClientUpdate,
     MatchOut,
     DealCreate,
@@ -828,3 +829,18 @@ def client_hints(db: Session, agency_id: int, user, client_id: int) -> List[Hint
         if days >= _HINT_SILENT_DAYS:
             hints.append(HintOut(kind="silent", days=days))
     return hints
+
+
+# ── Сводка для дашборда (Волна 7) ────────────────────────────────────
+def client_stats(db: Session, agency_id: int, user) -> ClientStatsOut:
+    """Сводка по клиентам и сделкам: агенту — свои, администратору — все."""
+    of = _owner_filter(user)
+    sc = client_repo.deal_stage_counts(db, agency_id, owner_id=of)
+    won = sc.get("sold", 0)
+    active = sum(n for st, n in sc.items() if st not in ("sold", "cancelled"))
+    return ClientStatsOut(
+        clients=client_repo.count_clients(db, agency_id, owner_id=of),
+        in_search=client_repo.count_clients_in_search(db, agency_id, owner_id=of),
+        deals_active=active,
+        deals_won=won,
+    )

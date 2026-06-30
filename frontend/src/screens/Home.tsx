@@ -4,7 +4,7 @@ import { useApp } from "../store";
 import { useNav, Route } from "../nav";
 import { api } from "../api";
 import { Card } from "../components/ui";
-import type { ApartmentStats } from "../types";
+import type { ApartmentStats, ClientStats } from "../types";
 import { initials } from "../utils";
 import { haptic } from "../telegram";
 
@@ -115,6 +115,45 @@ function Stats() {
   );
 }
 
+// Блок «Клиенты»: сводка по клиентам и сделкам (Волна 7, рядом с блоком «Объекты»).
+function ClientStatsBlock() {
+  const { t } = useApp();
+  const nav = useNav();
+  const [s, setS] = useState<ClientStats | null>(null);
+  useEffect(() => {
+    api<ClientStats>("/api/v1/clients/stats").then((r) => {
+      if (r.ok && r.data) setS(r.data);
+    });
+  }, []);
+  if (!s) return null;
+  // Пока нет ни клиентов, ни сделок — не загромождаем дашборд.
+  if (!s.clients && !s.deals_active && !s.deals_won) return null;
+  const tiles: { key: string; labelKey: string; count: number; num: string }[] = [
+    { key: "clients", labelKey: "cstat_clients", count: s.clients, num: "text-primary" },
+    { key: "in_search", labelKey: "cstat_in_search", count: s.in_search, num: "text-indigo-600 dark:text-indigo-400" },
+    { key: "deals_active", labelKey: "cstat_deals_active", count: s.deals_active, num: "text-amber-600 dark:text-amber-400" },
+    { key: "deals_won", labelKey: "cstat_deals_won", count: s.deals_won, num: "text-emerald-600 dark:text-emerald-400" },
+  ];
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mt-1 mx-0.5 mb-2.5">
+        <span className="text-[14px] font-extrabold tracking-tight">{t("cstat_title")}</span>
+        <button className="text-[13px] font-bold text-primary" onClick={() => nav.push({ name: "clients" })}>
+          {t("clientsTitle")} ›
+        </button>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {tiles.map((tl) => (
+          <div key={tl.key} className="rounded-xl2 bg-card border border-line shadow-soft p-2.5 text-center">
+            <div className={"text-[22px] font-extrabold leading-none " + tl.num}>{tl.count}</div>
+            <div className="text-[10.5px] font-semibold text-muted mt-1 leading-tight">{t(tl.labelKey)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
     <button
@@ -202,6 +241,7 @@ export function HomeScreen() {
       <Hero />
       <Stats />
       <ClientsEntry />
+      <ClientStatsBlock />
       <div className="flex items-center justify-between mt-1 mx-0.5 mb-2.5">
         <span className="text-[14px] font-extrabold tracking-tight">{t("quickActions")}</span>
       </div>

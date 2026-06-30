@@ -38,6 +38,13 @@ function fmtAgo(iso: string | null | undefined, t: (k: string) => string): strin
 }
 
 // Маленький блок «число + подпись» (для Сегодня/Вчера/Позавчера).
+function fmtMoneyMap(m?: Record<string, number>): string {
+  if (!m) return "";
+  return Object.entries(m)
+    .map(([c, v]) => new Intl.NumberFormat("ru-RU").format(v) + " " + c)
+    .join(" · ");
+}
+
 function StatBox({ n, label }: { n: number; label: string }) {
   return (
     <div className="rounded-xl bg-[var(--soft)] py-2 text-center">
@@ -142,6 +149,20 @@ function AgencyActivityPanel({ id }: { id: number }) {
         <Row label={t("lastActivity")} value={fmtAgo(a.last_activity_at, t)} />
       </Card>
 
+      {/* Сделки и комиссия (Волна 7) */}
+      {((a.deals_total ?? 0) > 0 || (a.clients_total ?? 0) > 0) && (
+        <Card className="mt-2">
+          <div className="font-bold mb-1">{t("dealsAnalytics")}</div>
+          <Row label={t("cstat_clients")} value={String(a.clients_total ?? 0)} />
+          <Row label={t("dealsAll")} value={String(a.deals_total ?? 0)} />
+          <Row label={t("cstat_deals_active")} value={String(a.deals_active ?? 0)} />
+          <Row label={t("cstat_deals_won")} value={String(a.deals_won ?? 0)} />
+          {a.revenue && Object.keys(a.revenue).length > 0 && (
+            <Row label={t("commissionTotal")} value={fmtMoneyMap(a.revenue)} />
+          )}
+        </Card>
+      )}
+
       {/* По сотрудникам */}
       {a.employees.length > 0 && (
         <Card className="mt-2">
@@ -152,8 +173,15 @@ function AgencyActivityPanel({ id }: { id: number }) {
               className="flex items-center justify-between py-1.5 border-b border-line last:border-0"
             >
               <span className="truncate font-medium">{e.name || "—"}</span>
-              <span className="text-[12px] text-muted shrink-0 ml-2">
+              <span className="text-[12px] text-muted shrink-0 ml-2 text-right">
                 +{e.added} · {e.last_login_at ? fmtAgo(e.last_login_at, t) : t("neverIn")}
+                {(e.deals_won ?? 0) > 0 && (
+                  <>
+                    <br />
+                    {t("cstat_deals_won")}: {e.deals_won}
+                    {e.commission && Object.keys(e.commission).length > 0 ? " · " + fmtMoneyMap(e.commission) : ""}
+                  </>
+                )}
               </span>
             </div>
           ))}

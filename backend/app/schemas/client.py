@@ -312,3 +312,11 @@ class HintOut(BaseModel):
     kind: str
     count: Optional[int] = None
     days: Optional[int] = None
+
+
+# ── Сводка по клиентам/сделкам для дашборда (Волна 7) ─────────────────
+class ClientStatsOut(BaseModel):
+    clients: int = 0          # всего активных клиентов (агенту — свои, админу — все)
+    in_search: int = 0        # клиенты с активной заявкой («в поиске»)
+    deals_active: int = 0     # сделки в работе (не продано/не отменено)
+    deals_won: int = 0        # сделки «Продано»

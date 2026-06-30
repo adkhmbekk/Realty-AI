@@ -339,6 +339,13 @@ export interface Deal {
   closed_at?: string | null;
 }
 
+export interface ClientStats {
+  clients: number;
+  in_search: number;
+  deals_active: number;
+  deals_won: number;
+}
+
 export interface Match {
   id: number;
   status: string;
@@ -397,6 +404,8 @@ export interface EmployeeActivity {
   name?: string | null;
   last_login_at?: string | null;
   added: number;
+  deals_won?: number;
+  commission?: Record<string, number>;
 }
 
 export interface AgencyActivity {
@@ -421,6 +430,11 @@ export interface AgencyActivity {
   active_users: number;
   total_users: number;
   last_activity_at?: string | null;
+  clients_total?: number;
+  deals_total?: number;
+  deals_active?: number;
+  deals_won?: number;
+  revenue?: Record<string, number>;
   employees: EmployeeActivity[];
 }
 

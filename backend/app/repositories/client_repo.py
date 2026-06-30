@@ -372,6 +372,34 @@ def list_deals_for_client(db: Session, client_id: int) -> List[Deal]:
     )
 
 
+def count_clients(db: Session, agency_id: int, *, owner_id: Optional[int] = None) -> int:
+    conds = [Client.agency_id == agency_id, Client.status != "archived"]
+    if owner_id is not None:
+        conds.append(Client.created_by == owner_id)
+    return int(db.execute(select(func.count()).select_from(Client).where(*conds)).scalar_one())
+
+
+def count_clients_in_search(db: Session, agency_id: int, *, owner_id: Optional[int] = None) -> int:
+    """Неархивные клиенты с хотя бы одной активной заявкой («в поиске»)."""
+    sub = select(ClientRequest.client_id).where(ClientRequest.status == "active")
+    conds = [Client.agency_id == agency_id, Client.status != "archived", Client.id.in_(sub)]
+    if owner_id is not None:
+        conds.append(Client.created_by == owner_id)
+    return int(db.execute(select(func.count()).select_from(Client).where(*conds)).scalar_one())
+
+
+def deal_stage_counts(db: Session, agency_id: int, *, owner_id: Optional[int] = None) -> Dict[str, int]:
+    stmt = select(Deal.stage, func.count()).select_from(Deal).where(Deal.agency_id == agency_id)
+    if owner_id is not None:
+        stmt = stmt.where(
+            Deal.client_id.in_(
+                select(Client.id).where(Client.created_by == owner_id, Client.agency_id == agency_id)
+            )
+        )
+    stmt = stmt.group_by(Deal.stage)
+    return {s: int(n) for s, n in db.execute(stmt).all()}
+
+
 def list_deals_for_user(
     db: Session, agency_id: int, *, owner_id: Optional[int] = None, limit: int = 200,
 ) -> List[Tuple[Deal, Client, Optional[Apartment]]]:

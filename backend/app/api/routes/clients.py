@@ -19,6 +19,7 @@ from app.schemas.client import (
     ActivityOut,
     ClientCreate,
     ClientOut,
+    ClientStatsOut,
     ClientUpdate,
     DealCreate,
     DealOut,
@@ -83,6 +84,15 @@ def matches_summary(
 ):
     """Сколько новых совпадений (для значка-счётчика)."""
     return MatchSummaryOut(new_count=client_service.new_match_count(db, current_user.agency_id, current_user))
+
+
+@router.get("/stats", response_model=ClientStatsOut)
+def client_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Сводка по клиентам и сделкам для дашборда (свои — агенту, все — администратору)."""
+    return client_service.client_stats(db, current_user.agency_id, current_user)
 
 
 @router.post("/matches/seen")

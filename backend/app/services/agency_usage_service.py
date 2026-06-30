@@ -29,6 +29,8 @@ from app.core.errors import AppError
 from app.db.models.apartment import Apartment
 from app.db.models.apartment_event import ApartmentEvent
 from app.db.models.audit_log import AuditLog
+from app.db.models.client import Client
+from app.db.models.deal import DEAL_REVENUE_STAGES, Deal
 from app.db.models.user import User
 from app.repositories import agency_repo, apartment_repo
 from app.schemas.agency import (
@@ -292,6 +294,50 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
     ).scalar() or 0
     last_act = _last_activity_by_agency(db, [agency_id]).get(agency_id)
 
+    # ── Сделки и комиссия агентства (Волна 7) ───────────────────────
+    deal_counts = {
+        s: int(n)
+        for s, n in db.execute(
+            select(Deal.stage, func.count()).where(Deal.agency_id == agency_id).group_by(Deal.stage)
+        )
+    }
+    deals_total = sum(deal_counts.values())
+    deals_won = deal_counts.get("sold", 0)
+    deals_active = sum(n for stg, n in deal_counts.items() if stg not in ("sold", "cancelled"))
+    # Выручка (комиссия) по валютам — со сделок «деньги» (задаток и далее).
+    revenue: Dict[str, float] = {}
+    for cur, ssum in db.execute(
+        select(Deal.commission_currency, func.sum(Deal.commission))
+        .where(Deal.agency_id == agency_id, Deal.stage.in_(DEAL_REVENUE_STAGES), Deal.commission.is_not(None))
+        .group_by(Deal.commission_currency)
+    ):
+        if ssum is not None:
+            revenue[cur or "?"] = float(ssum)
+    clients_total = db.execute(
+        select(func.count()).select_from(Client).where(Client.agency_id == agency_id, Client.status != "archived")
+    ).scalar() or 0
+    # По сотрудникам: продано + комиссия по валютам.
+    emp_won: Dict[int, int] = {}
+    for aid, n in db.execute(
+        select(Deal.agent_id, func.count())
+        .where(Deal.agency_id == agency_id, Deal.stage == "sold", Deal.agent_id.is_not(None))
+        .group_by(Deal.agent_id)
+    ):
+        emp_won[aid] = int(n)
+    emp_comm: Dict[int, Dict[str, float]] = {}
+    for aid, cur, ssum in db.execute(
+        select(Deal.agent_id, Deal.commission_currency, func.sum(Deal.commission))
+        .where(
+            Deal.agency_id == agency_id,
+            Deal.stage.in_(DEAL_REVENUE_STAGES),
+            Deal.commission.is_not(None),
+            Deal.agent_id.is_not(None),
+        )
+        .group_by(Deal.agent_id, Deal.commission_currency)
+    ):
+        if ssum is not None:
+            emp_comm.setdefault(aid, {})[cur or "?"] = float(ssum)
+
     # По сотрудникам: сколько добавил + когда заходил.
     added_by = {cid: tot for cid, tot, _sold in apartment_repo.stats_by_creator(db, agency_id)}
     users = db.execute(
@@ -303,6 +349,8 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
             name=_display_name(u),
             last_login_at=u.last_login_at,
             added=added_by.get(u.id, 0),
+            deals_won=emp_won.get(u.id, 0),
+            commission=emp_comm.get(u.id, {}),
         )
         for u in users
     ]
@@ -333,5 +381,10 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
         active_users=active_users,
         total_users=total_users,
         last_activity_at=last_act,
+        clients_total=clients_total,
+        deals_total=deals_total,
+        deals_active=deals_active,
+        deals_won=deals_won,
+        revenue=revenue,
         employees=employees,
     )

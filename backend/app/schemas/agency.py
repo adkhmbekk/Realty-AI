@@ -2,7 +2,7 @@
 Схемы для агентств.
 """
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -195,6 +195,9 @@ class EmployeeActivityOut(BaseModel):
     name: Optional[str] = None
     last_login_at: Optional[datetime] = None
     added: int = 0
+    # Сделки/комиссия сотрудника (Волна 7). commission — по валютам {USD: ...}.
+    deals_won: int = 0
+    commission: Dict[str, float] = {}
 
 
 class AgencyActivityOut(BaseModel):
@@ -224,4 +227,11 @@ class AgencyActivityOut(BaseModel):
     active_users: int = 0
     total_users: int = 0
     last_activity_at: Optional[datetime] = None
+    # Сделки и комиссия агентства (Волна 7).
+    clients_total: int = 0
+    deals_total: int = 0
+    deals_active: int = 0
+    deals_won: int = 0
+    # Комиссия по валютам со сделок «деньги» (задаток+): {"USD": 5000, "UZS": ...}.
+    revenue: Dict[str, float] = {}
     employees: List[EmployeeActivityOut] = []
