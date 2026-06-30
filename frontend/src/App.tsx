@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Briefcase, Building2, Database, Home, Layers, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
@@ -10,23 +10,32 @@ import type { AuthResponse, AgencySettings } from "./types";
 import { Button, Card, Field, Input, Spinner } from "./components/ui";
 import { HomeScreen } from "./screens/Home";
 import { ProfileScreen, SuspendedScreen } from "./screens/Profile";
-import { SettingsScreen } from "./screens/Settings";
-import { TeamScreen } from "./screens/Team";
-import { InvitesScreen } from "./screens/Invites";
-import { AnalyticsScreen } from "./screens/Analytics";
-import { AgentDetailScreen } from "./screens/AgentDetail";
-import { AgenciesScreen, AgencyCreateScreen, AgencyManageScreen, MlsPoolScreen, MyAgenciesScreen } from "./screens/Superadmin";
-import {
-  AddObjectScreen,
-  ArchiveScreen,
-  DatabaseScreen,
-  DuplicatesScreen,
-  ObjectDetailScreen,
-  ObjectEditScreen,
-  ObjectList,
-  SearchScreen,
-} from "./screens/Apartments";
-import { ClientDetailScreen, ClientsScreen, MatchesScreen, SaveRequestScreen } from "./screens/Clients";
+// Экраны грузим «лениво» (code-splitting): начальный бандл меньше → быстрее
+// первый показ при открытии. Часто открываемые Home и Profile оставляем в
+// основном бандле (без мелькания загрузчика). Остальное подгружается при первом
+// переходе и кэшируется. Все ленивые экраны рендерятся внутри <Suspense> в Shell.
+const SettingsScreen = lazy(() => import("./screens/Settings").then((m) => ({ default: m.SettingsScreen })));
+const TeamScreen = lazy(() => import("./screens/Team").then((m) => ({ default: m.TeamScreen })));
+const InvitesScreen = lazy(() => import("./screens/Invites").then((m) => ({ default: m.InvitesScreen })));
+const AnalyticsScreen = lazy(() => import("./screens/Analytics").then((m) => ({ default: m.AnalyticsScreen })));
+const AgentDetailScreen = lazy(() => import("./screens/AgentDetail").then((m) => ({ default: m.AgentDetailScreen })));
+const AgenciesScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgenciesScreen })));
+const AgencyCreateScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyCreateScreen })));
+const AgencyManageScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyManageScreen })));
+const MlsPoolScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.MlsPoolScreen })));
+const MyAgenciesScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.MyAgenciesScreen })));
+const AddObjectScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.AddObjectScreen })));
+const ArchiveScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.ArchiveScreen })));
+const DatabaseScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.DatabaseScreen })));
+const DuplicatesScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.DuplicatesScreen })));
+const ObjectDetailScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.ObjectDetailScreen })));
+const ObjectEditScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.ObjectEditScreen })));
+const ObjectList = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.ObjectList })));
+const SearchScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.SearchScreen })));
+const ClientDetailScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.ClientDetailScreen })));
+const ClientsScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.ClientsScreen })));
+const MatchesScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.MatchesScreen })));
+const SaveRequestScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.SaveRequestScreen })));
 
 type Phase = "loading" | "open" | "join" | "ready" | "suspended";
 
@@ -343,7 +352,9 @@ function Shell() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.22 }}
           >
-            <RouteView route={route} />
+            <Suspense fallback={<div className="py-12"><Spinner /></div>}>
+              <RouteView route={route} />
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </div>
