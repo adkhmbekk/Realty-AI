@@ -313,6 +313,25 @@ export interface Task {
   client_name?: string | null;
 }
 
+export interface Deal {
+  id: number;
+  client_id: number;
+  client_name?: string | null;
+  apartment_id?: number | null;
+  apartment_label?: string | null;
+  // new/interested/shown/price_agreed/deposit/contract/sold/cancelled
+  stage: string;
+  price?: number | null;
+  currency?: string | null;
+  commission?: number | null;
+  commission_currency?: string | null;
+  agent_id?: number | null;
+  agent_name?: string | null;
+  note?: string | null;
+  created_at: string;
+  closed_at?: string | null;
+}
+
 export interface Match {
   id: number;
   status: string;

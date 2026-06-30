@@ -291,3 +291,35 @@ def test_client_tasks_and_autotask(db):
     assert len(autos) == 1
     # Повторный тик не плодит дубль.
     assert client_service.run_autotask_tick(db, idle_days=7) == 0
+
+
+# ── Волна 5: сделки и комиссия ───────────────────────────────────────
+def test_client_deal_pipeline(db):
+    from app.schemas.client import DealCreate, DealUpdate
+
+    agency, admin, agent = _setup(db)
+    apt = _apt(db, agency.id, agent.id, type="Квартира", district="Юнусабад", rooms=3, price=70000, currency="USD")
+    out, _ = client_service.create_client(db, agency.id, agent, ClientCreate(name="Дима"))
+    d = client_service.create_deal(
+        db, agency.id, agent, out.id,
+        DealCreate(apartment_id=apt.id, stage="interested", price=70000, currency="USD"),
+    )
+    assert d.stage == "interested" and d.apartment_id == apt.id
+    assert d.agent_id == agent.id  # по умолчанию — владелец клиента
+    # Этап → задаток (деньги), затем продано (закрытие фиксируется).
+    d2 = client_service.update_deal(
+        db, agency.id, agent, d.id, DealUpdate(stage="deposit", commission=2000, commission_currency="USD"),
+    )
+    assert d2.stage == "deposit" and d2.commission == 2000
+    d3 = client_service.update_deal(db, agency.id, agent, d.id, DealUpdate(stage="sold"))
+    assert d3.stage == "sold" and d3.closed_at is not None
+    assert len(client_service.list_deals_for_client(db, agency.id, agent, out.id)) == 1
+    assert len(client_service.list_my_deals(db, agency.id, agent)) == 1
+
+    # Чужой объект (другого агентства) в сделку привязать нельзя.
+    other = Agency(name="O2", status="active", timezone="Asia/Tashkent", default_currency="USD")
+    db.add(other)
+    db.flush()
+    foreign = _apt(db, other.id, None, type="Квартира", price=1, currency="USD")
+    with pytest.raises(AppError):
+        client_service.create_deal(db, agency.id, agent, out.id, DealCreate(apartment_id=foreign.id))

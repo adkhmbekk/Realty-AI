@@ -236,3 +236,71 @@ class TaskOut(BaseModel):
     created_at: datetime
     # Для списка «мои задачи» — имя клиента (заполняет сервис).
     client_name: Optional[str] = None
+
+
+# ── Сделки и комиссия (Волна 5) ──────────────────────────────────────
+DealStage = Literal[
+    "new", "interested", "shown", "price_agreed", "deposit", "contract", "sold", "cancelled",
+]
+
+
+def _norm_deal_currency(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    v = v.strip().upper()
+    if not v:
+        return None
+    if v not in ALLOWED_CURRENCIES:
+        raise ValueError("invalid_currency")
+    return v
+
+
+class DealCreate(BaseModel):
+    apartment_id: Optional[int] = None
+    stage: DealStage = "new"
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    commission: Optional[float] = None
+    commission_currency: Optional[str] = None
+    agent_id: Optional[int] = None
+    note: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("currency", "commission_currency")
+    @classmethod
+    def _cur(cls, v: Optional[str]) -> Optional[str]:
+        return _norm_deal_currency(v)
+
+
+class DealUpdate(BaseModel):
+    stage: Optional[DealStage] = None
+    apartment_id: Optional[int] = None
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    commission: Optional[float] = None
+    commission_currency: Optional[str] = None
+    agent_id: Optional[int] = None
+    note: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("currency", "commission_currency")
+    @classmethod
+    def _cur(cls, v: Optional[str]) -> Optional[str]:
+        return _norm_deal_currency(v)
+
+
+class DealOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    client_id: int
+    client_name: Optional[str] = None
+    apartment_id: Optional[int] = None
+    apartment_label: Optional[str] = None
+    stage: str
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    commission: Optional[float] = None
+    commission_currency: Optional[str] = None
+    agent_id: Optional[int] = None
+    agent_name: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime
+    closed_at: Optional[datetime] = None

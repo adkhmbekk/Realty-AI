@@ -24,6 +24,7 @@ from app.core.errors import AppError
 from app.db.models.apartment import Apartment
 from app.db.models.client import Client
 from app.db.models.client_request import ClientRequest
+from app.db.models.deal import Deal
 from app.db.models.request_match import RequestMatch
 from app.repositories import apartment_repo, client_repo, user_repo
 from app.schemas.apartment import ApartmentOut
@@ -34,6 +35,9 @@ from app.schemas.client import (
     ClientOut,
     ClientUpdate,
     MatchOut,
+    DealCreate,
+    DealOut,
+    DealUpdate,
     RequestCriteria,
     RequestOut,
     RequestUpdate,
@@ -669,3 +673,123 @@ def run_autotask_tick(db: Session, idle_days: int = _AUTOTASK_IDLE_DAYS) -> int:
     if created:
         db.commit()
     return created
+
+
+# ── Сделки и комиссия (Волна 5) ──────────────────────────────────────
+def _name_of(db: Session, uid: Optional[int]) -> Optional[str]:
+    if not uid:
+        return None
+    u = user_repo.get_by_id(db, uid)
+    return apartment_service._display_name(u) if u else None
+
+
+def _apartment_label(a: Optional[Apartment]) -> Optional[str]:
+    if a is None:
+        return None
+    parts = [f"№{a.display_id}"]
+    if a.district:
+        parts.append(a.district)
+    return " · ".join(parts)
+
+
+def _deal_to_out(d: Deal, *, client_name=None, apartment_label=None, agent_name=None) -> DealOut:
+    return DealOut(
+        id=d.id, client_id=d.client_id, client_name=client_name,
+        apartment_id=d.apartment_id, apartment_label=apartment_label,
+        stage=d.stage,
+        price=float(d.price) if d.price is not None else None, currency=d.currency,
+        commission=float(d.commission) if d.commission is not None else None,
+        commission_currency=d.commission_currency,
+        agent_id=d.agent_id, agent_name=agent_name, note=d.note,
+        created_at=d.created_at, closed_at=d.closed_at,
+    )
+
+
+def create_deal(db: Session, agency_id: int, user, client_id: int, payload: DealCreate) -> DealOut:
+    c = _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
+    apt = None
+    seller_agency = agency_id
+    if payload.apartment_id is not None:
+        apt = client_repo.get_agency_apartment(db, agency_id, payload.apartment_id)
+        if apt is None:
+            raise AppError("apartment_not_found", status.HTTP_404_NOT_FOUND)
+        seller_agency = apt.agency_id
+    agent_id = payload.agent_id if payload.agent_id is not None else (c.created_by or user.id)
+    d = Deal(
+        agency_id=agency_id, client_id=client_id, apartment_id=(apt.id if apt else None),
+        stage=payload.stage, price=payload.price, currency=payload.currency,
+        commission=payload.commission, commission_currency=payload.commission_currency,
+        agent_id=agent_id, seller_agency_id=seller_agency, note=(payload.note or None),
+        created_by=user.id,
+        closed_at=(datetime.now(timezone.utc) if payload.stage == "sold" else None),
+    )
+    client_repo.add_deal(db, d)
+    db.commit()
+    return _deal_to_out(
+        d, client_name=_client_full_name(c), apartment_label=_apartment_label(apt),
+        agent_name=_name_of(db, agent_id),
+    )
+
+
+def list_deals_for_client(db: Session, agency_id: int, user, client_id: int) -> List[DealOut]:
+    c = _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
+    deals = client_repo.list_deals_for_client(db, client_id)
+    name = _client_full_name(c)
+    agent_ids = {d.agent_id for d in deals if d.agent_id}
+    anames = (
+        {u.id: apartment_service._display_name(u) for u in user_repo.get_by_ids(db, agent_ids)}
+        if agent_ids else {}
+    )
+    out: List[DealOut] = []
+    for d in deals:
+        apt = client_repo.get_agency_apartment(db, agency_id, d.apartment_id) if d.apartment_id else None
+        out.append(_deal_to_out(
+            d, client_name=name, apartment_label=_apartment_label(apt),
+            agent_name=anames.get(d.agent_id),
+        ))
+    return out
+
+
+def update_deal(db: Session, agency_id: int, user, deal_id: int, payload: DealUpdate) -> DealOut:
+    d = client_repo.get_deal(db, agency_id, deal_id)
+    if d is None:
+        raise AppError("deal_not_found", status.HTTP_404_NOT_FOUND)
+    c = _load_client_for_user(db, agency_id, user, d.client_id)  # проверка владения
+    data = payload.model_dump(exclude_unset=True)
+    if "apartment_id" in data:
+        if data["apartment_id"] is None:
+            d.apartment_id = None
+        else:
+            apt = client_repo.get_agency_apartment(db, agency_id, data["apartment_id"])
+            if apt is None:
+                raise AppError("apartment_not_found", status.HTTP_404_NOT_FOUND)
+            d.apartment_id = apt.id
+            d.seller_agency_id = apt.agency_id
+    for f in ("price", "currency", "commission", "commission_currency", "agent_id", "note"):
+        if f in data:
+            setattr(d, f, data[f] if data[f] != "" else None)
+    if data.get("stage") is not None:
+        d.stage = data["stage"]
+        d.closed_at = datetime.now(timezone.utc) if data["stage"] == "sold" else None
+    db.commit()
+    apt = client_repo.get_agency_apartment(db, agency_id, d.apartment_id) if d.apartment_id else None
+    return _deal_to_out(
+        d, client_name=_client_full_name(c), apartment_label=_apartment_label(apt),
+        agent_name=_name_of(db, d.agent_id),
+    )
+
+
+def list_my_deals(db: Session, agency_id: int, user) -> List[DealOut]:
+    rows = client_repo.list_deals_for_user(db, agency_id, owner_id=_owner_filter(user))
+    agent_ids = {d.agent_id for d, _c, _a in rows if d.agent_id}
+    anames = (
+        {u.id: apartment_service._display_name(u) for u in user_repo.get_by_ids(db, agent_ids)}
+        if agent_ids else {}
+    )
+    return [
+        _deal_to_out(
+            d, client_name=_client_full_name(c), apartment_label=_apartment_label(a),
+            agent_name=anames.get(d.agent_id),
+        )
+        for d, c, a in rows
+    ]

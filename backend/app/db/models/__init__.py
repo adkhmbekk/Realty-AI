@@ -11,6 +11,7 @@ from app.db.models.audit_log import AuditLog
 from app.db.models.client import Client
 from app.db.models.client_activity import ClientActivity
 from app.db.models.client_request import ClientRequest
+from app.db.models.deal import Deal
 from app.db.models.dictionary import Dictionary
 from app.db.models.duplicate_dismissal import DuplicateDismissal
 from app.db.models.invite import Invite
@@ -33,6 +34,7 @@ __all__ = [
     "Client",
     "ClientActivity",
     "ClientRequest",
+    "Deal",
     "RequestMatch",
     "SubscriptionPayment",
     "Task",

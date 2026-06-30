@@ -16,6 +16,7 @@ from app.db.models.apartment import Apartment
 from app.db.models.client import Client
 from app.db.models.client_activity import ClientActivity
 from app.db.models.client_request import ClientRequest
+from app.db.models.deal import Deal
 from app.db.models.request_match import RequestMatch
 from app.db.models.task import Task
 
@@ -341,3 +342,46 @@ def client_ids_with_open_auto_task(db: Session, client_ids: Sequence[int]) -> se
         )
     ).all()
     return {r[0] for r in rows}
+
+
+# ── Сделки (Волна 5) ─────────────────────────────────────────────────
+def get_agency_apartment(db: Session, agency_id: int, apartment_id: int) -> Optional[Apartment]:
+    """Объект СВОЕГО агентства (для привязки к сделке)."""
+    return db.execute(
+        select(Apartment).where(Apartment.id == apartment_id, Apartment.agency_id == agency_id)
+    ).scalar_one_or_none()
+
+
+def add_deal(db: Session, deal: Deal) -> Deal:
+    db.add(deal)
+    db.flush()
+    return deal
+
+
+def get_deal(db: Session, agency_id: int, deal_id: int) -> Optional[Deal]:
+    return db.execute(
+        select(Deal).where(Deal.id == deal_id, Deal.agency_id == agency_id)
+    ).scalar_one_or_none()
+
+
+def list_deals_for_client(db: Session, client_id: int) -> List[Deal]:
+    return list(
+        db.execute(
+            select(Deal).where(Deal.client_id == client_id).order_by(Deal.created_at.desc())
+        ).scalars().all()
+    )
+
+
+def list_deals_for_user(
+    db: Session, agency_id: int, *, owner_id: Optional[int] = None, limit: int = 200,
+) -> List[Tuple[Deal, Client, Optional[Apartment]]]:
+    stmt = (
+        select(Deal, Client, Apartment)
+        .join(Client, Deal.client_id == Client.id)
+        .outerjoin(Apartment, Deal.apartment_id == Apartment.id)
+        .where(Deal.agency_id == agency_id)
+    )
+    if owner_id is not None:
+        stmt = stmt.where(Client.created_by == owner_id)
+    stmt = stmt.order_by(Deal.created_at.desc()).limit(limit)
+    return [(d, c, a) for d, c, a in db.execute(stmt).all()]

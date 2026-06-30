@@ -20,6 +20,9 @@ from app.schemas.client import (
     ClientCreate,
     ClientOut,
     ClientUpdate,
+    DealCreate,
+    DealOut,
+    DealUpdate,
     MatchOut,
     MatchSummaryOut,
     RequestCreate,
@@ -156,6 +159,27 @@ def set_task_status(
     return client_service.set_task_status(db, current_user.agency_id, current_user, task_id, body.status)
 
 
+# ── Сделки (объявлены ДО /{client_id}) ───────────────────────────────
+@router.get("/deals", response_model=List[DealOut])
+def my_deals(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Сделки пользователя (свои — агенту, все — администратору). Для воронки/аналитики."""
+    return client_service.list_my_deals(db, current_user.agency_id, current_user)
+
+
+@router.patch("/deals/{deal_id}", response_model=DealOut)
+def update_deal(
+    deal_id: int,
+    body: DealUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Изменить сделку (этап воронки, цена, комиссия, агент, объект, заметка)."""
+    return client_service.update_deal(db, current_user.agency_id, current_user, deal_id, body)
+
+
 # ── Клиент по id ─────────────────────────────────────────────────────
 @router.get("/{client_id}", response_model=ClientOut)
 def get_client(
@@ -242,3 +266,25 @@ def add_client_task(
 ):
     """Добавить задачу клиенту."""
     return client_service.add_task(db, current_user.agency_id, current_user, client_id, body)
+
+
+# ── Сделки по клиенту (Волна 5) ──────────────────────────────────────
+@router.get("/{client_id}/deals", response_model=List[DealOut])
+def list_client_deals(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Сделки клиента."""
+    return client_service.list_deals_for_client(db, current_user.agency_id, current_user, client_id)
+
+
+@router.post("/{client_id}/deals", status_code=201, response_model=DealOut)
+def create_client_deal(
+    client_id: int,
+    body: DealCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Создать сделку для клиента (опционально с объектом)."""
+    return client_service.create_deal(db, current_user.agency_id, current_user, client_id, body)

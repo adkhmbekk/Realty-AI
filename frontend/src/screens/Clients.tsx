@@ -32,7 +32,7 @@ import {
   Textarea,
 } from "../components/ui";
 import { CURRENCIES, OBJ_TYPE_VALUES, hasLandArea } from "../i18n";
-import type { Client, ClientActivity, ClientRequest, DictItem, Match, SearchParams, Task } from "../types";
+import type { Client, ClientActivity, ClientRequest, Deal, DictItem, Match, SearchParams, Task } from "../types";
 import { ApartmentCard } from "./Apartments";
 import { fmtDate } from "../utils";
 import { confirmDialog, haptic } from "../telegram";
@@ -471,6 +471,132 @@ function PriorityPicker({ value, onChange }: { value: string; onChange: (v: stri
   );
 }
 
+// ── Сделки по клиенту (Волна 5) ─────────────────────────────────────
+const DEAL_STAGES = ["new", "interested", "shown", "price_agreed", "deposit", "contract", "sold", "cancelled"];
+
+function dealStageClass(s: string): string {
+  if (s === "sold") return "bg-emerald-100 text-emerald-700";
+  if (s === "cancelled") return "bg-slate-100 text-slate-500";
+  if (s === "deposit" || s === "contract") return "bg-amber-100 text-amber-700";
+  return "bg-indigo-100 text-indigo-700";
+}
+
+function fmtMoney(v?: number | null, cur?: string | null): string {
+  if (v == null) return "";
+  return new Intl.NumberFormat("ru-RU").format(v) + (cur ? " " + cur : "");
+}
+
+function ClientDeals({ clientId }: { clientId: number }) {
+  const { t, toast } = useApp();
+  const [deals, setDeals] = useState<Deal[] | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [price, setPrice] = useState("");
+  const [commission, setCommission] = useState("");
+  const [currency, setCurrency] = useState("USD");
+
+  async function load() {
+    const r = await api<Deal[]>("/api/v1/clients/" + clientId + "/deals");
+    setDeals(r.ok && Array.isArray(r.data) ? r.data : []);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+
+  async function create() {
+    const body: Record<string, unknown> = { stage: "new", currency };
+    const p = Number(price.replace(",", "."));
+    const cm = Number(commission.replace(",", "."));
+    if (price.trim() && !Number.isNaN(p)) body.price = p;
+    if (commission.trim() && !Number.isNaN(cm)) {
+      body.commission = cm;
+      body.commission_currency = currency;
+    }
+    const r = await api("/api/v1/clients/" + clientId + "/deals", { method: "POST", body });
+    if (r.ok) {
+      haptic();
+      setPrice("");
+      setCommission("");
+      setCreating(false);
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  async function setStage(d: Deal, stage: string) {
+    const r = await api("/api/v1/clients/deals/" + d.id, { method: "PATCH", body: { stage } });
+    if (r.ok) {
+      haptic();
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  return (
+    <div className="mt-5">
+      <div className="flex items-center justify-between mb-2 mx-0.5">
+        <span className="text-[14px] font-extrabold tracking-tight">{t("dealsTitle")}</span>
+        <button onClick={() => setCreating((v) => !v)} className="text-[13px] font-bold text-primary inline-flex items-center gap-1 active:scale-95">
+          <Plus size={15} /> {t("createDeal")}
+        </button>
+      </div>
+      {creating && (
+        <Card className="mb-2">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <Field label={t("dealPrice")}>
+                <Input inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
+              </Field>
+            </div>
+            <div className="w-24">
+              <Field label={t("priceCurrency")}>
+                <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                  {CURRENCIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+          </div>
+          <Field label={t("dealCommission")}>
+            <Input inputMode="numeric" value={commission} onChange={(e) => setCommission(e.target.value)} />
+          </Field>
+          <Button full className="mt-3" onClick={create}>{t("createDeal")}</Button>
+        </Card>
+      )}
+      {deals === null ? (
+        <Spinner />
+      ) : deals.length === 0 ? (
+        <div className="text-[12.5px] text-muted mx-0.5">{t("noDeals")}</div>
+      ) : (
+        <div className="space-y-2">
+          {deals.map((d) => (
+            <Card key={d.id}>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className={"text-[11px] font-extrabold px-2 py-0.5 rounded-full " + dealStageClass(d.stage)}>
+                  {t("dstage_" + d.stage)}
+                </span>
+                {d.apartment_label && <span className="text-[12px] text-muted truncate">{d.apartment_label}</span>}
+              </div>
+              {(d.price != null || d.commission != null) && (
+                <div className="text-[12.5px] text-muted mb-2">
+                  {d.price != null && <span>{t("dealPrice")}: {fmtMoney(d.price, d.currency)}</span>}
+                  {d.commission != null && (
+                    <span>{d.price != null ? " · " : ""}{t("dealCommission")}: {fmtMoney(d.commission, d.commission_currency)}</span>
+                  )}
+                </div>
+              )}
+              <Select value={d.stage} onChange={(e) => setStage(d, e.target.value)}>
+                {DEAL_STAGES.map((s) => (
+                  <option key={s} value={s}>{t("dstage_" + s)}</option>
+                ))}
+              </Select>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Задачи по клиенту (Волна 4) ─────────────────────────────────────
 function ClientTasks({ clientId }: { clientId: number }) {
   const { t, lang, toast } = useApp();
@@ -896,6 +1022,8 @@ export function ClientDetailScreen({ id }: { id: number }) {
         </Card>
       ))}
 
+      <ClientDeals clientId={id} />
+
       <ClientTasks clientId={id} />
 
       <ClientHistory clientId={id} />
@@ -958,7 +1086,7 @@ function ClientEdit({ c, onDone }: { c: Client; onDone: () => void }) {
 
 // ── Экран: совпадения ───────────────────────────────────────────────
 export function MatchesScreen() {
-  const { t, lang } = useApp();
+  const { t, lang, toast } = useApp();
   const nav = useNav();
   const [matches, setMatches] = useState<Match[] | null>(null);
 
@@ -976,6 +1104,17 @@ export function MatchesScreen() {
   async function setStatus(m: Match, status: string) {
     const r = await api("/api/v1/clients/matches/" + m.id + "/status", { method: "POST", body: { status } });
     if (r.ok) load();
+  }
+
+  async function makeDeal(m: Match) {
+    const r = await api("/api/v1/clients/" + m.client_id + "/deals", {
+      method: "POST",
+      body: { apartment_id: m.apartment.id, stage: "interested" },
+    });
+    if (r.ok) {
+      haptic();
+      toast(t("dealCreated"), "ok");
+    } else toast(errText(r.data, r.status), "err");
   }
 
   if (!matches) return <Spinner />;
@@ -1022,7 +1161,10 @@ export function MatchesScreen() {
             </div>
           )}
           <ApartmentCard o={m.apartment} />
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <Button size="sm" onClick={() => makeDeal(m)}>
+              {t("toDeal")}
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>
               {t("markOffered")}
             </Button>
