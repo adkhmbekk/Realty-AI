@@ -13,6 +13,8 @@ export interface UserProfile {
   acting_as_agency_id?: number | null;
   acting_as_agency_name?: string | null;
   real_role?: string | null;
+  // Частота бот-пуша о новых совпадениях: off / instant / daily (Волна 8).
+  match_notify?: string | null;
 }
 
 export interface AuthResponse {
@@ -282,6 +284,8 @@ export interface Client {
   // Приоритет: hot / warm / cold (или null — не задан). Источник: откуда пришёл.
   priority?: string | null;
   source?: string | null;
+  // Приглушены ли уведомления по клиенту (Волна 8).
+  muted?: boolean;
   status: string;
   created_by?: number | null;
   created_by_name?: string | null;

@@ -46,7 +46,7 @@ from app.schemas.client import (
     TaskCreate,
     TaskOut,
 )
-from app.services import apartment_service
+from app.services import apartment_service, telegram_service
 
 # Сколько минут «назад» смотрит фоновый подбор (с запасом перекрывает тик).
 _MATCH_LOOKBACK_MINUTES = 30
@@ -247,6 +247,7 @@ def run_matching_tick(db: Session, lookback_minutes: int = _MATCH_LOOKBACK_MINUT
         apts_by_agency.setdefault(a.agency_id, []).append(a)
 
     created = 0
+    new_by_client: dict = {}
     for req in reqs:
         if _is_empty_criteria(req):
             continue
@@ -262,7 +263,11 @@ def run_matching_tick(db: Session, lookback_minutes: int = _MATCH_LOOKBACK_MINUT
                 if client_repo.add_match(db, req.agency_id, req.id, apt.id, score, reasons):
                     created += 1
                     existing.add(apt.id)
+                    new_by_client[req.client_id] = new_by_client.get(req.client_id, 0) + 1
     db.commit()
+    # Мгновенный бот-пуш агентам (Волна 8) — по их выбору и без приглушённых клиентов.
+    if new_by_client:
+        _notify_instant_matches(db, new_by_client)
     return created
 
 
@@ -340,6 +345,7 @@ def _client_to_out(c: Client, created_by_name=None, *, requests=None, active_req
         note=c.note,
         priority=c.priority,
         source=c.source,
+        muted=c.muted,
         status=c.status,
         created_by=c.created_by,
         created_by_name=created_by_name,
@@ -446,6 +452,8 @@ def update_client(db: Session, agency_id: int, user, client_id: int, payload: Cl
         # некорректное значение просто игнорируем (фронт шлёт только валидные)
     if payload.source is not None:
         c.source = payload.source.strip() or None
+    if payload.muted is not None:
+        c.muted = bool(payload.muted)
     if payload.status is not None:
         if payload.status not in ("active", "archived"):
             raise AppError("invalid_client_status", status.HTTP_400_BAD_REQUEST)
@@ -844,3 +852,62 @@ def client_stats(db: Session, agency_id: int, user) -> ClientStatsOut:
         deals_active=active,
         deals_won=won,
     )
+
+
+# ── Уведомления о совпадениях: бот-пуш (Волна 8) ──────────────────────
+def _notify_instant_matches(db: Session, new_by_client: dict) -> None:
+    """Мгновенный пуш агенту по каждому клиенту (если выбрал 'instant' и не приглушил)."""
+    if not telegram_service.is_configured():
+        return
+    owners: dict = {}
+    for client_id, count in new_by_client.items():
+        c = client_repo.get_client_by_id(db, client_id)
+        if c is None or c.muted or c.created_by is None:
+            continue
+        owner = owners.get(c.created_by)
+        if owner is None:
+            owner = user_repo.get_by_id(db, c.created_by)
+            owners[c.created_by] = owner
+        if owner is None or not owner.is_active or not owner.telegram_id:
+            continue
+        if getattr(owner, "match_notify", "instant") != "instant":
+            continue
+        name = _client_full_name(c)
+        text = (
+            f"🔔 Новый подходящий объект для клиента «{name}»: {count}. "
+            f"Откройте «Совпадения» в приложении."
+        )
+        telegram_service.send_message(owner.telegram_id, text)
+
+
+def run_match_digest(db: Session, since: datetime) -> int:
+    """Суточный дайджест: одному агенту — одна сводка о новых совпадениях (выбор 'daily')."""
+    if not telegram_service.is_configured():
+        return 0
+    counts = client_repo.digest_match_counts(db, since)
+    sent = 0
+    for owner_id, count in counts.items():
+        u = user_repo.get_by_id(db, owner_id)
+        if u is None or not u.is_active or not u.telegram_id:
+            continue
+        if getattr(u, "match_notify", "instant") != "daily":
+            continue
+        text = (
+            f"🔔 За сутки: {count} новых подходящих объектов для ваших клиентов. "
+            f"Откройте «Совпадения»."
+        )
+        if telegram_service.send_message(u.telegram_id, text):
+            sent += 1
+    return sent
+
+
+def set_match_notify(db: Session, user, value: str) -> str:
+    """Сохранить выбор частоты уведомлений текущего пользователя (off/instant/daily)."""
+    if value not in ("off", "instant", "daily"):
+        raise AppError("invalid_notify_pref", status.HTTP_400_BAD_REQUEST)
+    u = user_repo.get_by_id(db, user.id)
+    if u is None:
+        raise AppError("user_not_found", status.HTTP_404_NOT_FOUND)
+    u.match_notify = value
+    db.commit()
+    return value

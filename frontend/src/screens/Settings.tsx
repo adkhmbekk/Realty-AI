@@ -502,7 +502,7 @@ function TelegramImportCard() {
 }
 
 export function SettingsScreen() {
-  const { t, lang, theme, setLang, setTheme, user, settings, setSettings, toast } = useApp();
+  const { t, lang, theme, setLang, setTheme, user, setUser, settings, setSettings, toast } = useApp();
   const role = user?.role;
   const isOwnerAdmin = role === "agency_admin" && !!user?.is_owner;
 
@@ -547,6 +547,27 @@ export function SettingsScreen() {
             { value: "dark", label: "🌙 " + t("themeDark") },
           ]}
         />
+      </div>
+
+      <div className="mt-3">
+        <Label>{t("notifyTitle")}</Label>
+        <Segmented
+          value={user?.match_notify || "instant"}
+          onChange={async (v) => {
+            const r = await api<{ match_notify: string }>("/api/v1/clients/notify", {
+              method: "PATCH",
+              body: { match_notify: v },
+            });
+            if (r.ok && user) setUser({ ...user, match_notify: r.data?.match_notify || v });
+            else toast(errText(r.data, r.status), "err");
+          }}
+          options={[
+            { value: "instant", label: t("notify_instant") },
+            { value: "daily", label: t("notify_daily") },
+            { value: "off", label: t("notify_off") },
+          ]}
+        />
+        <Hint>{t("notifyHint")}</Hint>
       </div>
       <Hint>{t("settingsHint")}</Hint>
 

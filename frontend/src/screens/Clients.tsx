@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Bell,
+  BellOff,
   Check,
   CheckSquare,
   ChevronRight,
@@ -953,6 +954,13 @@ export function ClientDetailScreen({ id }: { id: number }) {
       load();
     } else toast(errText(r.data, r.status), "err");
   }
+  async function toggleMute() {
+    const r = await api("/api/v1/clients/" + id, { method: "PATCH", body: { muted: !c?.muted } });
+    if (r.ok) {
+      haptic();
+      load();
+    }
+  }
   async function delClient() {
     if (!(await confirmDialog(t("delClientQ")))) return;
     const r = await api("/api/v1/clients/" + id, { method: "DELETE" });
@@ -990,9 +998,21 @@ export function ClientDetailScreen({ id }: { id: number }) {
                 )}
                 {c.source && <div className="text-[12.5px] text-muted mt-0.5">{t("clientSource")}: {c.source}</div>}
               </div>
-              <button onClick={() => setEditing(true)} className="shrink-0 w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center active:scale-90">
-                <Pencil size={16} />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={toggleMute}
+                  title={c.muted ? t("unmute") : t("mute")}
+                  className={
+                    "w-9 h-9 rounded-xl flex items-center justify-center active:scale-90 " +
+                    (c.muted ? "bg-amber-100 text-amber-600" : "bg-primary-soft text-primary")
+                  }
+                >
+                  {c.muted ? <BellOff size={16} /> : <Bell size={16} />}
+                </button>
+                <button onClick={() => setEditing(true)} className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center active:scale-90">
+                  <Pencil size={16} />
+                </button>
+              </div>
             </div>
             {c.note && <Hint>{c.note}</Hint>}
           </>

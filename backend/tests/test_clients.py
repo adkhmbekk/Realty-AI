@@ -350,3 +350,17 @@ def test_client_hints(db):
     # Клиент без активной заявки → подсказка no_request.
     out2, _ = client_service.create_client(db, agency.id, agent, ClientCreate(name="Без заявки"))
     assert any(h.kind == "no_request" for h in client_service.client_hints(db, agency.id, agent, out2.id))
+
+
+# ── Волна 8: уведомления (частота + приглушить клиента) ──────────────
+def test_match_notify_and_mute(db):
+    agency, admin, agent = _setup(db)
+    # Частоту выбирает сам агент.
+    client_service.set_match_notify(db, agent, "daily")
+    assert user_repo.get_by_id(db, agent.id).match_notify == "daily"
+    with pytest.raises(AppError):
+        client_service.set_match_notify(db, agent, "weird")
+    # Приглушить клиента.
+    out, _ = client_service.create_client(db, agency.id, agent, ClientCreate(name="Муте"))
+    assert client_service.update_client(db, agency.id, agent, out.id, ClientUpdate(muted=True)).muted is True
+    assert client_service.update_client(db, agency.id, agent, out.id, ClientUpdate(muted=False)).muted is False

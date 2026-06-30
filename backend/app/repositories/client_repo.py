@@ -413,3 +413,26 @@ def list_deals_for_user(
         stmt = stmt.where(Client.created_by == owner_id)
     stmt = stmt.order_by(Deal.created_at.desc()).limit(limit)
     return [(d, c, a) for d, c, a in db.execute(stmt).all()]
+
+
+# ── Уведомления о совпадениях (Волна 8) ──────────────────────────────
+def get_client_by_id(db: Session, client_id: int) -> Optional[Client]:
+    """Клиент по id без фильтра агентства (для серверных пушей)."""
+    return db.get(Client, client_id)
+
+
+def digest_match_counts(db: Session, since: datetime) -> Dict[int, int]:
+    """{агент(created_by): сколько совпадений создано с since по его НЕприглушённым клиентам}."""
+    stmt = (
+        select(Client.created_by, func.count())
+        .select_from(RequestMatch)
+        .join(ClientRequest, RequestMatch.request_id == ClientRequest.id)
+        .join(Client, ClientRequest.client_id == Client.id)
+        .where(
+            RequestMatch.created_at >= since,
+            Client.muted.is_(False),
+            Client.created_by.is_not(None),
+        )
+        .group_by(Client.created_by)
+    )
+    return {oid: int(n) for oid, n in db.execute(stmt)}

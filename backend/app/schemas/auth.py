@@ -36,6 +36,8 @@ class UserProfile(BaseModel):
     acting_as_agency_id: Optional[int] = None
     acting_as_agency_name: Optional[str] = None
     real_role: Optional[str] = None
+    # Частота бот-пуша о новых совпадениях: off / instant / daily (Волна 8).
+    match_notify: Optional[str] = None
 
 
 class AuthResponse(BaseModel):

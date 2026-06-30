@@ -27,6 +27,7 @@ from app.schemas.client import (
     HintOut,
     MatchOut,
     MatchSummaryOut,
+    NotifyPrefIn,
     RequestCreate,
     RequestOut,
     RequestUpdate,
@@ -93,6 +94,17 @@ def client_stats(
 ):
     """Сводка по клиентам и сделкам для дашборда (свои — агенту, все — администратору)."""
     return client_service.client_stats(db, current_user.agency_id, current_user)
+
+
+@router.patch("/notify")
+def set_notify(
+    body: NotifyPrefIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Частота бот-пуша о новых совпадениях: off / instant / daily."""
+    value = client_service.set_match_notify(db, current_user, body.match_notify)
+    return {"match_notify": value}
 
 
 @router.post("/matches/seen")

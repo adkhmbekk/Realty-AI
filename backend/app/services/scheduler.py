@@ -36,6 +36,9 @@ _ACTIVE_STATUSES = ("trial", "active")
 # Подчистку осиротевших файлов фото запускаем не чаще раза в сутки (M4).
 _SWEEP_INTERVAL = timedelta(hours=24)
 _last_sweep: datetime | None = None
+# Суточный дайджест совпадений (Волна 8) — раз в ~сутки.
+_DIGEST_INTERVAL = timedelta(hours=24)
+_last_digest: datetime | None = None
 
 
 def _as_utc(dt: datetime | None) -> datetime | None:
@@ -168,6 +171,18 @@ def _loop() -> None:
                         logger.info("Планировщик: создано авто-задач «молчит»: %s.", made)
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Планировщик: ошибка авто-задач: %s", exc)
+                # Суточный дайджест совпадений (Волна 8) — для агентов с выбором 'daily'.
+                global _last_digest
+                if _last_digest is None or (now_ts - _last_digest) >= _DIGEST_INTERVAL:
+                    try:
+                        from app.services import client_service as _cs
+                        since = _last_digest or (now_ts - _DIGEST_INTERVAL)
+                        sent = _cs.run_match_digest(db, since)
+                        if sent:
+                            logger.info("Планировщик: отправлено дайджестов совпадений: %s.", sent)
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("Планировщик: ошибка дайджеста совпадений: %s", exc)
+                    _last_digest = now_ts
             finally:
                 db.close()
         except Exception as exc:  # noqa: BLE001

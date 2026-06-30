@@ -131,6 +131,8 @@ class ClientUpdate(BaseModel):
     # Приоритет и источник (см. ClientCreate). None = «не менять»; ""/"none" = очистить.
     priority: Optional[str] = None
     source: Optional[str] = Field(default=None, max_length=120)
+    # Приглушить уведомления по клиенту (Волна 8).
+    muted: Optional[bool] = None
     # active / archived
     status: Optional[str] = None
     # Переназначить клиента другому агенту (только администратор).
@@ -147,6 +149,7 @@ class ClientOut(BaseModel):
     note: Optional[str] = None
     priority: Optional[str] = None
     source: Optional[str] = None
+    muted: bool = False
     status: str
     created_by: Optional[int] = None
     created_by_name: Optional[str] = None
@@ -312,6 +315,11 @@ class HintOut(BaseModel):
     kind: str
     count: Optional[int] = None
     days: Optional[int] = None
+
+
+# ── Настройка уведомлений (Волна 8) ──────────────────────────────────
+class NotifyPrefIn(BaseModel):
+    match_notify: Literal["off", "instant", "daily"]
 
 
 # ── Сводка по клиентам/сделкам для дашборда (Волна 7) ─────────────────
