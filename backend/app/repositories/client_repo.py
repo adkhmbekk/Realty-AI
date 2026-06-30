@@ -263,6 +263,14 @@ def list_activities(db: Session, client_id: int, limit: int = 50) -> List[Client
     )
 
 
+def get_activity(db: Session, agency_id: int, activity_id: int) -> Optional[ClientActivity]:
+    return db.execute(
+        select(ClientActivity).where(
+            ClientActivity.id == activity_id, ClientActivity.agency_id == agency_id
+        )
+    ).scalar_one_or_none()
+
+
 def last_activity_map(db: Session, client_ids: Sequence[int]) -> Dict[int, datetime]:
     """Для каждого клиента — время последнего действия (для ИИ-подсказок «молчит»)."""
     if not client_ids:

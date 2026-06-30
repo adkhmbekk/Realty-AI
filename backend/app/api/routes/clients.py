@@ -182,6 +182,16 @@ def set_task_status(
     return client_service.set_task_status(db, current_user.agency_id, current_user, task_id, body.status)
 
 
+@router.delete("/tasks/{task_id}", status_code=204)
+def delete_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Удалить задачу (например, ошибочно добавленную)."""
+    client_service.delete_task(db, current_user.agency_id, current_user, task_id)
+
+
 # ── Сделки (объявлены ДО /{client_id}) ───────────────────────────────
 @router.get("/deals", response_model=List[DealOut])
 def my_deals(
@@ -201,6 +211,16 @@ def update_deal(
 ):
     """Изменить сделку (этап воронки, цена, комиссия, агент, объект, заметка)."""
     return client_service.update_deal(db, current_user.agency_id, current_user, deal_id, body)
+
+
+@router.delete("/deals/{deal_id}", status_code=204)
+def delete_deal(
+    deal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Удалить сделку (например, ошибочно созданную)."""
+    client_service.delete_deal(db, current_user.agency_id, current_user, deal_id)
 
 
 # ── Клиент по id ─────────────────────────────────────────────────────
@@ -267,6 +287,17 @@ def add_activity(
 ):
     """Записать действие по клиенту в ленту истории."""
     return client_service.add_activity(db, current_user.agency_id, current_user, client_id, body)
+
+
+@router.delete("/{client_id}/activities/{activity_id}", status_code=204)
+def delete_activity(
+    client_id: int,
+    activity_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Удалить запись истории (например, ошибочно добавленный звонок)."""
+    client_service.delete_activity(db, current_user.agency_id, current_user, activity_id)
 
 
 # ── Задачи по клиенту (Волна 4) ──────────────────────────────────────

@@ -225,6 +225,26 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Soʻrovning yaroqsiz holati. Mavjud: active, fulfilled, cancelled.",
         "en": "Invalid request status. Allowed: active, fulfilled, cancelled.",
     },
+    "activity_not_found": {
+        "ru": "Запись истории не найдена.",
+        "uz": "Tarix yozuvi topilmadi.",
+        "en": "History entry not found.",
+    },
+    "task_not_found": {
+        "ru": "Задача не найдена.",
+        "uz": "Vazifa topilmadi.",
+        "en": "Task not found.",
+    },
+    "invalid_task_status": {
+        "ru": "Недопустимый статус задачи. Доступно: open, done.",
+        "uz": "Vazifaning yaroqsiz holati. Mavjud: open, done.",
+        "en": "Invalid task status. Allowed: open, done.",
+    },
+    "deal_not_found": {
+        "ru": "Сделка не найдена.",
+        "uz": "Bitim topilmadi.",
+        "en": "Deal not found.",
+    },
     "invalid_owner": {
         "ru": "Нельзя назначить этого сотрудника владельцем клиента: он не из вашего агентства или отключён.",
         "uz": "Bu xodimni mijoz egasi qilib boʻlmaydi: u agentligingizdan emas yoki oʻchirilgan.",

@@ -568,6 +568,15 @@ function ClientDeals({ clientId }: { clientId: number }) {
     } else toast(errText(r.data, r.status), "err");
   }
 
+  async function del(d: Deal) {
+    if (!(await confirmDialog(t("delDealQ")))) return;
+    const r = await api("/api/v1/clients/deals/" + d.id, { method: "DELETE" });
+    if (r.ok) {
+      haptic();
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
   return (
     <div className="mt-5">
       <div className="flex items-center justify-between mb-2 mx-0.5">
@@ -612,7 +621,12 @@ function ClientDeals({ clientId }: { clientId: number }) {
                 <span className={"text-[11px] font-extrabold px-2 py-0.5 rounded-full " + dealStageClass(d.stage)}>
                   {t("dstage_" + d.stage)}
                 </span>
-                {d.apartment_label && <span className="text-[12px] text-muted truncate">{d.apartment_label}</span>}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {d.apartment_label && <span className="text-[12px] text-muted truncate">{d.apartment_label}</span>}
+                  <button onClick={() => del(d)} aria-label={t("deleteAction")} className="shrink-0 p-1.5 -mr-1 text-muted hover:text-[var(--danger)] active:scale-90 transition">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
               {(d.price != null || d.commission != null) && (
                 <div className="text-[12.5px] text-muted mb-2">
@@ -678,6 +692,15 @@ function ClientTasks({ clientId }: { clientId: number }) {
     }
   }
 
+  async function del(tk: Task) {
+    if (!(await confirmDialog(t("delTaskQ")))) return;
+    const r = await api("/api/v1/clients/tasks/" + tk.id, { method: "DELETE" });
+    if (r.ok) {
+      haptic();
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
   return (
     <div className="mt-5">
       <div className="flex items-center justify-between mb-2 mx-0.5">
@@ -706,24 +729,31 @@ function ClientTasks({ clientId }: { clientId: number }) {
       ) : (
         <div className="space-y-1.5">
           {tasks.map((tk) => (
-            <button
+            <div
               key={tk.id}
-              onClick={() => toggle(tk)}
-              className="w-full text-left flex items-center gap-2.5 rounded-xl border border-line p-2.5 active:scale-[.99] transition"
+              className="w-full flex items-center gap-1 rounded-xl border border-line p-2.5"
             >
-              <span className={"w-5 h-5 rounded-md border shrink-0 flex items-center justify-center " + (tk.status === "done" ? "bg-primary border-primary text-white" : "border-line")}>
-                {tk.status === "done" && <Check size={13} />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className={"text-[13px] font-bold " + (tk.status === "done" ? "line-through text-muted" : "")}>{tk.title}</span>
-                {(tk.deadline || tk.kind === "auto") && (
-                  <span className="block text-[11px] text-muted">
-                    {tk.deadline ? fmtDate(tk.deadline, lang) : ""}
-                    {tk.kind === "auto" ? (tk.deadline ? " · " : "") + t("taskAuto") : ""}
-                  </span>
-                )}
-              </span>
-            </button>
+              <button
+                onClick={() => toggle(tk)}
+                className="text-left flex items-center gap-2.5 min-w-0 flex-1 active:scale-[.99] transition"
+              >
+                <span className={"w-5 h-5 rounded-md border shrink-0 flex items-center justify-center " + (tk.status === "done" ? "bg-primary border-primary text-white" : "border-line")}>
+                  {tk.status === "done" && <Check size={13} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={"text-[13px] font-bold " + (tk.status === "done" ? "line-through text-muted" : "")}>{tk.title}</span>
+                  {(tk.deadline || tk.kind === "auto") && (
+                    <span className="block text-[11px] text-muted">
+                      {tk.deadline ? fmtDate(tk.deadline, lang) : ""}
+                      {tk.kind === "auto" ? (tk.deadline ? " · " : "") + t("taskAuto") : ""}
+                    </span>
+                  )}
+                </span>
+              </button>
+              <button onClick={() => del(tk)} aria-label={t("deleteAction")} className="shrink-0 p-2 text-muted hover:text-[var(--danger)] active:scale-90 transition">
+                <Trash2 size={16} />
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -764,6 +794,15 @@ function ClientHistory({ clientId }: { clientId: number }) {
     if (r.ok) {
       haptic();
       toast(t("logged"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  async function del(a: ClientActivity) {
+    if (!(await confirmDialog(t("delHistQ")))) return;
+    const r = await api("/api/v1/clients/" + clientId + "/activities/" + a.id, { method: "DELETE" });
+    if (r.ok) {
+      haptic();
       load();
     } else toast(errText(r.data, r.status), "err");
   }
@@ -822,6 +861,9 @@ function ClientHistory({ clientId }: { clientId: number }) {
                   {a.created_by_name ? " · " + a.created_by_name : ""}
                 </div>
               </div>
+              <button onClick={() => del(a)} aria-label={t("deleteAction")} className="shrink-0 p-1 -mt-0.5 text-muted hover:text-[var(--danger)] active:scale-90 transition">
+                <Trash2 size={14} />
+              </button>
             </div>
           ))}
         </div>

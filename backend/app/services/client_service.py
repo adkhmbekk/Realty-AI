@@ -667,6 +667,16 @@ def list_activities(db: Session, agency_id: int, user, client_id: int) -> List[A
     ]
 
 
+def delete_activity(db: Session, agency_id: int, user, activity_id: int) -> None:
+    """Удалить запись истории (например, ошибочно добавленный звонок)."""
+    a = client_repo.get_activity(db, agency_id, activity_id)
+    if a is None:
+        raise AppError("activity_not_found", status.HTTP_404_NOT_FOUND)
+    _load_client_for_user(db, agency_id, user, a.client_id)  # проверка владения
+    db.delete(a)
+    db.commit()
+
+
 # ── Задачи по клиенту (Волна 4) ──────────────────────────────────────
 _AUTOTASK_IDLE_DAYS = 7
 
@@ -701,6 +711,16 @@ def set_task_status(db: Session, agency_id: int, user, task_id: int, new_status:
     t.done_at = datetime.now(timezone.utc) if new_status == "done" else None
     db.commit()
     return _task_to_out(t)
+
+
+def delete_task(db: Session, agency_id: int, user, task_id: int) -> None:
+    """Удалить задачу (например, ошибочно добавленную)."""
+    t = client_repo.get_task(db, agency_id, task_id)
+    if t is None:
+        raise AppError("task_not_found", status.HTTP_404_NOT_FOUND)
+    _load_client_for_user(db, agency_id, user, t.client_id)  # проверка владения
+    db.delete(t)
+    db.commit()
 
 
 def list_my_open_tasks(db: Session, agency_id: int, user) -> List[TaskOut]:
@@ -860,6 +880,16 @@ def update_deal(db: Session, agency_id: int, user, deal_id: int, payload: DealUp
         d, client_name=_client_full_name(c), apartment_label=_apartment_label(apt),
         agent_name=_name_of(db, d.agent_id),
     )
+
+
+def delete_deal(db: Session, agency_id: int, user, deal_id: int) -> None:
+    """Удалить сделку (например, ошибочно созданную)."""
+    d = client_repo.get_deal(db, agency_id, deal_id)
+    if d is None:
+        raise AppError("deal_not_found", status.HTTP_404_NOT_FOUND)
+    _load_client_for_user(db, agency_id, user, d.client_id)  # проверка владения
+    db.delete(d)
+    db.commit()
 
 
 def list_my_deals(db: Session, agency_id: int, user) -> List[DealOut]:

@@ -421,6 +421,49 @@ def test_deal_agent_id_must_be_same_agency(db):
         client_service.update_deal(db, a1.id, agent1, d.id, DealUpdate(agent_id=foreign.id))
 
 
+# ── Удаление того, что добавили в карточке клиента (история/задачи/сделки) ──
+def test_delete_activity_task_deal(db):
+    from app.schemas.client import DealCreate
+
+    agency, _admin, agent = _setup(db)
+    out, _ = client_service.create_client(db, agency.id, agent, ClientCreate(name="Удаляемые"))
+    cid = out.id
+    # Запись истории (звонок) — добавили по ошибке, удаляем.
+    a = client_service.add_activity(db, agency.id, agent, cid, ActivityCreate(kind="call"))
+    assert len(client_service.list_activities(db, agency.id, agent, cid)) == 1
+    client_service.delete_activity(db, agency.id, agent, a.id)
+    assert len(client_service.list_activities(db, agency.id, agent, cid)) == 0
+    with pytest.raises(AppError):
+        client_service.delete_activity(db, agency.id, agent, a.id)  # уже удалена
+    # Задача.
+    tk = client_service.add_task(db, agency.id, agent, cid, TaskCreate(title="Перезвонить"))
+    client_service.delete_task(db, agency.id, agent, tk.id)
+    assert len(client_service.list_tasks_for_client(db, agency.id, agent, cid)) == 0
+    with pytest.raises(AppError):
+        client_service.delete_task(db, agency.id, agent, tk.id)
+    # Сделка.
+    d = client_service.create_deal(db, agency.id, agent, cid, DealCreate())
+    client_service.delete_deal(db, agency.id, agent, d.id)
+    assert len(client_service.list_deals_for_client(db, agency.id, agent, cid)) == 0
+    with pytest.raises(AppError):
+        client_service.delete_deal(db, agency.id, agent, d.id)
+
+
+def test_delete_activity_cross_agency_blocked(db):
+    a1, _adm1, agent1 = _setup(db)
+    out, _ = client_service.create_client(db, a1.id, agent1, ClientCreate(name="Свой"))
+    act = client_service.add_activity(db, a1.id, agent1, out.id, ActivityCreate(kind="call"))
+    b = Agency(name="B2", status="active", timezone="Asia/Tashkent", default_currency="USD")
+    db.add(b)
+    db.flush()
+    agent_b = user_repo.create(db, telegram_id=993, role="agent", agency_id=b.id)
+    db.commit()
+    # Чужое агентство не может удалить запись (agency-scope + проверка владения).
+    with pytest.raises(AppError):
+        client_service.delete_activity(db, b.id, agent_b, act.id)
+    assert len(client_service.list_activities(db, a1.id, agent1, out.id)) == 1
+
+
 # ── Фикс: удалённый (архивный) клиент НЕ получает новые совпадения/пуши ──
 def test_archived_client_not_matched(db):
     agency, _admin, agent = _setup(db)
