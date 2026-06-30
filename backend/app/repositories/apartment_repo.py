@@ -256,7 +256,9 @@ def search_shared(
         Apartment.shared_mls.is_(True),
         Apartment.agency_id != exclude_agency_id,
     ]
-    if status:
+    if status == "unsold":
+        conds.append(Apartment.status.notin_(["sold", "rented"]))  # фикс аудита #9
+    elif status:
         conds.append(Apartment.status == status)
     if deal_type:
         conds.append(Apartment.deal_type == deal_type)

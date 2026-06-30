@@ -230,6 +230,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Bu xodimni mijoz egasi qilib boʻlmaydi: u agentligingizdan emas yoki oʻchirilgan.",
         "en": "Cannot assign this member as the client owner: not in your agency or deactivated.",
     },
+    "invalid_agent": {
+        "ru": "Нельзя назначить этого сотрудника по сделке: он не из вашего агентства или отключён.",
+        "uz": "Bu xodimni bitimga biriktirib boʻlmaydi: u agentligingizdan emas yoki oʻchirilgan.",
+        "en": "Cannot assign this member to the deal: not in your agency or deactivated.",
+    },
     # Отправка / шаринг
     "share_via_bot_not_configured": {
         "ru": "Отправка через бота недоступна: не настроен токен бота.",

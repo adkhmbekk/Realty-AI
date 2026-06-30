@@ -380,7 +380,8 @@ def test_mls_cross_agency_match(db):
     apartment_service.create_apartment(
         db, b.id, created_by=agent_b.id,
         payload=ApartmentCreate(type="Квартира", district="Юнусабад", rooms=3, price=70000,
-                                currency="USD", owner_phone="+998901234567", shared_mls=True),
+                                currency="USD", owner_phone="+998901234567",
+                                address="ул. Секретная, 5", shared_mls=True),
     )
     apartment_service.create_apartment(
         db, b.id, created_by=agent_b.id,
@@ -396,6 +397,28 @@ def test_mls_cross_agency_match(db):
     assert mls[0].mls_agency == "B"
     # Контакт собственника СКРЫТ для чужого агентства (#2).
     assert mls[0].apartment.owner_phone is None
+    # Фикс аудита H1: личность чужого агента и точный адрес тоже скрыты.
+    assert mls[0].apartment.created_by is None
+    assert mls[0].apartment.created_by_name is None
+    assert mls[0].apartment.address is None
+
+
+def test_deal_agent_id_must_be_same_agency(db):
+    from app.schemas.client import DealCreate, DealUpdate
+
+    a1, _admin1, agent1 = _setup(db)
+    other = Agency(name="Other", status="active", timezone="Asia/Tashkent", default_currency="USD")
+    db.add(other)
+    db.flush()
+    foreign = user_repo.create(db, telegram_id=77, role="agent", agency_id=other.id)
+    db.commit()
+    out, _ = client_service.create_client(db, a1.id, agent1, ClientCreate(name="Сд"))
+    # Фикс аудита M1: чужой agent_id отклоняется и при создании, и при правке.
+    with pytest.raises(AppError):
+        client_service.create_deal(db, a1.id, agent1, out.id, DealCreate(agent_id=foreign.id))
+    d = client_service.create_deal(db, a1.id, agent1, out.id, DealCreate())
+    with pytest.raises(AppError):
+        client_service.update_deal(db, a1.id, agent1, d.id, DealUpdate(agent_id=foreign.id))
 
 
 # ── Фикс: удалённый (архивный) клиент НЕ получает новые совпадения/пуши ──

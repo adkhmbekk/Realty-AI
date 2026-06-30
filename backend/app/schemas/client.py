@@ -229,7 +229,7 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    status: str  # open / done
+    status: Literal["open", "done"]
 
 
 class TaskOut(BaseModel):
@@ -265,9 +265,10 @@ def _norm_deal_currency(v: Optional[str]) -> Optional[str]:
 class DealCreate(BaseModel):
     apartment_id: Optional[int] = None
     stage: DealStage = "new"
-    price: Optional[float] = None
+    # Цена и комиссия не могут быть отрицательными (фикс аудита #6).
+    price: Optional[float] = Field(default=None, ge=0)
     currency: Optional[str] = None
-    commission: Optional[float] = None
+    commission: Optional[float] = Field(default=None, ge=0)
     commission_currency: Optional[str] = None
     agent_id: Optional[int] = None
     note: Optional[str] = Field(default=None, max_length=2000)
@@ -281,9 +282,9 @@ class DealCreate(BaseModel):
 class DealUpdate(BaseModel):
     stage: Optional[DealStage] = None
     apartment_id: Optional[int] = None
-    price: Optional[float] = None
+    price: Optional[float] = Field(default=None, ge=0)
     currency: Optional[str] = None
-    commission: Optional[float] = None
+    commission: Optional[float] = Field(default=None, ge=0)
     commission_currency: Optional[str] = None
     agent_id: Optional[int] = None
     note: Optional[str] = Field(default=None, max_length=2000)

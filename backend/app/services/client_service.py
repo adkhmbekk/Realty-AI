@@ -575,13 +575,19 @@ def list_matches(db: Session, agency_id: int, user, statuses: Optional[List[str]
         mls_agency = None
         possible_dup = False
         if m.source == "mls":
-            # Скрываем контакт владельца и внутренние поля (Волна 9, #2 «скрытый контакт»).
+            # Скрываем контакт владельца И личность чужого агента/точный адрес
+            # (Волна 9 #2 + фикс аудита H1): created_by/created_by_name = ФИО или
+            # @username чужого агента, address = точный адрес — это позволяло обойти
+            # агентство-владельца. Оставляем только общие характеристики + бренд агентства.
             apt_out.owner_phone = None
             apt_out.comment = None
             apt_out.source = None
             apt_out.source_link = None
+            apt_out.created_by = None
+            apt_out.created_by_name = None
+            apt_out.address = None
             mls_agency = ag_names.get(a.agency_id)
-            possible_dup = client_repo.has_similar_own(db, agency_id, a.district, a.rooms, a.price)
+            possible_dup = client_repo.has_similar_own(db, agency_id, a.district, a.rooms, a.price, a.deal_type)
         out.append(
             MatchOut(
                 id=m.id,
@@ -767,6 +773,18 @@ def _deal_to_out(d: Deal, *, client_name=None, apartment_label=None, agent_name=
     )
 
 
+def _valid_agent_id(db: Session, agency_id: int, agent_id):
+    """Ответственный по сделке — только АКТИВНЫЙ сотрудник ЭТОГО агентства (или None).
+    Фикс аудита M1: раньше agent_id из тела принимался без проверки (можно было
+    подставить чужого → искажение комиссий и раскрытие имени)."""
+    if agent_id is None:
+        return None
+    u = user_repo.get_by_id(db, agent_id)
+    if u is None or u.agency_id != agency_id or not u.is_active:
+        raise AppError("invalid_agent", status.HTTP_400_BAD_REQUEST)
+    return agent_id
+
+
 def create_deal(db: Session, agency_id: int, user, client_id: int, payload: DealCreate) -> DealOut:
     c = _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
     apt = None
@@ -776,7 +794,7 @@ def create_deal(db: Session, agency_id: int, user, client_id: int, payload: Deal
         if apt is None:
             raise AppError("apartment_not_found", status.HTTP_404_NOT_FOUND)
         seller_agency = apt.agency_id
-    agent_id = payload.agent_id if payload.agent_id is not None else (c.created_by or user.id)
+    agent_id = _valid_agent_id(db, agency_id, payload.agent_id) if payload.agent_id is not None else (c.created_by or user.id)
     d = Deal(
         agency_id=agency_id, client_id=client_id, apartment_id=(apt.id if apt else None),
         stage=payload.stage, price=payload.price, currency=payload.currency,
@@ -821,13 +839,16 @@ def update_deal(db: Session, agency_id: int, user, deal_id: int, payload: DealUp
     if "apartment_id" in data:
         if data["apartment_id"] is None:
             d.apartment_id = None
+            d.seller_agency_id = None  # фикс аудита #14: убрали объект — убираем и его агентство
         else:
             apt = client_repo.get_agency_apartment(db, agency_id, data["apartment_id"])
             if apt is None:
                 raise AppError("apartment_not_found", status.HTTP_404_NOT_FOUND)
             d.apartment_id = apt.id
             d.seller_agency_id = apt.agency_id
-    for f in ("price", "currency", "commission", "commission_currency", "agent_id", "note"):
+    if "agent_id" in data:
+        d.agent_id = _valid_agent_id(db, agency_id, data["agent_id"])  # фикс аудита M1
+    for f in ("price", "currency", "commission", "commission_currency", "note"):
         if f in data:
             setattr(d, f, data[f] if data[f] != "" else None)
     if data.get("stage") is not None:

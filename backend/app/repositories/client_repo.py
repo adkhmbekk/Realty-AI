@@ -257,7 +257,7 @@ def list_activities(db: Session, client_id: int, limit: int = 50) -> List[Client
         db.execute(
             select(ClientActivity)
             .where(ClientActivity.client_id == client_id)
-            .order_by(ClientActivity.created_at.desc())
+            .order_by(ClientActivity.created_at.desc(), ClientActivity.id.desc())
             .limit(limit)
         ).scalars().all()
     )
@@ -309,7 +309,8 @@ def list_tasks_for_client(db: Session, client_id: int) -> List[Task]:
 def list_open_tasks_for_user(
     db: Session, agency_id: int, *, owner_id: Optional[int] = None, limit: int = 100,
 ) -> List[Tuple[Task, Client]]:
-    conds = [Task.agency_id == agency_id, Task.status == "open"]
+    # Архивных (удалённых) клиентов в «моих задачах» не показываем (фикс аудита #10).
+    conds = [Task.agency_id == agency_id, Task.status == "open", Client.status != "archived"]
     stmt = select(Task, Client).join(Client, Task.client_id == Client.id).where(*conds)
     if owner_id is not None:
         stmt = stmt.where(Client.created_by == owner_id)
@@ -440,19 +441,21 @@ def all_active_requests(db: Session) -> List[ClientRequest]:
     )
 
 
-def has_similar_own(db: Session, agency_id: int, district, rooms, price) -> bool:
-    """Есть ли в СВОЕЙ базе похожий объект (район+комнаты+цена) — метка «возможно дубль» для MLS."""
+def has_similar_own(db: Session, agency_id: int, district, rooms, price, deal_type=None) -> bool:
+    """Похожий объект в СВОЕЙ базе (тип сделки+район+комнаты+цена) → «возможно дубль» для MLS.
+    Фикс аудита #11: без deal_type аренда и продажа могли кросс-матчиться."""
     if district is None or rooms is None or price is None:
         return False
-    n = db.execute(
-        select(func.count()).select_from(Apartment).where(
-            Apartment.agency_id == agency_id,
-            Apartment.deleted_at.is_(None),
-            Apartment.district == district,
-            Apartment.rooms == rooms,
-            Apartment.price == price,
-        )
-    ).scalar_one()
+    conds = [
+        Apartment.agency_id == agency_id,
+        Apartment.deleted_at.is_(None),
+        Apartment.district == district,
+        Apartment.rooms == rooms,
+        Apartment.price == price,
+    ]
+    if deal_type:
+        conds.append(Apartment.deal_type == deal_type)
+    n = db.execute(select(func.count()).select_from(Apartment).where(*conds)).scalar_one()
     return bool(n)
 
 
