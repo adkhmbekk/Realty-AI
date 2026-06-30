@@ -9,6 +9,7 @@ import {
   Plus,
   RefreshCw,
   Search as SearchIcon,
+  Sparkles,
   Trash2,
   UserPlus,
   Users,
@@ -32,7 +33,7 @@ import {
   Textarea,
 } from "../components/ui";
 import { CURRENCIES, OBJ_TYPE_VALUES, hasLandArea } from "../i18n";
-import type { Client, ClientActivity, ClientRequest, Deal, DictItem, Match, SearchParams, Task } from "../types";
+import type { Client, ClientActivity, ClientRequest, Deal, DictItem, HintItem, Match, SearchParams, Task } from "../types";
 import { ApartmentCard } from "./Apartments";
 import { fmtDate } from "../utils";
 import { confirmDialog, haptic } from "../telegram";
@@ -466,6 +467,36 @@ function PriorityPicker({ value, onChange }: { value: string; onChange: (v: stri
           <span className={"w-2 h-2 rounded-full " + PRIORITY_DOT[k]} />
           {t("prio_" + k)}
         </button>
+      ))}
+    </div>
+  );
+}
+
+// ── ИИ-подсказки по клиенту (Волна 6) ───────────────────────────────
+function hintText(h: HintItem, t: (k: string) => string): string {
+  if (h.kind === "silent") return t("hint_silent").replace("{n}", String(h.days ?? 0));
+  if (h.kind === "new_matches") return t("hint_new_matches").replace("{n}", String(h.count ?? 0));
+  if (h.kind === "total_matches") return t("hint_total_matches").replace("{n}", String(h.count ?? 0));
+  if (h.kind === "no_request") return t("hint_no_request");
+  return "";
+}
+
+function ClientHints({ clientId }: { clientId: number }) {
+  const { t } = useApp();
+  const [hints, setHints] = useState<HintItem[]>([]);
+  useEffect(() => {
+    api<HintItem[]>("/api/v1/clients/" + clientId + "/hints").then((r) => {
+      if (r.ok && Array.isArray(r.data)) setHints(r.data);
+    });
+  }, [clientId]);
+  if (!hints.length) return null;
+  return (
+    <div className="mt-2 space-y-1.5">
+      {hints.map((h, i) => (
+        <div key={i} className="flex items-start gap-2 rounded-xl bg-primary-soft text-primary p-2.5 text-[12.5px] font-bold">
+          <Sparkles size={15} className="shrink-0 mt-0.5" />
+          <span>{hintText(h, t)}</span>
+        </div>
       ))}
     </div>
   );
@@ -967,6 +998,8 @@ export function ClientDetailScreen({ id }: { id: number }) {
           </>
         )}
       </Card>
+
+      <ClientHints clientId={id} />
 
       <div className="flex items-center justify-between mt-4 mx-0.5 mb-1.5">
         <span className="text-[14px] font-extrabold tracking-tight">{t("wantedTitle")}</span>

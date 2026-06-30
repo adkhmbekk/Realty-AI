@@ -304,3 +304,11 @@ class DealOut(BaseModel):
     note: Optional[str] = None
     created_at: datetime
     closed_at: Optional[datetime] = None
+
+
+# ── ИИ-подсказки по правилам (Волна 6) ───────────────────────────────
+class HintOut(BaseModel):
+    # kind: silent / new_matches / total_matches / no_request
+    kind: str
+    count: Optional[int] = None
+    days: Optional[int] = None

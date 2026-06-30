@@ -323,3 +323,30 @@ def test_client_deal_pipeline(db):
     foreign = _apt(db, other.id, None, type="Квартира", price=1, currency="USD")
     with pytest.raises(AppError):
         client_service.create_deal(db, agency.id, agent, out.id, DealCreate(apartment_id=foreign.id))
+
+
+# ── Волна 6: ИИ-подсказки по правилам ────────────────────────────────
+def test_client_hints(db):
+    from datetime import datetime, timedelta, timezone
+
+    from app.db.models.client import Client as ClientModel
+
+    agency, admin, agent = _setup(db)
+    _apt(db, agency.id, agent.id, type="Квартира", district="Юнусабад", rooms=3, price=70000, currency="USD")
+    out, _ = client_service.create_client(
+        db, agency.id, agent,
+        ClientCreate(name="Гена", request=RequestCreate(districts=["Юнусабад"], price_max=80000, currency="USD")),
+    )
+    kinds = {h.kind for h in client_service.client_hints(db, agency.id, agent, out.id)}
+    assert "new_matches" in kinds  # есть новое совпадение
+
+    # «Молчит»: состарим клиента (нет действий 20 дней).
+    cobj = db.get(ClientModel, out.id)
+    cobj.created_at = datetime.now(timezone.utc) - timedelta(days=20)
+    db.commit()
+    silent = [h for h in client_service.client_hints(db, agency.id, agent, out.id) if h.kind == "silent"]
+    assert silent and silent[0].days >= 7
+
+    # Клиент без активной заявки → подсказка no_request.
+    out2, _ = client_service.create_client(db, agency.id, agent, ClientCreate(name="Без заявки"))
+    assert any(h.kind == "no_request" for h in client_service.client_hints(db, agency.id, agent, out2.id))

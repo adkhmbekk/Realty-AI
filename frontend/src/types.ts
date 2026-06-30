@@ -313,6 +313,13 @@ export interface Task {
   client_name?: string | null;
 }
 
+export interface HintItem {
+  // silent / new_matches / total_matches / no_request
+  kind: string;
+  count?: number | null;
+  days?: number | null;
+}
+
 export interface Deal {
   id: number;
   client_id: number;

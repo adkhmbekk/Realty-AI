@@ -23,6 +23,7 @@ from app.schemas.client import (
     DealCreate,
     DealOut,
     DealUpdate,
+    HintOut,
     MatchOut,
     MatchSummaryOut,
     RequestCreate,
@@ -288,3 +289,14 @@ def create_client_deal(
 ):
     """Создать сделку для клиента (опционально с объектом)."""
     return client_service.create_deal(db, current_user.agency_id, current_user, client_id, body)
+
+
+# ── ИИ-подсказки по клиенту (Волна 6) ────────────────────────────────
+@router.get("/{client_id}/hints", response_model=List[HintOut])
+def client_hints(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Простые подсказки по правилам: «молчит N дней», «N новых совпадений» и т.п."""
+    return client_service.client_hints(db, current_user.agency_id, current_user, client_id)

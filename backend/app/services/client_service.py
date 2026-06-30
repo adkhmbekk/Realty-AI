@@ -38,6 +38,7 @@ from app.schemas.client import (
     DealCreate,
     DealOut,
     DealUpdate,
+    HintOut,
     RequestCriteria,
     RequestOut,
     RequestUpdate,
@@ -793,3 +794,37 @@ def list_my_deals(db: Session, agency_id: int, user) -> List[DealOut]:
         )
         for d, c, a in rows
     ]
+
+
+# ── ИИ-подсказки по правилам (Волна 6) ───────────────────────────────
+_HINT_SILENT_DAYS = 7
+
+
+def client_hints(db: Session, agency_id: int, user, client_id: int) -> List[HintOut]:
+    """
+    Простые подсказки по правилам (без ИИ-модели): «молчит N дней», «N новых
+    совпадений», «N объектов подходят», «нет активной заявки». Считаются из уже
+    имеющихся данных (заявки, совпадения, история).
+    """
+    c = _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
+    hints: List[HintOut] = []
+    reqs = client_repo.list_requests_for_client(db, c.id)
+    active_reqs = [r for r in reqs if r.status == "active"]
+    if not active_reqs:
+        hints.append(HintOut(kind="no_request"))
+    counts = client_repo.match_counts_by_request(db, [r.id for r in reqs])
+    total = sum(counts.get(r.id, (0, 0))[0] for r in reqs)
+    new = sum(counts.get(r.id, (0, 0))[1] for r in reqs)
+    if new > 0:
+        hints.append(HintOut(kind="new_matches", count=new))
+    elif total > 0:
+        hints.append(HintOut(kind="total_matches", count=total))
+    last_map = client_repo.last_activity_map(db, [c.id])
+    last = last_map.get(c.id) or c.created_at
+    if last is not None and active_reqs:
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        days = (datetime.now(timezone.utc) - last).days
+        if days >= _HINT_SILENT_DAYS:
+            hints.append(HintOut(kind="silent", days=days))
+    return hints
