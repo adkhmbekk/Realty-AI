@@ -138,7 +138,14 @@ def existing_apartment_ids_for_request(db: Session, request_id: int) -> set:
     return {r[0] for r in rows}
 
 
-def add_match(db: Session, agency_id: int, request_id: int, apartment_id: int) -> bool:
+def add_match(
+    db: Session,
+    agency_id: int,
+    request_id: int,
+    apartment_id: int,
+    score: Optional[int] = None,
+    reasons: Optional[dict] = None,
+) -> bool:
     """
     Создать совпадение. Возвращает True, если оно реально создано (False — если
     такая пара уже была). Гонку (одновременный подбор из двух мест) гасим через
@@ -152,6 +159,8 @@ def add_match(db: Session, agency_id: int, request_id: int, apartment_id: int) -
                     request_id=request_id,
                     apartment_id=apartment_id,
                     status="new",
+                    score=score,
+                    reasons=reasons,
                 )
             )
         return True

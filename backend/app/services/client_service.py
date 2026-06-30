@@ -56,7 +56,7 @@ def _owner_filter(user) -> Optional[int]:
 # ── Критерии заявки ──────────────────────────────────────────────────
 _CRITERIA_FIELDS = (
     "types", "districts", "rooms_min", "rooms_max", "floor_min", "floor_max",
-    "land_area_min", "land_area_max", "price_min", "price_max",
+    "land_area_min", "land_area_max", "area_min", "area_max", "price_min", "price_max",
 )
 
 
@@ -82,17 +82,27 @@ def apartment_matches_request(apt: Apartment, req: ClientRequest) -> bool:
         return False
     if req.districts and apt.district not in req.districts:
         return False
-    if req.rooms_min is not None and (apt.rooms is None or apt.rooms < req.rooms_min):
+    # «Мягкий» режим по числовым полям: если поле в объекте НЕ заполнено — НЕ
+    # отсекаем (объект покажем с пометкой «данные неполные»); отсекаем только если
+    # значение есть и вышло за рамки. Бюджет (цена) — исключение, он жёсткий.
+    if req.rooms_min is not None and apt.rooms is not None and apt.rooms < req.rooms_min:
         return False
-    if req.rooms_max is not None and (apt.rooms is None or apt.rooms > req.rooms_max):
+    if req.rooms_max is not None and apt.rooms is not None and apt.rooms > req.rooms_max:
         return False
-    if req.floor_min is not None and (apt.floor is None or apt.floor < req.floor_min):
+    if req.floor_min is not None and apt.floor is not None and apt.floor < req.floor_min:
         return False
-    if req.floor_max is not None and (apt.floor is None or apt.floor > req.floor_max):
+    if req.floor_max is not None and apt.floor is not None and apt.floor > req.floor_max:
         return False
-    if req.land_area_min is not None and (apt.land_area is None or apt.land_area < req.land_area_min):
+    _amin = getattr(req, "area_min", None)
+    _amax = getattr(req, "area_max", None)
+    _aarea = getattr(apt, "area", None)
+    if _amin is not None and _aarea is not None and _aarea < _amin:
         return False
-    if req.land_area_max is not None and (apt.land_area is None or apt.land_area > req.land_area_max):
+    if _amax is not None and _aarea is not None and _aarea > _amax:
+        return False
+    if req.land_area_min is not None and apt.land_area is not None and apt.land_area < req.land_area_min:
+        return False
+    if req.land_area_max is not None and apt.land_area is not None and apt.land_area > req.land_area_max:
         return False
     # Валюта: фильтр цены имеет смысл только в одной валюте (как в поиске).
     if req.currency and apt.currency != req.currency:
@@ -102,6 +112,45 @@ def apartment_matches_request(apt: Apartment, req: ClientRequest) -> bool:
     if req.price_max is not None and (apt.price is None or apt.price > req.price_max):
         return False
     return True
+
+
+def score_match(apt: Apartment, req: ClientRequest) -> Tuple[int, dict]:
+    """
+    Балл совпадения 0-100 + причины {"good": [...], "missing": [...]}.
+
+    Жёсткие фильтры (тип сделки, район, тип, валюта, цена) к этому моменту уже
+    пройдены, поэтому всегда «в плюс». Балл снижают только числовые поля, которые
+    клиент указал, но в объекте они НЕ заполнены — это и есть «данные неполные».
+    """
+    good: List[str] = []
+    missing: List[str] = []
+    total = 0
+    got = 0
+
+    def crit(specified: bool, weight: int, present: bool, good_label: str, miss_label: str) -> None:
+        nonlocal total, got
+        if not specified:
+            return
+        total += weight
+        if present:
+            got += weight
+            good.append(good_label)
+        else:
+            missing.append(miss_label)
+
+    # Коды (price/district/rooms/...), слова подставит фронтенд на нужном языке.
+    crit(req.price_min is not None or req.price_max is not None, 30, True, "price", "price")
+    crit(bool(req.districts), 25, True, "district", "district")
+    crit(bool(req.types), 12, True, "type", "type")
+    crit(req.rooms_min is not None or req.rooms_max is not None, 18, apt.rooms is not None, "rooms", "rooms")
+    a_min = getattr(req, "area_min", None)
+    a_max = getattr(req, "area_max", None)
+    crit(a_min is not None or a_max is not None, 10, getattr(apt, "area", None) is not None, "area", "area")
+    crit(req.floor_min is not None or req.floor_max is not None, 5, apt.floor is not None, "floor", "floor")
+    crit(req.land_area_min is not None or req.land_area_max is not None, 10, apt.land_area is not None, "land", "land")
+
+    score = 100 if total == 0 else round(got / total * 100)
+    return score, {"good": good, "missing": missing}
 
 
 def _request_to_search_params(req: ClientRequest) -> dict:
@@ -116,6 +165,10 @@ def _request_to_search_params(req: ClientRequest) -> dict:
         floor_max=req.floor_max,
         land_area_min=req.land_area_min,
         land_area_max=req.land_area_max,
+        area_min=getattr(req, "area_min", None),
+        area_max=getattr(req, "area_max", None),
+        # Подбор «мягкий»: объект с незаполненным числовым полем не отсекаем.
+        lenient_missing=True,
         price_min=req.price_min,
         price_max=req.price_max,
         currency=req.currency,
@@ -136,6 +189,8 @@ def _new_request(agency_id: int, client_id: int, created_by: Optional[int], c: R
         floor_max=c.floor_max,
         land_area_min=c.land_area_min,
         land_area_max=c.land_area_max,
+        area_min=c.area_min,
+        area_max=c.area_max,
         price_min=c.price_min,
         price_max=c.price_max,
         currency=c.currency,
@@ -157,7 +212,8 @@ def scan_request_against_base(db: Session, agency_id: int, req: ClientRequest) -
     for apt in items:
         if apt.id in existing:
             continue
-        if client_repo.add_match(db, agency_id, req.id, apt.id):
+        score, reasons = score_match(apt, req)
+        if client_repo.add_match(db, agency_id, req.id, apt.id, score, reasons):
             found += 1
     db.commit()
     return found
@@ -192,7 +248,8 @@ def run_matching_tick(db: Session, lookback_minutes: int = _MATCH_LOOKBACK_MINUT
             if apt.id in existing:
                 continue
             if apartment_matches_request(apt, req):
-                if client_repo.add_match(db, req.agency_id, req.id, apt.id):
+                score, reasons = score_match(apt, req)
+                if client_repo.add_match(db, req.agency_id, req.id, apt.id, score, reasons):
                     created += 1
                     existing.add(apt.id)
     db.commit()
@@ -251,6 +308,8 @@ def _request_to_out(req: ClientRequest, counts: Optional[Tuple[int, int]] = None
         floor_max=req.floor_max,
         land_area_min=req.land_area_min,
         land_area_max=req.land_area_max,
+        area_min=getattr(req, "area_min", None),
+        area_max=getattr(req, "area_max", None),
         price_min=req.price_min,
         price_max=req.price_max,
         currency=req.currency,
@@ -439,6 +498,7 @@ def list_matches(db: Session, agency_id: int, user, statuses: Optional[List[str]
     apartment_service._attach_creators(db, apts)
     out: List[MatchOut] = []
     for m, r, c, a in rows:
+        reasons = m.reasons or {}
         out.append(
             MatchOut(
                 id=m.id,
@@ -448,6 +508,9 @@ def list_matches(db: Session, agency_id: int, user, statuses: Optional[List[str]
                 client_id=c.id,
                 client_name=_client_full_name(c),
                 request_label=_request_label(r),
+                score=m.score,
+                match_good=list(reasons.get("good", []) or []),
+                match_missing=list(reasons.get("missing", []) or []),
                 apartment=ApartmentOut.model_validate(a),
             )
         )

@@ -261,6 +261,8 @@ export interface ClientRequest {
   floor_max?: number | null;
   land_area_min?: number | null;
   land_area_max?: number | null;
+  area_min?: number | null;
+  area_max?: number | null;
   price_min?: number | null;
   price_max?: number | null;
   currency?: string | null;
@@ -294,6 +296,11 @@ export interface Match {
   client_id: number;
   client_name: string;
   request_label?: string | null;
+  // Балл совпадения 0-100 (может быть null у старых совпадений).
+  score?: number | null;
+  // Коды причин: совпало (match_good) и «данные неполные» (match_missing).
+  match_good?: string[];
+  match_missing?: string[];
   apartment: Apartment;
 }
 

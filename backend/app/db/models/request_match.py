@@ -7,11 +7,14 @@
 offered (предложено клиенту) / dismissed (отклонено).
 """
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
     DateTime,
     ForeignKey,
+    Integer,
+    JSON,
     String,
     UniqueConstraint,
     func,
@@ -51,6 +54,12 @@ class RequestMatch(Base):
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="new", server_default=text("'new'")
     )
+    # Балл совпадения 0-100 (Волна 1 «Умный подбор»). NULL у старых совпадений.
+    score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Причины совпадения: {"good": ["Цена совпала", ...], "missing": ["Этаж", ...]}.
+    # "missing" — поля объекта, которые клиент указал, но в объекте они не заполнены
+    # («данные неполные»). Объект всё равно показываем, но честно помечаем.
+    reasons: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

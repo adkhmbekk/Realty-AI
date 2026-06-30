@@ -25,6 +25,9 @@ class RequestCriteria(BaseModel):
     floor_max: Optional[int] = None
     land_area_min: Optional[float] = None
     land_area_max: Optional[float] = None
+    # Площадь квартиры/дома в м² («квадратура»).
+    area_min: Optional[float] = None
+    area_max: Optional[float] = None
     price_min: Optional[float] = None
     price_max: Optional[float] = None
     currency: Optional[str] = None
@@ -49,6 +52,7 @@ class RequestCriteria(BaseModel):
             ("rooms_min", "rooms_max"),
             ("floor_min", "floor_max"),
             ("land_area_min", "land_area_max"),
+            ("area_min", "area_max"),
             ("price_min", "price_max"),
         ):
             a, b = getattr(self, lo), getattr(self, hi)
@@ -80,6 +84,8 @@ class RequestOut(BaseModel):
     floor_max: Optional[int] = None
     land_area_min: Optional[float] = None
     land_area_max: Optional[float] = None
+    area_min: Optional[float] = None
+    area_max: Optional[float] = None
     price_min: Optional[float] = None
     price_max: Optional[float] = None
     currency: Optional[str] = None
@@ -151,6 +157,11 @@ class MatchOut(BaseModel):
     client_name: str
     # Краткое человекочитаемое описание заявки («5 комн. · Юнусабад»).
     request_label: Optional[str] = None
+    # Балл совпадения 0-100 (NULL у старых совпадений до Волны 1).
+    score: Optional[int] = None
+    # Причины совпадения и список «данные неполные» (поля объекта, не заполненные).
+    match_good: List[str] = []
+    match_missing: List[str] = []
     apartment: ApartmentOut
 
 

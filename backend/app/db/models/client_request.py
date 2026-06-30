@@ -56,6 +56,9 @@ class ClientRequest(Base):
     floor_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     land_area_min: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     land_area_max: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    # Площадь квартиры/дома в м² («квадратура») — зеркало apartments.area.
+    area_min: Mapped[Optional[float]] = mapped_column(Numeric(8, 2), nullable=True)
+    area_max: Mapped[Optional[float]] = mapped_column(Numeric(8, 2), nullable=True)
     price_min: Mapped[Optional[float]] = mapped_column(Numeric(18, 2), nullable=True)
     price_max: Mapped[Optional[float]] = mapped_column(Numeric(18, 2), nullable=True)
     currency: Mapped[Optional[str]] = mapped_column(String, nullable=True)

@@ -61,6 +61,8 @@ export type Criteria = {
   floor_max: string;
   land_area_min: string;
   land_area_max: string;
+  area_min: string;
+  area_max: string;
   price_min: string;
   price_max: string;
   currency: string;
@@ -78,6 +80,8 @@ export function emptyCriteria(): Criteria {
     floor_max: "",
     land_area_min: "",
     land_area_max: "",
+    area_min: "",
+    area_max: "",
     price_min: "",
     price_max: "",
     currency: "",
@@ -97,6 +101,8 @@ export function paramsToCriteria(p: SearchParams): Criteria {
     floor_max: s(p.floor_max),
     land_area_min: s(p.land_area_min),
     land_area_max: s(p.land_area_max),
+    area_min: s(p.area_min),
+    area_max: s(p.area_max),
     price_min: s(p.price_min),
     price_max: s(p.price_max),
     currency: (p.currency as string) || "",
@@ -127,6 +133,8 @@ export function criteriaNonEmpty(c: Criteria): boolean {
     c.floor_max ||
     c.land_area_min ||
     c.land_area_max ||
+    c.area_min ||
+    c.area_max ||
     c.price_min ||
     c.price_max
   );
@@ -145,6 +153,9 @@ export function criteriaToBody(c: Criteria): Record<string, unknown> {
   if (showFloor) {
     if (intOrU(c.floor_min) != null) body.floor_min = intOrU(c.floor_min);
     if (intOrU(c.floor_max) != null) body.floor_max = intOrU(c.floor_max);
+    // Площадь (квадратура, м²) — для квартир/домов, рядом с этажом.
+    if (numOrU(c.area_min) != null) body.area_min = numOrU(c.area_min);
+    if (numOrU(c.area_max) != null) body.area_max = numOrU(c.area_max);
   }
   if (showLand) {
     if (numOrU(c.land_area_min) != null) body.land_area_min = numOrU(c.land_area_min);
@@ -242,6 +253,20 @@ export function CriteriaEditor({ value, onChange }: { value: Criteria; onChange:
           <div className="flex-1 min-w-0">
             <Field label={t("to")}>
               <Input inputMode="numeric" value={value.floor_max} onChange={(e) => set("floor_max", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+      )}
+      {showFloor && (
+        <div className="flex gap-2">
+          <div className="flex-1 min-w-0">
+            <Field label={t("areaFrom")}>
+              <Input inputMode="decimal" value={value.area_min} onChange={(e) => set("area_min", e.target.value)} />
+            </Field>
+          </div>
+          <div className="flex-1 min-w-0">
+            <Field label={t("to")}>
+              <Input inputMode="decimal" value={value.area_max} onChange={(e) => set("area_max", e.target.value)} />
             </Field>
           </div>
         </div>
@@ -706,10 +731,32 @@ export function MatchesScreen() {
           >
             <Bell size={15} className={m.status === "new" ? "text-rose-500" : "text-muted"} />
             <span className="font-extrabold truncate flex-1">{m.client_name}</span>
+            {typeof m.score === "number" && (
+              <span
+                className={
+                  "text-[11px] font-extrabold px-1.5 py-0.5 rounded-full " +
+                  (m.score >= 90
+                    ? "bg-emerald-100 text-emerald-700"
+                    : m.score >= 70
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-slate-100 text-slate-600")
+                }
+              >
+                {m.score}%
+              </span>
+            )}
             {m.status === "new" && <Badge color="red">{t("matchNew")}</Badge>}
             {m.status === "offered" && <Badge color="green">{t("matchOffered")}</Badge>}
           </button>
           {m.request_label && <div className="text-[12px] text-muted mb-1">{t("wanted")}: {m.request_label}</div>}
+          {!!(m.match_good && m.match_good.length) && (
+            <div className="text-[11px] text-emerald-600 mb-1">✓ {m.match_good.map((c) => t("mr_" + c)).join(" · ")}</div>
+          )}
+          {!!(m.match_missing && m.match_missing.length) && (
+            <div className="text-[11px] text-amber-600 mb-1">
+              ⚠ {t("matchIncomplete")}: {m.match_missing.map((c) => t("mf_" + c)).join(", ")}
+            </div>
+          )}
           <ApartmentCard o={m.apartment} />
           <div className="mt-2 grid grid-cols-2 gap-2">
             <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>

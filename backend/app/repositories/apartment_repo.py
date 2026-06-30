@@ -45,6 +45,9 @@ def _build_conditions(
     price_max: Optional[float],
     land_area_min: Optional[float] = None,
     land_area_max: Optional[float] = None,
+    area_min: Optional[float] = None,
+    area_max: Optional[float] = None,
+    lenient_missing: bool = False,
     currency: Optional[str] = None,
     q: Optional[str] = None,
     rooms_min: Optional[int] = None,
@@ -78,18 +81,32 @@ def _build_conditions(
         conditions.append(Apartment.type.in_(list(types)))
     if rooms:
         conditions.append(Apartment.rooms.in_(list(rooms)))
+    # При подборе по заявке (lenient_missing=True) объект с НЕзаполненным числовым
+    # полем не отсекаем, а показываем (пометим «данные неполные» уже при подсчёте
+    # совпадения). В обычном поиске (lenient_missing=False) — прежнее строгое поведение.
+    # Цена — исключение: бюджет всегда жёсткий (выбор пользователя), без цены не показываем.
+    def _ge(col, val):
+        return or_(col.is_(None), col >= val) if lenient_missing else (col >= val)
+
+    def _le(col, val):
+        return or_(col.is_(None), col <= val) if lenient_missing else (col <= val)
+
     if rooms_min is not None:
-        conditions.append(Apartment.rooms >= rooms_min)
+        conditions.append(_ge(Apartment.rooms, rooms_min))
     if rooms_max is not None:
-        conditions.append(Apartment.rooms <= rooms_max)
+        conditions.append(_le(Apartment.rooms, rooms_max))
     if floor_min is not None:
-        conditions.append(Apartment.floor >= floor_min)
+        conditions.append(_ge(Apartment.floor, floor_min))
     if floor_max is not None:
-        conditions.append(Apartment.floor <= floor_max)
+        conditions.append(_le(Apartment.floor, floor_max))
+    if area_min is not None:
+        conditions.append(_ge(Apartment.area, area_min))
+    if area_max is not None:
+        conditions.append(_le(Apartment.area, area_max))
     if land_area_min is not None:
-        conditions.append(Apartment.land_area >= land_area_min)
+        conditions.append(_ge(Apartment.land_area, land_area_min))
     if land_area_max is not None:
-        conditions.append(Apartment.land_area <= land_area_max)
+        conditions.append(_le(Apartment.land_area, land_area_max))
     if price_min is not None:
         conditions.append(Apartment.price >= price_min)
     if price_max is not None:
@@ -144,6 +161,9 @@ def search(
     floor_max: Optional[int] = None,
     land_area_min: Optional[float] = None,
     land_area_max: Optional[float] = None,
+    area_min: Optional[float] = None,
+    area_max: Optional[float] = None,
+    lenient_missing: bool = False,
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
     currency: Optional[str] = None,
@@ -173,6 +193,9 @@ def search(
         floor_max=floor_max,
         land_area_min=land_area_min,
         land_area_max=land_area_max,
+        area_min=area_min,
+        area_max=area_max,
+        lenient_missing=lenient_missing,
         price_min=price_min,
         price_max=price_max,
         currency=currency,
