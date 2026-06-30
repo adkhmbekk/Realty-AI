@@ -1271,7 +1271,7 @@ export function DatabaseScreen() {
           className={cx2(
             "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12px] font-bold transition active:scale-95",
             hasFilter || showFilter
-              ? "bg-primary-soft border-primary/40 text-primary"
+              ? "bg-primary-soft border-primary text-primary"
               : "bg-card border-line text-muted",
           )}
         >
@@ -1425,7 +1425,7 @@ export function DuplicatesScreen() {
         <div key={o.id} className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5">
           <div className="flex gap-3">
             {o.photo_url && (
-              <img src={o.photo_url} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+              <img src={o.photo_url} alt="" loading="lazy" className="w-16 h-16 rounded-lg object-cover shrink-0" />
             )}
             <div className="min-w-0 flex-1">
               <div className="font-extrabold truncate">{o.name || "№ " + o.display_id}</div>

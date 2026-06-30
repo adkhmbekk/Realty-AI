@@ -64,7 +64,7 @@ function SrcBar({ label, v, total }: { label: string; v: number; total: number }
         <span className="text-muted">{v} · {pct}%</span>
       </div>
       <div className="h-2 rounded-full bg-[var(--soft)] overflow-hidden">
-        <div className="h-full bg-primary/70" style={{ width: `${pct}%` }} />
+        <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -120,7 +120,7 @@ function AgencyActivityPanel({ id }: { id: number }) {
             >
               {d.added > 0 && <span className="text-[9px] text-muted leading-none mb-0.5">{d.added}</span>}
               <div
-                className="w-full rounded-t bg-primary/70"
+                className="w-full rounded-t bg-primary"
                 style={{ height: `${d.added > 0 ? Math.max(10, (d.added / max) * 100) : 3}%` }}
               />
             </div>
@@ -280,7 +280,7 @@ function ActivationCard({
       )}
       {/* Код активации — запасной путь: если приложение попросит код, клиент
           вставляет его (активирует агентство так же, как и переход по ссылке). */}
-      <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-primary-soft border border-primary/30 px-3 py-2">
+      <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-primary-soft border border-primary px-3 py-2">
         <div className="min-w-0">
           <div className="text-[11px] text-muted">{t("activationCode")}</div>
           <div className="font-extrabold text-primary text-[15px] tracking-wide break-all select-all">
@@ -965,7 +965,7 @@ export function MlsPoolScreen() {
   }, [agencyId, dealType]);
 
   const pill = (active: boolean) =>
-    "px-3.5 py-1.5 rounded-full text-[13px] font-bold transition active:scale-95 " +
+    "min-h-[44px] px-3.5 py-2 rounded-full text-[13px] font-bold transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] " +
     (active ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted");
 
   return (
@@ -987,7 +987,8 @@ export function MlsPoolScreen() {
       <select
         value={agencyId}
         onChange={(e) => setAgencyId(e.target.value)}
-        className="w-full mt-2 rounded-xl border border-line bg-card px-3 py-2.5 text-[14px]"
+        aria-label={t("mlsAllAgencies")}
+        className="w-full mt-2 min-h-[44px] rounded-xl border border-line bg-card px-3 py-2.5 text-[14px]"
       >
         <option value="">{t("mlsAllAgencies")}</option>
         {agencies.map((a) => (

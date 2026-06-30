@@ -39,12 +39,13 @@ export function Button({
   ...rest
 }: BtnProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 font-bold tracking-[-.01em] rounded-xl cursor-pointer select-none transition-all duration-200 active:scale-[.97] disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed";
-  const sizes = size === "sm" ? "px-3 py-2 text-[13px] rounded-[11px]" : "px-4 py-3 text-[15px]";
+    "inline-flex items-center justify-center gap-2 font-bold tracking-[-.01em] rounded-xl cursor-pointer select-none transition-all duration-200 active:scale-[.97] disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
+  // Минимальная высота 44px — тач-таргет по Apple HIG / Material (аудит UI).
+  const sizes = size === "sm" ? "min-h-[44px] px-3.5 py-2 text-[13px] rounded-[11px]" : "min-h-[48px] px-4 py-3 text-[15px]";
   const variants: Record<BtnVariant, string> = {
     primary: "text-white shadow-[0_10px_24px_rgba(79,70,229,.34)] hover:shadow-[0_14px_30px_rgba(79,70,229,.42)]",
-    ghost: "bg-[var(--soft)] text-text border border-line hover:border-primary/40",
-    soft: "bg-primary-soft text-primary hover:bg-primary/10",
+    ghost: "bg-[var(--soft)] text-text border border-line hover:border-primary",
+    soft: "bg-primary-soft text-primary hover:brightness-95",
     danger: "bg-[var(--danger-soft)] text-[var(--danger)] hover:brightness-95",
   };
   const style = variant === "primary" ? { background: "var(--grad)" } : undefined;
@@ -73,7 +74,7 @@ export function Label({ children }: { children: React.ReactNode }) {
 }
 
 const fieldCls =
-  "w-full px-3.5 py-3 rounded-[14px] text-[15px] bg-[var(--input-bg)] text-text border border-[var(--input-border)] outline-none transition focus:border-primary focus:shadow-[0_0_0_4px_var(--ring)] placeholder:text-muted/70";
+  "w-full px-3.5 py-3 rounded-[14px] text-[15px] bg-[var(--input-bg)] text-text border border-[var(--input-border)] outline-none transition focus:border-primary focus:shadow-[0_0_0_4px_var(--ring)] placeholder:text-muted";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx(fieldCls, props.className)} />;
@@ -125,7 +126,7 @@ export function Segmented<T extends string>({
   value,
   onChange,
 }: {
-  options: { value: T; label: string }[];
+  options: { value: T; label: React.ReactNode }[];
   value: T;
   onChange: (v: T) => void;
 }) {
@@ -139,7 +140,7 @@ export function Segmented<T extends string>({
             onChange(o.value);
           }}
           className={cx(
-            "flex-1 px-3 py-2.5 rounded-[10px] text-[13px] font-bold cursor-pointer transition-all duration-200 active:scale-[.97]",
+            "flex-1 min-h-[44px] px-3 py-2.5 rounded-[10px] text-[13px] font-bold cursor-pointer transition-all duration-200 active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
             value === o.value ? "bg-card text-text shadow-soft" : "text-muted hover:text-text"
           )}
         >
@@ -169,10 +170,10 @@ export function Chips({
             key={o.value}
             onClick={() => onToggle(o.value)}
             className={cx(
-              "px-3.5 py-2 rounded-full text-[13px] font-bold border cursor-pointer transition-all duration-200 active:scale-95",
+              "min-h-[44px] px-3.5 py-2 rounded-full text-[13px] font-bold border cursor-pointer transition-all duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
               active
                 ? "text-white border-transparent shadow-[0_6px_16px_rgba(79,70,229,.32)]"
-                : "bg-card text-text border-line hover:border-primary/40"
+                : "bg-card text-text border-line hover:border-primary"
             )}
             style={active ? { background: "var(--grad)" } : undefined}
           >

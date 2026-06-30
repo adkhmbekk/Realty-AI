@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Moon, Sun } from "lucide-react";
 import { useApp } from "../store";
 import { api, apiUpload, errText, type ApiResult } from "../api";
 import { Button, Card, Field, Hint, Input, Label, Segmented, Select, SectionTitle } from "../components/ui";
@@ -573,8 +573,8 @@ export function SettingsScreen() {
           value={theme}
           onChange={(v) => setTheme(v)}
           options={[
-            { value: "light", label: "☀️ " + t("themeLight") },
-            { value: "dark", label: "🌙 " + t("themeDark") },
+            { value: "light", label: <span className="inline-flex items-center gap-1.5"><Sun size={15} /> {t("themeLight")}</span> },
+            { value: "dark", label: <span className="inline-flex items-center gap-1.5"><Moon size={15} /> {t("themeDark")}</span> },
           ]}
         />
       </div>
@@ -624,7 +624,7 @@ export function SettingsScreen() {
         </div>
       )}
 
-      <div className="mt-6 text-center text-[11px] text-muted/70 select-text">
+      <div className="mt-6 text-center text-[11px] text-muted select-text">
         {t("version")}: {__BUILD_ID__}
       </div>
     </div>

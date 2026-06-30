@@ -40,7 +40,7 @@ function Toasts() {
     err: "bg-rose-600 text-white",
   };
   return (
-    <div className="fixed left-0 right-0 bottom-24 z-50 flex flex-col items-center gap-2 px-4 pointer-events-none">
+    <div role="status" aria-live="polite" className="fixed left-0 right-0 bottom-24 z-50 flex flex-col items-center gap-2 px-4 pointer-events-none">
       <AnimatePresence>
         {toasts.map((tt) => (
           <motion.div

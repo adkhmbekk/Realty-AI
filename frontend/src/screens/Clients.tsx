@@ -5,6 +5,11 @@ import {
   Check,
   CheckSquare,
   ChevronRight,
+  Coins,
+  FileText,
+  Handshake,
+  Home,
+  MessageCircle,
   Pencil,
   Phone,
   Plus,
@@ -15,6 +20,7 @@ import {
   UserPlus,
   Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
@@ -726,9 +732,14 @@ function ClientTasks({ clientId }: { clientId: number }) {
 }
 
 // ── История действий по клиенту (Волна 3) ───────────────────────────
-const ACT_EMOJI: Record<string, string> = {
-  call: "☎️", show: "🏠", meeting: "🤝", message: "💬", note: "📝", price_change: "💰",
+// Иконки типов действий — Lucide (а не эмодзи): единый стиль, темизация, чёткость (аудит UI).
+const ACT_ICON: Record<string, LucideIcon> = {
+  call: Phone, show: Home, meeting: Handshake, message: MessageCircle, note: FileText, price_change: Coins,
 };
+function ActIcon({ kind, size = 16 }: { kind: string; size?: number }) {
+  const I = ACT_ICON[kind] ?? FileText;
+  return <I size={size} />;
+}
 
 function ClientHistory({ clientId }: { clientId: number }) {
   const { t, lang, toast } = useApp();
@@ -767,7 +778,7 @@ function ClientHistory({ clientId }: { clientId: number }) {
             onClick={() => log(k)}
             className="rounded-xl border border-line py-2 flex flex-col items-center gap-1 text-[11px] font-bold text-muted active:scale-95 transition"
           >
-            <span className="text-[18px]">{ACT_EMOJI[k]}</span>
+            <ActIcon kind={k} size={20} />
             {t("act_" + k)}
           </button>
         ))}
@@ -802,7 +813,7 @@ function ClientHistory({ clientId }: { clientId: number }) {
         <div className="space-y-1.5">
           {acts.map((a) => (
             <div key={a.id} className="flex items-start gap-2 text-[13px]">
-              <span className="text-[15px] leading-5 shrink-0">{ACT_EMOJI[a.kind] || "•"}</span>
+              <span className="shrink-0 text-muted mt-0.5"><ActIcon kind={a.kind} size={15} /></span>
               <div className="min-w-0 flex-1">
                 <span className="font-bold">{t("act_" + a.kind)}</span>
                 {a.note && <span className="text-muted"> — {a.note}</span>}

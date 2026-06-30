@@ -68,7 +68,7 @@ function StatTile({
         haptic();
         onClick();
       }}
-      className="text-left rounded-xl2 bg-card border border-line shadow-soft p-3.5 cursor-pointer active:scale-[.98] transition-all duration-200 hover:shadow-lg2 hover:border-primary/30"
+      className="text-left rounded-xl2 bg-card border border-line shadow-soft p-3.5 cursor-pointer active:scale-[.98] transition-all duration-200 hover:shadow-lg2 hover:border-primary"
     >
       <div className="flex items-center justify-between">
         <span className={"w-8 h-8 rounded-[10px] flex items-center justify-center " + chip}>{icon}</span>
@@ -284,7 +284,7 @@ export function AnalyticsScreen() {
                 haptic();
                 nav.push({ name: "agentDetail", userId: a.user_id, agentName: name });
               }}
-              className="w-full text-left mt-2 rounded-xl2 bg-card border border-line shadow-soft p-3.5 cursor-pointer active:scale-[.99] transition-all duration-200 hover:shadow-lg2 hover:border-primary/30"
+              className="w-full text-left mt-2 rounded-xl2 bg-card border border-line shadow-soft p-3.5 cursor-pointer active:scale-[.99] transition-all duration-200 hover:shadow-lg2 hover:border-primary"
             >
               <div className="flex items-center gap-3">
                 {/* Аватар с инициалами; #1 получает рамку-акцент. */}
