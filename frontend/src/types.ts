@@ -279,6 +279,9 @@ export interface Client {
   last_name?: string | null;
   phone?: string | null;
   note?: string | null;
+  // Приоритет: hot / warm / cold (или null — не задан). Источник: откуда пришёл.
+  priority?: string | null;
+  source?: string | null;
   status: string;
   created_by?: number | null;
   created_by_name?: string | null;

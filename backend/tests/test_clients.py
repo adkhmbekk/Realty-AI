@@ -201,3 +201,45 @@ def test_request_range_and_currency_validation(db):
     # Неизвестная валюта — отклоняется.
     with pytest.raises(ValidationError):
         RequestCreate(districts=["Юнусабад"], currency="RUB")
+
+
+# ── Волна 2: приоритет и источник клиента ────────────────────────────
+def test_client_priority_and_source(db):
+    agency, admin, agent = _setup(db)
+    out, _ = client_service.create_client(
+        db, agency.id, agent, ClientCreate(name="Алия", priority="hot", source="Instagram"),
+    )
+    assert out.priority == "hot" and out.source == "Instagram"
+    # Правка приоритета и источника.
+    out2 = client_service.update_client(
+        db, agency.id, agent, out.id, ClientUpdate(priority="cold", source="OLX"),
+    )
+    assert out2.priority == "cold" and out2.source == "OLX"
+    # Очистка пустой строкой.
+    out3 = client_service.update_client(db, agency.id, agent, out.id, ClientUpdate(priority=""))
+    assert out3.priority is None
+    out4 = client_service.update_client(db, agency.id, agent, out.id, ClientUpdate(source=""))
+    assert out4.source is None
+
+
+def test_client_invalid_priority_ignored(db):
+    agency, admin, agent = _setup(db)
+    out, _ = client_service.create_client(db, agency.id, agent, ClientCreate(name="Б", priority="warm"))
+    out2 = client_service.update_client(db, agency.id, agent, out.id, ClientUpdate(priority="zzz"))
+    assert out2.priority == "warm"  # некорректное значение игнорируется
+
+
+# ── Волна 1: сквозной подбор по площади (квадратуре) + балл ───────────
+def test_request_area_match_end_to_end(db):
+    agency, admin, agent = _setup(db)
+    _apt(db, agency.id, agent.id, type="Квартира", district="Юнусабад", rooms=3, area=90, price=70000, currency="USD")
+    out, found = client_service.create_client(
+        db, agency.id, agent,
+        ClientCreate(name="Зара", request=RequestCreate(
+            districts=["Юнусабад"], area_min=80, area_max=120, price_max=80000, currency="USD",
+        )),
+    )
+    assert found == 1
+    m = client_service.list_matches(db, agency.id, agent)[0]
+    assert m.score == 100
+    assert "area" in (m.match_good or [])

@@ -29,6 +29,10 @@ class Client(Base):
     last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Приоритет: hot / warm / cold (или NULL — не задан). «Светофор» для агента.
+    priority: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Источник: откуда пришёл клиент (Instagram, OLX, рекомендация…). Свободный текст.
+    source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Агент-владелец клиента. Личные клиенты: агент видит только своих.
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
     # active / archived

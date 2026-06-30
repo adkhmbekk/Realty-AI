@@ -415,7 +415,10 @@ function ClientRow({ c }: { c: Client }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-extrabold truncate">{name}</span>
+            <span className="font-extrabold inline-flex items-center gap-1.5 min-w-0">
+              {c.priority && <span className={"w-2 h-2 rounded-full shrink-0 " + (PRIORITY_DOT[c.priority] || "")} />}
+              <span className="truncate">{name}</span>
+            </span>
             {c.new_match_count > 0 && <Badge color="red">{t("matchN").replace("{n}", String(c.new_match_count))}</Badge>}
           </div>
           {c.phone && <div className="text-[13px] text-muted truncate">{c.phone}</div>}
@@ -430,11 +433,42 @@ function ClientRow({ c }: { c: Client }) {
   );
 }
 
+// ── Приоритет клиента («светофор»: горячий/тёплый/холодный) ──────────
+const PRIORITY_DOT: Record<string, string> = {
+  hot: "bg-rose-500",
+  warm: "bg-amber-500",
+  cold: "bg-sky-500",
+};
+
+function PriorityPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useApp();
+  return (
+    <div className="flex gap-1.5">
+      {(["hot", "warm", "cold"] as const).map((k) => (
+        <button
+          key={k}
+          type="button"
+          onClick={() => onChange(value === k ? "" : k)}
+          className={
+            "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[13px] font-bold transition active:scale-95 " +
+            (value === k ? "border-primary bg-primary-soft text-primary" : "border-line text-muted")
+          }
+        >
+          <span className={"w-2 h-2 rounded-full " + PRIORITY_DOT[k]} />
+          {t("prio_" + k)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function AddClientForm({ onDone }: { onDone: () => void }) {
   const { t, toast } = useApp();
   const [name, setName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [priority, setPriority] = useState("");
+  const [source, setSource] = useState("");
   const [showReq, setShowReq] = useState(false);
   const [crit, setCrit] = useState<Criteria>(emptyCriteria());
   const [saving, setSaving] = useState(false);
@@ -445,7 +479,13 @@ function AddClientForm({ onDone }: { onDone: () => void }) {
       return;
     }
     setSaving(true);
-    const body: Record<string, unknown> = { name: name.trim(), last_name: lastName.trim() || null, phone: phone.trim() || null };
+    const body: Record<string, unknown> = {
+      name: name.trim(),
+      last_name: lastName.trim() || null,
+      phone: phone.trim() || null,
+      priority: priority || null,
+      source: source.trim() || null,
+    };
     if (showReq && criteriaNonEmpty(crit)) body.request = criteriaToBody(crit);
     const r = await api<{ client: Client; found: number }>("/api/v1/clients", { method: "POST", body });
     setSaving(false);
@@ -466,6 +506,12 @@ function AddClientForm({ onDone }: { onDone: () => void }) {
       </Field>
       <Field label={t("clientPhone")}>
         <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </Field>
+      <Field label={t("clientPriority")}>
+        <PriorityPicker value={priority} onChange={setPriority} />
+      </Field>
+      <Field label={t("clientSource")}>
+        <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder={t("clientSourcePh")} />
       </Field>
       <button
         onClick={() => setShowReq((v) => !v)}
@@ -580,6 +626,13 @@ export function ClientDetailScreen({ id }: { id: number }) {
                   </a>
                 )}
                 {c.created_by_name && <div className="text-[12.5px] text-muted mt-0.5">{t("addedBy")}: {c.created_by_name}</div>}
+                {c.priority && (
+                  <div className="inline-flex items-center gap-1.5 mt-1 text-[12.5px] font-bold">
+                    <span className={"w-2 h-2 rounded-full " + (PRIORITY_DOT[c.priority] || "")} />
+                    {t("prio_" + c.priority)}
+                  </div>
+                )}
+                {c.source && <div className="text-[12.5px] text-muted mt-0.5">{t("clientSource")}: {c.source}</div>}
               </div>
               <button onClick={() => setEditing(true)} className="shrink-0 w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center active:scale-90">
                 <Pencil size={16} />
@@ -657,12 +710,14 @@ function ClientEdit({ c, onDone }: { c: Client; onDone: () => void }) {
   const [lastName, setLastName] = useState(c.last_name || "");
   const [phone, setPhone] = useState(c.phone || "");
   const [note, setNote] = useState(c.note || "");
+  const [priority, setPriority] = useState(c.priority || "");
+  const [source, setSource] = useState(c.source || "");
   const [saving, setSaving] = useState(false);
   async function save() {
     setSaving(true);
     const r = await api("/api/v1/clients/" + c.id, {
       method: "PATCH",
-      body: { name: name.trim(), last_name: lastName.trim(), phone: phone.trim(), note: note.trim() },
+      body: { name: name.trim(), last_name: lastName.trim(), phone: phone.trim(), note: note.trim(), priority, source: source.trim() },
     });
     setSaving(false);
     if (r.ok) {
@@ -683,6 +738,12 @@ function ClientEdit({ c, onDone }: { c: Client; onDone: () => void }) {
       </Field>
       <Field label={t("clientNote")}>
         <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+      </Field>
+      <Field label={t("clientPriority")}>
+        <PriorityPicker value={priority} onChange={setPriority} />
+      </Field>
+      <Field label={t("clientSource")}>
+        <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder={t("clientSourcePh")} />
       </Field>
       <div className="grid grid-cols-2 gap-2 mt-4">
         <Button variant="ghost" onClick={onDone}>{t("cancel")}</Button>

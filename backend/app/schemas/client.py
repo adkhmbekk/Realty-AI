@@ -5,11 +5,14 @@
 repositories/apartment_repo.search) — заявка по сути сохранённый поиск.
 """
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.apartment import ALLOWED_CURRENCIES, ApartmentOut, DealType
+
+# Приоритет клиента: горячий/тёплый/холодный («светофор» для агента).
+Priority = Literal["hot", "warm", "cold"]
 
 
 # ── Заявка («что ищет») ──────────────────────────────────────────────
@@ -104,6 +107,9 @@ class ClientCreate(BaseModel):
     last_name: Optional[str] = Field(default=None, max_length=120)
     phone: Optional[str] = Field(default=None, max_length=64)
     note: Optional[str] = Field(default=None, max_length=2000)
+    # Приоритет (hot/warm/cold) и источник (откуда пришёл) — оба необязательны.
+    priority: Optional[Priority] = None
+    source: Optional[str] = Field(default=None, max_length=120)
     # Необязательная первая заявка — создаётся вместе с клиентом (удобный путь
     # «запомнить для клиента» прямо из поиска).
     request: Optional[RequestCreate] = None
@@ -122,6 +128,9 @@ class ClientUpdate(BaseModel):
     last_name: Optional[str] = Field(default=None, max_length=120)
     phone: Optional[str] = Field(default=None, max_length=64)
     note: Optional[str] = Field(default=None, max_length=2000)
+    # Приоритет и источник (см. ClientCreate). None = «не менять»; ""/"none" = очистить.
+    priority: Optional[str] = None
+    source: Optional[str] = Field(default=None, max_length=120)
     # active / archived
     status: Optional[str] = None
     # Переназначить клиента другому агенту (только администратор).
@@ -136,6 +145,8 @@ class ClientOut(BaseModel):
     last_name: Optional[str] = None
     phone: Optional[str] = None
     note: Optional[str] = None
+    priority: Optional[str] = None
+    source: Optional[str] = None
     status: str
     created_by: Optional[int] = None
     created_by_name: Optional[str] = None

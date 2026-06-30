@@ -328,6 +328,8 @@ def _client_to_out(c: Client, created_by_name=None, *, requests=None, active_req
         last_name=c.last_name,
         phone=c.phone,
         note=c.note,
+        priority=c.priority,
+        source=c.source,
         status=c.status,
         created_by=c.created_by,
         created_by_name=created_by_name,
@@ -394,6 +396,8 @@ def create_client(db: Session, agency_id: int, user, payload: ClientCreate) -> T
         last_name=(payload.last_name or None),
         phone=(payload.phone or None),
         note=(payload.note or None),
+        priority=(payload.priority or None),
+        source=((payload.source or "").strip() or None),
         created_by=user.id,
         status="active",
     )
@@ -420,6 +424,15 @@ def update_client(db: Session, agency_id: int, user, client_id: int, payload: Cl
         c.phone = payload.phone.strip() or None
     if payload.note is not None:
         c.note = payload.note.strip() or None
+    if payload.priority is not None:
+        pv = (payload.priority or "").strip().lower()
+        if pv in ("", "none"):
+            c.priority = None
+        elif pv in ("hot", "warm", "cold"):
+            c.priority = pv
+        # некорректное значение просто игнорируем (фронт шлёт только валидные)
+    if payload.source is not None:
+        c.source = payload.source.strip() or None
     if payload.status is not None:
         if payload.status not in ("active", "archived"):
             raise AppError("invalid_client_status", status.HTTP_400_BAD_REQUEST)
