@@ -255,6 +255,36 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Bu xodimni bitimga biriktirib boʻlmaydi: u agentligingizdan emas yoki oʻchirilgan.",
         "en": "Cannot assign this member to the deal: not in your agency or deactivated.",
     },
+    "invalid_notify_pref": {
+        "ru": "Недопустимая настройка уведомлений. Доступно: off, instant, daily.",
+        "uz": "Bildirishnoma sozlamasi yaroqsiz. Mavjud: off, instant, daily.",
+        "en": "Invalid notification setting. Allowed: off, instant, daily.",
+    },
+    "user_not_found": {
+        "ru": "Пользователь не найден.",
+        "uz": "Foydalanuvchi topilmadi.",
+        "en": "User not found.",
+    },
+    "task_title_required": {
+        "ru": "Введите название задачи.",
+        "uz": "Vazifa nomini kiriting.",
+        "en": "Enter a task title.",
+    },
+    "dict_value_exists": {
+        "ru": "Такое значение уже есть в справочнике.",
+        "uz": "Bunday qiymat allaqachon roʻyxatda bor.",
+        "en": "This value already exists in the list.",
+    },
+    "dict_value_not_found": {
+        "ru": "Значение справочника не найдено.",
+        "uz": "Roʻyxat qiymati topilmadi.",
+        "en": "Dictionary value not found.",
+    },
+    "empty_channel": {
+        "ru": "Укажите канал (например, @mychannel).",
+        "uz": "Kanalni koʻrsating (masalan, @mychannel).",
+        "en": "Specify the channel (e.g. @mychannel).",
+    },
     # Отправка / шаринг
     "share_via_bot_not_configured": {
         "ru": "Отправка через бота недоступна: не настроен токен бота.",

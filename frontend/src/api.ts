@@ -102,14 +102,35 @@ export async function api<T = any>(
   return { ok: res.ok, status: res.status, data };
 }
 
-export function errText(data: any, status: number, fallback = "—"): string {
-  // status 0 = обрыв связи / таймаут / отмена запроса. Раньше показывалось «— 0»;
-  // теперь — только понятный текст (без бессмысленного «0»).
-  if (!data) return status === 0 ? fallback : `${fallback} ${status}`;
-  const d = data.detail;
-  if (typeof d === "string") return d;
+// Понятные запасные сообщения, когда сервер НЕ прислал переведённый текст ошибки
+// (обрыв связи / таймаут / 5xx без тела). Локализуем по текущему языку интерфейса,
+// чтобы пользователь видел причину, а не «—» или голый код статуса.
+const FALLBACK_MSG: Record<string, { net: string; srv: string }> = {
+  ru: {
+    net: "Нет связи с сервером. Проверьте интернет и попробуйте снова.",
+    srv: "Сервер временно недоступен. Попробуйте позже.",
+  },
+  uz: {
+    net: "Server bilan aloqa yoʻq. Internetni tekshirib, qayta urinib koʻring.",
+    srv: "Server vaqtincha mavjud emas. Keyinroq urinib koʻring.",
+  },
+  en: {
+    net: "No connection to the server. Check your internet and try again.",
+    srv: "The server is temporarily unavailable. Please try again later.",
+  },
+};
+
+export function errText(data: any, status: number, fallback?: string): string {
+  // 1) Сервер прислал переведённый текст ошибки (AppError.detail) — показываем его.
+  const d = data?.detail;
+  if (typeof d === "string" && d.trim()) return d;
+  // 2) Ошибки валидации (422): detail — массив, склеиваем сообщения полей.
   if (Array.isArray(d) && d.length) return d.map((e: any) => e.msg || JSON.stringify(e)).join("; ");
-  return "" + status;
+  // 3) Текста ошибки нет: если вызывающий передал свой fallback — берём его,
+  //    иначе локализованное «нет связи» (status 0) либо «сервер недоступен».
+  if (fallback) return fallback;
+  const fb = FALLBACK_MSG[langGetter()] || FALLBACK_MSG.ru;
+  return status === 0 ? fb.net : fb.srv;
 }
 
 // Загрузка файла (multipart/form-data) — для импорта готовой базы клиента
