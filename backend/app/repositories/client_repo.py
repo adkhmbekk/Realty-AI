@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.apartment import Apartment
 from app.db.models.client import Client
+from app.db.models.client_activity import ClientActivity
 from app.db.models.client_request import ClientRequest
 from app.db.models.request_match import RequestMatch
 
@@ -227,3 +228,39 @@ def recent_active_apartments(db: Session, since: datetime) -> List[Apartment]:
             )
         ).scalars().all()
     )
+
+
+# ── Лента действий по клиенту (Волна 3) ──────────────────────────────
+def add_activity(
+    db: Session, agency_id: int, client_id: int, kind: str,
+    note: Optional[str], created_by: Optional[int],
+) -> ClientActivity:
+    a = ClientActivity(
+        agency_id=agency_id, client_id=client_id, kind=kind, note=note, created_by=created_by,
+    )
+    db.add(a)
+    db.flush()
+    return a
+
+
+def list_activities(db: Session, client_id: int, limit: int = 50) -> List[ClientActivity]:
+    return list(
+        db.execute(
+            select(ClientActivity)
+            .where(ClientActivity.client_id == client_id)
+            .order_by(ClientActivity.created_at.desc())
+            .limit(limit)
+        ).scalars().all()
+    )
+
+
+def last_activity_map(db: Session, client_ids: Sequence[int]) -> Dict[int, datetime]:
+    """Для каждого клиента — время последнего действия (для ИИ-подсказок «молчит»)."""
+    if not client_ids:
+        return {}
+    rows = db.execute(
+        select(ClientActivity.client_id, func.max(ClientActivity.created_at))
+        .where(ClientActivity.client_id.in_(list(client_ids)))
+        .group_by(ClientActivity.client_id)
+    ).all()
+    return {cid: ts for cid, ts in rows}

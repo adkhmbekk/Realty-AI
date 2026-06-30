@@ -30,7 +30,7 @@ import {
   Textarea,
 } from "../components/ui";
 import { CURRENCIES, OBJ_TYPE_VALUES, hasLandArea } from "../i18n";
-import type { Client, ClientRequest, DictItem, Match, SearchParams } from "../types";
+import type { Client, ClientActivity, ClientRequest, DictItem, Match, SearchParams } from "../types";
 import { ApartmentCard } from "./Apartments";
 import { fmtDate } from "../utils";
 import { confirmDialog, haptic } from "../telegram";
@@ -462,6 +462,100 @@ function PriorityPicker({ value, onChange }: { value: string; onChange: (v: stri
   );
 }
 
+// ── История действий по клиенту (Волна 3) ───────────────────────────
+const ACT_EMOJI: Record<string, string> = {
+  call: "☎️", show: "🏠", meeting: "🤝", message: "💬", note: "📝", price_change: "💰",
+};
+
+function ClientHistory({ clientId }: { clientId: number }) {
+  const { t, lang, toast } = useApp();
+  const [acts, setActs] = useState<ClientActivity[] | null>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState("");
+
+  async function load() {
+    const r = await api<ClientActivity[]>("/api/v1/clients/" + clientId + "/activities");
+    setActs(r.ok && Array.isArray(r.data) ? r.data : []);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+
+  async function log(kind: string, noteText?: string) {
+    const r = await api("/api/v1/clients/" + clientId + "/activities", {
+      method: "POST",
+      body: { kind, note: noteText || null },
+    });
+    if (r.ok) {
+      haptic();
+      toast(t("logged"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  return (
+    <div className="mt-5">
+      <div className="text-[14px] font-extrabold tracking-tight mb-2 mx-0.5">{t("historyTitle")}</div>
+      <div className="grid grid-cols-4 gap-2 mb-2">
+        {(["call", "message", "show", "meeting"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => log(k)}
+            className="rounded-xl border border-line py-2 flex flex-col items-center gap-1 text-[11px] font-bold text-muted active:scale-95 transition"
+          >
+            <span className="text-[18px]">{ACT_EMOJI[k]}</span>
+            {t("act_" + k)}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => setNoteOpen((v) => !v)}
+        className="text-[13px] font-bold text-primary inline-flex items-center gap-1.5 active:scale-95 mb-2"
+      >
+        <Plus size={15} /> {t("addNoteBtn")}
+      </button>
+      {noteOpen && (
+        <div className="flex gap-2 mb-2">
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("notePlaceholder")} />
+          <Button
+            size="sm"
+            disabled={!note.trim()}
+            onClick={async () => {
+              await log("note", note.trim());
+              setNote("");
+              setNoteOpen(false);
+            }}
+          >
+            {t("histAdd")}
+          </Button>
+        </div>
+      )}
+      {acts === null ? (
+        <Spinner />
+      ) : acts.length === 0 ? (
+        <div className="text-[12.5px] text-muted mx-0.5">{t("noHistory")}</div>
+      ) : (
+        <div className="space-y-1.5">
+          {acts.map((a) => (
+            <div key={a.id} className="flex items-start gap-2 text-[13px]">
+              <span className="text-[15px] leading-5 shrink-0">{ACT_EMOJI[a.kind] || "•"}</span>
+              <div className="min-w-0 flex-1">
+                <span className="font-bold">{t("act_" + a.kind)}</span>
+                {a.note && <span className="text-muted"> — {a.note}</span>}
+                <div className="text-[11px] text-muted">
+                  {fmtDate(a.created_at, lang)}
+                  {a.created_by_name ? " · " + a.created_by_name : ""}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AddClientForm({ onDone }: { onDone: () => void }) {
   const { t, toast } = useApp();
   const [name, setName] = useState("");
@@ -696,6 +790,8 @@ export function ClientDetailScreen({ id }: { id: number }) {
           </div>
         </Card>
       ))}
+
+      <ClientHistory clientId={id} />
 
       <Button full variant="danger" className="mt-5" onClick={delClient}>
         <Trash2 size={16} /> {t("delClient")}

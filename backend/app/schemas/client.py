@@ -184,3 +184,22 @@ class MatchSummaryOut(BaseModel):
 class ScanResultOut(BaseModel):
     # Сколько совпадений нашлось при подборе по существующей базе.
     found: int
+
+
+# ── Лента действий по клиенту (Волна 3) ──────────────────────────────
+ActivityKind = Literal["call", "show", "meeting", "message", "note", "price_change"]
+
+
+class ActivityCreate(BaseModel):
+    kind: ActivityKind
+    note: Optional[str] = Field(default=None, max_length=2000)
+
+
+class ActivityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    kind: str
+    note: Optional[str] = None
+    created_by: Optional[int] = None
+    created_by_name: Optional[str] = None
+    created_at: datetime

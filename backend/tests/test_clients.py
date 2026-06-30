@@ -10,7 +10,7 @@ from app.core.errors import AppError
 from app.db.models.agency import Agency
 from app.repositories import client_repo, user_repo
 from app.schemas.apartment import ApartmentCreate
-from app.schemas.client import ClientCreate, ClientUpdate, RequestCreate, RequestUpdate
+from app.schemas.client import ActivityCreate, ClientCreate, ClientUpdate, RequestCreate, RequestUpdate
 from app.services import apartment_service, client_service
 
 
@@ -243,3 +243,20 @@ def test_request_area_match_end_to_end(db):
     m = client_service.list_matches(db, agency.id, agent)[0]
     assert m.score == 100
     assert "area" in (m.match_good or [])
+
+
+# ── Волна 3: лента действий по клиенту ───────────────────────────────
+def test_client_activity_log(db):
+    agency, admin, agent = _setup(db)
+    out, _ = client_service.create_client(db, agency.id, agent, ClientCreate(name="Ник"))
+    client_service.add_activity(db, agency.id, agent, out.id, ActivityCreate(kind="call", note="перезвонить завтра"))
+    client_service.add_activity(db, agency.id, agent, out.id, ActivityCreate(kind="show"))
+    acts = client_service.list_activities(db, agency.id, agent, out.id)
+    assert len(acts) == 2
+    assert acts[0].kind == "show"  # новые сверху
+    assert acts[1].kind == "call" and acts[1].note == "перезвонить завтра"
+    # Чужой агент не видит чужого клиента (и его историю).
+    other = user_repo.create(db, telegram_id=3, role="agent", agency_id=agency.id)
+    db.commit()
+    with pytest.raises(AppError):
+        client_service.list_activities(db, agency.id, other, out.id)

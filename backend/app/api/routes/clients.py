@@ -15,6 +15,8 @@ from app.core.dependencies import require_agency_member
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.client import (
+    ActivityCreate,
+    ActivityOut,
     ClientCreate,
     ClientOut,
     ClientUpdate,
@@ -172,3 +174,25 @@ def add_request(
     """Добавить заявку клиенту. Возвращает заявку и число уже подходящих объектов."""
     request, found = client_service.add_request(db, current_user.agency_id, current_user, client_id, body)
     return {"request": request, "found": found}
+
+
+# ── Лента действий по клиенту (Волна 3) ──────────────────────────────
+@router.get("/{client_id}/activities", response_model=List[ActivityOut])
+def list_activities(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """История действий по клиенту (звонки/показы/встречи/заметки)."""
+    return client_service.list_activities(db, current_user.agency_id, current_user, client_id)
+
+
+@router.post("/{client_id}/activities", status_code=201, response_model=ActivityOut)
+def add_activity(
+    client_id: int,
+    body: ActivityCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Записать действие по клиенту в ленту истории."""
+    return client_service.add_activity(db, current_user.agency_id, current_user, client_id, body)

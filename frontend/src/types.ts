@@ -291,6 +291,16 @@ export interface Client {
   new_match_count: number;
 }
 
+export interface ClientActivity {
+  id: number;
+  // call / show / meeting / message / note / price_change
+  kind: string;
+  note?: string | null;
+  created_by?: number | null;
+  created_by_name?: string | null;
+  created_at: string;
+}
+
 export interface Match {
   id: number;
   status: string;

@@ -28,6 +28,8 @@ from app.db.models.request_match import RequestMatch
 from app.repositories import apartment_repo, client_repo, user_repo
 from app.schemas.apartment import ApartmentOut
 from app.schemas.client import (
+    ActivityCreate,
+    ActivityOut,
     ClientCreate,
     ClientOut,
     ClientUpdate,
@@ -556,3 +558,33 @@ def mark_all_seen(db: Session, agency_id: int, user) -> int:
     if rows:
         db.commit()
     return len(rows)
+
+
+# ── Лента действий по клиенту (Волна 3) ──────────────────────────────
+def add_activity(db: Session, agency_id: int, user, client_id: int, payload: ActivityCreate) -> ActivityOut:
+    _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
+    a = client_repo.add_activity(
+        db, agency_id, client_id, payload.kind, (payload.note or "").strip() or None, user.id,
+    )
+    db.commit()
+    return ActivityOut(
+        id=a.id, kind=a.kind, note=a.note, created_by=a.created_by,
+        created_by_name=apartment_service._display_name(user), created_at=a.created_at,
+    )
+
+
+def list_activities(db: Session, agency_id: int, user, client_id: int) -> List[ActivityOut]:
+    _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
+    rows = client_repo.list_activities(db, client_id)
+    names: dict = {}
+    ids = {r.created_by for r in rows if r.created_by is not None}
+    if ids:
+        for u in user_repo.get_by_ids(db, ids):
+            names[u.id] = apartment_service._display_name(u)
+    return [
+        ActivityOut(
+            id=r.id, kind=r.kind, note=r.note, created_by=r.created_by,
+            created_by_name=names.get(r.created_by), created_at=r.created_at,
+        )
+        for r in rows
+    ]

@@ -9,6 +9,7 @@ from app.db.models.apartment_event import ApartmentEvent
 from app.db.models.apartment_photo import ApartmentPhoto
 from app.db.models.audit_log import AuditLog
 from app.db.models.client import Client
+from app.db.models.client_activity import ClientActivity
 from app.db.models.client_request import ClientRequest
 from app.db.models.dictionary import Dictionary
 from app.db.models.duplicate_dismissal import DuplicateDismissal
@@ -29,6 +30,7 @@ __all__ = [
     "ApartmentPhoto",
     "AuditLog",
     "Client",
+    "ClientActivity",
     "ClientRequest",
     "RequestMatch",
     "SubscriptionPayment",
