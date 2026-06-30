@@ -7,7 +7,7 @@ import { useNav } from "../nav";
 import { useActing } from "../acting";
 import { api, errText } from "../api";
 import { Badge, Button, Card, Empty, Field, Hint, Input, Row, Spinner } from "../components/ui";
-import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, AgencyUsage, PaymentsSummary } from "../types";
+import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, AgencyUsage, MlsPoolItem, MlsPoolResponse, PaymentsSummary } from "../types";
 import { copyText, fmtAmount, fmtDate } from "../utils";
 
 // ── Наблюдение за агентствами: «светофор» + относительное время ──────
@@ -875,6 +875,164 @@ export function AgencyManageScreen({ id }: { id: number }) {
           <PaymentHistory id={id} refresh={payKey} />
         </>
       )}
+    </div>
+  );
+}
+
+// ── Витрина общей базы (MLS) для владельца платформы ────────────────────────
+// Все объекты, которыми агентства поделились в общей базе (shared_mls). Контакты
+// собственника скрыты бэкендом — видно только, какому агентству принадлежит
+// объект. Только просмотр: карточки некликабельны (это чужие объекты).
+function MlsObjectCard({ item }: { item: MlsPoolItem }) {
+  const { t, lang } = useApp();
+  const a = item.apartment;
+  const head = [a.type, a.rooms ? `${a.rooms} ${t("roomsShort")}` : null, a.district]
+    .filter(Boolean)
+    .join(" · ");
+  const stColor: Record<string, "green" | "amber" | "gray" | "blue"> = {
+    active: "green",
+    deposit: "amber",
+    sold: "gray",
+    rented: "blue",
+  };
+  const stKey: Record<string, string> = {
+    active: "statusActive",
+    deposit: "statusDeposit",
+    sold: "statusSold",
+    rented: "statusRented",
+  };
+  return (
+    <div className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-extrabold truncate">{head || a.display_id}</span>
+        <Badge color="blue">{item.agency_name || `ID ${item.agency_id}`}</Badge>
+      </div>
+      <div className="text-[15px] font-extrabold text-primary mt-1">
+        {a.price != null ? `${fmtAmount(a.price)} ${a.currency}` : t("priceNotSet")}
+      </div>
+      <div className="text-[12.5px] text-muted mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span>{a.deal_type === "rent" ? t("dealRent") : t("dealSale")}</span>
+        <Badge color={stColor[a.status] || "gray"}>{t(stKey[a.status] || "statusActive")}</Badge>
+        <span>· {fmtDate(a.created_at, lang)}</span>
+      </div>
+    </div>
+  );
+}
+
+export function MlsPoolScreen() {
+  const { t } = useApp();
+  const [agencies, setAgencies] = useState<AgencyOut[]>([]);
+  const [agencyId, setAgencyId] = useState<string>("");
+  const [dealType, setDealType] = useState<"" | "sale" | "rent">("");
+  const [q, setQ] = useState("");
+  const [items, setItems] = useState<MlsPoolItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const PAGE = 30;
+
+  async function load(reset: boolean) {
+    setLoading(true);
+    const offset = reset ? 0 : items.length;
+    const p = new URLSearchParams();
+    p.set("limit", String(PAGE));
+    p.set("offset", String(offset));
+    if (agencyId) p.set("agency_id", agencyId);
+    if (dealType) p.set("deal_type", dealType);
+    if (q.trim()) p.set("q", q.trim());
+    const r = await api<MlsPoolResponse>("/api/v1/mls/pool?" + p.toString());
+    setLoading(false);
+    if (r.ok && r.data) {
+      const data = r.data;
+      setTotal(data.total);
+      setItems(reset ? data.items : (prev) => [...prev, ...data.items]);
+      setErr(null);
+    } else {
+      setErr(`${t("notFound")} (${r.status})`);
+    }
+  }
+
+  useEffect(() => {
+    api<AgencyOut[]>("/api/v1/agencies").then((r) => {
+      if (r.ok && Array.isArray(r.data)) setAgencies(r.data);
+    });
+  }, []);
+
+  // Смена агентства/типа сделки — перезагрузка с начала (поиск по тексту — по кнопке).
+  useEffect(() => {
+    load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agencyId, dealType]);
+
+  const pill = (active: boolean) =>
+    "px-3.5 py-1.5 rounded-full text-[13px] font-bold transition active:scale-95 " +
+    (active ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted");
+
+  return (
+    <div>
+      <Hint>{t("mlsPoolHint")}</Hint>
+
+      <div className="flex gap-2 mt-3">
+        <button type="button" className={pill(dealType === "")} onClick={() => setDealType("")}>
+          {t("dealAll")}
+        </button>
+        <button type="button" className={pill(dealType === "sale")} onClick={() => setDealType("sale")}>
+          {t("dealSale")}
+        </button>
+        <button type="button" className={pill(dealType === "rent")} onClick={() => setDealType("rent")}>
+          {t("dealRent")}
+        </button>
+      </div>
+
+      <select
+        value={agencyId}
+        onChange={(e) => setAgencyId(e.target.value)}
+        className="w-full mt-2 rounded-xl border border-line bg-card px-3 py-2.5 text-[14px]"
+      >
+        <option value="">{t("mlsAllAgencies")}</option>
+        {agencies.map((a) => (
+          <option key={a.id} value={String(a.id)}>
+            {a.name}
+          </option>
+        ))}
+      </select>
+
+      <div className="flex gap-2 mt-2">
+        <Input
+          placeholder={t("mlsSearchPlaceholder")}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") load(true);
+          }}
+        />
+        <Button onClick={() => load(true)}>{t("filterBtn")}</Button>
+      </div>
+
+      <div className="text-[13px] text-muted mt-3">
+        {t("mlsTotal")}: <b>{total}</b>
+      </div>
+
+      <div className="mt-1">
+        {err ? (
+          <Empty>{err}</Empty>
+        ) : loading && items.length === 0 ? (
+          <Spinner />
+        ) : !items.length ? (
+          <Empty icon={<Building2 size={24} />}>{t("mlsEmpty")}</Empty>
+        ) : (
+          <>
+            {items.map((it) => (
+              <MlsObjectCard key={it.apartment.id} item={it} />
+            ))}
+            {items.length < total && (
+              <Button full variant="ghost" className="mt-3" disabled={loading} onClick={() => load(false)}>
+                {t("loadMore")}
+              </Button>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -68,6 +68,21 @@ export interface ApartmentList {
   offset: number;
 }
 
+// Витрина общей базы (MLS) для владельца платформы: объект + агентство-владелец
+// (контакты собственника в apartment уже скрыты бэкендом).
+export interface MlsPoolItem {
+  agency_id: number;
+  agency_name?: string | null;
+  apartment: Apartment;
+}
+
+export interface MlsPoolResponse {
+  items: MlsPoolItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface ApartmentStats {
   active: number;
   deposit: number;

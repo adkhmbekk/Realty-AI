@@ -298,6 +298,76 @@ def search_shared(
     return list(db.execute(select(Apartment).where(*conds).limit(limit)).scalars().all())
 
 
+def list_mls_pool(
+    db: Session,
+    *,
+    status: Optional[str] = "active",
+    agency_id: Optional[int] = None,
+    districts: Optional[Sequence[str]] = None,
+    deal_type: Optional[str] = None,
+    rooms_min: Optional[int] = None,
+    rooms_max: Optional[int] = None,
+    price_min: Optional[float] = None,
+    price_max: Optional[float] = None,
+    currency: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> Tuple[List[Apartment], int]:
+    """
+    Все объекты ОБЩЕЙ базы (shared_mls=True) по ВСЕМ агентствам — витрина
+    владельца платформы. В отличие от подбора (search_shared) фильтры здесь
+    строгие: это ручной просмотр, а не «мягкое» сопоставление под заявку.
+    Возвращает страницу объектов и общее число подходящих.
+    """
+    conds = [Apartment.deleted_at.is_(None), Apartment.shared_mls.is_(True)]
+    if status == "unsold":
+        conds.append(Apartment.status.notin_(["sold", "rented"]))
+    elif status:
+        conds.append(Apartment.status == status)
+    if agency_id is not None:
+        conds.append(Apartment.agency_id == agency_id)
+    if deal_type:
+        conds.append(Apartment.deal_type == deal_type)
+    if districts:
+        conds.append(Apartment.district.in_(list(districts)))
+    if rooms_min is not None:
+        conds.append(Apartment.rooms >= rooms_min)
+    if rooms_max is not None:
+        conds.append(Apartment.rooms <= rooms_max)
+    if price_min is not None:
+        conds.append(Apartment.price >= price_min)
+    if price_max is not None:
+        conds.append(Apartment.price <= price_max)
+    if currency:
+        conds.append(Apartment.currency == currency)
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        conds.append(
+            or_(
+                Apartment.district.ilike(like),
+                Apartment.name.ilike(like),
+                Apartment.type.ilike(like),
+            )
+        )
+
+    total = db.execute(
+        select(func.count()).select_from(Apartment).where(*conds)
+    ).scalar_one()
+    items = list(
+        db.execute(
+            select(Apartment)
+            .where(*conds)
+            .order_by(Apartment.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        .scalars()
+        .all()
+    )
+    return items, total
+
+
 def list_archived(
     db: Session, agency_id: int, *, limit: int = 50, offset: int = 0,
     created_from=None, created_to=None,
