@@ -189,7 +189,8 @@ def list_matches(
     statuses: Optional[Sequence[str]] = None,
     limit: int = 100,
 ) -> List[Tuple[RequestMatch, ClientRequest, Client, Apartment]]:
-    conds = [RequestMatch.agency_id == agency_id]
+    # Архивных (удалённых) клиентов в совпадениях не показываем (Волна-фикс).
+    conds = [RequestMatch.agency_id == agency_id, Client.status != "archived"]
     if statuses:
         conds.append(RequestMatch.status.in_(list(statuses)))
     if owner_id is not None:
@@ -207,7 +208,11 @@ def list_matches(
 
 
 def count_new_matches(db: Session, agency_id: int, *, owner_id: Optional[int] = None) -> int:
-    conds = [RequestMatch.agency_id == agency_id, RequestMatch.status == "new"]
+    conds = [
+        RequestMatch.agency_id == agency_id,
+        RequestMatch.status == "new",
+        Client.status != "archived",
+    ]
     stmt = (
         select(func.count())
         .select_from(RequestMatch)
@@ -424,9 +429,14 @@ def get_client_by_id(db: Session, client_id: int) -> Optional[Client]:
 
 
 def all_active_requests(db: Session) -> List[ClientRequest]:
-    """Все активные заявки всех агентств (для кросс-агентского MLS-подбора)."""
+    """Активные заявки всех агентств у НЕархивных клиентов (для подбора, в т.ч. MLS).
+    Архивный (удалённый) клиент новых совпадений больше не получает."""
     return list(
-        db.execute(select(ClientRequest).where(ClientRequest.status == "active")).scalars().all()
+        db.execute(
+            select(ClientRequest)
+            .join(Client, ClientRequest.client_id == Client.id)
+            .where(ClientRequest.status == "active", Client.status != "archived")
+        ).scalars().all()
     )
 
 
@@ -456,6 +466,7 @@ def digest_match_counts(db: Session, since: datetime) -> Dict[int, int]:
         .where(
             RequestMatch.created_at >= since,
             Client.muted.is_(False),
+            Client.status != "archived",
             Client.created_by.is_not(None),
         )
         .group_by(Client.created_by)

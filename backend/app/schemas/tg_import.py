@@ -12,6 +12,8 @@ class TelegramScanIn(BaseModel):
     channel: str
     # Курсор пагинации: id самого старого поста предыдущей страницы (None — с начала).
     before: Optional[int] = None
+    # Делиться импортированными объектами в общей базе (MLS).
+    share_mls: bool = False
 
     @field_validator("channel")
     @classmethod
@@ -43,6 +45,8 @@ class TelegramScanOut(BaseModel):
 # ── Фоновое слежение за каналом (авто-импорт) ───────────────────────────────
 class WatchIn(BaseModel):
     channel: str
+    # Делиться авто-импортированными объектами в общей базе (MLS).
+    share_mls: bool = False
 
     @field_validator("channel")
     @classmethod
@@ -60,5 +64,6 @@ class WatchOut(BaseModel):
     channel: str
     enabled: bool
     last_post_id: int
+    share_mls: bool = False
     last_checked_at: Optional[datetime] = None
     created_at: datetime

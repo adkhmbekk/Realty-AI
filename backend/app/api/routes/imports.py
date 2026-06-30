@@ -80,7 +80,7 @@ async def scan_telegram(
 ):
     """Обработать одну страницу ленты открытого Telegram-канала (постранично)."""
     return await telegram_channel_service.scan_page(
-        db, current_user.agency_id, current_user.id, body.channel, body.before
+        db, current_user.agency_id, current_user.id, body.channel, body.before, body.share_mls
     )
 
 
@@ -102,7 +102,7 @@ def add_watch(
 ):
     """Включить слежение за каналом: новые посты будут добавляться автоматически."""
     return telegram_channel_service.add_watch(
-        db, current_user.agency_id, current_user.id, body.channel
+        db, current_user.agency_id, current_user.id, body.channel, body.share_mls
     )
 
 

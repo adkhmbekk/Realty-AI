@@ -44,6 +44,10 @@ class WatchedChannel(Base):
     enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
+    # Делиться авто-импортированными объектами в общей базе (MLS).
+    share_mls: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     # Кто включил слежение (для created_by новых объектов).
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     last_checked_at: Mapped[Optional[datetime]] = mapped_column(

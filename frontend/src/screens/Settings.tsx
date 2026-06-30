@@ -322,10 +322,17 @@ function TelegramImportCard() {
   const [failed, setFailed] = useState(0);
   const [archived, setArchived] = useState(0);
   const [rateNote, setRateNote] = useState(false);
+  const [shareMls, setShareMls] = useState(false);
   const stopRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  // Пауза, прерываемая кнопкой «Стоп» (не ждём все 8/30 секунд).
+  async function waitOrStop(ms: number) {
+    const step = 250;
+    for (let w = 0; w < ms && !stopRef.current; w += step) await sleep(step);
+  }
 
   // Авто-импорт: каналы, за которыми следит сервер (добавляет новые посты сам).
-  type Watch = { id: number; channel: string; enabled: boolean; last_checked_at: string | null };
+  type Watch = { id: number; channel: string; enabled: boolean; share_mls?: boolean; last_checked_at: string | null };
   const [watches, setWatches] = useState<Watch[]>([]);
   async function loadWatches() {
     const r = await api<Watch[]>("/api/v1/imports/telegram/watches");
@@ -338,7 +345,7 @@ function TelegramImportCard() {
   async function addWatch() {
     const ch = channel.trim();
     if (!ch) return;
-    const r = await api<Watch>("/api/v1/imports/telegram/watches", { method: "POST", body: { channel: ch } });
+    const r = await api<Watch>("/api/v1/imports/telegram/watches", { method: "POST", body: { channel: ch, share_mls: shareMls } });
     if (r.ok) {
       toast(t("tgWatchAdded"), "ok");
       loadWatches();
@@ -378,11 +385,16 @@ function TelegramImportCard() {
     let errored = false;
     while (!stopRef.current && totalProcessed < HARD_CAP && requests < MAX_REQ) {
       requests++;
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
       const r: ApiResult<TgScanOut> = await api<TgScanOut>("/api/v1/imports/telegram/scan", {
         method: "POST",
-        body: { channel: channel.trim(), before },
+        body: { channel: channel.trim(), before, share_mls: shareMls },
         timeoutMs: 180000,
+        signal: ctrl.signal,
       });
+      // Нажали «Стоп» (запрос прерван) — выходим сразу, без повторов и ошибок.
+      if (stopRef.current) break;
       if (!r.ok || !r.data) {
         // Разовый сбой сети/туннеля (status 0 = таймаут/обрыв, 502/503/504 —
         // прокси, 429 — лимит): ждём и повторяем ТУ ЖЕ страницу, а не рушим
@@ -393,7 +405,8 @@ function TelegramImportCard() {
         if (transient && netRetries < MAX_NET_RETRIES) {
           netRetries++;
           setRateNote(true);
-          await sleep(8000);
+          await waitOrStop(8000);
+          if (stopRef.current) break;
           continue;
         }
         toast(errText(r.data, r.status) || t("tgImportError"), "err");
@@ -421,12 +434,18 @@ function TelegramImportCard() {
         stuck = 0;
       }
       before = d.next_before;
-      // Упёрлись в лимит бесплатного Gemini — даём квоте восстановиться.
-      if (d.rate_limited) await sleep(30000);
+      // Упёрлись в лимит бесплатного Gemini — даём квоте восстановиться (прерываемо).
+      if (d.rate_limited) {
+        await waitOrStop(30000);
+        if (stopRef.current) break;
+      }
     }
+    abortRef.current = null;
+    const stopped = stopRef.current;
     setRunning(false);
     setRateNote(false);
-    if (!errored) toast(`${t("tgImportDoneMsg")}: ${totalCreated}`, totalCreated > 0 ? "ok" : "err");
+    if (stopped) toast(`${t("tgImportStopped")}: ${totalCreated}`, "info");
+    else if (!errored) toast(`${t("tgImportDoneMsg")}: ${totalCreated}`, totalCreated > 0 ? "ok" : "info");
   }
 
   return (
@@ -441,6 +460,17 @@ function TelegramImportCard() {
           onChange={(e) => setChannel(e.target.value)}
           disabled={running}
         />
+        <button
+          type="button"
+          onClick={() => setShareMls((v) => !v)}
+          disabled={running}
+          className="w-full flex items-center gap-2.5 mt-2 text-left text-[13px] disabled:opacity-60 active:scale-[.99] transition"
+        >
+          <span className={"w-5 h-5 rounded-md border shrink-0 flex items-center justify-center " + (shareMls ? "bg-primary border-primary text-white" : "border-line")}>
+            {shareMls && <CheckCircle2 size={13} />}
+          </span>
+          <span className="text-muted">{t("tgShareMls")}</span>
+        </button>
         {(running || scanned > 0) && (
           <div className="mt-3 text-[13px] text-muted">
             {t("tgImportScanned")}: <b>{scanned}</b> · {t("tgImportCreated")}: <b>{created}</b>
@@ -462,7 +492,7 @@ function TelegramImportCard() {
             {t("tgImportStart")}
           </Button>
         ) : (
-          <Button full variant="danger" className="mt-3" onClick={() => (stopRef.current = true)}>
+          <Button full variant="danger" className="mt-3" onClick={() => { stopRef.current = true; abortRef.current?.abort(); }}>
             {t("tgImportStop")}
           </Button>
         )}
@@ -483,7 +513,7 @@ function TelegramImportCard() {
                   key={w.id}
                   className="flex items-center justify-between gap-2 rounded-xl bg-[var(--soft)] px-3 py-2 text-[13px]"
                 >
-                  <span className="truncate">@{w.channel}</span>
+                  <span className="truncate">@{w.channel}{w.share_mls ? " · 🌐" : ""}</span>
                   <button
                     onClick={() => removeWatch(w.id)}
                     className="text-rose-600 font-extrabold shrink-0 px-1 active:scale-90 transition"

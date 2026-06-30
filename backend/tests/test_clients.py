@@ -396,3 +396,18 @@ def test_mls_cross_agency_match(db):
     assert mls[0].mls_agency == "B"
     # Контакт собственника СКРЫТ для чужого агентства (#2).
     assert mls[0].apartment.owner_phone is None
+
+
+# ── Фикс: удалённый (архивный) клиент НЕ получает новые совпадения/пуши ──
+def test_archived_client_not_matched(db):
+    agency, _admin, agent = _setup(db)
+    out, _ = client_service.create_client(
+        db, agency.id, agent,
+        ClientCreate(name="Удал", request=RequestCreate(districts=["Юнусабад"], price_max=80000, currency="USD")),
+    )
+    client_service.delete_client(db, agency.id, agent, out.id)  # архивируем (удаляем)
+    # Появляется подходящий объект — но архивному клиенту совпадение НЕ создаётся.
+    _apt(db, agency.id, agent.id, type="Квартира", district="Юнусабад", rooms=3, price=70000, currency="USD")
+    client_service.run_matching_tick(db, lookback_minutes=100000)
+    assert client_service.list_matches(db, agency.id, agent) == []
+    assert client_service.new_match_count(db, agency.id, agent) == 0

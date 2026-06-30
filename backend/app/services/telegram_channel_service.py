@@ -159,7 +159,7 @@ def _fetch_feed(channel: str, before: Optional[int]) -> str:
 
 async def scan_page(
     db: Session, agency_id: int, created_by: Optional[int],
-    channel_raw: str, before: Optional[int],
+    channel_raw: str, before: Optional[int], share_mls: bool = False,
 ) -> dict:
     """
     Обработать порцию ленты канала: разобрать посты, извлечь поля ИИ (строго
@@ -264,6 +264,7 @@ async def scan_page(
         body.pop("photo_urls", None)
         body["source_link"] = urls[p["id"]]
         body["source"] = f"@{channel}"
+        body["shared_mls"] = share_mls
         try:
             apt = await run_in_threadpool(
                 apartment_service.create_apartment,
@@ -339,7 +340,10 @@ def _newest_post_id(channel: str) -> int:
     return max((p["id"] for p in posts), default=0)
 
 
-def add_watch(db: Session, agency_id: int, created_by: Optional[int], channel_raw: str) -> WatchedChannel:
+def add_watch(
+    db: Session, agency_id: int, created_by: Optional[int], channel_raw: str,
+    share_mls: bool = False,
+) -> WatchedChannel:
     """Включить слежение за каналом. Курсор ставим на текущий свежий пост —
     история не импортируется (для неё есть ручной импорт), берём только новое."""
     channel = normalize_channel(channel_raw)
@@ -352,13 +356,14 @@ def add_watch(db: Session, agency_id: int, created_by: Optional[int], channel_ra
     if existing is not None:
         existing.enabled = True
         existing.created_by = created_by
+        existing.share_mls = share_mls
         existing.last_post_id = max(existing.last_post_id or 0, newest)
         db.commit()
         db.refresh(existing)
         return existing
     w = WatchedChannel(
         agency_id=agency_id, channel=channel, last_post_id=newest,
-        created_by=created_by, enabled=True,
+        created_by=created_by, enabled=True, share_mls=share_mls,
     )
     db.add(w)
     db.commit()
@@ -473,6 +478,7 @@ async def auto_import_channel(db: Session, watch: WatchedChannel, max_new: int =
         body.pop("photo_urls", None)
         body["source_link"] = urls[pid]
         body["source"] = f"@{channel}"
+        body["shared_mls"] = watch.share_mls
         try:
             apt = await run_in_threadpool(
                 apartment_service.create_apartment,

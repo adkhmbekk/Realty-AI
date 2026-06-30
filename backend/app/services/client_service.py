@@ -214,6 +214,10 @@ def scan_request_against_base(db: Session, agency_id: int, req: ClientRequest) -
     """Прогнать заявку по существующим активным объектам, создать новые совпадения."""
     if _is_empty_criteria(req):
         return 0
+    # Архивному (удалённому) клиенту совпадения не подбираем.
+    c0 = client_repo.get_client_by_id(db, req.client_id)
+    if c0 is not None and c0.status == "archived":
+        return 0
     items, _total = apartment_repo.search(
         db, agency_id, **_request_to_search_params(req), limit=500, offset=0
     )
@@ -910,7 +914,7 @@ def _notify_instant_matches(db: Session, new_by_client: dict) -> None:
     owners: dict = {}
     for client_id, count in new_by_client.items():
         c = client_repo.get_client_by_id(db, client_id)
-        if c is None or c.muted or c.created_by is None:
+        if c is None or c.muted or c.status == "archived" or c.created_by is None:
             continue
         owner = owners.get(c.created_by)
         if owner is None:

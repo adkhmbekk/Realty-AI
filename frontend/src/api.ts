@@ -47,15 +47,23 @@ function tryReauth(): Promise<string | null> {
 // даём отмену через AbortController.
 const DEFAULT_TIMEOUT_MS = 20000;
 
-function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+function fetchWithTimeout(
+  input: string, init: RequestInit, timeoutMs: number, extSignal?: AbortSignal
+): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  // Внешняя отмена (например, кнопка «Стоп» массового импорта) прерывает запрос
+  // сразу, не дожидаясь таймаута.
+  if (extSignal) {
+    if (extSignal.aborted) ctrl.abort();
+    else extSignal.addEventListener("abort", () => ctrl.abort(), { once: true });
+  }
   return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
 }
 
 export async function api<T = any>(
   path: string,
-  opts: { method?: string; body?: unknown; timeoutMs?: number } = {}
+  opts: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal } = {}
 ): Promise<ApiResult<T>> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const doFetch = (token: string | null): Promise<Response> => {
@@ -65,7 +73,7 @@ export async function api<T = any>(
       method: opts.method || "GET",
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    }, timeoutMs);
+    }, timeoutMs, opts.signal);
   };
 
   let res: Response;
@@ -95,7 +103,9 @@ export async function api<T = any>(
 }
 
 export function errText(data: any, status: number, fallback = "—"): string {
-  if (!data) return `${fallback} ${status}`;
+  // status 0 = обрыв связи / таймаут / отмена запроса. Раньше показывалось «— 0»;
+  // теперь — только понятный текст (без бессмысленного «0»).
+  if (!data) return status === 0 ? fallback : `${fallback} ${status}`;
   const d = data.detail;
   if (typeof d === "string") return d;
   if (Array.isArray(d) && d.length) return d.map((e: any) => e.msg || JSON.stringify(e)).join("; ");
