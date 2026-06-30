@@ -223,8 +223,18 @@ def scan_request_against_base(db: Session, agency_id: int, req: ClientRequest) -
         if apt.id in existing:
             continue
         score, reasons = score_match(apt, req)
-        if client_repo.add_match(db, agency_id, req.id, apt.id, score, reasons):
+        if client_repo.add_match(db, agency_id, req.id, apt.id, score, reasons, source="own"):
             found += 1
+            existing.add(apt.id)
+    # Общая база (MLS): подходящие shared-объекты ДРУГИХ агентств (Волна 9).
+    mls_params = {k: v for k, v in _request_to_search_params(req).items() if k != "lenient_missing"}
+    for apt in apartment_repo.search_shared(db, agency_id, **mls_params):
+        if apt.id in existing:
+            continue
+        score, reasons = score_match(apt, req)
+        if client_repo.add_match(db, agency_id, req.id, apt.id, score, reasons, source="mls"):
+            found += 1
+            existing.add(apt.id)
     db.commit()
     return found
 
@@ -238,32 +248,49 @@ def run_matching_tick(db: Session, lookback_minutes: int = _MATCH_LOOKBACK_MINUT
     apts = client_repo.recent_active_apartments(db, since)
     if not apts:
         return 0
-    agency_ids = {a.agency_id for a in apts}
-    reqs = client_repo.active_requests_for_agencies(db, agency_ids)
+    # Все активные заявки всех агентств — нужно для кросс-агентского MLS (Волна 9).
+    reqs = client_repo.all_active_requests(db)
     if not reqs:
         return 0
-    apts_by_agency: dict = {}
-    for a in apts:
-        apts_by_agency.setdefault(a.agency_id, []).append(a)
+    reqs_by_agency: dict = {}
+    for r in reqs:
+        if not _is_empty_criteria(r):
+            reqs_by_agency.setdefault(r.agency_id, []).append(r)
 
     created = 0
     new_by_client: dict = {}
-    for req in reqs:
-        if _is_empty_criteria(req):
-            continue
-        candidates = apts_by_agency.get(req.agency_id, [])
-        if not candidates:
-            continue
-        existing = client_repo.existing_apartment_ids_for_request(db, req.id)
-        for apt in candidates:
-            if apt.id in existing:
-                continue
-            if apartment_matches_request(apt, req):
-                score, reasons = score_match(apt, req)
-                if client_repo.add_match(db, req.agency_id, req.id, apt.id, score, reasons):
-                    created += 1
-                    existing.add(apt.id)
-                    new_by_client[req.client_id] = new_by_client.get(req.client_id, 0) + 1
+    existing_cache: dict = {}
+
+    def _existing(req):
+        s = existing_cache.get(req.id)
+        if s is None:
+            s = client_repo.existing_apartment_ids_for_request(db, req.id)
+            existing_cache[req.id] = s
+        return s
+
+    def _try(req, apt, source):
+        nonlocal created
+        ex = _existing(req)
+        if apt.id in ex:
+            return
+        if apartment_matches_request(apt, req):
+            score, reasons = score_match(apt, req)
+            if client_repo.add_match(db, req.agency_id, req.id, apt.id, score, reasons, source=source):
+                created += 1
+                ex.add(apt.id)
+                new_by_client[req.client_id] = new_by_client.get(req.client_id, 0) + 1
+
+    for apt in apts:
+        # Своя база: новый объект против заявок СВОЕГО агентства.
+        for req in reqs_by_agency.get(apt.agency_id, []):
+            _try(req, apt, "own")
+        # Общая база (MLS): shared-объект против заявок ДРУГИХ агентств.
+        if getattr(apt, "shared_mls", False):
+            for aid, group in reqs_by_agency.items():
+                if aid == apt.agency_id:
+                    continue
+                for req in group:
+                    _try(req, apt, "mls")
     db.commit()
     # Мгновенный бот-пуш агентам (Волна 8) — по их выбору и без приглушённых клиентов.
     if new_by_client:
@@ -530,9 +557,27 @@ def list_matches(db: Session, agency_id: int, user, statuses: Optional[List[str]
     )
     apts = [a for _m, _r, _c, a in rows]
     apartment_service._attach_creators(db, apts)
+    # Названия агентств-владельцев — для MLS-совпадений (чужие объекты).
+    from app.repositories import agency_repo
+    ag_names: dict = {}
+    for _m, _r, _c, a in rows:
+        if _m.source == "mls" and a.agency_id not in ag_names:
+            ag = agency_repo.get_by_id(db, a.agency_id)
+            ag_names[a.agency_id] = (ag.project_name or ag.name) if ag is not None else None
     out: List[MatchOut] = []
     for m, r, c, a in rows:
         reasons = m.reasons or {}
+        apt_out = ApartmentOut.model_validate(a)
+        mls_agency = None
+        possible_dup = False
+        if m.source == "mls":
+            # Скрываем контакт владельца и внутренние поля (Волна 9, #2 «скрытый контакт»).
+            apt_out.owner_phone = None
+            apt_out.comment = None
+            apt_out.source = None
+            apt_out.source_link = None
+            mls_agency = ag_names.get(a.agency_id)
+            possible_dup = client_repo.has_similar_own(db, agency_id, a.district, a.rooms, a.price)
         out.append(
             MatchOut(
                 id=m.id,
@@ -545,7 +590,10 @@ def list_matches(db: Session, agency_id: int, user, statuses: Optional[List[str]
                 score=m.score,
                 match_good=list(reasons.get("good", []) or []),
                 match_missing=list(reasons.get("missing", []) or []),
-                apartment=ApartmentOut.model_validate(a),
+                source=m.source,
+                mls_agency=mls_agency,
+                possible_dup=possible_dup,
+                apartment=apt_out,
             )
         )
     return out

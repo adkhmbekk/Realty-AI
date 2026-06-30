@@ -148,11 +148,12 @@ def add_match(
     apartment_id: int,
     score: Optional[int] = None,
     reasons: Optional[dict] = None,
+    source: str = "own",
 ) -> bool:
     """
     Создать совпадение. Возвращает True, если оно реально создано (False — если
     такая пара уже была). Гонку (одновременный подбор из двух мест) гасим через
-    SAVEPOINT + уникальное ограничение (request_id, apartment_id).
+    SAVEPOINT + уникальное ограничение (request_id, apartment_id). source: own/mls.
     """
     try:
         with db.begin_nested():
@@ -164,6 +165,7 @@ def add_match(
                     status="new",
                     score=score,
                     reasons=reasons,
+                    source=source,
                 )
             )
         return True
@@ -419,6 +421,29 @@ def list_deals_for_user(
 def get_client_by_id(db: Session, client_id: int) -> Optional[Client]:
     """Клиент по id без фильтра агентства (для серверных пушей)."""
     return db.get(Client, client_id)
+
+
+def all_active_requests(db: Session) -> List[ClientRequest]:
+    """Все активные заявки всех агентств (для кросс-агентского MLS-подбора)."""
+    return list(
+        db.execute(select(ClientRequest).where(ClientRequest.status == "active")).scalars().all()
+    )
+
+
+def has_similar_own(db: Session, agency_id: int, district, rooms, price) -> bool:
+    """Есть ли в СВОЕЙ базе похожий объект (район+комнаты+цена) — метка «возможно дубль» для MLS."""
+    if district is None or rooms is None or price is None:
+        return False
+    n = db.execute(
+        select(func.count()).select_from(Apartment).where(
+            Apartment.agency_id == agency_id,
+            Apartment.deleted_at.is_(None),
+            Apartment.district == district,
+            Apartment.rooms == rooms,
+            Apartment.price == price,
+        )
+    ).scalar_one()
+    return bool(n)
 
 
 def digest_match_counts(db: Session, since: datetime) -> Dict[int, int]:

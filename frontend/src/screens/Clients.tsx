@@ -1213,6 +1213,13 @@ export function MatchesScreen() {
               ⚠ {t("matchIncomplete")}: {m.match_missing.map((c) => t("mf_" + c)).join(", ")}
             </div>
           )}
+          {m.source === "mls" && (
+            <div className="text-[11px] font-bold text-indigo-600 mb-1 inline-flex items-center gap-1 flex-wrap">
+              🌐 {t("mlsBadge")}
+              {m.mls_agency ? " · " + m.mls_agency : ""}
+              {m.possible_dup ? " · " + t("possibleDup") : ""}
+            </div>
+          )}
           <ApartmentCard o={m.apartment} />
           <div className="mt-2 grid grid-cols-3 gap-2">
             <Button size="sm" onClick={() => makeDeal(m)}>

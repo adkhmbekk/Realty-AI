@@ -170,6 +170,7 @@ def create_apartment(
         furniture_appliances=payload.furniture_appliances,
         price=payload.price,
         currency=payload.currency or "USD",
+        shared_mls=getattr(payload, "shared_mls", False),
         description=payload.description,
         comment=payload.comment,
         photo_url=payload.photo_url,

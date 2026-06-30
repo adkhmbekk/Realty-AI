@@ -51,6 +51,8 @@ export interface Apartment {
   photo_url?: string | null;
   source_link?: string | null;
   source?: string | null;
+  // Поделиться объектом в общей базе (MLS) с другими агентствами (Волна 9).
+  shared_mls?: boolean;
   created_by?: number | null;
   created_by_name?: string | null;
   created_at: string;
@@ -363,6 +365,10 @@ export interface Match {
   // Коды причин: совпало (match_good) и «данные неполные» (match_missing).
   match_good?: string[];
   match_missing?: string[];
+  // MLS (Волна 9): own/mls; агентство-владелец; «возможно дубль».
+  source?: string;
+  mls_agency?: string | null;
+  possible_dup?: boolean;
   apartment: Apartment;
 }
 

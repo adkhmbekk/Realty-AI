@@ -226,6 +226,76 @@ def search(
     return items, total
 
 
+def search_shared(
+    db: Session,
+    exclude_agency_id: int,
+    *,
+    status: Optional[str] = "active",
+    districts: Optional[Sequence[str]] = None,
+    types: Optional[Sequence[str]] = None,
+    deal_type: Optional[str] = None,
+    rooms_min: Optional[int] = None,
+    rooms_max: Optional[int] = None,
+    floor_min: Optional[int] = None,
+    floor_max: Optional[int] = None,
+    area_min: Optional[float] = None,
+    area_max: Optional[float] = None,
+    land_area_min: Optional[float] = None,
+    land_area_max: Optional[float] = None,
+    price_min: Optional[float] = None,
+    price_max: Optional[float] = None,
+    currency: Optional[str] = None,
+    limit: int = 200,
+) -> List[Apartment]:
+    """
+    Объекты ОБЩЕЙ базы (shared_mls=True) ДРУГИХ агентств под критерии заявки.
+    Числовые поля «мягкие» (незаполненное не отсекаем), цена — жёсткая (как в подборе).
+    """
+    conds = [
+        Apartment.deleted_at.is_(None),
+        Apartment.shared_mls.is_(True),
+        Apartment.agency_id != exclude_agency_id,
+    ]
+    if status:
+        conds.append(Apartment.status == status)
+    if deal_type:
+        conds.append(Apartment.deal_type == deal_type)
+    if districts:
+        conds.append(Apartment.district.in_(list(districts)))
+    if types:
+        conds.append(Apartment.type.in_(list(types)))
+
+    def _ge(col, v):
+        return or_(col.is_(None), col >= v)
+
+    def _le(col, v):
+        return or_(col.is_(None), col <= v)
+
+    if rooms_min is not None:
+        conds.append(_ge(Apartment.rooms, rooms_min))
+    if rooms_max is not None:
+        conds.append(_le(Apartment.rooms, rooms_max))
+    if floor_min is not None:
+        conds.append(_ge(Apartment.floor, floor_min))
+    if floor_max is not None:
+        conds.append(_le(Apartment.floor, floor_max))
+    if area_min is not None:
+        conds.append(_ge(Apartment.area, area_min))
+    if area_max is not None:
+        conds.append(_le(Apartment.area, area_max))
+    if land_area_min is not None:
+        conds.append(_ge(Apartment.land_area, land_area_min))
+    if land_area_max is not None:
+        conds.append(_le(Apartment.land_area, land_area_max))
+    if currency:
+        conds.append(Apartment.currency == currency)
+    if price_min is not None:
+        conds.append(Apartment.price >= price_min)
+    if price_max is not None:
+        conds.append(Apartment.price <= price_max)
+    return list(db.execute(select(Apartment).where(*conds).limit(limit)).scalars().all())
+
+
 def list_archived(
     db: Session, agency_id: int, *, limit: int = 50, offset: int = 0,
     created_from=None, created_to=None,

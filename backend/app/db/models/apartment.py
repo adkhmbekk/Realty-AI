@@ -18,6 +18,7 @@ from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -28,6 +29,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -121,6 +123,11 @@ class Apartment(Base):
     # Источник объявления — НАЗВАНИЕ канала/площадки (например «@realty_tashkent»).
     # Внутреннее поле: видно команде, но НЕ уходит клиенту при «поделиться».
     source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Поделиться объектом в общей базе (MLS) с другими агентствами платформы.
+    # По умолчанию — нет; включается агентом галочкой (Волна 9).
+    shared_mls: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     # id пользователя, который создал объект (для аудита).
     created_by: Mapped[Optional[int]] = mapped_column(

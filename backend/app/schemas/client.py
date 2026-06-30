@@ -178,6 +178,10 @@ class MatchOut(BaseModel):
     # Причины совпадения и список «данные неполные» (поля объекта, не заполненные).
     match_good: List[str] = []
     match_missing: List[str] = []
+    # MLS (Волна 9): own/mls; название агентства-владельца (для mls); «возможно дубль».
+    source: str = "own"
+    mls_agency: Optional[str] = None
+    possible_dup: bool = False
     apartment: ApartmentOut
 
 

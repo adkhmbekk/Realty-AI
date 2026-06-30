@@ -60,6 +60,10 @@ class RequestMatch(Base):
     # "missing" — поля объекта, которые клиент указал, но в объекте они не заполнены
     # («данные неполные»). Объект всё равно показываем, но честно помечаем.
     reasons: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Источник совпадения: 'own' (своя база) или 'mls' (общая база, чужое агентство).
+    source: Mapped[str] = mapped_column(
+        String, nullable=False, default="own", server_default=text("'own'")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -3,6 +3,7 @@ import {
   Archive as ArchiveIcon,
   ArrowLeft,
   Camera,
+  Check,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -127,6 +128,7 @@ function ObjectForm({
     source: o.source ?? "",
     description: o.description ?? "",
     comment: o.comment ?? "",
+    shared_mls: o.shared_mls ?? false,
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   // Дом/участок/земля: вместо «Этажа» показываем «Соток»; «Этажность» остаётся.
@@ -159,6 +161,7 @@ function ObjectForm({
       source: f.source.trim() || null,
       description: f.description.trim() || null,
       comment: f.comment.trim() || null,
+      shared_mls: f.shared_mls,
     };
     const body: Record<string, unknown> = {};
     Object.keys(fields).forEach((k) => {
@@ -316,6 +319,20 @@ function ObjectForm({
         <Input value={f.owner_phone} onChange={(e) => set("owner_phone", e.target.value)} />
       </Field>
       <Hint>{t("ownerPhoneHint")}</Hint>
+
+      <button
+        type="button"
+        onClick={() => setF((p) => ({ ...p, shared_mls: !p.shared_mls }))}
+        className="w-full flex items-center gap-3 mt-2 rounded-xl border border-line p-3 active:scale-[.99] transition text-left"
+      >
+        <span className={"w-5 h-5 rounded-md border shrink-0 flex items-center justify-center " + (f.shared_mls ? "bg-primary border-primary text-white" : "border-line")}>
+          {f.shared_mls && <Check size={13} />}
+        </span>
+        <span className="min-w-0">
+          <span className="text-[13.5px] font-bold block">{t("shareMls")}</span>
+          <span className="text-[12px] text-muted block leading-snug">{t("shareMlsHint")}</span>
+        </span>
+      </button>
       <Field label={t("f_desc")}>
         <Textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} />
       </Field>

@@ -364,3 +364,35 @@ def test_match_notify_and_mute(db):
     out, _ = client_service.create_client(db, agency.id, agent, ClientCreate(name="Муте"))
     assert client_service.update_client(db, agency.id, agent, out.id, ClientUpdate(muted=True)).muted is True
     assert client_service.update_client(db, agency.id, agent, out.id, ClientUpdate(muted=False)).muted is False
+
+
+# ── Волна 9: общая база MLS (кросс-агентский подбор, скрытый контакт) ─
+def test_mls_cross_agency_match(db):
+    from app.schemas.apartment import ApartmentCreate
+
+    a1, _admin1, agent1 = _setup(db)
+    b = Agency(name="B", status="active", timezone="Asia/Tashkent", default_currency="USD")
+    db.add(b)
+    db.flush()
+    agent_b = user_repo.create(db, telegram_id=50, role="agent", agency_id=b.id)
+    db.commit()
+    # B делится одним объектом в MLS (с телефоном собственника) и НЕ делится другим.
+    apartment_service.create_apartment(
+        db, b.id, created_by=agent_b.id,
+        payload=ApartmentCreate(type="Квартира", district="Юнусабад", rooms=3, price=70000,
+                                currency="USD", owner_phone="+998901234567", shared_mls=True),
+    )
+    apartment_service.create_apartment(
+        db, b.id, created_by=agent_b.id,
+        payload=ApartmentCreate(type="Квартира", district="Юнусабад", rooms=3, price=71000, currency="USD"),
+    )
+    # A заводит клиента с заявкой → ловит ТОЛЬКО shared-объект B (по MLS).
+    client_service.create_client(
+        db, a1.id, agent1,
+        ClientCreate(name="Иск", request=RequestCreate(districts=["Юнусабад"], price_max=80000, currency="USD")),
+    )
+    mls = [m for m in client_service.list_matches(db, a1.id, agent1) if m.source == "mls"]
+    assert len(mls) == 1
+    assert mls[0].mls_agency == "B"
+    # Контакт собственника СКРЫТ для чужого агентства (#2).
+    assert mls[0].apartment.owner_phone is None

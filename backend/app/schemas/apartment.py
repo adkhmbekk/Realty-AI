@@ -53,6 +53,8 @@ class _ApartmentBase(BaseModel):
     # Мебель и техника (один параметр с вариантами).
     furniture_appliances: Optional[FurnitureAppliances] = None
     price: Optional[float] = None
+    # Поделиться объектом в общей базе (MLS) с другими агентствами платформы (Волна 9).
+    shared_mls: bool = False
     currency: Optional[str] = None
     description: Optional[str] = Field(default=None, max_length=4000)
     # Внутренний комментарий (не виден при шаринге).
@@ -144,6 +146,7 @@ class ApartmentOut(BaseModel):
     photo_url: Optional[str] = None
     source_link: Optional[str] = None
     source: Optional[str] = None
+    shared_mls: bool = False
     created_by: Optional[int] = None
     created_by_name: Optional[str] = None
     created_at: datetime
