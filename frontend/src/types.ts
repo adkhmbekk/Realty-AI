@@ -289,6 +289,7 @@ export interface Client {
   requests: ClientRequest[];
   active_requests: number;
   new_match_count: number;
+  open_tasks?: number;
 }
 
 export interface ClientActivity {
@@ -299,6 +300,17 @@ export interface ClientActivity {
   created_by?: number | null;
   created_by_name?: string | null;
   created_at: string;
+}
+
+export interface Task {
+  id: number;
+  client_id: number;
+  title: string;
+  deadline?: string | null;
+  status: string; // open / done
+  kind: string; // manual / auto
+  created_at: string;
+  client_name?: string | null;
 }
 
 export interface Match {

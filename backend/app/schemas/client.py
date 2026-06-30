@@ -4,7 +4,7 @@
 Критерии заявки зеркалят фильтры поиска объектов (см. schemas/apartment.py и
 repositories/apartment_repo.search) — заявка по сути сохранённый поиск.
 """
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -156,6 +156,8 @@ class ClientOut(BaseModel):
     # Сколько всего активных заявок и сколько новых совпадений (для списка).
     active_requests: int = 0
     new_match_count: int = 0
+    # Сколько открытых задач у клиента (для значка в списке).
+    open_tasks: int = 0
 
 
 # ── Совпадение «заявка ↔ объект» ─────────────────────────────────────
@@ -203,3 +205,34 @@ class ActivityOut(BaseModel):
     created_by: Optional[int] = None
     created_by_name: Optional[str] = None
     created_at: datetime
+
+
+# ── Задачи по клиенту (Волна 4) ──────────────────────────────────────
+class TaskCreate(BaseModel):
+    title: str = Field(max_length=300)
+    deadline: Optional[date] = None
+
+    @field_validator("title")
+    @classmethod
+    def _title_required(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("task_title_required")
+        return v
+
+
+class TaskUpdate(BaseModel):
+    status: str  # open / done
+
+
+class TaskOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    client_id: int
+    title: str
+    deadline: Optional[date] = None
+    status: str
+    kind: str
+    created_at: datetime
+    # Для списка «мои задачи» — имя клиента (заполняет сервис).
+    client_name: Optional[str] = None

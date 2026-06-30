@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import {
   Bell,
+  Check,
+  CheckSquare,
   ChevronRight,
   Pencil,
   Phone,
@@ -30,7 +32,7 @@ import {
   Textarea,
 } from "../components/ui";
 import { CURRENCIES, OBJ_TYPE_VALUES, hasLandArea } from "../i18n";
-import type { Client, ClientActivity, ClientRequest, DictItem, Match, SearchParams } from "../types";
+import type { Client, ClientActivity, ClientRequest, DictItem, Match, SearchParams, Task } from "../types";
 import { ApartmentCard } from "./Apartments";
 import { fmtDate } from "../utils";
 import { confirmDialog, haptic } from "../telegram";
@@ -419,7 +421,14 @@ function ClientRow({ c }: { c: Client }) {
               {c.priority && <span className={"w-2 h-2 rounded-full shrink-0 " + (PRIORITY_DOT[c.priority] || "")} />}
               <span className="truncate">{name}</span>
             </span>
-            {c.new_match_count > 0 && <Badge color="red">{t("matchN").replace("{n}", String(c.new_match_count))}</Badge>}
+            <span className="flex items-center gap-1 shrink-0">
+              {!!c.open_tasks && (
+                <span className="text-[11px] font-extrabold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 inline-flex items-center gap-0.5">
+                  <CheckSquare size={11} /> {c.open_tasks}
+                </span>
+              )}
+              {c.new_match_count > 0 && <Badge color="red">{t("matchN").replace("{n}", String(c.new_match_count))}</Badge>}
+            </span>
           </div>
           {c.phone && <div className="text-[13px] text-muted truncate">{c.phone}</div>}
           <div className="text-[12.5px] text-muted">
@@ -458,6 +467,102 @@ function PriorityPicker({ value, onChange }: { value: string; onChange: (v: stri
           {t("prio_" + k)}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ── Задачи по клиенту (Волна 4) ─────────────────────────────────────
+function ClientTasks({ clientId }: { clientId: number }) {
+  const { t, lang, toast } = useApp();
+  const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [deadline, setDeadline] = useState("");
+
+  async function load() {
+    const r = await api<Task[]>("/api/v1/clients/" + clientId + "/tasks");
+    setTasks(r.ok && Array.isArray(r.data) ? r.data : []);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+
+  async function add() {
+    if (!title.trim()) return;
+    const r = await api("/api/v1/clients/" + clientId + "/tasks", {
+      method: "POST",
+      body: { title: title.trim(), deadline: deadline || null },
+    });
+    if (r.ok) {
+      haptic();
+      setTitle("");
+      setDeadline("");
+      setOpen(false);
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  async function toggle(tk: Task) {
+    const r = await api("/api/v1/clients/tasks/" + tk.id, {
+      method: "PATCH",
+      body: { status: tk.status === "done" ? "open" : "done" },
+    });
+    if (r.ok) {
+      haptic();
+      load();
+    }
+  }
+
+  return (
+    <div className="mt-5">
+      <div className="flex items-center justify-between mb-2 mx-0.5">
+        <span className="text-[14px] font-extrabold tracking-tight">{t("tasksTitle")}</span>
+        <button onClick={() => setOpen((v) => !v)} className="text-[13px] font-bold text-primary inline-flex items-center gap-1 active:scale-95">
+          <Plus size={15} /> {t("addTask")}
+        </button>
+      </div>
+      {open && (
+        <Card className="mb-2">
+          <Field label={t("taskTitle")}>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("taskTitlePh")} />
+          </Field>
+          <Field label={t("taskDeadline")}>
+            <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+          </Field>
+          <Button full className="mt-3" disabled={!title.trim()} onClick={add}>
+            {t("histAdd")}
+          </Button>
+        </Card>
+      )}
+      {tasks === null ? (
+        <Spinner />
+      ) : tasks.length === 0 ? (
+        <div className="text-[12.5px] text-muted mx-0.5">{t("noTasks")}</div>
+      ) : (
+        <div className="space-y-1.5">
+          {tasks.map((tk) => (
+            <button
+              key={tk.id}
+              onClick={() => toggle(tk)}
+              className="w-full text-left flex items-center gap-2.5 rounded-xl border border-line p-2.5 active:scale-[.99] transition"
+            >
+              <span className={"w-5 h-5 rounded-md border shrink-0 flex items-center justify-center " + (tk.status === "done" ? "bg-primary border-primary text-white" : "border-line")}>
+                {tk.status === "done" && <Check size={13} />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={"text-[13px] font-bold " + (tk.status === "done" ? "line-through text-muted" : "")}>{tk.title}</span>
+                {(tk.deadline || tk.kind === "auto") && (
+                  <span className="block text-[11px] text-muted">
+                    {tk.deadline ? fmtDate(tk.deadline, lang) : ""}
+                    {tk.kind === "auto" ? (tk.deadline ? " · " : "") + t("taskAuto") : ""}
+                  </span>
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -790,6 +895,8 @@ export function ClientDetailScreen({ id }: { id: number }) {
           </div>
         </Card>
       ))}
+
+      <ClientTasks clientId={id} />
 
       <ClientHistory clientId={id} />
 

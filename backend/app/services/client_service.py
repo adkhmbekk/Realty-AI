@@ -37,6 +37,8 @@ from app.schemas.client import (
     RequestCriteria,
     RequestOut,
     RequestUpdate,
+    TaskCreate,
+    TaskOut,
 )
 from app.services import apartment_service
 
@@ -323,7 +325,7 @@ def _request_to_out(req: ClientRequest, counts: Optional[Tuple[int, int]] = None
     )
 
 
-def _client_to_out(c: Client, created_by_name=None, *, requests=None, active_requests=0, new_match_count=0) -> ClientOut:
+def _client_to_out(c: Client, created_by_name=None, *, requests=None, active_requests=0, new_match_count=0, open_tasks=0) -> ClientOut:
     return ClientOut(
         id=c.id,
         name=c.name,
@@ -339,6 +341,7 @@ def _client_to_out(c: Client, created_by_name=None, *, requests=None, active_req
         requests=requests or [],
         active_requests=active_requests,
         new_match_count=new_match_count,
+        open_tasks=open_tasks,
     )
 
 
@@ -365,6 +368,7 @@ def list_clients(db: Session, agency_id: int, user, q: Optional[str] = None) -> 
     ids = [c.id for c in clients]
     active_map = client_repo.count_active_requests_by_client(db, ids)
     new_map = client_repo.count_new_matches_by_client(db, ids)
+    task_map = client_repo.count_open_tasks_by_client(db, ids)
     names: dict = {}
     creator_ids = {c.created_by for c in clients if c.created_by is not None}
     if creator_ids:
@@ -375,6 +379,7 @@ def list_clients(db: Session, agency_id: int, user, q: Optional[str] = None) -> 
             c, names.get(c.created_by),
             active_requests=active_map.get(c.id, 0),
             new_match_count=new_map.get(c.id, 0),
+            open_tasks=task_map.get(c.id, 0),
         )
         for c in clients
     ]
@@ -588,3 +593,79 @@ def list_activities(db: Session, agency_id: int, user, client_id: int) -> List[A
         )
         for r in rows
     ]
+
+
+# ── Задачи по клиенту (Волна 4) ──────────────────────────────────────
+_AUTOTASK_IDLE_DAYS = 7
+
+
+def _task_to_out(t, client_name: Optional[str] = None) -> TaskOut:
+    return TaskOut(
+        id=t.id, client_id=t.client_id, title=t.title, deadline=t.deadline,
+        status=t.status, kind=t.kind, created_at=t.created_at, client_name=client_name,
+    )
+
+
+def add_task(db: Session, agency_id: int, user, client_id: int, payload: TaskCreate) -> TaskOut:
+    _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
+    t = client_repo.add_task(db, agency_id, client_id, payload.title, payload.deadline, user.id, kind="manual")
+    db.commit()
+    return _task_to_out(t)
+
+
+def list_tasks_for_client(db: Session, agency_id: int, user, client_id: int) -> List[TaskOut]:
+    _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
+    return [_task_to_out(t) for t in client_repo.list_tasks_for_client(db, client_id)]
+
+
+def set_task_status(db: Session, agency_id: int, user, task_id: int, new_status: str) -> TaskOut:
+    if new_status not in ("open", "done"):
+        raise AppError("invalid_task_status", status.HTTP_400_BAD_REQUEST)
+    t = client_repo.get_task(db, agency_id, task_id)
+    if t is None:
+        raise AppError("task_not_found", status.HTTP_404_NOT_FOUND)
+    _load_client_for_user(db, agency_id, user, t.client_id)  # проверка владения
+    t.status = new_status
+    t.done_at = datetime.now(timezone.utc) if new_status == "done" else None
+    db.commit()
+    return _task_to_out(t)
+
+
+def list_my_open_tasks(db: Session, agency_id: int, user) -> List[TaskOut]:
+    """Открытые задачи пользователя (агенту — свои, админу — все) с именем клиента."""
+    rows = client_repo.list_open_tasks_for_user(db, agency_id, owner_id=_owner_filter(user))
+    return [_task_to_out(t, client_name=_client_full_name(c)) for t, c in rows]
+
+
+def run_autotask_tick(db: Session, idle_days: int = _AUTOTASK_IDLE_DAYS) -> int:
+    """
+    Авто-задачи: клиентам с активной заявкой, по которым нет действий idle_days+
+    дней, ставим задачу «позвонить». Дубли гасим (одна открытая авто-задача на клиента).
+    """
+    now = datetime.now(timezone.utc)
+    threshold = now - timedelta(days=idle_days)
+    clients = client_repo.clients_with_active_requests(db)
+    if not clients:
+        return 0
+    cids = [c.id for c in clients]
+    last_act = client_repo.last_activity_map(db, cids)
+    busy = client_repo.client_ids_with_open_auto_task(db, cids)
+    created = 0
+    for c in clients:
+        if c.id in busy:
+            continue
+        last = last_act.get(c.id) or c.created_at
+        if last is None:
+            continue
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        if last <= threshold:
+            client_repo.add_task(
+                db, c.agency_id, c.id,
+                f"Позвонить — клиент молчит {idle_days}+ дней",
+                None, c.created_by, kind="auto",
+            )
+            created += 1
+    if created:
+        db.commit()
+    return created

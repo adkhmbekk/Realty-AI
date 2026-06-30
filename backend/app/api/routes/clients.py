@@ -25,6 +25,9 @@ from app.schemas.client import (
     RequestCreate,
     RequestOut,
     RequestUpdate,
+    TaskCreate,
+    TaskOut,
+    TaskUpdate,
 )
 from app.services import client_service
 
@@ -132,6 +135,27 @@ def rescan_request(
     return {"found": found}
 
 
+# ── Задачи (объявлены ДО /{client_id}, иначе «tasks» попадёт в id) ────
+@router.get("/tasks", response_model=List[TaskOut])
+def my_open_tasks(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Открытые задачи пользователя (свои — агенту, все — администратору)."""
+    return client_service.list_my_open_tasks(db, current_user.agency_id, current_user)
+
+
+@router.patch("/tasks/{task_id}", response_model=TaskOut)
+def set_task_status(
+    task_id: int,
+    body: TaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Сменить статус задачи: open / done."""
+    return client_service.set_task_status(db, current_user.agency_id, current_user, task_id, body.status)
+
+
 # ── Клиент по id ─────────────────────────────────────────────────────
 @router.get("/{client_id}", response_model=ClientOut)
 def get_client(
@@ -196,3 +220,25 @@ def add_activity(
 ):
     """Записать действие по клиенту в ленту истории."""
     return client_service.add_activity(db, current_user.agency_id, current_user, client_id, body)
+
+
+# ── Задачи по клиенту (Волна 4) ──────────────────────────────────────
+@router.get("/{client_id}/tasks", response_model=List[TaskOut])
+def list_client_tasks(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Список задач клиента (открытые сверху)."""
+    return client_service.list_tasks_for_client(db, current_user.agency_id, current_user, client_id)
+
+
+@router.post("/{client_id}/tasks", status_code=201, response_model=TaskOut)
+def add_client_task(
+    client_id: int,
+    body: TaskCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Добавить задачу клиенту."""
+    return client_service.add_task(db, current_user.agency_id, current_user, client_id, body)

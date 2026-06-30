@@ -17,6 +17,7 @@ from app.db.models.client import Client
 from app.db.models.client_activity import ClientActivity
 from app.db.models.client_request import ClientRequest
 from app.db.models.request_match import RequestMatch
+from app.db.models.task import Task
 
 
 # ── Клиенты ──────────────────────────────────────────────────────────
@@ -264,3 +265,79 @@ def last_activity_map(db: Session, client_ids: Sequence[int]) -> Dict[int, datet
         .group_by(ClientActivity.client_id)
     ).all()
     return {cid: ts for cid, ts in rows}
+
+
+# ── Задачи по клиенту (Волна 4) ──────────────────────────────────────
+def add_task(
+    db: Session, agency_id: int, client_id: int, title: str,
+    deadline, created_by: Optional[int], kind: str = "manual",
+) -> Task:
+    t = Task(
+        agency_id=agency_id, client_id=client_id, title=title,
+        deadline=deadline, created_by=created_by, kind=kind,
+    )
+    db.add(t)
+    db.flush()
+    return t
+
+
+def get_task(db: Session, agency_id: int, task_id: int) -> Optional[Task]:
+    return db.execute(
+        select(Task).where(Task.id == task_id, Task.agency_id == agency_id)
+    ).scalar_one_or_none()
+
+
+def list_tasks_for_client(db: Session, client_id: int) -> List[Task]:
+    # open (o) перед done (d) — status.desc(); внутри — новые сверху.
+    return list(
+        db.execute(
+            select(Task)
+            .where(Task.client_id == client_id)
+            .order_by(Task.status.desc(), Task.created_at.desc())
+        ).scalars().all()
+    )
+
+
+def list_open_tasks_for_user(
+    db: Session, agency_id: int, *, owner_id: Optional[int] = None, limit: int = 100,
+) -> List[Tuple[Task, Client]]:
+    conds = [Task.agency_id == agency_id, Task.status == "open"]
+    stmt = select(Task, Client).join(Client, Task.client_id == Client.id).where(*conds)
+    if owner_id is not None:
+        stmt = stmt.where(Client.created_by == owner_id)
+    stmt = stmt.order_by(Task.created_at.desc()).limit(limit)
+    return [(t, c) for t, c in db.execute(stmt).all()]
+
+
+def count_open_tasks_by_client(db: Session, client_ids: Sequence[int]) -> Dict[int, int]:
+    if not client_ids:
+        return {}
+    rows = db.execute(
+        select(Task.client_id, func.count())
+        .where(Task.client_id.in_(list(client_ids)), Task.status == "open")
+        .group_by(Task.client_id)
+    ).all()
+    return {cid: int(n) for cid, n in rows}
+
+
+def clients_with_active_requests(db: Session) -> List[Client]:
+    """Неархивные клиенты, у которых есть хотя бы одна активная заявка (для авто-задач)."""
+    sub = select(ClientRequest.client_id).where(ClientRequest.status == "active")
+    return list(
+        db.execute(
+            select(Client).where(Client.status != "archived", Client.id.in_(sub))
+        ).scalars().all()
+    )
+
+
+def client_ids_with_open_auto_task(db: Session, client_ids: Sequence[int]) -> set:
+    if not client_ids:
+        return set()
+    rows = db.execute(
+        select(Task.client_id).where(
+            Task.client_id.in_(list(client_ids)),
+            Task.status == "open",
+            Task.kind == "auto",
+        )
+    ).all()
+    return {r[0] for r in rows}

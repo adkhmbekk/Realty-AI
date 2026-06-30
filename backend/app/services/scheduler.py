@@ -160,6 +160,14 @@ def _loop() -> None:
                     except Exception as exc:  # noqa: BLE001
                         logger.warning("Планировщик: ошибка подчистки фото: %s", exc)
                     _last_sweep = now_ts
+                # Авто-задачи «клиент молчит N дней» (Волна 4).
+                try:
+                    from app.services import client_service
+                    made = client_service.run_autotask_tick(db)
+                    if made:
+                        logger.info("Планировщик: создано авто-задач «молчит»: %s.", made)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Планировщик: ошибка авто-задач: %s", exc)
             finally:
                 db.close()
         except Exception as exc:  # noqa: BLE001

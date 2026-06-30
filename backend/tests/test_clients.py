@@ -10,7 +10,7 @@ from app.core.errors import AppError
 from app.db.models.agency import Agency
 from app.repositories import client_repo, user_repo
 from app.schemas.apartment import ApartmentCreate
-from app.schemas.client import ActivityCreate, ClientCreate, ClientUpdate, RequestCreate, RequestUpdate
+from app.schemas.client import ActivityCreate, ClientCreate, ClientUpdate, RequestCreate, RequestUpdate, TaskCreate
 from app.services import apartment_service, client_service
 
 
@@ -260,3 +260,34 @@ def test_client_activity_log(db):
     db.commit()
     with pytest.raises(AppError):
         client_service.list_activities(db, agency.id, other, out.id)
+
+
+# ── Волна 4: задачи (ручные + авто «молчит N дней») ──────────────────
+def test_client_tasks_and_autotask(db):
+    from datetime import datetime, timedelta, timezone
+
+    from app.db.models.client import Client as ClientModel
+
+    agency, admin, agent = _setup(db)
+    out, _ = client_service.create_client(
+        db, agency.id, agent,
+        ClientCreate(name="Лена", request=RequestCreate(districts=["Юнусабад"])),
+    )
+    # Ручная задача.
+    t = client_service.add_task(db, agency.id, agent, out.id, TaskCreate(title="Позвонить"))
+    assert t.status == "open" and t.kind == "manual"
+    assert len(client_service.list_tasks_for_client(db, agency.id, agent, out.id)) == 1
+    # Завершить → пропадает из «моих открытых».
+    done = client_service.set_task_status(db, agency.id, agent, t.id, "done")
+    assert done.status == "done"
+    assert client_service.list_my_open_tasks(db, agency.id, agent) == []
+
+    # Авто-задача: «состарим» клиента (нет действий 30 дней) → ставится «позвонить».
+    cobj = db.get(ClientModel, out.id)
+    cobj.created_at = datetime.now(timezone.utc) - timedelta(days=30)
+    db.commit()
+    assert client_service.run_autotask_tick(db, idle_days=7) == 1
+    autos = [x for x in client_service.list_tasks_for_client(db, agency.id, agent, out.id) if x.kind == "auto"]
+    assert len(autos) == 1
+    # Повторный тик не плодит дубль.
+    assert client_service.run_autotask_tick(db, idle_days=7) == 0
