@@ -256,6 +256,24 @@ function Shell() {
   const tkey = titleKeyFor(route);
   const showBack = depth > 1;
 
+  // «В сети»: пока приложение открыто и видимо, периодически шлём heartbeat —
+  // так владелец агентства видит статус сотрудника «в сети» и точное время
+  // активности. Пинг раз в минуту + сразу при возврате во вкладку.
+  useEffect(() => {
+    const ping = () => {
+      if (document.visibilityState === "visible") {
+        api("/api/v1/auth/heartbeat", { method: "POST" });
+      }
+    };
+    ping();
+    const id = window.setInterval(ping, 60000);
+    document.addEventListener("visibilitychange", ping);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", ping);
+    };
+  }, []);
+
   // Кнопка «Назад» Telegram.
   useEffect(() => {
     const bb = tg?.BackButton;

@@ -194,6 +194,9 @@ class EmployeeActivityOut(BaseModel):
     user_id: Optional[int] = None
     name: Optional[str] = None
     last_login_at: Optional[datetime] = None
+    # Присутствие «в сети»: время последнего heartbeat + флаг онлайн.
+    last_seen_at: Optional[datetime] = None
+    online: bool = False
     added: int = 0
     # Сделки/комиссия сотрудника (Волна 7). commission — по валютам {USD: ...}.
     deals_won: int = 0
@@ -226,6 +229,8 @@ class AgencyActivityOut(BaseModel):
     logins_30d: int = 0
     active_users: int = 0
     total_users: int = 0
+    # Сколько сотрудников сейчас «в сети» (по heartbeat).
+    online_users: int = 0
     last_activity_at: Optional[datetime] = None
     # Сделки и комиссия агентства (Волна 7).
     clients_total: int = 0

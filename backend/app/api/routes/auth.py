@@ -46,3 +46,16 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
 def me(current_user: User = Depends(get_current_user)):
     """Вернуть профиль текущего пользователя (по присланному пропуску)."""
     return current_user
+
+
+@router.post(
+    "/heartbeat",
+    status_code=204,
+    dependencies=[Depends(rate_limit(60, 60, "auth_heartbeat"))],
+)
+def heartbeat(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Отметить присутствие пользователя «в сети» (периодический пинг из приложения)."""
+    auth_service.touch_last_seen(db, current_user.id)

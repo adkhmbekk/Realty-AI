@@ -115,42 +115,73 @@ function Stats() {
   );
 }
 
-// Блок «Клиенты»: сводка по клиентам и сделкам (Волна 7, рядом с блоком «Объекты»).
-function ClientStatsBlock() {
+// Единый блок «Клиенты»: заголовок‑кнопка (переход к клиентам) + сводка ВНУТРИ
+// (клиенты · в поиске · сделки · продано) + значок новых совпадений. Всё в одной
+// кнопке: кликнув по ней, попадаешь в клиентскую базу.
+function ClientsCard() {
   const { t } = useApp();
   const nav = useNav();
   const [s, setS] = useState<ClientStats | null>(null);
+  const [newCount, setNewCount] = useState(0);
   useEffect(() => {
     api<ClientStats>("/api/v1/clients/stats").then((r) => {
       if (r.ok && r.data) setS(r.data);
     });
+    api<{ new_count: number }>("/api/v1/clients/matches/summary").then((r) => {
+      if (r.ok && r.data) setNewCount(r.data.new_count);
+    });
   }, []);
-  if (!s) return null;
-  // Пока нет ни клиентов, ни сделок — не загромождаем дашборд.
-  if (!s.clients && !s.deals_active && !s.deals_won) return null;
-  const tiles: { key: string; labelKey: string; count: number; num: string }[] = [
-    { key: "clients", labelKey: "cstat_clients", count: s.clients, num: "text-primary" },
-    { key: "in_search", labelKey: "cstat_in_search", count: s.in_search, num: "text-indigo-600 dark:text-indigo-400" },
-    { key: "deals_active", labelKey: "cstat_deals_active", count: s.deals_active, num: "text-amber-600 dark:text-amber-400" },
-    { key: "deals_won", labelKey: "cstat_deals_won", count: s.deals_won, num: "text-emerald-600 dark:text-emerald-400" },
-  ];
+  const hot = newCount > 0;
+  const hasStats = !!s && (s.clients > 0 || s.deals_active > 0 || s.deals_won > 0);
+  const tiles = s
+    ? [
+        { key: "clients", labelKey: "cstat_clients", count: s.clients },
+        { key: "in_search", labelKey: "cstat_in_search", count: s.in_search },
+        { key: "deals_active", labelKey: "cstat_deals_active", count: s.deals_active },
+        { key: "deals_won", labelKey: "cstat_deals_won", count: s.deals_won },
+      ]
+    : [];
   return (
-    <div className="mb-4">
-      <div className="flex items-center justify-between mt-1 mx-0.5 mb-2.5">
-        <span className="text-[14px] font-extrabold tracking-tight">{t("cstat_title")}</span>
-        <button className="text-[13px] font-bold text-primary" onClick={() => nav.push({ name: "clients" })}>
-          {t("clientsTitle")} ›
-        </button>
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        {tiles.map((tl) => (
-          <div key={tl.key} className="rounded-xl2 bg-card border border-line shadow-soft p-2.5 text-center">
-            <div className={"text-[22px] font-extrabold leading-none " + tl.num}>{tl.count}</div>
-            <div className="text-[10.5px] font-semibold text-muted mt-1 leading-tight">{t(tl.labelKey)}</div>
+    <button
+      onClick={() => {
+        haptic();
+        nav.push({ name: "clients" });
+      }}
+      className={
+        "w-full text-left rounded-xl2 border p-4 mb-4 transition active:scale-[.99] " +
+        (hot ? "text-white shadow-glow border-transparent" : "bg-card border-line shadow-soft hover:shadow-lg2")
+      }
+      style={hot ? { background: "var(--grad)" } : undefined}
+    >
+      <div className="flex items-center gap-3">
+        <span className={"w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 " + (hot ? "bg-white/20" : "bg-primary-soft text-primary")}>
+          <Users size={24} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[16px] font-extrabold">{t("clientsTitle")}</div>
+          <div className={"text-[13px] mt-0.5 " + (hot ? "opacity-90" : "text-muted")}>
+            {hot ? t("newMatchesN").replace("{n}", String(newCount)) : t("clientsHomeSub")}
           </div>
-        ))}
+        </div>
+        {hot ? (
+          <span className="shrink-0 min-w-[26px] h-[26px] px-1.5 rounded-full bg-white/25 text-white text-[13px] font-extrabold flex items-center justify-center">
+            {newCount}
+          </span>
+        ) : (
+          <ChevronRight size={18} className="text-muted shrink-0" />
+        )}
       </div>
-    </div>
+      {hasStats && (
+        <div className={"grid grid-cols-4 gap-2 mt-3 pt-3 border-t " + (hot ? "border-white/25" : "border-line")}>
+          {tiles.map((tl) => (
+            <div key={tl.key} className="text-center">
+              <div className={"text-[20px] font-extrabold leading-none " + (hot ? "text-white" : "text-text")}>{tl.count}</div>
+              <div className={"text-[10px] font-semibold mt-1 leading-tight " + (hot ? "opacity-90" : "text-muted")}>{t(tl.labelKey)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </button>
   );
 }
 
@@ -165,49 +196,6 @@ function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: s
     >
       <span className="w-11 h-11 rounded-[13px] bg-primary-soft text-primary flex items-center justify-center">{icon}</span>
       <span className="text-[11.5px] font-bold text-muted text-center leading-tight">{label}</span>
-    </button>
-  );
-}
-
-// Вход в клиентскую базу + значок новых совпадений (уведомления в приложении).
-function ClientsEntry() {
-  const { t } = useApp();
-  const nav = useNav();
-  const [newCount, setNewCount] = useState(0);
-  useEffect(() => {
-    api<{ new_count: number }>("/api/v1/clients/matches/summary").then((r) => {
-      if (r.ok && r.data) setNewCount(r.data.new_count);
-    });
-  }, []);
-  const hot = newCount > 0;
-  return (
-    <button
-      onClick={() => {
-        haptic();
-        nav.push({ name: "clients" });
-      }}
-      className={
-        "w-full flex items-center gap-3 rounded-xl2 border p-4 mb-4 transition active:scale-[.99] " +
-        (hot ? "text-white shadow-glow border-transparent" : "bg-card border-line shadow-soft hover:shadow-lg2")
-      }
-      style={hot ? { background: "var(--grad)" } : undefined}
-    >
-      <span className={"w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 " + (hot ? "bg-white/20" : "bg-primary-soft text-primary")}>
-        <Users size={24} />
-      </span>
-      <div className="min-w-0 flex-1 text-left">
-        <div className="text-[16px] font-extrabold">{t("clientsTitle")}</div>
-        <div className={"text-[13px] mt-0.5 " + (hot ? "opacity-90" : "text-muted")}>
-          {hot ? t("newMatchesN").replace("{n}", String(newCount)) : t("clientsHomeSub")}
-        </div>
-      </div>
-      {hot ? (
-        <span className="shrink-0 min-w-[26px] h-[26px] px-1.5 rounded-full bg-white/25 text-white text-[13px] font-extrabold flex items-center justify-center">
-          {newCount}
-        </span>
-      ) : (
-        <ChevronRight size={18} className="text-muted shrink-0" />
-      )}
     </button>
   );
 }
@@ -240,8 +228,7 @@ export function HomeScreen() {
     <div>
       <Hero />
       <Stats />
-      <ClientsEntry />
-      <ClientStatsBlock />
+      <ClientsCard />
       <div className="flex items-center justify-between mt-1 mx-0.5 mb-2.5">
         <span className="text-[14px] font-extrabold tracking-tight">{t("quickActions")}</span>
       </div>

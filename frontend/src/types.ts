@@ -428,6 +428,8 @@ export interface EmployeeActivity {
   user_id?: number | null;
   name?: string | null;
   last_login_at?: string | null;
+  last_seen_at?: string | null;
+  online?: boolean;
   added: number;
   deals_won?: number;
   commission?: Record<string, number>;
@@ -454,6 +456,7 @@ export interface AgencyActivity {
   logins_30d: number;
   active_users: number;
   total_users: number;
+  online_users?: number;
   last_activity_at?: string | null;
   clients_total?: number;
   deals_total?: number;

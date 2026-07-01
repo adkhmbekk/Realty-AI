@@ -72,7 +72,7 @@ function SrcBar({ label, v, total }: { label: string; v: number; total: number }
 
 // Подробный отчёт об активности агентства (внутри карточки агентства).
 function AgencyActivityPanel({ id }: { id: number }) {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const [a, setA] = useState<AgencyActivity | null>(null);
   useEffect(() => {
     api<AgencyActivity>(`/api/v1/agencies/${id}/activity`).then((r) => {
@@ -146,7 +146,19 @@ function AgencyActivityPanel({ id }: { id: number }) {
         <div className="font-bold mb-1">{t("teamActivity")}</div>
         <Row label={`${t("actLogins")} (7 / 30)`} value={`${a.logins_7d} / ${a.logins_30d}`} />
         <Row label={t("actActiveUsers")} value={`${a.active_users} / ${a.total_users}`} />
-        <Row label={t("lastActivity")} value={fmtAgo(a.last_activity_at, t)} />
+        <Row
+          label={t("onlineNow")}
+          value={
+            (a.online_users ?? 0) > 0 ? (
+              <span className="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" /> {a.online_users}
+              </span>
+            ) : (
+              "0"
+            )
+          }
+        />
+        <Row label={t("lastActivity")} value={a.last_activity_at ? fmtDate(a.last_activity_at, lang) : "—"} />
       </Card>
 
       {/* Сделки и комиссия (Волна 7) */}
@@ -170,19 +182,30 @@ function AgencyActivityPanel({ id }: { id: number }) {
           {a.employees.map((e) => (
             <div
               key={e.user_id ?? e.name}
-              className="flex items-center justify-between py-1.5 border-b border-line last:border-0"
+              className="py-2 border-b border-line last:border-0"
             >
-              <span className="truncate font-medium">{e.name || "—"}</span>
-              <span className="text-[12px] text-muted shrink-0 ml-2 text-right">
-                +{e.added} · {e.last_login_at ? fmtAgo(e.last_login_at, t) : t("neverIn")}
-                {(e.deals_won ?? 0) > 0 && (
-                  <>
-                    <br />
-                    {t("cstat_deals_won")}: {e.deals_won}
-                    {e.commission && Object.keys(e.commission).length > 0 ? " · " + fmtMoneyMap(e.commission) : ""}
-                  </>
-                )}
-              </span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-medium inline-flex items-center gap-1.5 min-w-0">
+                  {e.online && <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />}
+                  <span className="truncate">{e.name || "—"}</span>
+                </span>
+                <span className="text-[12px] shrink-0 ml-2 text-right">
+                  {e.online ? (
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{t("online")}</span>
+                  ) : (
+                    <span className="text-muted">
+                      {t("lastSeen")}: {(e.last_seen_at || e.last_login_at) ? fmtDate(e.last_seen_at || e.last_login_at, lang) : t("neverIn")}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="text-[11.5px] text-muted mt-0.5">
+                {t("loginAt")}: {e.last_login_at ? fmtDate(e.last_login_at, lang) : t("neverIn")} · +{e.added} {t("actObjects").toLowerCase()}
+                {(e.deals_won ?? 0) > 0
+                  ? " · " + t("cstat_deals_won") + ": " + e.deals_won +
+                    (e.commission && Object.keys(e.commission).length > 0 ? " · " + fmtMoneyMap(e.commission) : "")
+                  : ""}
+              </div>
             </div>
           ))}
         </Card>

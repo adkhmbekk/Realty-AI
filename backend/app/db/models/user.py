@@ -65,3 +65,8 @@ class User(Base):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Последний «heartbeat»: когда пользователь в последний раз был в приложении.
+    # Обновляется, пока приложение открыто; по нему считаем статус «в сети».
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

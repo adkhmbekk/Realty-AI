@@ -188,3 +188,23 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
         "subscription_active": subscription_active,
         "user": user,
     }
+
+
+def touch_last_seen(db: Session, user_id: Optional[int]) -> None:
+    """
+    Отметить, что пользователь сейчас в приложении (heartbeat). Обновляет
+    users.last_seen_at не чаще раза в ~30 секунд, чтобы не писать в БД на каждый
+    пинг. По этому полю панель владельца показывает статус «в сети».
+    """
+    if user_id is None:
+        return
+    user = user_repo.get_by_id(db, user_id)
+    if user is None:
+        return
+    now = datetime.now(timezone.utc)
+    prev = user.last_seen_at
+    if prev is not None and prev.tzinfo is None:
+        prev = prev.replace(tzinfo=timezone.utc)
+    if prev is None or (now - prev).total_seconds() >= 30:
+        user.last_seen_at = now
+        db.commit()
