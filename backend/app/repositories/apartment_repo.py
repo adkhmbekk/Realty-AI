@@ -368,6 +368,39 @@ def list_mls_pool(
     return items, total
 
 
+def list_agency_objects(
+    db: Session, agency_id: int, *, q: Optional[str] = None, limit: int = 50, offset: int = 0,
+) -> Tuple[List[Apartment], int]:
+    """Все НЕ удалённые объекты агентства (любые статусы) — для просмотра владельцем
+    платформы. Новые сверху; опциональный текстовый фильтр по району/названию/типу/адресу."""
+    conds = [Apartment.agency_id == agency_id, Apartment.deleted_at.is_(None)]
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        conds.append(
+            or_(
+                Apartment.district.ilike(like),
+                Apartment.name.ilike(like),
+                Apartment.type.ilike(like),
+                Apartment.address.ilike(like),
+            )
+        )
+    total = db.execute(
+        select(func.count()).select_from(Apartment).where(*conds)
+    ).scalar_one()
+    items = list(
+        db.execute(
+            select(Apartment)
+            .where(*conds)
+            .order_by(Apartment.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        .scalars()
+        .all()
+    )
+    return items, total
+
+
 def list_archived(
     db: Session, agency_id: int, *, limit: int = 50, offset: int = 0,
     created_from=None, created_to=None,

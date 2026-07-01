@@ -224,6 +224,9 @@ class AgencyActivityOut(BaseModel):
     source_manual: int = 0
     source_link: int = 0
     source_channel: int = 0
+    # Разбивка «из каналов»: массовый импорт (bulk) и авто-импорт (auto).
+    added_bulk: int = 0
+    added_auto: int = 0
     # Активность команды.
     logins_7d: int = 0
     logins_30d: int = 0

@@ -13,8 +13,9 @@ from app.db.models.agency import Agency
 from app.db.models.user import User
 from app.core.errors import AppError
 from app.core.subscription import agency_is_active
-from app.repositories import agency_repo, audit_repo, payment_repo, user_repo
+from app.repositories import agency_repo, apartment_repo, audit_repo, payment_repo, user_repo
 from app.schemas.agency import AgencyCreate, AgencyDraftCreate
+from app.schemas.apartment import ApartmentListOut, ApartmentOut
 from app.services import photo_service, seeding_service
 
 
@@ -487,6 +488,29 @@ def delete_payment(db: Session, agency_id: int, payment_id: int) -> None:
         raise AppError("payment_not_found", status.HTTP_404_NOT_FOUND)
     payment_repo.delete(db, p)
     db.commit()
+
+
+def list_objects(
+    db: Session, agency_id: int, *, q: Optional[str] = None, limit: int = 50, offset: int = 0
+) -> ApartmentListOut:
+    """
+    Объекты агентства для владельца платформы (наблюдение за наполнением базы).
+    Телефон собственника СКРЫТ; остальные поля (район, цена, статус, кто и как
+    добавил) видны — чтобы владелец мог контролировать работу агентства.
+    """
+    from app.services import apartment_service  # локальный импорт (без циклов)
+
+    _get_agency_or_404(db, agency_id)
+    items, total = apartment_repo.list_agency_objects(
+        db, agency_id, q=q, limit=limit, offset=offset
+    )
+    apartment_service._attach_creators(db, items)
+    out = []
+    for a in items:
+        ao = ApartmentOut.model_validate(a)
+        ao.owner_phone = None  # телефон собственника владельцу платформы не показываем
+        out.append(ao)
+    return ApartmentListOut(items=out, total=total, limit=limit, offset=offset)
 
 
 def payments_summary(db: Session) -> dict:

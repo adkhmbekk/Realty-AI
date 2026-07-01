@@ -127,7 +127,8 @@ def _values_differ(old, new) -> bool:
 
 
 def create_apartment(
-    db: Session, agency_id: int, created_by: Optional[int], payload: ApartmentCreate
+    db: Session, agency_id: int, created_by: Optional[int], payload: ApartmentCreate,
+    added_via: Optional[str] = None,
 ) -> Apartment:
     # Запрет на полностью пустой объект: должно быть заполнено хотя бы одно
     # значимое поле (иначе база засоряется «пустышками» без какой-либо пользы).
@@ -139,6 +140,11 @@ def create_apartment(
     )
     if not any(v not in (None, "") for v in meaningful):
         raise AppError("empty_apartment", status.HTTP_400_BAD_REQUEST)
+
+    # Как добавлен: если явно передали (массовый/авто импорт) — берём как есть;
+    # иначе выводим из source (есть источник → импорт по ссылке, нет → вручную).
+    if added_via is None:
+        added_via = "link" if (payload.source and str(payload.source).strip()) else "manual"
 
     display_id = _next_display_id(db, agency_id)
 
@@ -176,6 +182,7 @@ def create_apartment(
         photo_url=payload.photo_url,
         source_link=payload.source_link,
         source=payload.source,
+        added_via=added_via,
         archived_at=datetime.now(timezone.utc) if new_status in _CLOSED_STATUSES else None,
     )
     apartment_repo.create(db, apartment)

@@ -268,7 +268,7 @@ async def scan_page(
         try:
             apt = await run_in_threadpool(
                 apartment_service.create_apartment,
-                db, agency_id, created_by, ApartmentCreate(**body),
+                db, agency_id, created_by, ApartmentCreate(**body), "bulk",
             )
         except AppError:
             skipped += 1
@@ -482,7 +482,7 @@ async def auto_import_channel(db: Session, watch: WatchedChannel, max_new: int =
         try:
             apt = await run_in_threadpool(
                 apartment_service.create_apartment,
-                db, watch.agency_id, watch.created_by, ApartmentCreate(**body),
+                db, watch.agency_id, watch.created_by, ApartmentCreate(**body), "auto",
             )
         except AppError:
             cursor = max(cursor, pid)

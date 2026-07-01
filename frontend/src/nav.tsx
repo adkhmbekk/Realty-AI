@@ -11,6 +11,7 @@ export type Route =
   | { name: "mlsPool" }
   | { name: "agencyCreate" }
   | { name: "agencyManage"; id: number }
+  | { name: "agencyObjects"; id: number }
   | { name: "addObject" }
   | { name: "search" }
   | { name: "objectList"; params: SearchParams; titleKey: string }

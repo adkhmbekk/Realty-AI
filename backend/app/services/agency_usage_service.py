@@ -261,18 +261,25 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
     added_7d = _scalar_count(db, Apartment.agency_id == agency_id, not_deleted, Apartment.created_at >= since7)
     added_30d = _scalar_count(db, Apartment.agency_id == agency_id, not_deleted, Apartment.created_at >= since30)
 
-    # Как добавляют: вручную (source пуст) / по ссылке (домен) / из канала (@...).
-    manual = link = channel = 0
-    for s, c in db.execute(
-        select(Apartment.source, func.count())
+    # Как добавляют: вручную / по ссылке (по одному) / массовый импорт из канала /
+    # авто-импорт из отслеживаемого канала. Считаем по added_via; у старых объектов
+    # (added_via NULL) выводим из source (канал → авто, домен → по ссылке).
+    manual = link = bulk = auto = 0
+    for via, s, c in db.execute(
+        select(Apartment.added_via, Apartment.source, func.count())
         .where(Apartment.agency_id == agency_id, not_deleted)
-        .group_by(Apartment.source)
+        .group_by(Apartment.added_via, Apartment.source)
     ):
-        if not s:
+        v = via
+        if v is None:
+            v = "manual" if not s else ("auto" if str(s).startswith("@") else "link")
+        if v == "manual":
             manual += c
-        elif str(s).startswith("@"):
-            channel += c
-        else:
+        elif v == "bulk":
+            bulk += c
+        elif v == "auto":
+            auto += c
+        else:  # link и всё прочее — «по одному / по ссылке»
             link += c
 
     # Входы (логины) за 7/30 дней.
@@ -385,7 +392,9 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
         daily=daily,
         source_manual=manual,
         source_link=link,
-        source_channel=channel,
+        source_channel=bulk + auto,
+        added_bulk=bulk,
+        added_auto=auto,
         logins_7d=logins_7d,
         logins_30d=logins_30d,
         active_users=active_users,

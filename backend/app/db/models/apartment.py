@@ -123,6 +123,10 @@ class Apartment(Base):
     # Источник объявления — НАЗВАНИЕ канала/площадки (например «@realty_tashkent»).
     # Внутреннее поле: видно команде, но НЕ уходит клиенту при «поделиться».
     source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Как объект попал в базу (для наблюдения владельца платформы):
+    # manual (вручную) / link (импорт по ссылке) / bulk (массовый импорт из канала) /
+    # auto (авто-импорт из отслеживаемого канала).
+    added_via: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Поделиться объектом в общей базе (MLS) с другими агентствами платформы.
     # По умолчанию — нет; включается агентом галочкой (Волна 9).
     shared_mls: Mapped[bool] = mapped_column(

@@ -51,6 +51,8 @@ export interface Apartment {
   photo_url?: string | null;
   source_link?: string | null;
   source?: string | null;
+  // Как добавлен: manual / link / bulk / auto (видно владельцу платформы).
+  added_via?: string | null;
   // Поделиться объектом в общей базе (MLS) с другими агентствами (Волна 9).
   shared_mls?: boolean;
   created_by?: number | null;
@@ -452,6 +454,8 @@ export interface AgencyActivity {
   source_manual: number;
   source_link: number;
   source_channel: number;
+  added_bulk?: number;
+  added_auto?: number;
   logins_7d: number;
   logins_30d: number;
   active_users: number;

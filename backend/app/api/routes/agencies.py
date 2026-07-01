@@ -3,7 +3,7 @@
 """
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from sqlalchemy.orm import Session
 
@@ -28,6 +28,7 @@ from app.schemas.agency import (
     AgencyUpdate,
     PersonalAgencyCreate,
 )
+from app.schemas.apartment import ApartmentListOut
 from app.schemas.auth import AuthResponse
 from app.services import agency_service, agency_usage_service, auth_service, invite_service
 
@@ -219,6 +220,19 @@ def delete_payment(
 ):
     """Удалить ошибочную запись о платеже агентства."""
     agency_service.delete_payment(db, agency_id, payment_id)
+
+
+@router.get("/{agency_id}/objects", response_model=ApartmentListOut)
+def agency_objects(
+    agency_id: int,
+    q: Optional[str] = Query(None, description="Поиск по району/названию/типу/адресу."),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Объекты агентства (для владельца платформы). Телефон собственника скрыт."""
+    return agency_service.list_objects(db, agency_id, q=q, limit=limit, offset=offset)
 
 
 @router.get("/{agency_id}/audit", response_model=List[AgencyAuditOut])

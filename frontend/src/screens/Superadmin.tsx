@@ -7,7 +7,7 @@ import { useNav } from "../nav";
 import { useActing } from "../acting";
 import { api, errText } from "../api";
 import { Badge, Button, Card, Empty, Field, Hint, Input, Row, Spinner } from "../components/ui";
-import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, AgencyUsage, MlsPoolItem, MlsPoolResponse, PaymentsSummary } from "../types";
+import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, AgencyUsage, Apartment, ApartmentList, MlsPoolItem, MlsPoolResponse, PaymentsSummary } from "../types";
 import { copyText, fmtAmount, fmtDate } from "../utils";
 
 // ── Наблюдение за агентствами: «светофор» + относительное время ──────
@@ -137,7 +137,8 @@ function AgencyActivityPanel({ id }: { id: number }) {
           <div className="font-bold mb-1.5">{t("howAdded")}</div>
           <SrcBar label={t("addManual")} v={a.source_manual} total={srcTotal} />
           <SrcBar label={t("addLink")} v={a.source_link} total={srcTotal} />
-          <SrcBar label={t("addChannel")} v={a.source_channel} total={srcTotal} />
+          <SrcBar label={t("addBulk")} v={a.added_bulk ?? 0} total={srcTotal} />
+          <SrcBar label={t("addAuto")} v={a.added_auto ?? 0} total={srcTotal} />
         </Card>
       )}
 
@@ -914,8 +915,113 @@ export function AgencyManageScreen({ id }: { id: number }) {
               {t("deleteAgency")}
             </Button>
           </div>
+          <Button full variant="ghost" className="mt-3" onClick={() => nav.push({ name: "agencyObjects", id })}>
+            <Building2 size={16} /> {t("agencyObjectsBtn")}
+          </Button>
           <AgencyActivityPanel id={id} />
           <PaymentHistory id={id} refresh={payKey} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Объекты агентства (просмотр владельцем платформы; телефон собственника скрыт) ──
+const VIA_LABEL: Record<string, string> = {
+  manual: "via_manual",
+  link: "via_link",
+  bulk: "via_bulk",
+  auto: "via_auto",
+};
+
+function AgencyObjectCard({ o }: { o: Apartment }) {
+  const { t, lang } = useApp();
+  const head = [o.type, o.rooms ? `${o.rooms} ${t("roomsShort")}` : null, o.district]
+    .filter(Boolean)
+    .join(" · ");
+  const stKey: Record<string, string> = {
+    active: "statusActive",
+    deposit: "statusDeposit",
+    sold: "statusSold",
+    rented: "statusRented",
+  };
+  return (
+    <div className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-extrabold truncate">{head || "№ " + o.display_id}</span>
+        {o.added_via && <Badge color="blue">{t(VIA_LABEL[o.added_via] || "via_manual")}</Badge>}
+      </div>
+      <div className="text-[15px] font-extrabold text-primary mt-1">
+        {o.price != null ? `${fmtAmount(o.price)} ${o.currency}` : t("priceNotSet")}
+      </div>
+      <div className="text-[12.5px] text-muted mt-1">
+        № {o.display_id} · {t(stKey[o.status] || "statusActive")} · {fmtDate(o.created_at, lang)}
+        {o.created_by_name ? " · " + o.created_by_name : ""}
+      </div>
+    </div>
+  );
+}
+
+export function AgencyObjectsScreen({ id }: { id: number }) {
+  const { t } = useApp();
+  const [items, setItems] = useState<Apartment[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const PAGE = 30;
+
+  async function load(reset: boolean) {
+    setLoading(true);
+    const offset = reset ? 0 : items?.length ?? 0;
+    const p = new URLSearchParams();
+    p.set("limit", String(PAGE));
+    p.set("offset", String(offset));
+    if (q.trim()) p.set("q", q.trim());
+    const r = await api<ApartmentList>("/api/v1/agencies/" + id + "/objects?" + p.toString());
+    setLoading(false);
+    if (r.ok && r.data) {
+      const data = r.data;
+      setTotal(data.total);
+      setItems(reset ? data.items : (prev) => [...(prev ?? []), ...data.items]);
+    } else if (reset) {
+      setItems([]);
+    }
+  }
+  useEffect(() => {
+    load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-1">
+        <Input
+          placeholder={t("clientSearch")}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") load(true);
+          }}
+        />
+        <Button onClick={() => load(true)}>{t("filterBtn")}</Button>
+      </div>
+      <div className="text-[13px] text-muted mb-1">
+        {t("actObjects")}: <b>{total}</b>
+      </div>
+      {!items ? (
+        <Spinner />
+      ) : !items.length ? (
+        <Empty icon={<Building2 size={24} />}>{t("noObjectsYet")}</Empty>
+      ) : (
+        <>
+          {items.map((o) => (
+            <AgencyObjectCard key={o.id} o={o} />
+          ))}
+          {items.length < total && (
+            <Button full variant="ghost" className="mt-3" disabled={loading} onClick={() => load(false)}>
+              {t("loadMore")}
+            </Button>
+          )}
         </>
       )}
     </div>

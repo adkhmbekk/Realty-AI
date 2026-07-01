@@ -146,6 +146,8 @@ class ApartmentOut(BaseModel):
     photo_url: Optional[str] = None
     source_link: Optional[str] = None
     source: Optional[str] = None
+    # Как добавлен: manual / link / bulk / auto (для панели владельца).
+    added_via: Optional[str] = None
     shared_mls: bool = False
     created_by: Optional[int] = None
     created_by_name: Optional[str] = None
