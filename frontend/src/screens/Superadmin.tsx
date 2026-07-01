@@ -366,13 +366,28 @@ function RevenuePanel() {
 
 // История платежей конкретного агентства.
 function PaymentHistory({ id, refresh }: { id: number; refresh: number }) {
-  const { t, lang } = useApp();
+  const { t, lang, toast } = useApp();
   const [items, setItems] = useState<AgencyPayment[] | null>(null);
+  const [bump, setBump] = useState(0);
+
+  async function load() {
+    const r = await api<AgencyPayment[]>("/api/v1/agencies/" + id + "/payments");
+    setItems(r.ok && Array.isArray(r.data) ? r.data : []);
+  }
   useEffect(() => {
-    api<AgencyPayment[]>("/api/v1/agencies/" + id + "/payments").then((r) => {
-      setItems(r.ok && Array.isArray(r.data) ? r.data : []);
-    });
-  }, [id, refresh]);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, refresh, bump]);
+
+  async function del(p: AgencyPayment) {
+    if (!(await confirmDialog(t("delPaymentQ")))) return;
+    const r = await api("/api/v1/agencies/" + id + "/payments/" + p.id, { method: "DELETE" });
+    if (r.ok) {
+      toast(t("saved"), "ok");
+      setBump((b) => b + 1);
+    } else toast(errText(r.data, r.status), "err");
+  }
+
   if (!items) return null;
   return (
     <div className="mt-4">
@@ -389,8 +404,13 @@ function PaymentHistory({ id, refresh }: { id: number; refresh: number }) {
                 {payActionLabel(p.action, t)}
                 {p.days ? ` · +${p.days} ${t("daysShort")}` : ""}
               </span>
-              <span className="font-extrabold text-primary">
-                {p.amount != null ? `${fmtAmount(p.amount)} ${p.currency || ""}` : "—"}
+              <span className="flex items-center gap-2 shrink-0">
+                <span className="font-extrabold text-primary">
+                  {p.amount != null ? `${fmtAmount(p.amount)} ${p.currency || ""}` : "—"}
+                </span>
+                <button onClick={() => del(p)} aria-label={t("deleteAction")} className="p-1 text-muted hover:text-[var(--danger)] active:scale-90 transition">
+                  <Trash2 size={15} />
+                </button>
               </span>
             </div>
             <div className="text-[12px] text-muted">{fmtDate(p.created_at, lang)}</div>

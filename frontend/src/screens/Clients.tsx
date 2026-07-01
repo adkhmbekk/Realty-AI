@@ -332,11 +332,25 @@ export function ClientsScreen() {
   const [q, setQ] = useState("");
   const [newCount, setNewCount] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [archived, setArchived] = useState(false);
 
   async function load() {
-    const r = await api<Client[]>("/api/v1/clients" + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : ""));
+    const params = new URLSearchParams();
+    if (q.trim()) params.set("q", q.trim());
+    if (archived) params.set("archived", "true");
+    const qs = params.toString();
+    const r = await api<Client[]>("/api/v1/clients" + (qs ? "?" + qs : ""));
     if (r.ok && Array.isArray(r.data)) setClients(r.data);
     else setClients([]);
+  }
+
+  async function restore(c: Client) {
+    const r = await api("/api/v1/clients/" + c.id, { method: "PATCH", body: { status: "active" } });
+    if (r.ok) {
+      haptic();
+      toast(t("clientRestored"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
   }
   async function loadCount() {
     const r = await api<{ new_count: number }>("/api/v1/clients/matches/summary");
@@ -352,7 +366,7 @@ export function ClientsScreen() {
     const id = window.setTimeout(load, 300);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
+  }, [q, archived]);
 
   return (
     <div>
@@ -381,54 +395,54 @@ export function ClientsScreen() {
       </button>
 
       <div className="flex gap-2 mb-2">
+        <button type="button" onClick={() => setArchived(false)} className={"flex-1 min-h-[40px] rounded-xl text-[13px] font-bold transition active:scale-95 " + (!archived ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted")}>{t("tabActive")}</button>
+        <button type="button" onClick={() => setArchived(true)} className={"flex-1 min-h-[40px] rounded-xl text-[13px] font-bold transition active:scale-95 " + (archived ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted")}>{t("tabArchived")}</button>
+      </div>
+      <div className="flex gap-2 mb-2">
         <div className="flex-1">
           <div className="relative">
             <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <Input className="pl-9" placeholder={t("clientSearch")} value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
         </div>
-        <Button size="sm" onClick={() => setAdding((v) => !v)}>
-          {adding ? <X size={16} /> : <UserPlus size={16} />} {adding ? t("cancel") : t("addClient")}
-        </Button>
+        {!archived && (
+          <Button size="sm" onClick={() => setAdding((v) => !v)}>
+            {adding ? <X size={16} /> : <UserPlus size={16} />} {adding ? t("cancel") : t("addClient")}
+          </Button>
+        )}
       </div>
 
-      {adding && <AddClientForm onDone={() => { setAdding(false); load(); loadCount(); }} />}
+      {adding && !archived && <AddClientForm onDone={() => { setAdding(false); load(); loadCount(); }} />}
 
       {!clients ? (
         <Spinner />
       ) : !clients.length ? (
-        <Empty icon={<Users size={24} />} sub={t("clientsEmptySub")}>
-          {t("clientsEmpty")}
+        <Empty icon={<Users size={24} />} sub={archived ? undefined : t("clientsEmptySub")}>
+          {archived ? t("archivedEmpty") : t("clientsEmpty")}
         </Empty>
       ) : (
-        clients.map((c) => <ClientRow key={c.id} c={c} />)
+        clients.map((c) => <ClientRow key={c.id} c={c} archived={archived} onRestore={() => restore(c)} />)
       )}
     </div>
   );
 }
 
-function ClientRow({ c }: { c: Client }) {
+function ClientRow({ c, archived, onRestore }: { c: Client; archived?: boolean; onRestore?: () => void }) {
   const { t } = useApp();
   const nav = useNav();
   const name = c.last_name ? `${c.name} ${c.last_name}` : c.name;
-  return (
-    <button
-      onClick={() => {
-        haptic();
-        nav.push({ name: "clientDetail", id: c.id });
-      }}
-      className="w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 transition active:scale-[.99] hover:shadow-lg2"
-    >
-      <div className="flex items-center gap-3">
-        <span className="w-10 h-10 shrink-0 rounded-xl bg-primary-soft text-primary flex items-center justify-center">
-          <Users size={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-extrabold inline-flex items-center gap-1.5 min-w-0">
-              {c.priority && <span className={"w-2 h-2 rounded-full shrink-0 " + (PRIORITY_DOT[c.priority] || "")} />}
-              <span className="truncate">{name}</span>
-            </span>
+  const inner = (
+    <div className="flex items-center gap-3">
+      <span className="w-10 h-10 shrink-0 rounded-xl bg-primary-soft text-primary flex items-center justify-center">
+        <Users size={18} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-extrabold inline-flex items-center gap-1.5 min-w-0">
+            {c.priority && <span className={"w-2 h-2 rounded-full shrink-0 " + (PRIORITY_DOT[c.priority] || "")} />}
+            <span className="truncate">{name}</span>
+          </span>
+          {!archived && (
             <span className="flex items-center gap-1 shrink-0">
               {!!c.open_tasks && (
                 <span className="text-[11px] font-extrabold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 inline-flex items-center gap-0.5">
@@ -437,15 +451,36 @@ function ClientRow({ c }: { c: Client }) {
               )}
               {c.new_match_count > 0 && <Badge color="red">{t("matchN").replace("{n}", String(c.new_match_count))}</Badge>}
             </span>
-          </div>
-          {c.phone && <div className="text-[13px] text-muted truncate">{c.phone}</div>}
-          <div className="text-[12.5px] text-muted">
-            {t("activeRequestsN").replace("{n}", String(c.active_requests))}
-            {c.created_by_name ? " · " + c.created_by_name : ""}
-          </div>
+          )}
         </div>
-        <ChevronRight size={18} className="text-muted shrink-0" />
+        {c.phone && <div className="text-[13px] text-muted truncate">{c.phone}</div>}
+        <div className="text-[12.5px] text-muted">
+          {t("activeRequestsN").replace("{n}", String(c.active_requests))}
+          {c.created_by_name ? " · " + c.created_by_name : ""}
+        </div>
       </div>
+      {!archived && <ChevronRight size={18} className="text-muted shrink-0" />}
+    </div>
+  );
+  if (archived) {
+    return (
+      <div className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 opacity-90">
+        {inner}
+        <Button size="sm" variant="ghost" full className="mt-2.5" onClick={onRestore}>
+          <RefreshCw size={15} /> {t("restoreClient")}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <button
+      onClick={() => {
+        haptic();
+        nav.push({ name: "clientDetail", id: c.id });
+      }}
+      className="w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 transition active:scale-[.99] hover:shadow-lg2"
+    >
+      {inner}
     </button>
   );
 }
@@ -1195,21 +1230,27 @@ export function MatchesScreen() {
   const { t, lang, toast } = useApp();
   const nav = useNav();
   const [matches, setMatches] = useState<Match[] | null>(null);
+  const [view, setView] = useState<"active" | "dismissed">("active");
 
   async function load() {
-    const r = await api<Match[]>("/api/v1/clients/matches");
+    const url = view === "dismissed" ? "/api/v1/clients/matches?status=dismissed" : "/api/v1/clients/matches";
+    const r = await api<Match[]>(url);
     setMatches(r.ok && Array.isArray(r.data) ? r.data : []);
-    // Открыли список → помечаем новые как просмотренные (значок гаснет).
-    api("/api/v1/clients/matches/seen", { method: "POST" });
+    // Только в активном списке помечаем новые как просмотренные (значок гаснет).
+    if (view === "active") api("/api/v1/clients/matches/seen", { method: "POST" });
   }
   useEffect(() => {
+    setMatches(null);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [view]);
 
   async function setStatus(m: Match, status: string) {
     const r = await api("/api/v1/clients/matches/" + m.id + "/status", { method: "POST", body: { status } });
-    if (r.ok) load();
+    if (r.ok) {
+      haptic();
+      load();
+    } else toast(errText(r.data, r.status), "err");
   }
 
   async function makeDeal(m: Match) {
@@ -1223,13 +1264,25 @@ export function MatchesScreen() {
     } else toast(errText(r.data, r.status), "err");
   }
 
-  if (!matches) return <Spinner />;
-  if (!matches.length) return <Empty icon={<Bell size={24} />} sub={t("matchesEmptySub")}>{t("matchesEmpty")}</Empty>;
+  const pill = (active: boolean) =>
+    "flex-1 min-h-[40px] rounded-xl text-[13px] font-bold transition active:scale-95 " +
+    (active ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted");
 
   return (
     <div>
-      <Hint>{t("matchesHint")}</Hint>
-      {matches.map((m) => (
+      <div className="flex gap-2 mb-3">
+        <button type="button" className={pill(view === "active")} onClick={() => setView("active")}>{t("tabActive")}</button>
+        <button type="button" className={pill(view === "dismissed")} onClick={() => setView("dismissed")}>{t("tabDismissed")}</button>
+      </div>
+      {view === "active" && <Hint>{t("matchesHint")}</Hint>}
+      {!matches ? (
+        <Spinner />
+      ) : !matches.length ? (
+        <Empty icon={<Bell size={24} />} sub={view === "active" ? t("matchesEmptySub") : undefined}>
+          {view === "active" ? t("matchesEmpty") : t("dismissedEmpty")}
+        </Empty>
+      ) : (
+        matches.map((m) => (
         <Card key={m.id} className="mt-2.5">
           <button
             onClick={() => {
@@ -1274,19 +1327,26 @@ export function MatchesScreen() {
             </div>
           )}
           <ApartmentCard o={m.apartment} />
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            <Button size="sm" onClick={() => makeDeal(m)}>
-              {t("toDeal")}
+          {view === "dismissed" ? (
+            <Button size="sm" variant="ghost" full className="mt-2" onClick={() => setStatus(m, "new")}>
+              <RefreshCw size={15} /> {t("restoreMatch")}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>
-              {t("markOffered")}
-            </Button>
-            <Button size="sm" variant="danger" onClick={() => setStatus(m, "dismissed")}>
-              {t("dismissMatch")}
-            </Button>
-          </div>
+          ) : (
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <Button size="sm" onClick={() => makeDeal(m)}>
+                {t("toDeal")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>
+                {t("markOffered")}
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => setStatus(m, "dismissed")}>
+                {t("dismissMatch")}
+              </Button>
+            </div>
+          )}
         </Card>
-      ))}
+        ))
+      )}
     </div>
   );
 }

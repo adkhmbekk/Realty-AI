@@ -54,6 +54,19 @@ def list_for_agency(db: Session, agency_id: int, limit: int = 100) -> List[Subsc
     )
 
 
+def get(db: Session, agency_id: int, payment_id: int) -> Optional[SubscriptionPayment]:
+    return db.execute(
+        select(SubscriptionPayment).where(
+            SubscriptionPayment.id == payment_id,
+            SubscriptionPayment.agency_id == agency_id,
+        )
+    ).scalar_one_or_none()
+
+
+def delete(db: Session, payment: SubscriptionPayment) -> None:
+    db.delete(payment)
+
+
 def totals_by_currency(db: Session, *, since: Optional[datetime] = None):
     """
     Суммарные поступления по валютам (по всем агентствам).

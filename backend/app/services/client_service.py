@@ -406,8 +406,8 @@ def _load_request_for_user(db: Session, agency_id: int, user, request_id: int) -
 
 
 # ── Клиенты ──────────────────────────────────────────────────────────
-def list_clients(db: Session, agency_id: int, user, q: Optional[str] = None) -> List[ClientOut]:
-    clients = client_repo.list_clients(db, agency_id, owner_id=_owner_filter(user), q=q)
+def list_clients(db: Session, agency_id: int, user, q: Optional[str] = None, archived: bool = False) -> List[ClientOut]:
+    clients = client_repo.list_clients(db, agency_id, owner_id=_owner_filter(user), q=q, only_archived=archived)
     ids = [c.id for c in clients]
     active_map = client_repo.count_active_requests_by_client(db, ids)
     new_map = client_repo.count_new_matches_by_client(db, ids)

@@ -41,11 +41,14 @@ def list_clients(
     owner_id: Optional[int] = None,
     q: Optional[str] = None,
     include_archived: bool = False,
+    only_archived: bool = False,
 ) -> List[Client]:
     conds = [Client.agency_id == agency_id]
     if owner_id is not None:
         conds.append(Client.created_by == owner_id)
-    if not include_archived:
+    if only_archived:
+        conds.append(Client.status == "archived")
+    elif not include_archived:
         conds.append(Client.status != "archived")
     if q and q.strip():
         like = f"%{q.strip()}%"

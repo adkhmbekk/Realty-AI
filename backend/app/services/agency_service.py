@@ -478,6 +478,17 @@ def list_payments(db: Session, agency_id: int) -> list:
     return payment_repo.list_for_agency(db, agency_id)
 
 
+def delete_payment(db: Session, agency_id: int, payment_id: int) -> None:
+    """Удалить ошибочную запись о платеже (не меняет дату подписки — это только
+    исправление истории/выручки)."""
+    _get_agency_or_404(db, agency_id)
+    p = payment_repo.get(db, agency_id, payment_id)
+    if p is None:
+        raise AppError("payment_not_found", status.HTTP_404_NOT_FOUND)
+    payment_repo.delete(db, p)
+    db.commit()
+
+
 def payments_summary(db: Session) -> dict:
     """
     Свод по платежам для владельца платформы: итоги по валютам за всё время и

@@ -153,6 +153,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Bu foydalanuvchi allaqachon boshqa agentlikda.",
         "en": "This user already belongs to another agency.",
     },
+    "payment_not_found": {
+        "ru": "Запись о платеже не найдена.",
+        "uz": "Toʻlov yozuvi topilmadi.",
+        "en": "Payment record not found.",
+    },
     # Объекты
     "display_id_generation_failed": {
         "ru": "Не удалось сгенерировать номер объекта.",

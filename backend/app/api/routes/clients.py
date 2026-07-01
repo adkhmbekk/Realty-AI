@@ -47,11 +47,12 @@ class MatchStatusIn(BaseModel):
 @router.get("", response_model=List[ClientOut])
 def list_clients(
     q: Optional[str] = Query(None, description="Поиск по имени/фамилии/телефону."),
+    archived: bool = Query(False, description="Показать архив (удалённых) клиентов."),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
-    """Список клиентов: агент видит своих, администратор — всех."""
-    return client_service.list_clients(db, current_user.agency_id, current_user, q=q)
+    """Список клиентов: агент видит своих, администратор — всех. archived=true — архив."""
+    return client_service.list_clients(db, current_user.agency_id, current_user, q=q, archived=archived)
 
 
 @router.post("", status_code=201)

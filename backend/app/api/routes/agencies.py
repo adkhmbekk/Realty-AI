@@ -210,6 +210,17 @@ def list_payments(
     return agency_service.list_payments(db, agency_id)
 
 
+@router.delete("/{agency_id}/payments/{payment_id}", status_code=204)
+def delete_payment(
+    agency_id: int,
+    payment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Удалить ошибочную запись о платеже агентства."""
+    agency_service.delete_payment(db, agency_id, payment_id)
+
+
 @router.get("/{agency_id}/audit", response_model=List[AgencyAuditOut])
 def list_audit(
     agency_id: int,
