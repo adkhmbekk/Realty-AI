@@ -10,7 +10,6 @@ import { haptic } from "../telegram";
 
 function Hero() {
   const { t, L, user, settings } = useApp();
-  const nav = useNav();
   const role = user?.role;
   let bigName = user?.full_name || (user?.username ? "@" + user.username : t("notSet"));
   let sub = L.roleLabel(role, user?.is_owner);
@@ -19,12 +18,8 @@ function Hero() {
     bigName = settings.project_name;
   }
   return (
-    <button
-      onClick={() => {
-        haptic();
-        nav.push({ name: "profile" });
-      }}
-      className="relative w-full text-left overflow-hidden rounded-xl3 p-5 mb-4 text-white active:scale-[.99] transition"
+    <div
+      className="relative w-full overflow-hidden rounded-xl3 p-5 mb-4 text-white"
       style={{
         background: "var(--grad-hero)",
         boxShadow: "0 20px 46px rgba(52,31,163,.4)",
@@ -42,7 +37,7 @@ function Hero() {
           <div className="text-[12.5px] opacity-90 mt-0.5">{sub}</div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 

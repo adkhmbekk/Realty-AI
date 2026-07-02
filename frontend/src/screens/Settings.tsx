@@ -597,9 +597,7 @@ export function SettingsScreen() {
             { value: "off", label: t("notify_off") },
           ]}
         />
-        <Hint>{t("notifyHint")}</Hint>
       </div>
-      <Hint>{t("settingsHint")}</Hint>
 
       {isOwnerAdmin && (
         <div className="mt-2">
