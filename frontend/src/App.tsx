@@ -15,6 +15,11 @@ import { ProfileScreen, SuspendedScreen } from "./screens/Profile";
 // основном бандле (без мелькания загрузчика). Остальное подгружается при первом
 // переходе и кэшируется. Все ленивые экраны рендерятся внутри <Suspense> в Shell.
 const SettingsScreen = lazy(() => import("./screens/Settings").then((m) => ({ default: m.SettingsScreen })));
+const ToolSheetsScreen = lazy(() => import("./screens/Settings").then((m) => ({ default: m.ToolSheetsScreen })));
+const ToolFileImportScreen = lazy(() => import("./screens/Settings").then((m) => ({ default: m.ToolFileImportScreen })));
+const ToolExcelScreen = lazy(() => import("./screens/Settings").then((m) => ({ default: m.ToolExcelScreen })));
+const ToolMassImportScreen = lazy(() => import("./screens/Settings").then((m) => ({ default: m.ToolMassImportScreen })));
+const ToolWatchScreen = lazy(() => import("./screens/Settings").then((m) => ({ default: m.ToolWatchScreen })));
 const TeamScreen = lazy(() => import("./screens/Team").then((m) => ({ default: m.TeamScreen })));
 const InvitesScreen = lazy(() => import("./screens/Invites").then((m) => ({ default: m.InvitesScreen })));
 const AnalyticsScreen = lazy(() => import("./screens/Analytics").then((m) => ({ default: m.AnalyticsScreen })));
@@ -80,6 +85,16 @@ function titleKeyFor(route: Route): string | null {
       return "mlsPoolTitle";
     case "mlsBrowse":
       return "mlsBaseTitle";
+    case "toolSheets":
+      return "sheetsTitle";
+    case "toolFileImport":
+      return "baseImportTitle";
+    case "toolExcel":
+      return "excelTitle";
+    case "toolMassImport":
+      return "tgImportTitle";
+    case "toolWatch":
+      return "tgWatchTitle";
     case "profile":
       return "profile";
     case "settings":
@@ -141,6 +156,16 @@ function RouteView({ route }: { route: Route }) {
       return <MlsPoolScreen />;
     case "mlsBrowse":
       return <MlsBrowseScreen />;
+    case "toolSheets":
+      return <ToolSheetsScreen />;
+    case "toolFileImport":
+      return <ToolFileImportScreen />;
+    case "toolExcel":
+      return <ToolExcelScreen />;
+    case "toolMassImport":
+      return <ToolMassImportScreen />;
+    case "toolWatch":
+      return <ToolWatchScreen />;
     case "agencyCreate":
       return <AgencyCreateScreen />;
     case "agencyManage":

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Moon, Sun } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CheckCircle2, ChevronRight, DownloadCloud, FileDown, FileUp, Moon, Radio, Sheet, Sun } from "lucide-react";
 import { useApp } from "../store";
+import { useNav } from "../nav";
 import { api, apiUpload, errText, type ApiResult } from "../api";
 import { Button, Card, Field, Hint, Input, Label, Segmented, Select, SectionTitle } from "../components/ui";
 import { Lang } from "../i18n";
@@ -313,7 +314,7 @@ type TgScanOut = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function TelegramImportCard() {
+function MassImportCard() {
   const { t, toast } = useApp();
   const [channel, setChannel] = useState("");
   const [running, setRunning] = useState(false);
@@ -329,32 +330,6 @@ function TelegramImportCard() {
   async function waitOrStop(ms: number) {
     const step = 250;
     for (let w = 0; w < ms && !stopRef.current; w += step) await sleep(step);
-  }
-
-  // Авто-импорт: каналы, за которыми следит сервер (добавляет новые посты сам).
-  type Watch = { id: number; channel: string; enabled: boolean; share_mls?: boolean; last_checked_at: string | null };
-  const [watches, setWatches] = useState<Watch[]>([]);
-  async function loadWatches() {
-    const r = await api<Watch[]>("/api/v1/imports/telegram/watches");
-    if (r.ok && Array.isArray(r.data)) setWatches(r.data);
-  }
-  useEffect(() => {
-    loadWatches();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  async function addWatch() {
-    const ch = channel.trim();
-    if (!ch) return;
-    const r = await api<Watch>("/api/v1/imports/telegram/watches", { method: "POST", body: { channel: ch, share_mls: shareMls } });
-    if (r.ok) {
-      toast(t("tgWatchAdded"), "ok");
-      loadWatches();
-    } else toast(errText(r.data, r.status) || t("tgImportError"), "err");
-  }
-  async function removeWatch(id: number) {
-    const r = await api(`/api/v1/imports/telegram/watches/${id}`, { method: "DELETE" });
-    if (r.ok) loadWatches();
-    else toast(errText(r.data, r.status), "err");
   }
 
   // Предохранители от бесконечного цикла на гигантских каналах.
@@ -496,43 +471,128 @@ function TelegramImportCard() {
             {t("tgImportStop")}
           </Button>
         )}
-
-        {/* Авто-импорт: сервер сам добавляет новые посты канала */}
-        <div className="mt-4 pt-3 border-t border-line">
-          <div className="text-[12px] font-extrabold uppercase tracking-wider text-primary mb-1">
-            {t("tgWatchTitle")}
-          </div>
-          <Hint>{t("tgWatchHint")}</Hint>
-          <Button full variant="ghost" className="mt-2" disabled={!channel.trim() || running} onClick={addWatch}>
-            {t("tgWatchAdd")}
-          </Button>
-          {watches.length > 0 && (
-            <div className="mt-2 space-y-1.5">
-              {watches.map((w) => (
-                <div
-                  key={w.id}
-                  className="flex items-center justify-between gap-2 rounded-xl bg-[var(--soft)] px-3 py-2 text-[13px]"
-                >
-                  <span className="truncate">@{w.channel}{w.share_mls ? " · 🌐" : ""}</span>
-                  <button
-                    onClick={() => removeWatch(w.id)}
-                    className="text-rose-600 font-extrabold shrink-0 px-1 active:scale-90 transition"
-                    aria-label={t("tgWatchRemove")}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </Card>
     </div>
   );
 }
 
+// ── Слежение за каналом (авто-импорт): сервер сам добавляет новые посты ──
+// Здесь же выбор «делиться авто-объектами в общей базе МЛС» (для этого канала).
+// Плюс у каждого объекта своя галочка «в общую базу» в карточке объекта.
+function WatchCard() {
+  const { t, toast } = useApp();
+  const [channel, setChannel] = useState("");
+  const [shareMls, setShareMls] = useState(false);
+  type Watch = { id: number; channel: string; enabled: boolean; share_mls?: boolean; last_checked_at: string | null };
+  const [watches, setWatches] = useState<Watch[]>([]);
+  async function loadWatches() {
+    const r = await api<Watch[]>("/api/v1/imports/telegram/watches");
+    if (r.ok && Array.isArray(r.data)) setWatches(r.data);
+  }
+  useEffect(() => {
+    loadWatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  async function addWatch() {
+    const ch = channel.trim();
+    if (!ch) return;
+    const r = await api<Watch>("/api/v1/imports/telegram/watches", { method: "POST", body: { channel: ch, share_mls: shareMls } });
+    if (r.ok) {
+      toast(t("tgWatchAdded"), "ok");
+      setChannel("");
+      loadWatches();
+    } else toast(errText(r.data, r.status) || t("tgImportError"), "err");
+  }
+  async function removeWatch(id: number) {
+    const r = await api(`/api/v1/imports/telegram/watches/${id}`, { method: "DELETE" });
+    if (r.ok) loadWatches();
+    else toast(errText(r.data, r.status), "err");
+  }
+  return (
+    <div className="mt-2">
+      <SectionTitle>{t("tgWatchTitle")}</SectionTitle>
+      <Card>
+        <Hint>{t("tgWatchHint")}</Hint>
+        <Input
+          className="mt-3"
+          placeholder={t("tgImportPlaceholder")}
+          value={channel}
+          onChange={(e) => setChannel(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={() => setShareMls((v) => !v)}
+          className="w-full flex items-center gap-2.5 mt-2 text-left text-[13px] active:scale-[.99] transition"
+        >
+          <span className={"w-5 h-5 rounded-md border shrink-0 flex items-center justify-center " + (shareMls ? "bg-primary border-primary text-white" : "border-line")}>
+            {shareMls && <CheckCircle2 size={13} />}
+          </span>
+          <span className="text-muted">{t("tgShareMls")}</span>
+        </button>
+        <Button full variant="ghost" className="mt-3" disabled={!channel.trim()} onClick={addWatch}>
+          {t("tgWatchAdd")}
+        </Button>
+        {watches.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            {watches.map((w) => (
+              <div
+                key={w.id}
+                className="flex items-center justify-between gap-2 rounded-xl bg-[var(--soft)] px-3 py-2 text-[13px]"
+              >
+                <span className="truncate">@{w.channel}{w.share_mls ? " · 🌐" : ""}</span>
+                <button
+                  onClick={() => removeWatch(w.id)}
+                  className="text-rose-600 font-extrabold shrink-0 px-1 active:scale-90 transition"
+                  aria-label={t("tgWatchRemove")}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// Кнопка-инструмент в настройках: открывает отдельную страницу инструмента.
+function ToolButton({ icon, label, sub, onClick }: { icon: ReactNode; label: string; sub: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left rounded-xl2 bg-card border border-line shadow-soft p-3.5 transition active:scale-[.99] hover:shadow-lg2 flex items-center gap-3"
+    >
+      <span className="w-10 h-10 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-extrabold">{label}</span>
+        <span className="block text-[12px] text-muted leading-snug">{sub}</span>
+      </span>
+      <ChevronRight size={18} className="text-muted shrink-0" />
+    </button>
+  );
+}
+
+// Отдельные страницы инструментов (каждая — своя кнопка в настройках).
+export function ToolSheetsScreen() {
+  return <GoogleSheetsCard />;
+}
+export function ToolFileImportScreen() {
+  return <BaseImportCard />;
+}
+export function ToolExcelScreen() {
+  return <ExcelExportCard />;
+}
+export function ToolMassImportScreen() {
+  return <MassImportCard />;
+}
+export function ToolWatchScreen() {
+  return <WatchCard />;
+}
+
 export function SettingsScreen() {
   const { t, lang, theme, setLang, setTheme, user, setUser, settings, setSettings, toast } = useApp();
+  const nav = useNav();
   const role = user?.role;
   const isOwnerAdmin = role === "agency_admin" && !!user?.is_owner;
 
@@ -615,10 +675,14 @@ export function SettingsScreen() {
               {t("saveSettings")}
             </Button>
           </Card>
-          <GoogleSheetsCard />
-          <BaseImportCard />
-          <ExcelExportCard />
-          <TelegramImportCard />
+          <SectionTitle>{t("toolsTitle")}</SectionTitle>
+          <div className="grid grid-cols-1 gap-2">
+            <ToolButton icon={<Sheet size={20} />} label={t("sheetsTitle")} sub={t("sheetsHint")} onClick={() => nav.push({ name: "toolSheets" })} />
+            <ToolButton icon={<FileUp size={20} />} label={t("baseImportTitle")} sub={t("baseImportHint")} onClick={() => nav.push({ name: "toolFileImport" })} />
+            <ToolButton icon={<FileDown size={20} />} label={t("excelTitle")} sub={t("excelHint")} onClick={() => nav.push({ name: "toolExcel" })} />
+            <ToolButton icon={<DownloadCloud size={20} />} label={t("tgImportTitle")} sub={t("tgImportHint")} onClick={() => nav.push({ name: "toolMassImport" })} />
+            <ToolButton icon={<Radio size={20} />} label={t("tgWatchTitle")} sub={t("tgWatchHint")} onClick={() => nav.push({ name: "toolWatch" })} />
+          </div>
         </div>
       )}
 

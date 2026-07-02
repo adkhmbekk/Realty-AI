@@ -10,6 +10,11 @@ export type Route =
   | { name: "myAgencies" }
   | { name: "mlsPool" }
   | { name: "mlsBrowse" }
+  | { name: "toolSheets" }
+  | { name: "toolFileImport" }
+  | { name: "toolExcel" }
+  | { name: "toolMassImport" }
+  | { name: "toolWatch" }
   | { name: "agencyCreate" }
   | { name: "agencyManage"; id: number }
   | { name: "agencyObjects"; id: number }
