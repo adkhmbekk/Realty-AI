@@ -123,6 +123,9 @@ class AgencySettingsOut(BaseModel):
     subscription_expires_at: Optional[datetime] = None
     timezone: str
     default_currency: str
+    # Общее агентство платформы («Realty AI»): новые объекты по умолчанию идут в
+    # общую базу МЛС (галочку можно снять). Форма объекта смотрит на этот флаг.
+    is_shared: bool = False
     # Контактный номер агентства (подставляется при «поделиться» вместо
     # номера собственника). Виден сотрудникам, чтобы понимать, что уйдёт клиенту.
     contact_phone: Optional[str] = None
@@ -154,6 +157,8 @@ class AgencyOut(BaseModel):
     created_at: datetime
     # Личное агентство владельца платформы (если задано — это «моё» агентство).
     owner_telegram_id: Optional[int] = None
+    # Общее агентство платформы («Realty AI»): в него входят все владельцы.
+    is_shared: bool = False
     # Телефон человека, открывшего агентство (необязательный, виден суперадмину).
     client_phone: Optional[str] = None
     # Текущий администратор агентства (для панели суперадмина).

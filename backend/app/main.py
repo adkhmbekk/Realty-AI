@@ -94,6 +94,27 @@ def ensure_superadmin(db: Session, telegram_id: int) -> None:
     ensure_superadmins(db, {telegram_id})
 
 
+def ensure_shared_agency(db: Session) -> None:
+    """
+    Гарантировать наличие ОДНОГО общего агентства платформы («Realty AI»): в него
+    могут «входить» все владельцы (суперадмины) и совместно вести общую базу МЛС.
+    Создаётся один раз; повторные запуски ничего не дублируют. Коммит — на стороне
+    вызывающего (bootstrap_superadmin).
+    """
+    from app.repositories import agency_repo
+    from app.services import seeding_service
+
+    if agency_repo.get_shared(db):
+        return
+    agency = agency_repo.create(
+        db, name="Realty AI", created_by=None, subscription_days=3650
+    )
+    agency.is_shared = True
+    # Наполняем значениями по умолчанию (районы, типы), как у обычного агентства.
+    seeding_service.seed_agency_defaults(db, agency.id)
+    logger.info("Создано общее агентство платформы «Realty AI» (id=%s).", agency.id)
+
+
 def bootstrap_superadmin() -> None:
     """
     Если в настройках задан SUPERADMIN_TELEGRAM_ID — привести владельца платформы
@@ -108,6 +129,7 @@ def bootstrap_superadmin() -> None:
     db = SessionLocal()
     try:
         ensure_superadmins(db, ids)
+        ensure_shared_agency(db)
         db.commit()
     finally:
         db.close()

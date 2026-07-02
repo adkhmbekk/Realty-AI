@@ -144,6 +144,8 @@ export interface AgencyOut {
   created_at: string;
   // Личное агентство владельца платформы (если задано — это «моё»).
   owner_telegram_id?: number | null;
+  // Общее агентство платформы («Realty AI»): входят все владельцы.
+  is_shared?: boolean;
   // Телефон человека, открывшего агентство (необязательный, виден владельцу).
   client_phone?: string | null;
   admin_telegram_id?: number | null;
@@ -171,6 +173,8 @@ export interface AgencySettings {
   subscription_expires_at?: string | null;
   timezone: string;
   default_currency: string;
+  // Общее агентство платформы («Realty AI»): новые объекты по умолчанию в общую базу.
+  is_shared?: boolean;
   contact_phone?: string | null;
   contact_username?: string | null;
   support_url?: string | null;

@@ -76,6 +76,12 @@ class Agency(Base):
     owner_telegram_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, nullable=True, index=True
     )
+    # ОБЩЕЕ агентство платформы («Realty AI»): в него могут «входить» ВСЕ владельцы
+    # (суперадмины) и совместно вести общую базу МЛС. Подписка не действует
+    # (всегда активно). Одно на платформу; создаётся при старте (ensure_shared_agency).
+    is_shared: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     # Для агентства-черновика (status='pending'): на сколько дней дать подписку
     # при активации. После активации обнуляется (NULL).
     pending_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

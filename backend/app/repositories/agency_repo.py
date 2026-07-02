@@ -37,7 +37,7 @@ def get_clients(db: Session) -> List[Agency]:
     return list(
         db.execute(
             select(Agency)
-            .where(Agency.owner_telegram_id.is_(None))
+            .where(Agency.owner_telegram_id.is_(None), Agency.is_shared.is_(False))
             .order_by(Agency.created_at.desc())
         )
         .scalars()
@@ -51,6 +51,20 @@ def get_by_owner(db: Session, owner_telegram_id: int) -> List[Agency]:
         db.execute(
             select(Agency)
             .where(Agency.owner_telegram_id == owner_telegram_id)
+            .order_by(Agency.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+
+
+def get_shared(db: Session) -> List[Agency]:
+    """Общие агентства платформы (is_shared=True): в них могут «входить» ВСЕ
+    владельцы (суперадмины). Обычно одно — «Realty AI»."""
+    return list(
+        db.execute(
+            select(Agency)
+            .where(Agency.is_shared.is_(True))
             .order_by(Agency.created_at.desc())
         )
         .scalars()

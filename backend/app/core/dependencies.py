@@ -75,7 +75,10 @@ def get_current_user(
     act_as = payload.get("act_as_agency_id")
     if act_as is not None and user.role == "superadmin":
         agency = agency_repo.get_by_id(db, act_as)
-        if agency is not None and agency.owner_telegram_id == user.telegram_id:
+        if agency is not None and (
+            agency.owner_telegram_id == user.telegram_id
+            or getattr(agency, "is_shared", False)
+        ):
             return ActingUser(
                 id=user.id,
                 telegram_id=user.telegram_id,
@@ -100,8 +103,10 @@ def _ensure_subscription_active(db: Session, user: User) -> None:
     закрываем доступ к рабочим эндпоинтам (данные при этом не трогаем).
     """
     agency = agency_repo.get_by_id(db, user.agency_id)
-    # Личное агентство владельца платформы подписке не подчиняется — всегда активно.
-    if agency is not None and agency.owner_telegram_id is not None:
+    # Личное/общее агентство владельца платформы подписке не подчиняется — всегда активно.
+    if agency is not None and (
+        agency.owner_telegram_id is not None or getattr(agency, "is_shared", False)
+    ):
         return
     if not agency_is_active(agency):
         raise AppError("subscription_suspended", status.HTTP_403_FORBIDDEN)

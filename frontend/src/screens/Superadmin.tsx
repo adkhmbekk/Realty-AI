@@ -597,7 +597,14 @@ export function MyAgenciesScreen() {
               className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-extrabold">{a.name}</span>
+                <span className="font-extrabold inline-flex items-center gap-2 min-w-0">
+                  <span className="truncate">{a.name}</span>
+                  {a.is_shared && (
+                    <span className="shrink-0 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-primary-soft text-primary">
+                      {t("sharedAgencyBadge")}
+                    </span>
+                  )}
+                </span>
                 <Button size="sm" onClick={() => enter(a.id)}>
                   {t("enterAgency")}
                 </Button>

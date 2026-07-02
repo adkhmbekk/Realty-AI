@@ -120,7 +120,10 @@ def enter_agency(
     владеешь (owner_telegram_id == telegram_id).
     """
     agency = agency_repo.get_by_id(db, agency_id)
-    if agency is None or agency.owner_telegram_id != current_user.telegram_id:
+    if agency is None or not (
+        agency.owner_telegram_id == current_user.telegram_id
+        or getattr(agency, "is_shared", False)
+    ):
         raise AppError("agency_not_owned", status.HTTP_403_FORBIDDEN)
     return auth_service.build_auth_response(
         db, current_user, act_as_agency_id=agency_id

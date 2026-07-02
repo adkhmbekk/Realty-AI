@@ -47,6 +47,11 @@ def attach_admins(db: Session, agencies: List[Agency]) -> None:
     агентства (agency_admin). Эти атрибуты только для вывода, в БД их нет.
     """
     for agency in agencies:
+        # Общее агентство платформы: единого «админа» нет — работают все владельцы.
+        if getattr(agency, "is_shared", False):
+            agency.admin_telegram_id = None
+            agency.admin_name = None
+            continue
         # Личное агентство: «админ» — сам владелец платформы (отдельной строки
         # участника у него нет, он работает через acting-контекст).
         if agency.owner_telegram_id is not None:
@@ -209,8 +214,13 @@ def revoke_activation(db: Session, agency_id: int, actor: Optional[User] = None)
 
 
 def list_personal_agencies(db: Session, owner_telegram_id: int) -> List[Agency]:
-    """Личные агентства владельца платформы (где owner_telegram_id == его id)."""
-    return agency_repo.get_by_owner(db, owner_telegram_id)
+    """Агентства, доступные владельцу платформы «слева»: ОБЩИЕ агентства платформы
+    (is_shared — «Realty AI», в них входят все владельцы) + его личные
+    (owner_telegram_id). Общие показываем первыми."""
+    shared = agency_repo.get_shared(db)
+    personal = agency_repo.get_by_owner(db, owner_telegram_id)
+    seen = {a.id for a in shared}
+    return shared + [a for a in personal if a.id not in seen]
 
 
 def create_personal_agency(db: Session, name: str, owner: User) -> Agency:

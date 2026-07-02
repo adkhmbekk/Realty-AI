@@ -128,7 +128,7 @@ function ObjectForm({
     source: o.source ?? "",
     description: o.description ?? "",
     comment: o.comment ?? "",
-    shared_mls: o.shared_mls ?? false,
+    shared_mls: o.shared_mls ?? (settings?.is_shared ?? false),
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   // Дом/участок/земля: вместо «Этажа» показываем «Соток»; «Этажность» остаётся.
