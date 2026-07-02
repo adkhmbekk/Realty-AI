@@ -438,6 +438,16 @@ def count_by_status(db: Session, agency_id: int) -> dict:
     return {row[0]: row[1] for row in rows}
 
 
+def mls_pool_status_counts(db: Session) -> dict:
+    """Количество объектов ОБЩЕЙ базы (shared_mls=True, не удалённых) по статусам."""
+    rows = db.execute(
+        select(Apartment.status, func.count())
+        .where(Apartment.deleted_at.is_(None), Apartment.shared_mls.is_(True))
+        .group_by(Apartment.status)
+    ).all()
+    return {row[0]: row[1] for row in rows}
+
+
 def _month_start_utc() -> datetime:
     """Начало текущего месяца в UTC (для подсчётов «за этот месяц»)."""
     now = datetime.now(timezone.utc)

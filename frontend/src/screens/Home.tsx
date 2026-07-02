@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { BarChart3, ChevronRight, Mail, Plus, Search, Settings as SettingsIcon, User, Users } from "lucide-react";
+import { BarChart3, ChevronRight, Database, Layers, Mail, Plus, Search, Settings as SettingsIcon, User, Users } from "lucide-react";
 import { useApp } from "../store";
 import { useNav, Route } from "../nav";
 import { api } from "../api";
@@ -41,19 +41,69 @@ function Hero() {
   );
 }
 
-function Stats() {
+// Одна «база» на главной: заголовок + активные (крупно, в приоритете), в задатке
+// и проданные. Клик по карточке открывает соответствующую базу.
+function BaseCard({
+  title,
+  icon,
+  stats,
+  onOpen,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  stats: ApartmentStats;
+  onOpen: () => void;
+}) {
+  const { t } = useApp();
+  return (
+    <button
+      onClick={() => {
+        haptic();
+        onOpen();
+      }}
+      className="w-full text-left rounded-xl2 bg-card border border-line shadow-soft p-4 transition active:scale-[.99] hover:shadow-lg2"
+    >
+      <div className="flex items-center gap-2.5 mb-3">
+        <span className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">{icon}</span>
+        <span className="text-[15px] font-extrabold flex-1 min-w-0 truncate">{title}</span>
+        <ChevronRight size={18} className="text-muted shrink-0" />
+      </div>
+      <div className="flex items-stretch gap-2">
+        <div className="flex-[1.5] rounded-xl2 p-3 bg-emerald-50 dark:bg-emerald-500/10">
+          <div className="text-[30px] font-extrabold leading-none text-emerald-600 dark:text-emerald-400">{stats.active}</div>
+          <div className="text-[12px] font-bold text-muted mt-1">{t("statusActive")}</div>
+        </div>
+        <div className="flex-1 rounded-xl2 p-3 bg-[var(--soft)]">
+          <div className="text-[20px] font-extrabold leading-none text-amber-600 dark:text-amber-400">{stats.deposit}</div>
+          <div className="text-[11px] font-semibold text-muted mt-1 leading-tight">{t("statusDeposit")}</div>
+        </div>
+        <div className="flex-1 rounded-xl2 p-3 bg-[var(--soft)]">
+          <div className="text-[20px] font-extrabold leading-none text-text">{stats.sold}</div>
+          <div className="text-[11px] font-semibold text-muted mt-1 leading-tight">{t("statusSold")}</div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// Две базы на главной вместо голой статистики: своя база агентства и общая база
+// МЛС (открыта всем агентствам). Активные — в приоритете, крупнее.
+function Bases() {
   const { t } = useApp();
   const nav = useNav();
-  const [s, setS] = useState<ApartmentStats | null>(null);
+  const [own, setOwn] = useState<ApartmentStats | null>(null);
+  const [mls, setMls] = useState<ApartmentStats | null>(null);
   useEffect(() => {
     api<ApartmentStats>("/api/v1/apartments/stats").then((r) => {
-      if (r.ok && r.data) setS(r.data);
+      if (r.ok && r.data) setOwn(r.data);
+    });
+    api<ApartmentStats>("/api/v1/mls/stats").then((r) => {
+      if (r.ok && r.data) setMls(r.data);
     });
   }, []);
-  if (!s) return null;
-  // Первое впечатление нового пользователя: база пуста → дружелюбный
-  // онбординг с призывом добавить первый объект (вместо нулевой статистики).
-  if (s.total === 0) {
+  if (!own) return null;
+  // Своя база и общая пусты → дружелюбный онбординг «добавьте первый объект».
+  if (own.total === 0 && (!mls || mls.total === 0)) {
     return (
       <button
         onClick={() => {
@@ -74,38 +124,15 @@ function Stats() {
       </button>
     );
   }
-  const max = Math.max(1, s.active, s.deposit, s.sold);
-  const tiles: { status: string; labelKey: string; count: number; bar: string; num: string }[] = [
-    { status: "active", labelKey: "statusActive", count: s.active, bar: "from-emerald-500 to-emerald-400", num: "text-emerald-600 dark:text-emerald-400" },
-    { status: "deposit", labelKey: "statusDeposit", count: s.deposit, bar: "from-amber-500 to-amber-400", num: "text-amber-600 dark:text-amber-400" },
-    { status: "sold", labelKey: "statusSold", count: s.sold, bar: "from-slate-400 to-slate-300", num: "text-text" },
-  ];
   return (
-    <div className="mb-4">
-      <div className="flex items-center justify-between mt-1 mx-0.5 mb-2.5">
-        <span className="text-[14px] font-extrabold tracking-tight">{t("stats")}</span>
-        <button className="text-[13px] font-bold text-primary" onClick={() => nav.push({ name: "database" })}>
-          {t("myDatabase")} ›
-        </button>
-      </div>
-      <div className="grid grid-cols-3 gap-2.5">
-        {tiles.map((tl) => (
-          <button
-            key={tl.status}
-            onClick={() => {
-              haptic();
-              nav.push({ name: "objectList", params: { status: tl.status }, titleKey: tl.labelKey });
-            }}
-            className="text-left rounded-xl2 bg-card border border-line shadow-soft p-3.5 transition active:scale-95 hover:shadow-lg2"
-          >
-            <div className={"text-[26px] font-extrabold leading-none " + tl.num}>{tl.count}</div>
-            <div className="text-[12px] font-semibold text-muted mt-1">{t(tl.labelKey)}</div>
-            <div className="mt-2 h-[5px] rounded-full bg-[var(--soft)] overflow-hidden">
-              <div className={"h-full rounded-full bg-gradient-to-r " + tl.bar} style={{ width: `${Math.round((tl.count / max) * 100)}%` }} />
-            </div>
-          </button>
-        ))}
-      </div>
+    <div className="mb-4 grid grid-cols-1 gap-2.5">
+      <BaseCard title={t("ownBaseTitle")} icon={<Database size={19} />} stats={own} onOpen={() => nav.push({ name: "database" })} />
+      <BaseCard
+        title={t("mlsBaseTitle")}
+        icon={<Layers size={19} />}
+        stats={mls || { active: 0, deposit: 0, sold: 0, total: 0 }}
+        onOpen={() => nav.push({ name: "mlsBrowse" })}
+      />
     </div>
   );
 }
@@ -222,7 +249,7 @@ export function HomeScreen() {
   return (
     <div>
       <Hero />
-      <Stats />
+      <Bases />
       <ClientsCard />
       <div className="flex items-center justify-between mt-1 mx-0.5 mb-2.5">
         <span className="text-[14px] font-extrabold tracking-tight">{t("quickActions")}</span>

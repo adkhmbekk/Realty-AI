@@ -33,6 +33,7 @@ const ObjectDetailScreen = lazy(() => import("./screens/Apartments").then((m) =>
 const ObjectEditScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.ObjectEditScreen })));
 const ObjectList = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.ObjectList })));
 const SearchScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.SearchScreen })));
+const MlsBrowseScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.MlsBrowseScreen })));
 const ClientDetailScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.ClientDetailScreen })));
 const ClientsScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.ClientsScreen })));
 const MatchesScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.MatchesScreen })));
@@ -77,6 +78,8 @@ function titleKeyFor(route: Route): string | null {
       return null;
     case "mlsPool":
       return "mlsPoolTitle";
+    case "mlsBrowse":
+      return "mlsBaseTitle";
     case "profile":
       return "profile";
     case "settings":
@@ -136,6 +139,8 @@ function RouteView({ route }: { route: Route }) {
       return <MyAgenciesScreen />;
     case "mlsPool":
       return <MlsPoolScreen />;
+    case "mlsBrowse":
+      return <MlsBrowseScreen />;
     case "agencyCreate":
       return <AgencyCreateScreen />;
     case "agencyManage":

@@ -9,6 +9,7 @@ export type Route =
   | { name: "agencies" }
   | { name: "myAgencies" }
   | { name: "mlsPool" }
+  | { name: "mlsBrowse" }
   | { name: "agencyCreate" }
   | { name: "agencyManage"; id: number }
   | { name: "agencyObjects"; id: number }

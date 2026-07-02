@@ -13,7 +13,7 @@ from typing import List, Optional, Sequence
 from sqlalchemy.orm import Session
 
 from app.repositories import agency_repo, apartment_repo
-from app.schemas.apartment import ApartmentOut
+from app.schemas.apartment import ApartmentOut, ApartmentStatsOut
 from app.schemas.mls import MlsPoolItemOut, MlsPoolOut
 
 
@@ -78,3 +78,64 @@ def list_pool(
         for a in items
     ]
     return MlsPoolOut(items=out_items, total=total, limit=limit, offset=offset)
+
+
+def list_pool_for_member(
+    db: Session,
+    viewer_agency_id: int,
+    *,
+    status: Optional[str] = "active",
+    agency_id: Optional[int] = None,
+    districts: Optional[Sequence[str]] = None,
+    deal_type: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> MlsPoolOut:
+    """
+    Общая база (MLS) глазами обычного агентства: видны ВСЕ shared-объекты всех
+    агентств платформы. Телефон/адрес/автора собственника показываем ТОЛЬКО у
+    СВОИХ объектов (agency_id == viewer_agency_id). Чужие контакты скрыты: номер
+    собственника видит лишь то агентство, которое само добавило объект.
+    """
+    items, total = apartment_repo.list_mls_pool(
+        db,
+        status=status,
+        agency_id=agency_id,
+        districts=districts,
+        deal_type=deal_type,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+    names: dict = {}
+    for a in items:
+        if a.agency_id not in names:
+            ag = agency_repo.get_by_id(db, a.agency_id)
+            names[a.agency_id] = (ag.project_name or ag.name) if ag is not None else None
+
+    out_items: List[MlsPoolItemOut] = []
+    for a in items:
+        apt_out = ApartmentOut.model_validate(a)
+        if a.agency_id != viewer_agency_id:
+            apt_out = _blank_contacts(apt_out)
+        out_items.append(
+            MlsPoolItemOut(
+                agency_id=a.agency_id,
+                agency_name=names.get(a.agency_id),
+                apartment=apt_out,
+            )
+        )
+    return MlsPoolOut(items=out_items, total=total, limit=limit, offset=offset)
+
+
+def pool_stats(db: Session) -> ApartmentStatsOut:
+    """Счётчики общей базы (MLS) по статусам — для главного экрана агентства."""
+    counts = apartment_repo.mls_pool_status_counts(db)
+    return ApartmentStatsOut(
+        active=counts.get("active", 0),
+        deposit=counts.get("deposit", 0),
+        sold=counts.get("sold", 0),
+        rented=counts.get("rented", 0),
+        total=sum(counts.values()),
+    )

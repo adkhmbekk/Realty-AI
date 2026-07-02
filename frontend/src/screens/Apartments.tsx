@@ -47,7 +47,7 @@ import {
   STATUS_BADGE,
 } from "../i18n";
 import { Badge } from "../components/ui";
-import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, ListingImport, SearchParams } from "../types";
+import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, ListingImport, MlsPoolItem, MlsPoolResponse, SearchParams } from "../types";
 import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
 import { canShareMessage, haptic, openLink, shareMessage, confirmDialog } from "../telegram";
 
@@ -596,9 +596,13 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
 }
 
 // ── Карточка в списке ───────────────────────────────────────────────
-export function ApartmentCard({ o }: { o: Apartment }) {
+export function ApartmentCard({ o, onOpen }: { o: Apartment; onOpen?: (() => void) | false }) {
   const { t, L } = useApp();
   const nav = useNav();
+  // onOpen: не задан → открываем карточку объекта (по умолчанию); false → карточка
+  // не кликабельна (чужой объект в общей базе — его детали нам недоступны);
+  // функция → своё действие.
+  const interactive = onOpen !== false;
   const parts = [L.typeLabel(o.type), o.district, o.rooms != null ? `${o.rooms} ${t("f_rooms").toLowerCase()}` : null]
     .filter(Boolean)
     .join(" · ");
@@ -609,14 +613,21 @@ export function ApartmentCard({ o }: { o: Apartment }) {
     rented: "border-l-slate-400",
     archived: "border-l-slate-400",
   };
+  const Comp: React.ElementType = interactive ? "button" : "div";
   return (
-    <button
-      onClick={() => {
-        haptic();
-        nav.push({ name: "objectDetail", id: o.id });
-      }}
+    <Comp
+      onClick={
+        interactive
+          ? () => {
+              haptic();
+              if (typeof onOpen === "function") onOpen();
+              else nav.push({ name: "objectDetail", id: o.id });
+            }
+          : undefined
+      }
       className={cx2(
-        "w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 transition active:scale-[.99] hover:shadow-lg2 border-l-[3px]",
+        "w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 transition border-l-[3px]",
+        interactive ? "active:scale-[.99] hover:shadow-lg2" : "",
         accent[o.status] || "border-l-slate-400"
       )}
     >
@@ -656,12 +667,111 @@ export function ApartmentCard({ o }: { o: Apartment }) {
           )}
         </div>
       </div>
-    </button>
+    </Comp>
   );
 }
 
 function cx2(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
+}
+
+// ── Экран: общая база МЛС (открыта всем агентствам) ─────────────────
+// Показывает объекты, которыми поделились агентства платформы. Номер собственника
+// виден ТОЛЬКО у своих объектов (у чужих — скрыт, карточка не открывается).
+const MLS_STATUSES: { key: string; labelKey: string }[] = [
+  { key: "active", labelKey: "statusActive" },
+  { key: "deposit", labelKey: "statusDeposit" },
+  { key: "sold", labelKey: "statusSold" },
+];
+
+export function MlsBrowseScreen() {
+  const { t, user } = useApp();
+  const [items, setItems] = useState<MlsPoolItem[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [status, setStatus] = useState("active");
+  const [q, setQ] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const LIMIT = 20;
+
+  async function load(reset: boolean) {
+    setBusy(true);
+    const off = reset ? 0 : offset;
+    const params = new URLSearchParams({ status, limit: String(LIMIT), offset: String(off) });
+    if (q.trim()) params.set("q", q.trim());
+    const r = await api<MlsPoolResponse>("/api/v1/mls/browse?" + params.toString());
+    setBusy(false);
+    if (r.ok && r.data) {
+      const data = r.data;
+      setTotal(data.total);
+      setItems((prev) => (reset || !prev ? data.items : [...prev, ...data.items]));
+      setOffset(off + data.items.length);
+    } else if (reset) setItems([]);
+  }
+
+  useEffect(() => {
+    setItems(null);
+    setOffset(0);
+    const id = window.setTimeout(() => load(true), q ? 300 : 0);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, q]);
+
+  return (
+    <div>
+      <Hint>{t("mlsBrowseHint")}</Hint>
+      <div className="relative mt-2 mb-2">
+        <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+        <Input className="pl-9" placeholder={t("mlsSearchPlaceholder")} value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="flex gap-2 mb-1">
+        {MLS_STATUSES.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => setStatus(s.key)}
+            className={"flex-1 min-h-[38px] rounded-xl text-[13px] font-bold transition active:scale-95 " + (status === s.key ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted")}
+          >
+            {t(s.labelKey)}
+          </button>
+        ))}
+      </div>
+      {items === null ? (
+        <Spinner />
+      ) : !items.length ? (
+        <Empty icon={<HomeIcon size={24} />}>{t("mlsEmpty")}</Empty>
+      ) : (
+        <>
+          <div className="text-[12.5px] text-muted mt-2 mb-1 mx-0.5">
+            {t("mlsTotal")}: {total}
+          </div>
+          {items.map((it, i) => {
+            const mine = user?.agency_id != null && it.agency_id === user.agency_id;
+            return (
+              <div key={String(it.apartment.id) + "_" + i}>
+                <div className="flex items-center gap-1.5 mt-2.5 mx-0.5 text-[11.5px] font-bold flex-wrap">
+                  <span className={"px-1.5 py-0.5 rounded-full " + (mine ? "bg-emerald-100 text-emerald-700" : "bg-primary-soft text-primary")}>
+                    {mine ? t("mlsMine") : it.agency_name || t("mlsOtherAgency")}
+                  </span>
+                  {!mine && (
+                    <span className="text-muted inline-flex items-center gap-1">
+                      <Lock size={11} /> {t("mlsContactHidden")}
+                    </span>
+                  )}
+                </div>
+                <ApartmentCard o={it.apartment} onOpen={mine ? undefined : false} />
+              </div>
+            );
+          })}
+          {items.length < total && (
+            <Button full variant="ghost" className="mt-3" disabled={busy} onClick={() => load(false)}>
+              {busy ? t("loading") : t("showMore")}
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 // Кнопка «Запомнить для клиента»: текущие фильтры поиска сохраняем как заявку
