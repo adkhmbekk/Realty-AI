@@ -1710,6 +1710,101 @@ const EV_FIELD_KEYS: Record<string, string> = {
   description: "f_desc", comment: "f_comment", photo_url: "f_photo", source_link: "f_source",
 };
 
+// ── Полная карточка объекта агентства для владельца платформы (ТОЛЬКО просмотр) ──
+// Владелец видит все поля, КРОМЕ номера собственника (бэкенд его уже обнулил).
+// Редактировать нельзя: это наблюдение за наполнением базы агентства. Объект
+// приходит целиком из списка, отдельно догружаем только фотографии.
+export function AgencyObjectDetailScreen({ obj, agencyId }: { obj: Apartment; agencyId: number }) {
+  const { t, L, lang, settings } = useApp();
+  const o = obj;
+  const [photos, setPhotos] = useState<ApartmentPhoto[] | null>(null);
+  const [viewer, setViewer] = useState<number | null>(null);
+  useEffect(() => {
+    api<ApartmentPhoto[]>(`/api/v1/agencies/${agencyId}/objects/${o.id}/photos`).then((r) => {
+      setPhotos(r.ok && Array.isArray(r.data) ? r.data : []);
+    });
+  }, [agencyId, o.id]);
+
+  const withLand = hasLandArea(o.type);
+  const isRent = o.deal_type === "rent";
+  const rows: [string | null, React.ReactNode][] = [
+    [t("dealType"), isRent ? `${t("dealRent")} · ${o.rent_period === "day" ? t("rentDay") : t("rentMonth")}` : t("dealSale")],
+    [t("f_name"), o.name],
+    [t("f_type"), o.type ? L.typeLabel(o.type) : null],
+    [t("f_district"), o.district],
+    [t("f_address"), o.address],
+    [t("f_rooms"), o.rooms],
+    withLand ? [t("f_land_area"), o.land_area] : [t("f_floor"), o.floor],
+    [t("f_tfloors"), o.total_floors],
+    [t("f_area"), o.area],
+    [isRent ? t("priceRent") : t("f_price"), o.price != null ? `${fmtPrice(o.price, o.currency)}${L.priceSuffix(o.deal_type, o.rent_period)}` : null],
+    [t("f_condition"), o.condition ? L.condLabel(o.condition) : null],
+    [t("f_furniture"), L.faLabel(o.furniture_appliances)],
+    [t("f_sourceName"), o.source],
+    [t("f_desc"), o.description],
+    [t("addedBy"), o.created_by_name],
+    (o.status === "sold" || o.status === "rented") && o.archived_at
+      ? [isRent ? t("statusRented") : t("soldDate"), fmtDate(o.archived_at, lang, settings?.timezone)]
+      : [null, null],
+  ];
+  const badgeColor = STATUS_BADGE[o.status] || "gray";
+
+  return (
+    <div>
+      {photos && photos.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          {photos.map((p, i) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setViewer(i)}
+              className={cx2(
+                "relative aspect-square rounded-[14px] overflow-hidden bg-[var(--soft)] border border-line active:scale-95 transition",
+                i === 0 && photos.length > 1 && "col-span-2 row-span-2"
+              )}
+            >
+              <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+      <Card>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-[16px] font-extrabold flex items-center gap-1.5">
+            №{o.display_id}
+            {o.deal_type === "rent" && <Badge color="blue">{t("dealRent")}</Badge>}
+          </span>
+          <Badge color={badgeColor}>{L.statusLabel(o.status, o.deal_type)}</Badge>
+        </div>
+        {rows
+          .filter(([k, v]) => k != null && v != null && v !== "")
+          .map(([k, v], i) => (
+            <Row key={i} label={String(k)} value={String(v)} />
+          ))}
+      </Card>
+
+      {o.source_link && (
+        <Button variant="ghost" className="mt-2.5" onClick={() => openLink(o.source_link!)}>
+          <ExternalLink size={16} /> {t("openSource")}
+        </Button>
+      )}
+
+      {o.comment && (
+        <div className="mt-2.5 rounded-[14px] px-3.5 py-3 text-sm leading-relaxed border border-dashed border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-300 whitespace-pre-wrap">
+          <div className="font-bold text-[12px] mb-1 opacity-90 flex items-center gap-1"><Lock size={12} /> {t("f_comment")}</div>
+          {o.comment}
+        </div>
+      )}
+
+      <Hint>{t("agencyObjectReadonly")}</Hint>
+
+      {viewer != null && photos && photos.length > 0 && (
+        <Lightbox urls={photos.map((p) => p.url)} index={viewer} onClose={() => setViewer(null)} onIndex={setViewer} />
+      )}
+    </div>
+  );
+}
+
 export function ObjectDetailScreen({ id }: { id: number }) {
   const { t, L, lang, settings, toast, user } = useApp();
   const nav = useNav();

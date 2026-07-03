@@ -1,7 +1,7 @@
-import { confirmDialog, openTelegramLink } from "../telegram";
+import { confirmDialog, haptic, openTelegramLink } from "../telegram";
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Briefcase, Building2, Copy, Link as LinkIcon, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Briefcase, Building2, ChevronRight, Copy, Link as LinkIcon, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { useActing } from "../acting";
@@ -941,8 +941,9 @@ const VIA_LABEL: Record<string, string> = {
   auto: "via_auto",
 };
 
-function AgencyObjectCard({ o }: { o: Apartment }) {
+function AgencyObjectCard({ o, agencyId }: { o: Apartment; agencyId: number }) {
   const { t, lang } = useApp();
+  const nav = useNav();
   const head = [o.type, o.rooms ? `${o.rooms} ${t("roomsShort")}` : null, o.district]
     .filter(Boolean)
     .join(" · ");
@@ -953,10 +954,19 @@ function AgencyObjectCard({ o }: { o: Apartment }) {
     rented: "statusRented",
   };
   return (
-    <div className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4">
+    <button
+      onClick={() => {
+        haptic();
+        nav.push({ name: "agencyObjectDetail", obj: o, agencyId });
+      }}
+      className="w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4 transition active:scale-[.99] hover:shadow-lg2"
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="font-extrabold truncate">{head || "№ " + o.display_id}</span>
-        {o.added_via && <Badge color="blue">{t(VIA_LABEL[o.added_via] || "via_manual")}</Badge>}
+        <span className="flex items-center gap-1.5 shrink-0">
+          {o.added_via && <Badge color="blue">{t(VIA_LABEL[o.added_via] || "via_manual")}</Badge>}
+          <ChevronRight size={16} className="text-muted" />
+        </span>
       </div>
       <div className="text-[15px] font-extrabold text-primary mt-1">
         {o.price != null ? `${fmtAmount(o.price)} ${o.currency}` : t("priceNotSet")}
@@ -965,7 +975,7 @@ function AgencyObjectCard({ o }: { o: Apartment }) {
         № {o.display_id} · {t(stKey[o.status] || "statusActive")} · {fmtDate(o.created_at, lang)}
         {o.created_by_name ? " · " + o.created_by_name : ""}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -1022,7 +1032,7 @@ export function AgencyObjectsScreen({ id }: { id: number }) {
       ) : (
         <>
           {items.map((o) => (
-            <AgencyObjectCard key={o.id} o={o} />
+            <AgencyObjectCard key={o.id} o={o} agencyId={id} />
           ))}
           {items.length < total && (
             <Button full variant="ghost" className="mt-3" disabled={loading} onClick={() => load(false)}>

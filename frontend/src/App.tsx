@@ -28,6 +28,7 @@ const AgenciesScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ 
 const AgencyCreateScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyCreateScreen })));
 const AgencyManageScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyManageScreen })));
 const AgencyObjectsScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyObjectsScreen })));
+const AgencyObjectDetailScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.AgencyObjectDetailScreen })));
 const MlsPoolScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.MlsPoolScreen })));
 const MyAgenciesScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.MyAgenciesScreen })));
 const AddObjectScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.AddObjectScreen })));
@@ -105,6 +106,8 @@ function titleKeyFor(route: Route): string | null {
       return "manageAgency";
     case "agencyObjects":
       return "agencyObjects";
+    case "agencyObjectDetail":
+      return "apartment";
     case "addObject":
       return "addObject";
     case "search":
@@ -172,6 +175,8 @@ function RouteView({ route }: { route: Route }) {
       return <AgencyManageScreen id={route.id} />;
     case "agencyObjects":
       return <AgencyObjectsScreen id={route.id} />;
+    case "agencyObjectDetail":
+      return <AgencyObjectDetailScreen obj={route.obj} agencyId={route.agencyId} />;
     case "addObject":
       return <AddObjectScreen />;
     case "search":

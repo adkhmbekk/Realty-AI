@@ -30,7 +30,7 @@ from app.schemas.agency import (
 )
 from app.schemas.apartment import ApartmentListOut
 from app.schemas.auth import AuthResponse
-from app.services import agency_service, agency_usage_service, auth_service, invite_service
+from app.services import agency_service, agency_usage_service, auth_service, invite_service, photo_service
 
 router = APIRouter(prefix="/agencies", tags=["agencies"])
 
@@ -236,6 +236,18 @@ def agency_objects(
 ):
     """Объекты агентства (для владельца платформы). Телефон собственника скрыт."""
     return agency_service.list_objects(db, agency_id, q=q, limit=limit, offset=offset)
+
+
+@router.get("/{agency_id}/objects/{object_id}/photos")
+def agency_object_photos(
+    agency_id: int,
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Фото объекта агентства (для владельца платформы; только просмотр). Сервис
+    сам проверяет, что объект принадлежит указанному агентству."""
+    return photo_service.list_photos(db, agency_id, object_id)
 
 
 @router.get("/{agency_id}/audit", response_model=List[AgencyAuditOut])
