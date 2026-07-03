@@ -25,6 +25,19 @@ def get_by_id(db: Session, agency_id: int, apartment_id: int) -> Optional[Apartm
     ).scalar_one_or_none()
 
 
+def get_shared_mls(db: Session, apartment_id: int) -> Optional[Apartment]:
+    """Объект ОБЩЕЙ базы (shared_mls=True, не удалён) по id — БЕЗ привязки к
+    агентству. Для просмотра карточки объекта из общей базы (MLS) любым
+    агентством. None, если объекта нет или он не в общей базе."""
+    return db.execute(
+        select(Apartment).where(
+            Apartment.id == apartment_id,
+            Apartment.shared_mls.is_(True),
+            Apartment.deleted_at.is_(None),
+        )
+    ).scalar_one_or_none()
+
+
 def create(db: Session, apartment: Apartment) -> Apartment:
     db.add(apartment)
     db.flush()  # чтобы получить сгенерированный id

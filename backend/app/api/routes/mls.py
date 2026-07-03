@@ -81,6 +81,17 @@ def mls_browse(
     )
 
 
+@router.get("/objects/{object_id}/photos")
+def mls_object_photos(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Фото объекта из общей базы (MLS) — для просмотра read-only карточки любым
+    агентством. Телефон/контакты сюда не входят (только изображения)."""
+    return mls_service.object_photos(db, object_id)
+
+
 @router.get("/stats", response_model=ApartmentStatsOut)
 def mls_stats(
     db: Session = Depends(get_db),

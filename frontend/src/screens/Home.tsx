@@ -61,25 +61,26 @@ function BaseCard({
         haptic();
         onOpen();
       }}
-      className="w-full text-left rounded-xl2 bg-card border border-line shadow-soft p-4 transition active:scale-[.99] hover:shadow-lg2"
+      className="w-full text-left rounded-xl2 bg-card border border-line shadow-soft p-3 transition active:scale-[.98] hover:shadow-lg2 flex flex-col"
     >
-      <div className="flex items-center gap-2.5 mb-3">
-        <span className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">{icon}</span>
-        <span className="text-[15px] font-extrabold flex-1 min-w-0 truncate">{title}</span>
-        <ChevronRight size={18} className="text-muted shrink-0" />
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="w-8 h-8 rounded-lg bg-primary-soft text-primary flex items-center justify-center shrink-0">{icon}</span>
+        <span className="text-[12.5px] font-extrabold leading-tight flex-1 min-w-0">{title}</span>
       </div>
-      <div className="flex items-stretch gap-2">
-        <div className="flex-[1.5] rounded-xl2 p-3 bg-emerald-50 dark:bg-emerald-500/10">
-          <div className="text-[30px] font-extrabold leading-none text-emerald-600 dark:text-emerald-400">{stats.active}</div>
-          <div className="text-[12px] font-bold text-muted mt-1">{t("statusActive")}</div>
+      {/* «Активные» крупно и в приоритете; депозит и продано — компактными плитками
+          ниже, чтобы обе карточки («Своя база» и «Общая база MLS») влезли в ряд. */}
+      <div className="rounded-xl p-2.5 bg-emerald-50 dark:bg-emerald-500/10 mb-1.5">
+        <div className="text-[26px] font-extrabold leading-none text-emerald-600 dark:text-emerald-400">{stats.active}</div>
+        <div className="text-[11px] font-bold text-muted mt-1">{t("statusActive")}</div>
+      </div>
+      <div className="flex gap-1.5">
+        <div className="flex-1 rounded-xl p-2 bg-[var(--soft)]">
+          <div className="text-[16px] font-extrabold leading-none text-amber-600 dark:text-amber-400">{stats.deposit}</div>
+          <div className="text-[10.5px] font-semibold text-muted mt-0.5 leading-tight">{t("statusDeposit")}</div>
         </div>
-        <div className="flex-1 rounded-xl2 p-3 bg-[var(--soft)]">
-          <div className="text-[20px] font-extrabold leading-none text-amber-600 dark:text-amber-400">{stats.deposit}</div>
-          <div className="text-[11px] font-semibold text-muted mt-1 leading-tight">{t("statusDeposit")}</div>
-        </div>
-        <div className="flex-1 rounded-xl2 p-3 bg-[var(--soft)]">
-          <div className="text-[20px] font-extrabold leading-none text-text">{stats.sold}</div>
-          <div className="text-[11px] font-semibold text-muted mt-1 leading-tight">{t("statusSold")}</div>
+        <div className="flex-1 rounded-xl p-2 bg-[var(--soft)]">
+          <div className="text-[16px] font-extrabold leading-none text-text">{stats.sold}</div>
+          <div className="text-[10.5px] font-semibold text-muted mt-0.5 leading-tight">{t("statusSold")}</div>
         </div>
       </div>
     </button>
@@ -87,7 +88,7 @@ function BaseCard({
 }
 
 // Две базы на главной вместо голой статистики: своя база агентства и общая база
-// МЛС (открыта всем агентствам). Активные — в приоритете, крупнее.
+// MLS (открыта всем агентствам). Активные — в приоритете, крупнее.
 function Bases() {
   const { t } = useApp();
   const nav = useNav();
@@ -125,11 +126,11 @@ function Bases() {
     );
   }
   return (
-    <div className="mb-4 grid grid-cols-1 gap-2.5">
-      <BaseCard title={t("ownBaseTitle")} icon={<Database size={19} />} stats={own} onOpen={() => nav.push({ name: "database" })} />
+    <div className="mb-4 grid grid-cols-2 gap-2.5 items-stretch">
+      <BaseCard title={t("ownBaseTitle")} icon={<Database size={18} />} stats={own} onOpen={() => nav.push({ name: "database" })} />
       <BaseCard
         title={t("mlsBaseTitle")}
-        icon={<Layers size={19} />}
+        icon={<Layers size={18} />}
         stats={mls || { active: 0, deposit: 0, sold: 0, total: 0 }}
         onOpen={() => nav.push({ name: "mlsBrowse" })}
       />

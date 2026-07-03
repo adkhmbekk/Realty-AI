@@ -10,11 +10,14 @@
 """
 from typing import List, Optional, Sequence
 
+from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppError
 from app.repositories import agency_repo, apartment_repo
 from app.schemas.apartment import ApartmentOut, ApartmentStatsOut
 from app.schemas.mls import MlsPoolItemOut, MlsPoolOut
+from app.services import photo_service
 
 
 def _blank_contacts(apt_out: ApartmentOut) -> ApartmentOut:
@@ -127,6 +130,16 @@ def list_pool_for_member(
             )
         )
     return MlsPoolOut(items=out_items, total=total, limit=limit, offset=offset)
+
+
+def object_photos(db: Session, object_id: int) -> list:
+    """Фото объекта из общей базы (MLS) — для read-only карточки у ЛЮБОГО
+    агентства. Сначала убеждаемся, что объект действительно в общей базе
+    (shared_mls), затем отдаём его фото (по агентству-владельцу объекта)."""
+    apt = apartment_repo.get_shared_mls(db, object_id)
+    if apt is None:
+        raise AppError("apartment_not_found", http_status.HTTP_404_NOT_FOUND)
+    return photo_service.list_photos(db, apt.agency_id, object_id)
 
 
 def pool_stats(db: Session) -> ApartmentStatsOut:

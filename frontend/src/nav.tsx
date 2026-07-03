@@ -19,6 +19,7 @@ export type Route =
   | { name: "agencyManage"; id: number }
   | { name: "agencyObjects"; id: number }
   | { name: "agencyObjectDetail"; obj: Apartment; agencyId: number }
+  | { name: "mlsObjectDetail"; obj: Apartment }
   | { name: "addObject" }
   | { name: "search" }
   | { name: "objectList"; params: SearchParams; titleKey: string }

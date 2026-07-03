@@ -675,7 +675,7 @@ function cx2(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
-// ── Экран: общая база МЛС (открыта всем агентствам) ─────────────────
+// ── Экран: общая база MLS (открыта всем агентствам) ─────────────────
 // Показывает объекты, которыми поделились агентства платформы. Номер собственника
 // виден ТОЛЬКО у своих объектов (у чужих — скрыт, карточка не открывается).
 const MLS_STATUSES: { key: string; labelKey: string }[] = [
@@ -686,6 +686,7 @@ const MLS_STATUSES: { key: string; labelKey: string }[] = [
 
 export function MlsBrowseScreen() {
   const { t, user } = useApp();
+  const nav = useNav();
   const [items, setItems] = useState<MlsPoolItem[] | null>(null);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState("active");
@@ -759,7 +760,10 @@ export function MlsBrowseScreen() {
                     </span>
                   )}
                 </div>
-                <ApartmentCard o={it.apartment} onOpen={mine ? undefined : false} />
+                <ApartmentCard
+                  o={it.apartment}
+                  onOpen={mine ? undefined : () => nav.push({ name: "mlsObjectDetail", obj: it.apartment })}
+                />
               </div>
             );
           })}
@@ -1714,16 +1718,19 @@ const EV_FIELD_KEYS: Record<string, string> = {
 // Владелец видит все поля, КРОМЕ номера собственника (бэкенд его уже обнулил).
 // Редактировать нельзя: это наблюдение за наполнением базы агентства. Объект
 // приходит целиком из списка, отдельно догружаем только фотографии.
-export function AgencyObjectDetailScreen({ obj, agencyId }: { obj: Apartment; agencyId: number }) {
+// Read-only карточка объекта: фото + характеристики, БЕЗ номера собственника и
+// без редактирования. Используется и для объектов агентства (глазами владельца
+// платформы), и для чужих объектов общей базы MLS. Источник фото задаётся
+// через photosUrl — чтобы одинаково выглядело везде, где показываем объект.
+function ReadonlyObjectCard({ o, photosUrl }: { o: Apartment; photosUrl: string }) {
   const { t, L, lang, settings } = useApp();
-  const o = obj;
   const [photos, setPhotos] = useState<ApartmentPhoto[] | null>(null);
   const [viewer, setViewer] = useState<number | null>(null);
   useEffect(() => {
-    api<ApartmentPhoto[]>(`/api/v1/agencies/${agencyId}/objects/${o.id}/photos`).then((r) => {
+    api<ApartmentPhoto[]>(photosUrl).then((r) => {
       setPhotos(r.ok && Array.isArray(r.data) ? r.data : []);
     });
-  }, [agencyId, o.id]);
+  }, [photosUrl]);
 
   const withLand = hasLandArea(o.type);
   const isRent = o.deal_type === "rent";
@@ -1803,6 +1810,18 @@ export function AgencyObjectDetailScreen({ obj, agencyId }: { obj: Apartment; ag
       )}
     </div>
   );
+}
+
+// Объект агентства глазами владельца платформы (суперадмина): read-only карточка,
+// фото — через супер-эндпоинт агентства.
+export function AgencyObjectDetailScreen({ obj, agencyId }: { obj: Apartment; agencyId: number }) {
+  return <ReadonlyObjectCard o={obj} photosUrl={`/api/v1/agencies/${agencyId}/objects/${obj.id}/photos`} />;
+}
+
+// Чужой объект из общей базы MLS: та же read-only карточка (фото + характеристики),
+// БЕЗ номера собственника (сервер уже вычистил контакты у чужих объектов).
+export function MlsObjectDetailScreen({ obj }: { obj: Apartment }) {
+  return <ReadonlyObjectCard o={obj} photosUrl={`/api/v1/mls/objects/${obj.id}/photos`} />;
 }
 
 export function ObjectDetailScreen({ id }: { id: number }) {
