@@ -74,7 +74,7 @@ export function Label({ children }: { children: React.ReactNode }) {
 }
 
 const fieldCls =
-  "w-full px-3.5 py-3 rounded-[14px] text-[15px] bg-[var(--input-bg)] text-text border border-[var(--input-border)] outline-none transition focus:border-primary focus:shadow-[0_0_0_4px_var(--ring)] placeholder:text-muted";
+  "w-full px-3.5 py-3 rounded-[14px] text-[16px] bg-[var(--input-bg)] text-text border border-[var(--input-border)] outline-none transition focus:border-primary focus:shadow-[0_0_0_4px_var(--ring)] placeholder:text-muted";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx(fieldCls, props.className)} />;
