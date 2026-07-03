@@ -1005,47 +1005,13 @@ export function AgencyObjectsScreen({ id }: { id: number }) {
 }
 
 // ── Витрина общей базы (MLS) для владельца платформы ────────────────────────
-// Все объекты, которыми агентства поделились в общей базе (shared_mls). Контакты
-// собственника скрыты бэкендом — видно только, какому агентству принадлежит
-// объект. Только просмотр: карточки некликабельны (это чужие объекты).
-function MlsObjectCard({ item }: { item: MlsPoolItem }) {
-  const { t, lang } = useApp();
-  const a = item.apartment;
-  const head = [a.type, a.rooms ? `${a.rooms} ${t("roomsShort")}` : null, a.district]
-    .filter(Boolean)
-    .join(" · ");
-  const stColor: Record<string, "green" | "amber" | "gray" | "blue"> = {
-    active: "green",
-    deposit: "amber",
-    sold: "gray",
-    rented: "blue",
-  };
-  const stKey: Record<string, string> = {
-    active: "statusActive",
-    deposit: "statusDeposit",
-    sold: "statusSold",
-    rented: "statusRented",
-  };
-  return (
-    <div className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-extrabold truncate">{head || a.display_id}</span>
-        <Badge color="blue">{item.agency_name || `ID ${item.agency_id}`}</Badge>
-      </div>
-      <div className="text-[15px] font-extrabold text-primary mt-1">
-        {a.price != null ? `${fmtAmount(a.price)} ${a.currency}` : t("priceNotSet")}
-      </div>
-      <div className="text-[12.5px] text-muted mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-        <span>{a.deal_type === "rent" ? t("dealRent") : t("dealSale")}</span>
-        <Badge color={stColor[a.status] || "gray"}>{t(stKey[a.status] || "statusActive")}</Badge>
-        <span>· {fmtDate(a.created_at, lang)}</span>
-      </div>
-    </div>
-  );
-}
+// Объекты общей базы (MLS) для суперадмина рисуются общей ApartmentCard (фото
+// слева, как в своей базе) и ОТКРЫВАЮТСЯ в read-only карточку объекта (без
+// номера собственника). Над карточкой — бейдж агентства-владельца. См. MlsPoolScreen.
 
 export function MlsPoolScreen() {
   const { t } = useApp();
+  const nav = useNav();
   const [agencies, setAgencies] = useState<AgencyOut[]>([]);
   const [agencyId, setAgencyId] = useState<string>("");
   const [dealType, setDealType] = useState<"" | "sale" | "rent">("");
@@ -1149,7 +1115,17 @@ export function MlsPoolScreen() {
         ) : (
           <>
             {items.map((it) => (
-              <MlsObjectCard key={it.apartment.id} item={it} />
+              <div key={it.apartment.id}>
+                <div className="flex items-center gap-1.5 mt-2.5 mx-0.5 text-[11.5px] font-bold">
+                  <span className="px-1.5 py-0.5 rounded-full bg-primary-soft text-primary">
+                    {it.agency_name || `ID ${it.agency_id}`}
+                  </span>
+                </div>
+                <ApartmentCard
+                  o={it.apartment}
+                  onOpen={() => nav.push({ name: "agencyObjectDetail", obj: it.apartment, agencyId: it.agency_id })}
+                />
+              </div>
             ))}
             {items.length < total && (
               <Button full variant="ghost" className="mt-3" disabled={loading} onClick={() => load(false)}>
