@@ -810,6 +810,16 @@ def _apartment_label(a: Optional[Apartment]) -> Optional[str]:
     return " · ".join(parts)
 
 
+def _lookup_apartment(db: Session, agency_id: int, apartment_id) -> Optional[Apartment]:
+    """Объект для подписи сделки: сначала свой, затем из общей базы (MLS) —
+    чтобы кросс-агентская сделка тоже показывала объект, а не пустую подпись."""
+    if not apartment_id:
+        return None
+    return client_repo.get_agency_apartment(db, agency_id, apartment_id) or client_repo.get_shared_apartment(
+        db, apartment_id
+    )
+
+
 def _deal_to_out(d: Deal, *, client_name=None, apartment_label=None, agent_name=None) -> DealOut:
     return DealOut(
         id=d.id, client_id=d.client_id, client_name=client_name,
@@ -875,7 +885,7 @@ def list_deals_for_client(db: Session, agency_id: int, user, client_id: int) -> 
     )
     out: List[DealOut] = []
     for d in deals:
-        apt = client_repo.get_agency_apartment(db, agency_id, d.apartment_id) if d.apartment_id else None
+        apt = _lookup_apartment(db, agency_id, d.apartment_id)
         out.append(_deal_to_out(
             d, client_name=name, apartment_label=_apartment_label(apt),
             agent_name=anames.get(d.agent_id),
@@ -910,7 +920,7 @@ def update_deal(db: Session, agency_id: int, user, deal_id: int, payload: DealUp
         d.stage = data["stage"]
         d.closed_at = datetime.now(timezone.utc) if data["stage"] == "sold" else None
     db.commit()
-    apt = client_repo.get_agency_apartment(db, agency_id, d.apartment_id) if d.apartment_id else None
+    apt = _lookup_apartment(db, agency_id, d.apartment_id)
     return _deal_to_out(
         d, client_name=_client_full_name(c), apartment_label=_apartment_label(apt),
         agent_name=_name_of(db, d.agent_id),
