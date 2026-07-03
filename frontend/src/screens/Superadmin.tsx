@@ -1,11 +1,12 @@
-import { confirmDialog, haptic, openTelegramLink } from "../telegram";
+import { confirmDialog, openTelegramLink } from "../telegram";
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Briefcase, Building2, ChevronRight, Copy, Link as LinkIcon, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Briefcase, Building2, Copy, Link as LinkIcon, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { useActing } from "../acting";
 import { api, errText } from "../api";
+import { ApartmentCard } from "./Apartments";
 import { Badge, Button, Card, Empty, Field, Hint, Input, Row, Spinner } from "../components/ui";
 import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, AgencyUsage, Apartment, ApartmentList, MlsPoolItem, MlsPoolResponse, PaymentsSummary } from "../types";
 import { copyText, fmtAmount, fmtDate } from "../utils";
@@ -933,54 +934,12 @@ export function AgencyManageScreen({ id }: { id: number }) {
   );
 }
 
-// ── Объекты агентства (просмотр владельцем платформы; телефон собственника скрыт) ──
-const VIA_LABEL: Record<string, string> = {
-  manual: "via_manual",
-  link: "via_link",
-  bulk: "via_bulk",
-  auto: "via_auto",
-};
-
-function AgencyObjectCard({ o, agencyId }: { o: Apartment; agencyId: number }) {
-  const { t, lang } = useApp();
-  const nav = useNav();
-  const head = [o.type, o.rooms ? `${o.rooms} ${t("roomsShort")}` : null, o.district]
-    .filter(Boolean)
-    .join(" · ");
-  const stKey: Record<string, string> = {
-    active: "statusActive",
-    deposit: "statusDeposit",
-    sold: "statusSold",
-    rented: "statusRented",
-  };
-  return (
-    <button
-      onClick={() => {
-        haptic();
-        nav.push({ name: "agencyObjectDetail", obj: o, agencyId });
-      }}
-      className="w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4 transition active:scale-[.99] hover:shadow-lg2"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-extrabold truncate">{head || "№ " + o.display_id}</span>
-        <span className="flex items-center gap-1.5 shrink-0">
-          {o.added_via && <Badge color="blue">{t(VIA_LABEL[o.added_via] || "via_manual")}</Badge>}
-          <ChevronRight size={16} className="text-muted" />
-        </span>
-      </div>
-      <div className="text-[15px] font-extrabold text-primary mt-1">
-        {o.price != null ? `${fmtAmount(o.price)} ${o.currency}` : t("priceNotSet")}
-      </div>
-      <div className="text-[12.5px] text-muted mt-1">
-        № {o.display_id} · {t(stKey[o.status] || "statusActive")} · {fmtDate(o.created_at, lang)}
-        {o.created_by_name ? " · " + o.created_by_name : ""}
-      </div>
-    </button>
-  );
-}
-
+// ── Объекты агентства (просмотр владельцем платформы) ────────────────────────
+// Та же карточка, что и в своей базе (ApartmentCard: фото слева, красиво), но
+// БЕЗ номера собственника (бэкенд его обнулил). Тап → полная read-only карточка.
 export function AgencyObjectsScreen({ id }: { id: number }) {
   const { t } = useApp();
+  const nav = useNav();
   const [items, setItems] = useState<Apartment[] | null>(null);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
@@ -1032,7 +991,7 @@ export function AgencyObjectsScreen({ id }: { id: number }) {
       ) : (
         <>
           {items.map((o) => (
-            <AgencyObjectCard key={o.id} o={o} agencyId={id} />
+            <ApartmentCard key={o.id} o={o} onOpen={() => nav.push({ name: "agencyObjectDetail", obj: o, agencyId: id })} />
           ))}
           {items.length < total && (
             <Button full variant="ghost" className="mt-3" disabled={loading} onClick={() => load(false)}>
