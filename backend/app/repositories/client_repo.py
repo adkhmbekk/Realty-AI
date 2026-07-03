@@ -191,6 +191,7 @@ def list_matches(
     owner_id: Optional[int] = None,
     statuses: Optional[Sequence[str]] = None,
     client_id: Optional[int] = None,
+    request_id: Optional[int] = None,
     limit: int = 100,
 ) -> List[Tuple[RequestMatch, ClientRequest, Client, Apartment]]:
     # Архивных (удалённых) клиентов в совпадениях не показываем (Волна-фикс).
@@ -202,6 +203,9 @@ def list_matches(
     # Совпадения ОДНОГО клиента (адресный просмотр внутри карточки клиента).
     if client_id is not None:
         conds.append(Client.id == client_id)
+    # Совпадения ОДНОЙ заявки (у клиента их может быть несколько — у каждой свои).
+    if request_id is not None:
+        conds.append(RequestMatch.request_id == request_id)
     rows = db.execute(
         select(RequestMatch, ClientRequest, Client, Apartment)
         .join(ClientRequest, RequestMatch.request_id == ClientRequest.id)

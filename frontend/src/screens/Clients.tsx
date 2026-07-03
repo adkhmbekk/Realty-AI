@@ -1048,22 +1048,22 @@ function matchScoreClass(score: number): string {
 // ── Экран: совпадения ОДНОГО клиента (отдельная страница) ───────────
 // Совпадения держим за кнопкой в карточке клиента: если объектов много,
 // длинный список не «засоряет» карточку. Здесь показываем их полностью.
-export function ClientMatchesScreen({ id }: { id: number }) {
+export function ClientMatchesScreen({ clientId, requestId, label }: { clientId: number; requestId: number; label?: string }) {
   const { t, toast } = useApp();
   const nav = useNav();
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [dealFor, setDealFor] = useState<number | null>(null);
 
   async function load() {
-    const r = await api<Match[]>("/api/v1/clients/" + id + "/matches");
+    const r = await api<Match[]>("/api/v1/clients/requests/" + requestId + "/matches");
     setMatches(r.ok && Array.isArray(r.data) ? r.data : []);
   }
   useEffect(() => {
     load();
-    // Открыли список совпадений → «новые» считаем просмотренными (значок гаснет).
-    api("/api/v1/clients/" + id + "/matches/seen", { method: "POST" });
+    // Открыли совпадения заявки → её «новые» считаем просмотренными (значок гаснет).
+    api("/api/v1/clients/requests/" + requestId + "/matches/seen", { method: "POST" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [requestId]);
 
   async function setStatus(m: Match, status: string) {
     const r = await api("/api/v1/clients/matches/" + m.id + "/status", { method: "POST", body: { status } });
@@ -1076,10 +1076,17 @@ export function ClientMatchesScreen({ id }: { id: number }) {
   const active = (matches || []).filter((m) => m.status !== "dismissed");
 
   if (matches === null) return <Spinner />;
-  if (!active.length) return <Empty icon={<Sparkles size={24} />}>{t("noClientMatches")}</Empty>;
+  if (!active.length)
+    return (
+      <div>
+        {label && <div className="text-[13.5px] font-extrabold mb-2 mx-0.5 leading-snug">{label}</div>}
+        <Empty icon={<Sparkles size={24} />}>{t("noClientMatches")}</Empty>
+      </div>
+    );
 
   return (
     <div>
+      {label && <div className="text-[13.5px] font-extrabold mb-0.5 mx-0.5 leading-snug">{label}</div>}
       <div className="text-[12.5px] text-muted mb-1 mx-0.5">{t("matchesCountSub").replace("{n}", String(active.length))}</div>
       {active.map((m) => (
         <Card key={m.id} className="mt-2.5">
@@ -1114,7 +1121,7 @@ export function ClientMatchesScreen({ id }: { id: number }) {
           {dealFor === m.id ? (
             <DealFromMatch
               match={m}
-              clientId={id}
+              clientId={clientId}
               onDone={() => { setDealFor(null); setStatus(m, "offered"); }}
               onCancel={() => setDealFor(null)}
             />
@@ -1247,8 +1254,6 @@ export function ClientDetailScreen({ id }: { id: number }) {
   if (err) return <Empty>{err}</Empty>;
   if (!c) return <Spinner />;
   const name = c.last_name ? `${c.name} ${c.last_name}` : c.name;
-  const activeMatchCount = matches ? matches.filter((m) => m.status !== "dismissed").length : 0;
-  const newMatchCount = matches ? matches.filter((m) => m.status === "new").length : 0;
 
   return (
     <div>
@@ -1334,15 +1339,30 @@ export function ClientDetailScreen({ id }: { id: number }) {
                 {r.note && <div className="text-[12.5px] text-muted mt-0.5">{r.note}</div>}
                 <div className="text-[12px] text-muted mt-1">{fmtDate(r.created_at, lang)}</div>
               </div>
-              <span className="flex flex-col items-end gap-1 shrink-0">
-                {r.status !== "active" && <Badge color="gray">{t("reqStatus_" + r.status)}</Badge>}
-                {r.match_count > 0 && (
-                  <Badge color={r.new_match_count > 0 ? "red" : "green"}>
-                    {t("foundN").replace("{n}", String(r.match_count))}
-                  </Badge>
-                )}
-              </span>
+              {r.status !== "active" && (
+                <span className="shrink-0">
+                  <Badge color="gray">{t("reqStatus_" + r.status)}</Badge>
+                </span>
+              )}
             </div>
+            {/* Совпадения ЭТОЙ заявки — отдельная кнопка, чтобы было видно, какие
+                объекты подобраны именно под неё (у клиента заявок может быть много). */}
+            <button
+              onClick={() => { haptic(); nav.push({ name: "clientMatches", clientId: id, requestId: r.id, label: requestLabel(r, L, t) }); }}
+              className="w-full mt-2.5 rounded-xl bg-primary-soft p-2.5 flex items-center gap-2.5 active:scale-[.99] transition"
+            >
+              <span className="w-8 h-8 shrink-0 rounded-lg bg-card text-primary flex items-center justify-center shadow-soft">
+                <Sparkles size={16} />
+              </span>
+              <div className="min-w-0 flex-1 text-left">
+                <div className="text-[13px] font-extrabold leading-tight text-primary">{t("matchesForClient")}</div>
+                <div className="text-[11.5px] text-muted truncate">
+                  {r.match_count > 0 ? t("matchesCountSub").replace("{n}", String(r.match_count)) : t("noClientMatches")}
+                </div>
+              </div>
+              {r.new_match_count > 0 && <Badge color="red">{t("matchN").replace("{n}", String(r.new_match_count))}</Badge>}
+              <ChevronRight size={16} className="text-primary shrink-0" />
+            </button>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Button size="sm" variant="ghost" onClick={() => startEdit(r)}>
                 <Pencil size={14} /> {t("edit")}
@@ -1364,27 +1384,6 @@ export function ClientDetailScreen({ id }: { id: number }) {
           </Card>
         )
       )}
-
-      {/* Совпадения — за отдельной кнопкой: если подходящих объектов много,
-          длинный список не «засоряет» карточку клиента. Открывается отдельный экран. */}
-      <button
-        onClick={() => { haptic(); nav.push({ name: "clientMatches", id }); }}
-        className="w-full mt-5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 flex items-center gap-3 transition active:scale-[.99] hover:shadow-lg2"
-      >
-        <span className="w-10 h-10 shrink-0 rounded-xl bg-primary-soft text-primary flex items-center justify-center">
-          <Sparkles size={18} />
-        </span>
-        <div className="min-w-0 flex-1 text-left">
-          <div className="font-extrabold">{t("matchesForClient")}</div>
-          {matches !== null && (
-            <div className="text-[12.5px] text-muted truncate">
-              {activeMatchCount > 0 ? t("matchesCountSub").replace("{n}", String(activeMatchCount)) : t("noClientMatches")}
-            </div>
-          )}
-        </div>
-        {newMatchCount > 0 && <Badge color="red">{t("matchN").replace("{n}", String(newMatchCount))}</Badge>}
-        <ChevronRight size={18} className="text-muted shrink-0" />
-      </button>
 
       <ClientDeals clientId={id} matches={matches || []} reloadSignal={0} />
 

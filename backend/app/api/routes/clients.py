@@ -162,6 +162,33 @@ def rescan_request(
     return {"found": found}
 
 
+@router.get("/requests/{request_id}/matches", response_model=List[MatchOut])
+def list_request_matches(
+    request_id: int,
+    status: Optional[str] = Query(None, description="new / seen / offered / dismissed."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Совпадения (подходящие объекты) именно этой заявки клиента."""
+    statuses = [status] if status else ["new", "seen", "offered"]
+    return client_service.list_request_matches(
+        db, current_user.agency_id, current_user, request_id, statuses=statuses
+    )
+
+
+@router.post("/requests/{request_id}/matches/seen")
+def mark_request_matches_seen(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Отметить новые совпадения этой заявки просмотренными (значок гаснет)."""
+    updated = client_service.mark_request_matches_seen(
+        db, current_user.agency_id, current_user, request_id
+    )
+    return {"updated": updated}
+
+
 # ── Задачи (объявлены ДО /{client_id}, иначе «tasks» попадёт в id) ────
 @router.get("/tasks", response_model=List[TaskOut])
 def my_open_tasks(

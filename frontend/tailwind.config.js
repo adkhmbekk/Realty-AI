@@ -45,7 +45,7 @@ export default {
         },
       },
       animation: {
-        "fade-up": "fade-up .24s ease",
+        "fade-up": "fade-up .16s ease-out",
       },
     },
   },

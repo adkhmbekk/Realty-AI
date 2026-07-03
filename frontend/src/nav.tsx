@@ -34,7 +34,7 @@ export type Route =
   | { name: "agentDetail"; userId: number; agentName: string }
   | { name: "clients" }
   | { name: "clientDetail"; id: number }
-  | { name: "clientMatches"; id: number }
+  | { name: "clientMatches"; clientId: number; requestId: number; label?: string }
   | { name: "matches" }
   | { name: "saveRequest"; criteria: SearchParams };
 

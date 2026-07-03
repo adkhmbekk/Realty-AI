@@ -214,7 +214,7 @@ function RouteView({ route }: { route: Route }) {
     case "clientDetail":
       return <ClientDetailScreen id={route.id} />;
     case "clientMatches":
-      return <ClientMatchesScreen id={route.id} />;
+      return <ClientMatchesScreen clientId={route.clientId} requestId={route.requestId} label={route.label} />;
     case "matches":
       return <MatchesScreen />;
     case "saveRequest":
@@ -415,10 +415,10 @@ function Shell() {
         <AnimatePresence mode="wait">
           <motion.div
             key={depth + ":" + route.name}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.22 }}
+            exit={{ opacity: 0, transition: { duration: 0.08 } }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
           >
             <Suspense fallback={<div className="py-12"><Spinner /></div>}>
               <RouteView route={route} />

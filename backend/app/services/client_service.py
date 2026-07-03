@@ -649,6 +649,31 @@ def mark_client_matches_seen(db: Session, agency_id: int, user, client_id: int) 
     return len(rows)
 
 
+def list_request_matches(
+    db: Session, agency_id: int, user, request_id: int, statuses: Optional[List[str]] = None
+) -> List[MatchOut]:
+    """Совпадения ОДНОЙ заявки (у клиента может быть несколько заявок — у каждой
+    свой список подходящих объектов)."""
+    _load_request_for_user(db, agency_id, user, request_id)  # проверка владения
+    rows = client_repo.list_matches(
+        db, agency_id, owner_id=_owner_filter(user), statuses=statuses, request_id=request_id, limit=200
+    )
+    return _rows_to_match_out(db, agency_id, rows)
+
+
+def mark_request_matches_seen(db: Session, agency_id: int, user, request_id: int) -> int:
+    """Отметить новые совпадения этой заявки просмотренными (значок гаснет)."""
+    _load_request_for_user(db, agency_id, user, request_id)  # проверка владения
+    rows = client_repo.list_matches(
+        db, agency_id, owner_id=_owner_filter(user), statuses=["new"], request_id=request_id, limit=500
+    )
+    for m, _r, _c, _a in rows:
+        m.status = "seen"
+    if rows:
+        db.commit()
+    return len(rows)
+
+
 def new_match_count(db: Session, agency_id: int, user) -> int:
     return client_repo.count_new_matches(db, agency_id, owner_id=_owner_filter(user))
 
