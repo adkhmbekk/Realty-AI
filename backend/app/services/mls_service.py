@@ -32,6 +32,21 @@ def _blank_contacts(apt_out: ApartmentOut) -> ApartmentOut:
     return apt_out
 
 
+def _agency_info(db: Session, items) -> dict:
+    """Для каждого уникального агентства из выборки: (отображаемое имя, контактный
+    телефон). Имя — бренд проекта, иначе name; телефон — agency.contact_phone: по
+    нему другое агентство связывается с риелтором, выложившим объект в общую базу."""
+    info: dict = {}
+    for a in items:
+        if a.agency_id not in info:
+            ag = agency_repo.get_by_id(db, a.agency_id)
+            info[a.agency_id] = (
+                (ag.project_name or ag.name) if ag is not None else None,
+                ag.contact_phone if ag is not None else None,
+            )
+    return info
+
+
 def list_pool(
     db: Session,
     *,
@@ -64,18 +79,15 @@ def list_pool(
         offset=offset,
     )
 
-    # Названия агентств-владельцев — одним проходом по уникальным id (как в
-    # list_matches): показываем бренд проекта, если он задан, иначе имя.
-    names: dict = {}
-    for a in items:
-        if a.agency_id not in names:
-            ag = agency_repo.get_by_id(db, a.agency_id)
-            names[a.agency_id] = (ag.project_name or ag.name) if ag is not None else None
+    # Имя + контактный телефон агентства-владельца — одним проходом по уникальным
+    # id: показываем бренд проекта (иначе имя) и agency.contact_phone для связи.
+    info = _agency_info(db, items)
 
     out_items: List[MlsPoolItemOut] = [
         MlsPoolItemOut(
             agency_id=a.agency_id,
-            agency_name=names.get(a.agency_id),
+            agency_name=info.get(a.agency_id, (None, None))[0],
+            agency_phone=info.get(a.agency_id, (None, None))[1],
             apartment=_blank_contacts(ApartmentOut.model_validate(a)),
         )
         for a in items
@@ -111,11 +123,7 @@ def list_pool_for_member(
         limit=limit,
         offset=offset,
     )
-    names: dict = {}
-    for a in items:
-        if a.agency_id not in names:
-            ag = agency_repo.get_by_id(db, a.agency_id)
-            names[a.agency_id] = (ag.project_name or ag.name) if ag is not None else None
+    info = _agency_info(db, items)
 
     out_items: List[MlsPoolItemOut] = []
     for a in items:
@@ -125,7 +133,8 @@ def list_pool_for_member(
         out_items.append(
             MlsPoolItemOut(
                 agency_id=a.agency_id,
-                agency_name=names.get(a.agency_id),
+                agency_name=info.get(a.agency_id, (None, None))[0],
+                agency_phone=info.get(a.agency_id, (None, None))[1],
                 apartment=apt_out,
             )
         )

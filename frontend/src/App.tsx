@@ -184,7 +184,7 @@ function RouteView({ route }: { route: Route }) {
     case "agencyObjectDetail":
       return <AgencyObjectDetailScreen obj={route.obj} agencyId={route.agencyId} />;
     case "mlsObjectDetail":
-      return <MlsObjectDetailScreen obj={route.obj} />;
+      return <MlsObjectDetailScreen item={route.item} />;
     case "addObject":
       return <AddObjectScreen />;
     case "search":

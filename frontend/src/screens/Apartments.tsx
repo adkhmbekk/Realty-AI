@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   Lock,
   Pencil,
+  Phone,
   RotateCcw,
   Search as SearchIcon,
   SearchX,
@@ -750,19 +751,28 @@ export function MlsBrowseScreen() {
             const mine = user?.agency_id != null && it.agency_id === user.agency_id;
             return (
               <div key={String(it.apartment.id) + "_" + i}>
-                <div className="flex items-center gap-1.5 mt-2.5 mx-0.5 text-[11.5px] font-bold flex-wrap">
+                <div className="flex items-center gap-x-2 gap-y-1 mt-2.5 mx-0.5 text-[11.5px] font-bold flex-wrap">
                   <span className={"px-1.5 py-0.5 rounded-full " + (mine ? "bg-emerald-100 text-emerald-700" : "bg-primary-soft text-primary")}>
                     {mine ? t("mlsMine") : it.agency_name || t("mlsOtherAgency")}
                   </span>
-                  {!mine && (
-                    <span className="text-muted inline-flex items-center gap-1">
-                      <Lock size={11} /> {t("mlsContactHidden")}
-                    </span>
-                  )}
+                  {!mine &&
+                    (it.agency_phone ? (
+                      <a
+                        href={"tel:" + it.agency_phone}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-primary font-extrabold"
+                      >
+                        <Phone size={12} /> {it.agency_phone}
+                      </a>
+                    ) : (
+                      <span className="text-muted inline-flex items-center gap-1">
+                        <Lock size={11} /> {t("mlsContactHidden")}
+                      </span>
+                    ))}
                 </div>
                 <ApartmentCard
                   o={it.apartment}
-                  onOpen={mine ? undefined : () => nav.push({ name: "mlsObjectDetail", obj: it.apartment })}
+                  onOpen={mine ? undefined : () => nav.push({ name: "mlsObjectDetail", item: it })}
                 />
               </div>
             );
@@ -1818,10 +1828,47 @@ export function AgencyObjectDetailScreen({ obj, agencyId }: { obj: Apartment; ag
   return <ReadonlyObjectCard o={obj} photosUrl={`/api/v1/agencies/${agencyId}/objects/${obj.id}/photos`} />;
 }
 
-// Чужой объект из общей базы MLS: та же read-only карточка (фото + характеристики),
-// БЕЗ номера собственника (сервер уже вычистил контакты у чужих объектов).
-export function MlsObjectDetailScreen({ obj }: { obj: Apartment }) {
-  return <ReadonlyObjectCard o={obj} photosUrl={`/api/v1/mls/objects/${obj.id}/photos`} />;
+// Контакт агентства-владельца объекта в общей базе MLS: заметная кнопка «позвонить»
+// (номер agency.contact_phone) — чтобы риелтор из другого агентства мог связаться.
+// Это НЕ номер собственника (он скрыт), а публичный контакт агентства.
+export function AgencyContactCard({ name, phone }: { name?: string | null; phone?: string | null }) {
+  const { t } = useApp();
+  if (phone) {
+    return (
+      <a
+        href={"tel:" + phone}
+        className="w-full rounded-xl2 p-3.5 text-white shadow-glow active:scale-[.99] transition flex items-center gap-3"
+        style={{ background: "var(--grad)" }}
+      >
+        <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+          <Phone size={22} />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[12px] font-semibold opacity-90">{t("mlsContactAgency")}{name ? " · " + name : ""}</span>
+          <span className="block font-extrabold text-[18px] tracking-tight">{phone}</span>
+        </span>
+      </a>
+    );
+  }
+  return (
+    <div className="rounded-xl2 border border-dashed border-line bg-[var(--soft)] px-3.5 py-3 text-[12.5px] text-muted">
+      {t("mlsNoAgencyPhone")}{name ? " · " + name : ""}
+    </div>
+  );
+}
+
+// Чужой объект из общей базы MLS: сверху — заметный контакт агентства (чтобы можно
+// было связаться), ниже — read-only карточка (фото + характеристики), БЕЗ номера
+// собственника (сервер уже вычистил контакты у чужих объектов).
+export function MlsObjectDetailScreen({ item }: { item: MlsPoolItem }) {
+  return (
+    <div>
+      <AgencyContactCard name={item.agency_name} phone={item.agency_phone} />
+      <div className="mt-3">
+        <ReadonlyObjectCard o={item.apartment} photosUrl={`/api/v1/mls/objects/${item.apartment.id}/photos`} />
+      </div>
+    </div>
+  );
 }
 
 export function ObjectDetailScreen({ id }: { id: number }) {

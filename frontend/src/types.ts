@@ -75,6 +75,8 @@ export interface ApartmentList {
 export interface MlsPoolItem {
   agency_id: number;
   agency_name?: string | null;
+  // Контактный номер агентства-владельца (для связи в общей базе MLS).
+  agency_phone?: string | null;
   apartment: Apartment;
 }
 

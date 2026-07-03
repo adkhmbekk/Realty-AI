@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
-import type { Apartment, SearchParams } from "./types";
+import type { Apartment, MlsPoolItem, SearchParams } from "./types";
 
 // Все экраны приложения. Стек хранит историю для кнопки «Назад».
 export type Route =
@@ -19,7 +19,7 @@ export type Route =
   | { name: "agencyManage"; id: number }
   | { name: "agencyObjects"; id: number }
   | { name: "agencyObjectDetail"; obj: Apartment; agencyId: number }
-  | { name: "mlsObjectDetail"; obj: Apartment }
+  | { name: "mlsObjectDetail"; item: MlsPoolItem }
   | { name: "addObject" }
   | { name: "search" }
   | { name: "objectList"; params: SearchParams; titleKey: string }
