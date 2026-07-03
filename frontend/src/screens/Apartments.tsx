@@ -977,7 +977,10 @@ function PendingPhotos({
 }
 
 // ── Импорт объявления по ссылке (AI-разбор) ─────────────────────────
-function ImportFromLink({ onImported }: { onImported: (r: ListingImport) => void }) {
+// Шаг «ИИ-импорт»: вставить ссылку на объявление → ИИ разберёт и заполнит карточку.
+// Показывается ТОЛЬКО после нажатия яркой кнопки (см. AddObjectScreen). После
+// успешного разбора этот шаг исчезает и открывается заполненная форма объекта.
+function ImportFromLink({ onImported, onBack }: { onImported: (r: ListingImport) => void; onBack: () => void }) {
   const { t, toast } = useApp();
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1000,29 +1003,56 @@ function ImportFromLink({ onImported }: { onImported: (r: ListingImport) => void
   }
 
   return (
-    <Card className="mb-3 relative overflow-hidden">
-      {/* Тонкое фиолетовое свечение — подсказывает, что здесь работает ИИ. */}
-      <div
-        className="absolute -right-14 -top-14 w-44 h-44 rounded-full pointer-events-none"
-        style={{ background: "radial-gradient(circle, var(--ring), transparent 68%)" }}
-      />
-      <div className="relative">
-        <div className="flex items-center gap-2.5 mb-2">
-          <span className="w-9 h-9 rounded-[11px] flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
-            <Sparkles size={17} />
-          </span>
-          <div>
-            <div className="text-[14px] font-extrabold leading-tight">{t("aiImportTitle")}</div>
-            <div className="text-[11.5px] text-muted">{t("importLinkLabel")}</div>
+    <div>
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-[13px] font-bold text-muted mb-2 active:scale-95 transition">
+        <ArrowLeft size={16} /> {t("aiBackManual")}
+      </button>
+      <Card className="relative overflow-hidden">
+        {/* Тонкое фиолетовое свечение — подсказывает, что здесь работает ИИ. */}
+        <div
+          className="absolute -right-14 -top-14 w-44 h-44 rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, var(--ring), transparent 68%)" }}
+        />
+        <div className="relative">
+          <div className="flex items-center gap-2.5 mb-2">
+            <span className="w-9 h-9 rounded-[11px] flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
+              <Sparkles size={17} />
+            </span>
+            <div>
+              <div className="text-[14px] font-extrabold leading-tight">{t("aiImportTitle")}</div>
+              <div className="text-[11.5px] text-muted">{t("importLinkLabel")}</div>
+            </div>
           </div>
+          <Input inputMode="url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} autoFocus />
+          <Button full className="mt-3" disabled={busy} onClick={run}>
+            <Sparkles size={16} /> {busy ? t("importing") : t("importBtn")}
+          </Button>
+          <Hint>{t("importHint")}</Hint>
         </div>
-        <Input inputMode="url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
-        <Button full className="mt-3" disabled={busy} onClick={run}>
-          <Sparkles size={16} /> {busy ? t("importing") : t("importBtn")}
-        </Button>
-        <Hint>{t("importHint")}</Hint>
-      </div>
-    </Card>
+      </Card>
+    </div>
+  );
+}
+
+// Яркая кнопка ИИ-добавления вверху экрана: сразу бросается в глаза, ведёт на шаг
+// «вставьте ссылку». Сам экран по умолчанию — ручной (форма ниже).
+function AiImportButton({ onClick }: { onClick: () => void }) {
+  const { t } = useApp();
+  return (
+    <button
+      onClick={() => { haptic(); onClick(); }}
+      className="w-full mb-2 rounded-xl2 p-4 text-white shadow-glow active:scale-[.99] transition flex items-center gap-3"
+      style={{ background: "var(--grad)" }}
+    >
+      <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+        <Sparkles size={22} />
+      </span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block font-extrabold text-[16px]">{t("aiAddBtn")}</span>
+        <span className="block text-[12.5px] opacity-90">{t("aiAddBtnSub")}</span>
+      </span>
+      <ChevronRight size={20} className="opacity-90 shrink-0" />
+    </button>
   );
 }
 
@@ -1037,6 +1067,9 @@ export function AddObjectScreen() {
   const [imgUrls, setImgUrls] = useState<string[]>([]);
   const [imported, setImported] = useState<Partial<Apartment> | null>(null);
   const [formKey, setFormKey] = useState(0);
+  // Шаг «вставьте ссылку» (после нажатия яркой ИИ-кнопки). По умолчанию false —
+  // экран ручной. После разбора ссылки сбрасывается и открывается форма.
+  const [aiPasting, setAiPasting] = useState(false);
 
   function applyImport(r: ListingImport) {
     setImported({
@@ -1065,6 +1098,7 @@ export function AddObjectScreen() {
     });
     setImgUrls(r.photo_urls || []);
     setFormKey((k) => k + 1); // перемонтировать форму, чтобы поля перечитались
+    setAiPasting(false); // уходим с шага ссылки — ниже откроется заполненная форма
   }
 
   async function submit(body: Record<string, unknown>) {
@@ -1131,9 +1165,22 @@ export function AddObjectScreen() {
     nav.push({ name: "objectDetail", id: newId });
   }
 
+  // Шаг ИИ: показываем ТОЛЬКО поле ссылки. После разбора (applyImport) поле
+  // исчезает и открывается заполненная карточка (ветка ниже).
+  if (aiPasting && imported == null) {
+    return <ImportFromLink onImported={applyImport} onBack={() => setAiPasting(false)} />;
+  }
+
   return (
     <>
-      <ImportFromLink onImported={applyImport} />
+      {/* По умолчанию экран ручной. Вверху — яркая кнопка ИИ-добавления. После
+          импорта её не показываем: карточка уже заполнена ИИ. */}
+      {imported == null && (
+        <>
+          <AiImportButton onClick={() => setAiPasting(true)} />
+          <div className="text-center text-[12px] font-semibold text-muted mb-2">{t("orManually")}</div>
+        </>
+      )}
       <ObjectForm key={formKey} initial={imported || undefined} onSubmit={submit} submitLabel={t("saveObject")} saving={saving}>
         <PendingPhotos
           files={files}

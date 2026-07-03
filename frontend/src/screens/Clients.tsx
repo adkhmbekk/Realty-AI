@@ -1050,6 +1050,7 @@ function matchScoreClass(score: number): string {
 // длинный список не «засоряет» карточку. Здесь показываем их полностью.
 export function ClientMatchesScreen({ id }: { id: number }) {
   const { t, toast } = useApp();
+  const nav = useNav();
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [dealFor, setDealFor] = useState<number | null>(null);
 
@@ -1098,7 +1099,18 @@ export function ClientMatchesScreen({ id }: { id: number }) {
           {!!(m.match_missing && m.match_missing.length) && (
             <div className="text-[11px] text-amber-600 mb-1">⚠ {t("matchIncomplete")}: {m.match_missing.map((c) => t("mf_" + c)).join(", ")}</div>
           )}
-          <ApartmentCard o={m.apartment} onOpen={m.source === "mls" ? false : undefined} />
+          <ApartmentCard
+            o={m.apartment}
+            onOpen={
+              m.source === "mls"
+                ? () =>
+                    nav.push({
+                      name: "mlsObjectDetail",
+                      item: { agency_id: m.agency_id ?? 0, agency_name: m.mls_agency ?? null, agency_phone: m.agency_phone ?? null, apartment: m.apartment },
+                    })
+                : undefined
+            }
+          />
           {dealFor === m.id ? (
             <DealFromMatch
               match={m}

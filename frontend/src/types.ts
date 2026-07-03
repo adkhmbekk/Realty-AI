@@ -391,6 +391,9 @@ export interface Match {
   // MLS (Волна 9): own/mls; агентство-владелец; «возможно дубль».
   source?: string;
   mls_agency?: string | null;
+  // Для mls-совпадений: агентство-владелец и его контактный телефон (для связи).
+  agency_id?: number | null;
+  agency_phone?: string | null;
   possible_dup?: boolean;
   apartment: Apartment;
 }

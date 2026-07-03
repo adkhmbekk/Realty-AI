@@ -563,15 +563,21 @@ def _rows_to_match_out(db: Session, agency_id: int, rows) -> List[MatchOut]:
     # Названия агентств-владельцев — для MLS-совпадений (чужие объекты).
     from app.repositories import agency_repo
     ag_names: dict = {}
+    ag_phones: dict = {}
     for _m, _r, _c, a in rows:
         if _m.source == "mls" and a.agency_id not in ag_names:
             ag = agency_repo.get_by_id(db, a.agency_id)
             ag_names[a.agency_id] = (ag.project_name or ag.name) if ag is not None else None
+            # Контактный телефон агентства-владельца — чтобы из совпадения можно было
+            # связаться (как в общей базе). Это НЕ номер собственника (тот скрыт).
+            ag_phones[a.agency_id] = ag.contact_phone if ag is not None else None
     out: List[MatchOut] = []
     for m, r, c, a in rows:
         reasons = m.reasons or {}
         apt_out = ApartmentOut.model_validate(a)
         mls_agency = None
+        mls_agency_id = None
+        agency_phone = None
         possible_dup = False
         if m.source == "mls":
             # Скрываем контакт владельца И личность чужого агента/точный адрес
@@ -586,6 +592,8 @@ def _rows_to_match_out(db: Session, agency_id: int, rows) -> List[MatchOut]:
             apt_out.created_by_name = None
             apt_out.address = None
             mls_agency = ag_names.get(a.agency_id)
+            mls_agency_id = a.agency_id
+            agency_phone = ag_phones.get(a.agency_id)
             possible_dup = client_repo.has_similar_own(db, agency_id, a.district, a.rooms, a.price, a.deal_type)
         out.append(
             MatchOut(
@@ -601,6 +609,8 @@ def _rows_to_match_out(db: Session, agency_id: int, rows) -> List[MatchOut]:
                 match_missing=list(reasons.get("missing", []) or []),
                 source=m.source,
                 mls_agency=mls_agency,
+                agency_id=mls_agency_id,
+                agency_phone=agency_phone,
                 possible_dup=possible_dup,
                 apartment=apt_out,
             )

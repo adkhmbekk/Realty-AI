@@ -181,6 +181,10 @@ class MatchOut(BaseModel):
     # MLS (Волна 9): own/mls; название агентства-владельца (для mls); «возможно дубль».
     source: str = "own"
     mls_agency: Optional[str] = None
+    # Для mls-совпадений: id и контактный телефон агентства-владельца — чтобы из
+    # карточки совпадения можно было связаться (телефон собственника скрыт).
+    agency_id: Optional[int] = None
+    agency_phone: Optional[str] = None
     possible_dup: bool = False
     apartment: ApartmentOut
 
