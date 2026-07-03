@@ -739,7 +739,7 @@ export function MlsBrowseScreen() {
         ))}
       </div>
       {items === null ? (
-        <Spinner />
+        <ListSkeleton />
       ) : !items.length ? (
         <Empty icon={<HomeIcon size={24} />}>{t("mlsEmpty")}</Empty>
       ) : (
@@ -1557,7 +1557,7 @@ export function DuplicatesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!groups) return <Spinner />;
+  if (!groups) return <ListSkeleton />;
   if (!groups.length) return <Empty>{t("noDuplicates")}</Empty>;
 
   const pos = Math.min(idx, groups.length - 1);

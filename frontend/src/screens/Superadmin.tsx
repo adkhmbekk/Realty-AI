@@ -7,7 +7,7 @@ import { useNav } from "../nav";
 import { useActing } from "../acting";
 import { api, errText } from "../api";
 import { ApartmentCard } from "./Apartments";
-import { Badge, Button, Card, Empty, Field, Hint, Input, Row, Spinner } from "../components/ui";
+import { Badge, Button, Card, Empty, Field, Hint, Input, ListSkeleton, Row, Spinner } from "../components/ui";
 import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, AgencyUsage, Apartment, ApartmentList, MlsPoolItem, MlsPoolResponse, PaymentsSummary } from "../types";
 import { copyText, fmtAmount, fmtDate } from "../utils";
 
@@ -483,7 +483,7 @@ export function AgenciesScreen() {
         {err ? (
           <Empty>{err}</Empty>
         ) : !list ? (
-          <Spinner />
+          <ListSkeleton />
         ) : !list.length ? (
           <Empty icon={<Building2 size={24} />}>{t("noAgencies")}</Empty>
         ) : (
@@ -588,7 +588,7 @@ export function MyAgenciesScreen() {
         {err ? (
           <Empty>{err}</Empty>
         ) : !list ? (
-          <Spinner />
+          <ListSkeleton />
         ) : !list.length ? (
           <Empty icon={<Briefcase size={24} />}>{t("noPersonalAgencies")}</Empty>
         ) : (
@@ -985,7 +985,7 @@ export function AgencyObjectsScreen({ id }: { id: number }) {
         {t("actObjects")}: <b>{total}</b>
       </div>
       {!items ? (
-        <Spinner />
+        <ListSkeleton />
       ) : !items.length ? (
         <Empty icon={<Building2 size={24} />}>{t("noObjectsYet")}</Empty>
       ) : (
@@ -1109,7 +1109,7 @@ export function MlsPoolScreen() {
         {err ? (
           <Empty>{err}</Empty>
         ) : loading && items.length === 0 ? (
-          <Spinner />
+          <ListSkeleton />
         ) : !items.length ? (
           <Empty icon={<Building2 size={24} />}>{t("mlsEmpty")}</Empty>
         ) : (

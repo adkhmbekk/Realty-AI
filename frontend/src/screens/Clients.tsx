@@ -34,6 +34,7 @@ import {
   Field,
   Hint,
   Input,
+  ListSkeleton,
   Segmented,
   Select,
   Spinner,
@@ -406,7 +407,7 @@ export function ClientsScreen() {
       {adding && !archived && <AddClientForm onDone={() => { setAdding(false); load(); }} />}
 
       {!clients ? (
-        <Spinner />
+        <ListSkeleton />
       ) : !clients.length ? (
         <Empty icon={<Users size={24} />} sub={archived ? undefined : t("clientsEmptySub")}>
           {archived ? t("archivedEmpty") : t("clientsEmpty")}
@@ -1075,7 +1076,7 @@ export function ClientMatchesScreen({ clientId, requestId, label }: { clientId: 
 
   const active = (matches || []).filter((m) => m.status !== "dismissed");
 
-  if (matches === null) return <Spinner />;
+  if (matches === null) return <ListSkeleton />;
   if (!active.length)
     return (
       <div>

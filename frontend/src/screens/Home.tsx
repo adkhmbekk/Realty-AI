@@ -3,7 +3,7 @@ import { BarChart3, ChevronRight, Database, Layers, Mail, Plus, Search, Settings
 import { useApp } from "../store";
 import { useNav, Route } from "../nav";
 import { api } from "../api";
-import { Card } from "../components/ui";
+import { Card, Skeleton } from "../components/ui";
 import type { ApartmentStats, ClientStats } from "../types";
 import { initials } from "../utils";
 import { haptic } from "../telegram";
@@ -87,6 +87,25 @@ function BaseCard({
   );
 }
 
+// «Каркас» карточки базы на время загрузки статистики: повторяет раскладку
+// BaseCard (иконка+заголовок, крупная плитка «активные», две мелкие), чтобы
+// карточки не «выпрыгивали» на пустом месте.
+function BaseCardSkeleton() {
+  return (
+    <div className="rounded-xl2 bg-card border border-line shadow-soft p-3 flex flex-col">
+      <div className="flex items-center gap-2 mb-2.5">
+        <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
+        <Skeleton className="h-3 flex-1" />
+      </div>
+      <Skeleton className="h-[52px] rounded-xl mb-1.5" />
+      <div className="flex gap-1.5">
+        <Skeleton className="h-[42px] flex-1 rounded-xl" />
+        <Skeleton className="h-[42px] flex-1 rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
 // Две базы на главной вместо голой статистики: своя база агентства и общая база
 // MLS (открыта всем агентствам). Активные — в приоритете, крупнее.
 function Bases() {
@@ -95,16 +114,22 @@ function Bases() {
   const [own, setOwn] = useState<ApartmentStats | null>(null);
   const [mls, setMls] = useState<ApartmentStats | null>(null);
   useEffect(() => {
-    api<ApartmentStats>("/api/v1/apartments/stats").then((r) => {
-      if (r.ok && r.data) setOwn(r.data);
-    });
-    api<ApartmentStats>("/api/v1/mls/stats").then((r) => {
-      if (r.ok && r.data) setMls(r.data);
-    });
+    // При ошибке ставим нули (а не оставляем null) — иначе «каркас» завис бы навсегда.
+    const zero: ApartmentStats = { active: 0, deposit: 0, sold: 0, total: 0 };
+    api<ApartmentStats>("/api/v1/apartments/stats").then((r) => setOwn(r.ok && r.data ? r.data : zero));
+    api<ApartmentStats>("/api/v1/mls/stats").then((r) => setMls(r.ok && r.data ? r.data : zero));
   }, []);
-  if (!own) return null;
+  // Пока грузятся обе базы — показываем «каркас» вместо пустоты.
+  if (!own || !mls) {
+    return (
+      <div className="mb-4 grid grid-cols-2 gap-2.5 items-stretch">
+        <BaseCardSkeleton />
+        <BaseCardSkeleton />
+      </div>
+    );
+  }
   // Своя база и общая пусты → дружелюбный онбординг «добавьте первый объект».
-  if (own.total === 0 && (!mls || mls.total === 0)) {
+  if (own.total === 0 && mls.total === 0) {
     return (
       <button
         onClick={() => {
@@ -128,12 +153,7 @@ function Bases() {
   return (
     <div className="mb-4 grid grid-cols-2 gap-2.5 items-stretch">
       <BaseCard title={t("ownBaseTitle")} icon={<Database size={18} />} stats={own} onOpen={() => nav.push({ name: "database" })} />
-      <BaseCard
-        title={t("mlsBaseTitle")}
-        icon={<Layers size={18} />}
-        stats={mls || { active: 0, deposit: 0, sold: 0, total: 0 }}
-        onOpen={() => nav.push({ name: "mlsBrowse" })}
-      />
+      <BaseCard title={t("mlsBaseTitle")} icon={<Layers size={18} />} stats={mls} onOpen={() => nav.push({ name: "mlsBrowse" })} />
     </div>
   );
 }
@@ -194,7 +214,16 @@ function ClientsCard() {
           <ChevronRight size={18} className="text-muted shrink-0" />
         )}
       </div>
-      {hasStats && (
+      {s === null ? (
+        <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-line">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              <Skeleton className="h-5 w-8" />
+              <Skeleton className="h-2 w-12" />
+            </div>
+          ))}
+        </div>
+      ) : hasStats ? (
         <div className={"grid grid-cols-4 gap-2 mt-3 pt-3 border-t " + (hot ? "border-white/25" : "border-line")}>
           {tiles.map((tl) => (
             <div key={tl.key} className="text-center">
@@ -203,7 +232,7 @@ function ClientsCard() {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </button>
   );
 }
