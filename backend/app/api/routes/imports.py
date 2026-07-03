@@ -21,7 +21,7 @@ from app.db.session import get_db
 from typing import List
 
 from app.schemas.base_import import BaseImportAnalyzeOut, BaseImportCommitOut
-from app.schemas.tg_import import TelegramScanIn, TelegramScanOut, WatchIn, WatchOut
+from app.schemas.tg_import import TelegramScanIn, TelegramScanOut, WatchIn, WatchOut, WatchUpdate
 from app.services import base_import_service, telegram_channel_service
 
 router = APIRouter(prefix="/imports", tags=["imports"])
@@ -103,6 +103,20 @@ def add_watch(
     """Включить слежение за каналом: новые посты будут добавляться автоматически."""
     return telegram_channel_service.add_watch(
         db, current_user.agency_id, current_user.id, body.channel, body.share_mls
+    )
+
+
+@router.patch("/telegram/watches/{watch_id}", response_model=WatchOut)
+def update_watch(
+    watch_id: int,
+    body: WatchUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_owner),
+):
+    """Управление каналом слежки: вкл/выкл авто-добавление в базу и «делиться в МЛС»."""
+    return telegram_channel_service.update_watch(
+        db, current_user.agency_id, watch_id,
+        enabled=body.enabled, share_mls=body.share_mls,
     )
 
 

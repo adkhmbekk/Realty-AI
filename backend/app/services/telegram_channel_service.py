@@ -380,6 +380,30 @@ def list_watches(db: Session, agency_id: int) -> List[WatchedChannel]:
     )
 
 
+def update_watch(
+    db: Session, agency_id: int, watch_id: int,
+    enabled: Optional[bool] = None, share_mls: Optional[bool] = None,
+) -> WatchedChannel:
+    """Изменить настройки канала слежки: вкл/выкл авто-добавление в базу
+    (enabled) и делиться ли авто-объектами в общей базе МЛС (share_mls).
+    Меняем только присланные поля. Курсор (last_post_id) не трогаем — при
+    повторном включении канал доберёт пропущенные посты постепенно."""
+    w = (
+        db.query(WatchedChannel)
+        .filter(WatchedChannel.agency_id == agency_id, WatchedChannel.id == watch_id)
+        .first()
+    )
+    if w is None:
+        raise AppError("watch_not_found", http_status.HTTP_404_NOT_FOUND)
+    if enabled is not None:
+        w.enabled = enabled
+    if share_mls is not None:
+        w.share_mls = share_mls
+    db.commit()
+    db.refresh(w)
+    return w
+
+
 def remove_watch(db: Session, agency_id: int, watch_id: int) -> None:
     w = (
         db.query(WatchedChannel)

@@ -57,6 +57,14 @@ class WatchIn(BaseModel):
         return v
 
 
+class WatchUpdate(BaseModel):
+    # Управление каналом слежки: включить/выключить авто-добавление в базу
+    # и делиться ли авто-объектами в общей базе (MLS). Оба поля необязательные —
+    # меняем только присланные.
+    enabled: Optional[bool] = None
+    share_mls: Optional[bool] = None
+
+
 class WatchOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

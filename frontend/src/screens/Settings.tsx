@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, ChevronRight, DownloadCloud, FileDown, FileUp, Moon, Radio, Sheet, Sun } from "lucide-react";
+import { CheckCircle2, ChevronRight, DownloadCloud, FileDown, FileUp, Moon, Radio, Sheet, Sun, Trash2 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { api, apiUpload, errText, type ApiResult } from "../api";
-import { Button, Card, Field, Hint, Input, Label, Segmented, Select, SectionTitle } from "../components/ui";
+import { Button, Card, Field, Hint, Input, Label, Segmented, Select, SectionTitle, Switch } from "../components/ui";
 import { Lang } from "../i18n";
 import type { AgencySettings, SheetStatus } from "../types";
 import { confirmDialog, openLink } from "../telegram";
+import { fmtDate } from "../utils";
 
 // ── Карточка подключения Google Sheets (только для главного админа) ──
 function GoogleSheetsCard() {
@@ -480,7 +481,7 @@ function MassImportCard() {
 // Здесь же выбор «делиться авто-объектами в общей базе МЛС» (для этого канала).
 // Плюс у каждого объекта своя галочка «в общую базу» в карточке объекта.
 function WatchCard() {
-  const { t, toast } = useApp();
+  const { t, lang, toast } = useApp();
   const [channel, setChannel] = useState("");
   const [shareMls, setShareMls] = useState(false);
   type Watch = { id: number; channel: string; enabled: boolean; share_mls?: boolean; last_checked_at: string | null };
@@ -500,10 +501,22 @@ function WatchCard() {
     if (r.ok) {
       toast(t("tgWatchAdded"), "ok");
       setChannel("");
+      setShareMls(false);
       loadWatches();
     } else toast(errText(r.data, r.status) || t("tgImportError"), "err");
   }
+  // Ползунок переключаем сразу (оптимистично), затем шлём PATCH; при ошибке —
+  // возвращаем серверное состояние.
+  async function patchWatch(w: Watch, patch: { enabled?: boolean; share_mls?: boolean }) {
+    setWatches((list) => list.map((x) => (x.id === w.id ? { ...x, ...patch } : x)));
+    const r = await api<Watch>(`/api/v1/imports/telegram/watches/${w.id}`, { method: "PATCH", body: patch });
+    if (!r.ok) {
+      toast(errText(r.data, r.status) || t("tgImportError"), "err");
+      loadWatches();
+    }
+  }
   async function removeWatch(id: number) {
+    if (!(await confirmDialog(t("tgWatchRemoveQ")))) return;
     const r = await api(`/api/v1/imports/telegram/watches/${id}`, { method: "DELETE" });
     if (r.ok) loadWatches();
     else toast(errText(r.data, r.status), "err");
@@ -533,20 +546,40 @@ function WatchCard() {
           {t("tgWatchAdd")}
         </Button>
         {watches.length > 0 && (
-          <div className="mt-3 space-y-1.5">
+          <div className="mt-4 space-y-2.5">
+            <div className="text-[12px] font-bold text-muted mx-0.5">{t("tgWatchListTitle")}</div>
             {watches.map((w) => (
-              <div
-                key={w.id}
-                className="flex items-center justify-between gap-2 rounded-xl bg-[var(--soft)] px-3 py-2 text-[13px]"
-              >
-                <span className="truncate">@{w.channel}{w.share_mls ? " · 🌐" : ""}</span>
-                <button
-                  onClick={() => removeWatch(w.id)}
-                  className="text-rose-600 font-extrabold shrink-0 px-1 active:scale-90 transition"
-                  aria-label={t("tgWatchRemove")}
-                >
-                  ✕
-                </button>
+              <div key={w.id} className="rounded-xl border border-line bg-[var(--soft)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-extrabold truncate inline-flex items-center gap-1.5 min-w-0">
+                    <Radio size={15} className={w.enabled ? "text-primary shrink-0" : "text-muted shrink-0"} />
+                    <span className="truncate">@{w.channel}</span>
+                  </span>
+                  <button
+                    onClick={() => removeWatch(w.id)}
+                    className="shrink-0 p-1.5 -mr-1 text-muted hover:text-[var(--danger)] active:scale-90 transition"
+                    aria-label={t("tgWatchRemove")}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="mt-2.5 flex items-center justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-bold">{t("tgWatchAddToBase")}</span>
+                    <span className="block text-[11.5px] text-muted leading-snug">{t("tgWatchAddToBaseSub")}</span>
+                  </span>
+                  <Switch checked={w.enabled} onChange={(v) => patchWatch(w, { enabled: v })} label={t("tgWatchAddToBase")} />
+                </div>
+                <div className="mt-2.5 flex items-center justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-bold">{t("tgShareMls")}</span>
+                    <span className="block text-[11.5px] text-muted leading-snug">{t("tgWatchShareMlsSub")}</span>
+                  </span>
+                  <Switch checked={!!w.share_mls} onChange={(v) => patchWatch(w, { share_mls: v })} label={t("tgShareMls")} />
+                </div>
+                {w.last_checked_at && (
+                  <div className="mt-2 text-[11px] text-muted">{t("tgWatchLastChecked")}: {fmtDate(w.last_checked_at, lang)}</div>
+                )}
               </div>
             ))}
           </div>
