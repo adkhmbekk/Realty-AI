@@ -120,6 +120,28 @@ export function paramsToCriteria(p: SearchParams): Criteria {
   };
 }
 
+// Существующая заявка клиента → критерии для формы редактирования (числа в строки).
+export function requestToCriteria(r: ClientRequest): Criteria {
+  const s = (v: number | null | undefined) => (v != null ? String(v) : "");
+  return {
+    deal_type: r.deal_type || "sale",
+    types: r.types || [],
+    districts: r.districts || [],
+    rooms_min: s(r.rooms_min),
+    rooms_max: s(r.rooms_max),
+    floor_min: s(r.floor_min),
+    floor_max: s(r.floor_max),
+    land_area_min: s(r.land_area_min),
+    land_area_max: s(r.land_area_max),
+    area_min: s(r.area_min),
+    area_max: s(r.area_max),
+    price_min: s(r.price_min),
+    price_max: s(r.price_max),
+    currency: r.currency || "",
+    note: r.note || "",
+  };
+}
+
 const numOrU = (v: string): number | undefined => {
   const s = v.trim();
   if (!s) return undefined;
@@ -1108,6 +1130,9 @@ export function ClientDetailScreen({ id }: { id: number }) {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [matches, setMatches] = useState<Match[] | null>(null);
+  // Редактирование существующей заявки: id заявки в правке + её критерии в форме.
+  const [editReqId, setEditReqId] = useState<number | null>(null);
+  const [editCrit, setEditCrit] = useState<Criteria>(emptyCriteria());
 
   async function load() {
     const r = await api<Client>("/api/v1/clients/" + id);
@@ -1128,6 +1153,26 @@ export function ClientDetailScreen({ id }: { id: number }) {
     loadMatches();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  function startEdit(r: ClientRequest) {
+    setEditCrit(requestToCriteria(r));
+    setEditReqId(r.id);
+  }
+  async function saveEdit(reqId: number) {
+    if (!criteriaNonEmpty(editCrit)) {
+      toast(t("reqEmpty"), "err");
+      return;
+    }
+    setSaving(true);
+    const r = await api("/api/v1/clients/requests/" + reqId, { method: "PATCH", body: criteriaToBody(editCrit) });
+    setSaving(false);
+    if (r.ok) {
+      haptic();
+      toast(t("saved"), "ok");
+      setEditReqId(null);
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
 
   async function addRequest() {
     if (!criteriaNonEmpty(crit)) {
@@ -1259,40 +1304,54 @@ export function ClientDetailScreen({ id }: { id: number }) {
 
       {!c.requests.length && !addReq && <Empty sub={t("noRequestsSub")}>{t("noRequests")}</Empty>}
 
-      {c.requests.map((r) => (
-        <Card key={r.id} className="mt-2.5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="font-bold text-[14px] leading-snug">{requestLabel(r, L, t)}</div>
-              {r.note && <div className="text-[12.5px] text-muted mt-0.5">{r.note}</div>}
-              <div className="text-[12px] text-muted mt-1">{fmtDate(r.created_at, lang)}</div>
+      {c.requests.map((r) =>
+        editReqId === r.id ? (
+          <Card key={r.id} className="mt-2.5">
+            <Hint>{t("wantedHint")}</Hint>
+            <CriteriaEditor value={editCrit} onChange={setEditCrit} />
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <Button variant="ghost" disabled={saving} onClick={() => setEditReqId(null)}>{t("cancel")}</Button>
+              <Button disabled={saving} onClick={() => saveEdit(r.id)}>{t("saveRequestBtn")}</Button>
             </div>
-            <span className="flex flex-col items-end gap-1 shrink-0">
-              {r.status !== "active" && <Badge color="gray">{t("reqStatus_" + r.status)}</Badge>}
-              {r.match_count > 0 && (
-                <Badge color={r.new_match_count > 0 ? "red" : "green"}>
-                  {t("foundN").replace("{n}", String(r.match_count))}
-                </Badge>
-              )}
-            </span>
-          </div>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            <Button size="sm" variant="ghost" onClick={() => rescan(r.id)}>
-              <RefreshCw size={14} /> {t("rescan")}
-            </Button>
-            {r.status === "active" ? (
-              <Button size="sm" variant="ghost" onClick={() => closeRequest(r.id)}>
-                {t("closeRequest")}
+          </Card>
+        ) : (
+          <Card key={r.id} className="mt-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-bold text-[14px] leading-snug">{requestLabel(r, L, t)}</div>
+                {r.note && <div className="text-[12.5px] text-muted mt-0.5">{r.note}</div>}
+                <div className="text-[12px] text-muted mt-1">{fmtDate(r.created_at, lang)}</div>
+              </div>
+              <span className="flex flex-col items-end gap-1 shrink-0">
+                {r.status !== "active" && <Badge color="gray">{t("reqStatus_" + r.status)}</Badge>}
+                {r.match_count > 0 && (
+                  <Badge color={r.new_match_count > 0 ? "red" : "green"}>
+                    {t("foundN").replace("{n}", String(r.match_count))}
+                  </Badge>
+                )}
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <Button size="sm" variant="ghost" onClick={() => startEdit(r)}>
+                <Pencil size={14} /> {t("edit")}
               </Button>
-            ) : (
-              <span />
-            )}
-            <Button size="sm" variant="danger" onClick={() => delRequest(r.id)}>
-              <Trash2 size={14} />
-            </Button>
-          </div>
-        </Card>
-      ))}
+              <Button size="sm" variant="ghost" onClick={() => rescan(r.id)}>
+                <RefreshCw size={14} /> {t("rescan")}
+              </Button>
+              {r.status === "active" ? (
+                <Button size="sm" variant="ghost" onClick={() => closeRequest(r.id)}>
+                  {t("closeRequest")}
+                </Button>
+              ) : (
+                <span />
+              )}
+              <Button size="sm" variant="danger" onClick={() => delRequest(r.id)}>
+                <Trash2 size={14} />
+              </Button>
+            </div>
+          </Card>
+        )
+      )}
 
       {/* Совпадения — за отдельной кнопкой: если подходящих объектов много,
           длинный список не «засоряет» карточку клиента. Открывается отдельный экран. */}
