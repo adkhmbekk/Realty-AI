@@ -190,6 +190,7 @@ def list_matches(
     *,
     owner_id: Optional[int] = None,
     statuses: Optional[Sequence[str]] = None,
+    client_id: Optional[int] = None,
     limit: int = 100,
 ) -> List[Tuple[RequestMatch, ClientRequest, Client, Apartment]]:
     # Архивных (удалённых) клиентов в совпадениях не показываем (Волна-фикс).
@@ -198,6 +199,9 @@ def list_matches(
         conds.append(RequestMatch.status.in_(list(statuses)))
     if owner_id is not None:
         conds.append(Client.created_by == owner_id)
+    # Совпадения ОДНОГО клиента (адресный просмотр внутри карточки клиента).
+    if client_id is not None:
+        conds.append(Client.id == client_id)
     rows = db.execute(
         select(RequestMatch, ClientRequest, Client, Apartment)
         .join(ClientRequest, RequestMatch.request_id == ClientRequest.id)
@@ -368,6 +372,18 @@ def get_agency_apartment(db: Session, agency_id: int, apartment_id: int) -> Opti
     """Объект СВОЕГО агентства (для привязки к сделке)."""
     return db.execute(
         select(Apartment).where(Apartment.id == apartment_id, Apartment.agency_id == agency_id)
+    ).scalar_one_or_none()
+
+
+def get_shared_apartment(db: Session, apartment_id: int) -> Optional[Apartment]:
+    """Объект ОБЩЕЙ базы (shared_mls) ЛЮБОГО агентства — для кросс-агентской сделки
+    (когда совпадение пришло из общей базы MLS другого агентства)."""
+    return db.execute(
+        select(Apartment).where(
+            Apartment.id == apartment_id,
+            Apartment.shared_mls.is_(True),
+            Apartment.deleted_at.is_(None),
+        )
     ).scalar_one_or_none()
 
 

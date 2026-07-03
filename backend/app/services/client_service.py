@@ -555,10 +555,9 @@ def rescan_request(db: Session, agency_id: int, user, request_id: int) -> int:
 
 
 # ── Совпадения ───────────────────────────────────────────────────────
-def list_matches(db: Session, agency_id: int, user, statuses: Optional[List[str]] = None) -> List[MatchOut]:
-    rows = client_repo.list_matches(
-        db, agency_id, owner_id=_owner_filter(user), statuses=statuses, limit=100
-    )
+def _rows_to_match_out(db: Session, agency_id: int, rows) -> List[MatchOut]:
+    """Собрать MatchOut из строк (m, r, c, a). У MLS-совпадений (чужой объект)
+    скрываем контакт владельца, точный адрес и личность чужого агента."""
     apts = [a for _m, _r, _c, a in rows]
     apartment_service._attach_creators(db, apts)
     # Названия агентств-владельцев — для MLS-совпадений (чужие объекты).
@@ -607,6 +606,37 @@ def list_matches(db: Session, agency_id: int, user, statuses: Optional[List[str]
             )
         )
     return out
+
+
+def list_matches(db: Session, agency_id: int, user, statuses: Optional[List[str]] = None) -> List[MatchOut]:
+    rows = client_repo.list_matches(
+        db, agency_id, owner_id=_owner_filter(user), statuses=statuses, limit=100
+    )
+    return _rows_to_match_out(db, agency_id, rows)
+
+
+def list_client_matches(
+    db: Session, agency_id: int, user, client_id: int, statuses: Optional[List[str]] = None
+) -> List[MatchOut]:
+    """Совпадения ОДНОГО клиента (подходящие объекты именно для него)."""
+    _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
+    rows = client_repo.list_matches(
+        db, agency_id, owner_id=_owner_filter(user), statuses=statuses, client_id=client_id, limit=200
+    )
+    return _rows_to_match_out(db, agency_id, rows)
+
+
+def mark_client_matches_seen(db: Session, agency_id: int, user, client_id: int) -> int:
+    """Отметить новые совпадения этого клиента просмотренными (значок гаснет)."""
+    _load_client_for_user(db, agency_id, user, client_id)  # проверка владения
+    rows = client_repo.list_matches(
+        db, agency_id, owner_id=_owner_filter(user), statuses=["new"], client_id=client_id, limit=500
+    )
+    for m, _r, _c, _a in rows:
+        m.status = "seen"
+    if rows:
+        db.commit()
+    return len(rows)
 
 
 def new_match_count(db: Session, agency_id: int, user) -> int:
@@ -812,6 +842,9 @@ def create_deal(db: Session, agency_id: int, user, client_id: int, payload: Deal
     if payload.apartment_id is not None:
         apt = client_repo.get_agency_apartment(db, agency_id, payload.apartment_id)
         if apt is None:
+            # Объект из общей базы (MLS) другого агентства — кросс-агентская сделка.
+            apt = client_repo.get_shared_apartment(db, payload.apartment_id)
+        if apt is None:
             raise AppError("apartment_not_found", status.HTTP_404_NOT_FOUND)
         seller_agency = apt.agency_id
     agent_id = _valid_agent_id(db, agency_id, payload.agent_id) if payload.agent_id is not None else (c.created_by or user.id)
@@ -862,6 +895,8 @@ def update_deal(db: Session, agency_id: int, user, deal_id: int, payload: DealUp
             d.seller_agency_id = None  # фикс аудита #14: убрали объект — убираем и его агентство
         else:
             apt = client_repo.get_agency_apartment(db, agency_id, data["apartment_id"])
+            if apt is None:
+                apt = client_repo.get_shared_apartment(db, data["apartment_id"])
             if apt is None:
                 raise AppError("apartment_not_found", status.HTTP_404_NOT_FOUND)
             d.apartment_id = apt.id

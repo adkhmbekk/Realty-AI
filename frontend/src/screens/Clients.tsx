@@ -327,10 +327,8 @@ export function CriteriaEditor({ value, onChange }: { value: Criteria; onChange:
 // ── Экран: список клиентов ──────────────────────────────────────────
 export function ClientsScreen() {
   const { t, toast } = useApp();
-  const nav = useNav();
   const [clients, setClients] = useState<Client[] | null>(null);
   const [q, setQ] = useState("");
-  const [newCount, setNewCount] = useState(0);
   const [adding, setAdding] = useState(false);
   const [archived, setArchived] = useState(false);
 
@@ -352,13 +350,8 @@ export function ClientsScreen() {
       load();
     } else toast(errText(r.data, r.status), "err");
   }
-  async function loadCount() {
-    const r = await api<{ new_count: number }>("/api/v1/clients/matches/summary");
-    if (r.ok && r.data) setNewCount(r.data.new_count);
-  }
   useEffect(() => {
     load();
-    loadCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Поиск с небольшой задержкой.
@@ -370,30 +363,6 @@ export function ClientsScreen() {
 
   return (
     <div>
-      <button
-        onClick={() => {
-          haptic();
-          nav.push({ name: "matches" });
-        }}
-        className={
-          "w-full flex items-center gap-3 rounded-xl2 border p-3.5 mb-3 transition active:scale-[.99] " +
-          (newCount > 0 ? "text-white shadow-glow border-transparent" : "bg-card border-line")
-        }
-        style={newCount > 0 ? { background: "var(--grad)" } : undefined}
-      >
-        <span className={"w-10 h-10 rounded-xl flex items-center justify-center " + (newCount > 0 ? "bg-white/20" : "bg-primary-soft text-primary")}>
-          <Bell size={20} />
-        </span>
-        <div className="min-w-0 flex-1 text-left">
-          <div className="font-extrabold">{t("matchesTitle")}</div>
-          <div className={"text-[12.5px] " + (newCount > 0 ? "opacity-90" : "text-muted")}>
-            {newCount > 0 ? t("newMatchesN").replace("{n}", String(newCount)) : t("matchesSub")}
-          </div>
-        </div>
-        {newCount > 0 && <Badge color="red">{newCount}</Badge>}
-        <ChevronRight size={18} className={newCount > 0 ? "opacity-90" : "text-muted"} />
-      </button>
-
       <div className="flex gap-2 mb-2">
         <button type="button" onClick={() => setArchived(false)} className={"flex-1 min-h-[40px] rounded-xl text-[13px] font-bold transition active:scale-95 " + (!archived ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted")}>{t("tabActive")}</button>
         <button type="button" onClick={() => setArchived(true)} className={"flex-1 min-h-[40px] rounded-xl text-[13px] font-bold transition active:scale-95 " + (archived ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted")}>{t("tabArchived")}</button>
@@ -412,7 +381,7 @@ export function ClientsScreen() {
         )}
       </div>
 
-      {adding && !archived && <AddClientForm onDone={() => { setAdding(false); load(); loadCount(); }} />}
+      {adding && !archived && <AddClientForm onDone={() => { setAdding(false); load(); }} />}
 
       {!clients ? (
         <Spinner />
@@ -559,13 +528,14 @@ function fmtMoney(v?: number | null, cur?: string | null): string {
   return new Intl.NumberFormat("ru-RU").format(v) + (cur ? " " + cur : "");
 }
 
-function ClientDeals({ clientId }: { clientId: number }) {
+function ClientDeals({ clientId, matches, reloadSignal }: { clientId: number; matches: Match[]; reloadSignal: number }) {
   const { t, toast } = useApp();
   const [deals, setDeals] = useState<Deal[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [price, setPrice] = useState("");
   const [commission, setCommission] = useState("");
   const [currency, setCurrency] = useState("USD");
+  const [apartmentId, setApartmentId] = useState("");
 
   async function load() {
     const r = await api<Deal[]>("/api/v1/clients/" + clientId + "/deals");
@@ -574,12 +544,13 @@ function ClientDeals({ clientId }: { clientId: number }) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+  }, [clientId, reloadSignal]);
 
   async function create() {
     const body: Record<string, unknown> = { stage: "new", currency };
     const p = Number(price.replace(",", "."));
     const cm = Number(commission.replace(",", "."));
+    if (apartmentId) body.apartment_id = Number(apartmentId);
     if (price.trim() && !Number.isNaN(p)) body.price = p;
     if (commission.trim() && !Number.isNaN(cm)) {
       body.commission = cm;
@@ -590,6 +561,7 @@ function ClientDeals({ clientId }: { clientId: number }) {
       haptic();
       setPrice("");
       setCommission("");
+      setApartmentId("");
       setCreating(false);
       load();
     } else toast(errText(r.data, r.status), "err");
@@ -622,6 +594,18 @@ function ClientDeals({ clientId }: { clientId: number }) {
       </div>
       {creating && (
         <Card className="mb-2">
+          {matches.length > 0 && (
+            <Field label={t("dealObject")}>
+              <Select value={apartmentId} onChange={(e) => setApartmentId(e.target.value)}>
+                <option value="">{t("dealNoObject")}</option>
+                {matches.map((m) => (
+                  <option key={m.id} value={m.apartment.id}>
+                    №{m.apartment.display_id}{m.apartment.district ? " · " + m.apartment.district : ""}{m.source === "mls" ? " · " + t("mlsBadge") : ""}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           <div className="flex gap-2">
             <div className="flex-1">
               <Field label={t("dealPrice")}>
@@ -977,6 +961,133 @@ function AddClientForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+// ── Сделка из совпадения: спрашиваем цену/валюту/комиссию и привязываем объект ──
+function DealFromMatch({ match, clientId, onDone, onCancel }: { match: Match; clientId: number; onDone: () => void; onCancel: () => void }) {
+  const { t, toast } = useApp();
+  const [price, setPrice] = useState(match.apartment.price != null ? String(match.apartment.price) : "");
+  const [currency, setCurrency] = useState(match.apartment.currency || "USD");
+  const [commission, setCommission] = useState("");
+  const [saving, setSaving] = useState(false);
+  async function submit() {
+    setSaving(true);
+    const body: Record<string, unknown> = { apartment_id: match.apartment.id, stage: "interested", currency };
+    const p = Number(price.replace(",", "."));
+    const cm = Number(commission.replace(",", "."));
+    if (price.trim() && !Number.isNaN(p)) body.price = p;
+    if (commission.trim() && !Number.isNaN(cm)) {
+      body.commission = cm;
+      body.commission_currency = currency;
+    }
+    const r = await api("/api/v1/clients/" + clientId + "/deals", { method: "POST", body });
+    setSaving(false);
+    if (r.ok) {
+      haptic();
+      toast(t("dealCreated"), "ok");
+      onDone();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  return (
+    <div className="mt-2 rounded-xl border border-line bg-[var(--soft)] p-3">
+      <div className="text-[12px] font-bold text-muted mb-2">{t("dealFromMatchHint")}</div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Field label={t("dealPrice")}>
+            <Input inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
+          </Field>
+        </div>
+        <div className="w-24">
+          <Field label={t("priceCurrency")}>
+            <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+      </div>
+      <Field label={t("dealCommission")}>
+        <Input inputMode="numeric" value={commission} onChange={(e) => setCommission(e.target.value)} />
+      </Field>
+      <div className="grid grid-cols-2 gap-2 mt-1">
+        <Button size="sm" variant="ghost" onClick={onCancel}>{t("cancel")}</Button>
+        <Button size="sm" disabled={saving} onClick={submit}>{t("createDeal")}</Button>
+      </div>
+    </div>
+  );
+}
+
+function matchScoreClass(score: number): string {
+  return (
+    "text-[11px] font-extrabold px-1.5 py-0.5 rounded-full " +
+    (score >= 90 ? "bg-emerald-100 text-emerald-700" : score >= 70 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600")
+  );
+}
+
+// ── Совпадения ОДНОГО клиента (адресный подбор внутри карточки) ──────
+function ClientMatches({ clientId, matches, reload, onDeal }: { clientId: number; matches: Match[] | null; reload: () => void; onDeal: () => void }) {
+  const { t, toast } = useApp();
+  const [dealFor, setDealFor] = useState<number | null>(null);
+  const active = (matches || []).filter((m) => m.status !== "dismissed");
+
+  async function setStatus(m: Match, status: string) {
+    const r = await api("/api/v1/clients/matches/" + m.id + "/status", { method: "POST", body: { status } });
+    if (r.ok) {
+      haptic();
+      reload();
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  return (
+    <div className="mt-5">
+      <div className="flex items-center justify-between mb-2 mx-0.5">
+        <span className="text-[14px] font-extrabold tracking-tight">{t("matchesForClient")}</span>
+        {active.length > 0 && <span className="text-[12px] font-bold text-muted">{active.length}</span>}
+      </div>
+      {matches === null ? (
+        <Spinner />
+      ) : !active.length ? (
+        <div className="text-[12.5px] text-muted mx-0.5">{t("noClientMatches")}</div>
+      ) : (
+        active.map((m) => (
+          <Card key={m.id} className="mt-2.5">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <Bell size={15} className={m.status === "new" ? "text-rose-500" : "text-muted"} />
+              {typeof m.score === "number" && <span className={matchScoreClass(m.score)}>{m.score}%</span>}
+              {m.status === "offered" && <Badge color="green">{t("matchOffered")}</Badge>}
+              {m.source === "mls" && (
+                <span className="text-[11px] font-bold text-indigo-600 inline-flex items-center gap-1">
+                  🌐 {t("mlsBadge")}{m.mls_agency ? " · " + m.mls_agency : ""}{m.possible_dup ? " · " + t("possibleDup") : ""}
+                </span>
+              )}
+            </div>
+            {!!(m.match_good && m.match_good.length) && (
+              <div className="text-[11px] text-emerald-600 mb-1">✓ {m.match_good.map((c) => t("mr_" + c)).join(" · ")}</div>
+            )}
+            {!!(m.match_missing && m.match_missing.length) && (
+              <div className="text-[11px] text-amber-600 mb-1">⚠ {t("matchIncomplete")}: {m.match_missing.map((c) => t("mf_" + c)).join(", ")}</div>
+            )}
+            <ApartmentCard o={m.apartment} onOpen={m.source === "mls" ? false : undefined} />
+            {dealFor === m.id ? (
+              <DealFromMatch
+                match={m}
+                clientId={clientId}
+                onDone={() => { setDealFor(null); onDeal(); setStatus(m, "offered"); }}
+                onCancel={() => setDealFor(null)}
+              />
+            ) : (
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <Button size="sm" onClick={() => setDealFor(m.id)}>{t("toDeal")}</Button>
+                <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>{t("markOffered")}</Button>
+                <Button size="sm" variant="danger" onClick={() => setStatus(m, "dismissed")}>{t("dismissMatch")}</Button>
+              </div>
+            )}
+          </Card>
+        ))
+      )}
+    </div>
+  );
+}
+
 // ── Экран: карточка клиента ─────────────────────────────────────────
 export function ClientDetailScreen({ id }: { id: number }) {
   const { t, L, lang, toast, user } = useApp();
@@ -987,6 +1098,8 @@ export function ClientDetailScreen({ id }: { id: number }) {
   const [crit, setCrit] = useState<Criteria>(emptyCriteria());
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [matches, setMatches] = useState<Match[] | null>(null);
+  const [dealsVersion, setDealsVersion] = useState(0);
 
   async function load() {
     const r = await api<Client>("/api/v1/clients/" + id);
@@ -995,8 +1108,15 @@ export function ClientDetailScreen({ id }: { id: number }) {
       setErr(null);
     } else setErr(errText(r.data, r.status));
   }
+  async function loadMatches() {
+    const r = await api<Match[]>("/api/v1/clients/" + id + "/matches");
+    setMatches(r.ok && Array.isArray(r.data) ? r.data : []);
+    // Открыли карточку клиента → его новые совпадения считаем просмотренными.
+    api("/api/v1/clients/" + id + "/matches/seen", { method: "POST" });
+  }
   useEffect(() => {
     load();
+    loadMatches();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -1163,7 +1283,9 @@ export function ClientDetailScreen({ id }: { id: number }) {
         </Card>
       ))}
 
-      <ClientDeals clientId={id} />
+      <ClientMatches clientId={id} matches={matches} reload={loadMatches} onDeal={() => setDealsVersion((v) => v + 1)} />
+
+      <ClientDeals clientId={id} matches={matches || []} reloadSignal={dealsVersion} />
 
       <ClientTasks clientId={id} />
 

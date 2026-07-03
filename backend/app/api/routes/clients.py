@@ -345,6 +345,34 @@ def create_client_deal(
     return client_service.create_deal(db, current_user.agency_id, current_user, client_id, body)
 
 
+# ── Совпадения по клиенту (адресно, внутри карточки клиента) ─────────
+@router.get("/{client_id}/matches", response_model=List[MatchOut])
+def list_client_matches(
+    client_id: int,
+    status: Optional[str] = Query(None, description="new / seen / offered / dismissed."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Совпадения (подходящие объекты) именно этого клиента."""
+    statuses = [status] if status else ["new", "seen", "offered"]
+    return client_service.list_client_matches(
+        db, current_user.agency_id, current_user, client_id, statuses=statuses
+    )
+
+
+@router.post("/{client_id}/matches/seen")
+def mark_client_matches_seen(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Отметить новые совпадения этого клиента просмотренными (значок гаснет)."""
+    updated = client_service.mark_client_matches_seen(
+        db, current_user.agency_id, current_user, client_id
+    )
+    return {"updated": updated}
+
+
 # ── ИИ-подсказки по клиенту (Волна 6) ────────────────────────────────
 @router.get("/{client_id}/hints", response_model=List[HintOut])
 def client_hints(
