@@ -373,6 +373,17 @@ export function ClientsScreen() {
       load();
     } else toast(errText(r.data, r.status), "err");
   }
+
+  // Полное удаление из архива — безвозвратно, только с подтверждением.
+  async function purge(c: Client) {
+    if (!(await confirmDialog(t("delClientForeverQ")))) return;
+    const r = await api("/api/v1/clients/" + c.id + "/purge", { method: "DELETE" });
+    if (r.ok) {
+      haptic();
+      toast(t("clientDeleted"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -413,13 +424,13 @@ export function ClientsScreen() {
           {archived ? t("archivedEmpty") : t("clientsEmpty")}
         </Empty>
       ) : (
-        clients.map((c) => <ClientRow key={c.id} c={c} archived={archived} onRestore={() => restore(c)} />)
+        clients.map((c) => <ClientRow key={c.id} c={c} archived={archived} onRestore={() => restore(c)} onDelete={() => purge(c)} />)
       )}
     </div>
   );
 }
 
-function ClientRow({ c, archived, onRestore }: { c: Client; archived?: boolean; onRestore?: () => void }) {
+function ClientRow({ c, archived, onRestore, onDelete }: { c: Client; archived?: boolean; onRestore?: () => void; onDelete?: () => void }) {
   const { t } = useApp();
   const nav = useNav();
   const name = c.last_name ? `${c.name} ${c.last_name}` : c.name;
@@ -458,9 +469,14 @@ function ClientRow({ c, archived, onRestore }: { c: Client; archived?: boolean; 
     return (
       <div className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 opacity-90">
         {inner}
-        <Button size="sm" variant="ghost" full className="mt-2.5" onClick={onRestore}>
-          <RefreshCw size={15} /> {t("restoreClient")}
-        </Button>
+        <div className="grid grid-cols-2 gap-2 mt-2.5">
+          <Button size="sm" variant="ghost" onClick={onRestore}>
+            <RefreshCw size={15} /> {t("restoreClient")}
+          </Button>
+          <Button size="sm" variant="danger" onClick={onDelete}>
+            <Trash2 size={15} /> {t("deleteForever")}
+          </Button>
+        </div>
       </div>
     );
   }

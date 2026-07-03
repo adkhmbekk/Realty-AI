@@ -279,8 +279,18 @@ def delete_client(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
-    """Удалить клиента (вместе с заявками и совпадениями)."""
+    """Убрать клиента в архив (мягко: заявки/история сохраняются, можно вернуть)."""
     client_service.delete_client(db, current_user.agency_id, current_user, client_id)
+
+
+@router.delete("/{client_id}/purge", status_code=204)
+def purge_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Безвозвратно удалить архивного клиента (со всеми заявками/сделками/историей)."""
+    client_service.purge_client(db, current_user.agency_id, current_user, client_id)
 
 
 @router.post("/{client_id}/requests", status_code=201)

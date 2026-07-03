@@ -509,6 +509,17 @@ def delete_client(db: Session, agency_id: int, user, client_id: int) -> None:
     db.commit()
 
 
+def purge_client(db: Session, agency_id: int, user, client_id: int) -> None:
+    # ПОЛНОЕ (безвозвратное) удаление: стираем клиента вместе с заявками,
+    # совпадениями, задачами, сделками и историей (каскад ON DELETE на уровне БД).
+    # Разрешено ТОЛЬКО для архивных — защита от случайного стирания активного клиента.
+    c = _load_client_for_user(db, agency_id, user, client_id)
+    if c.status != "archived":
+        raise AppError("client_not_archived", status.HTTP_400_BAD_REQUEST)
+    db.delete(c)
+    db.commit()
+
+
 # ── Заявки ───────────────────────────────────────────────────────────
 def add_request(db: Session, agency_id: int, user, client_id: int, criteria: RequestCriteria) -> Tuple[RequestOut, int]:
     c = _load_client_for_user(db, agency_id, user, client_id)
