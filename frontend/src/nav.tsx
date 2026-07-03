@@ -33,6 +33,7 @@ export type Route =
   | { name: "agentDetail"; userId: number; agentName: string }
   | { name: "clients" }
   | { name: "clientDetail"; id: number }
+  | { name: "clientMatches"; id: number }
   | { name: "matches" }
   | { name: "saveRequest"; criteria: SearchParams };
 

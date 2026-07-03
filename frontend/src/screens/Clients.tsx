@@ -1023,67 +1023,76 @@ function matchScoreClass(score: number): string {
   );
 }
 
-// ── Совпадения ОДНОГО клиента (адресный подбор внутри карточки) ──────
-function ClientMatches({ clientId, matches, reload, onDeal }: { clientId: number; matches: Match[] | null; reload: () => void; onDeal: () => void }) {
+// ── Экран: совпадения ОДНОГО клиента (отдельная страница) ───────────
+// Совпадения держим за кнопкой в карточке клиента: если объектов много,
+// длинный список не «засоряет» карточку. Здесь показываем их полностью.
+export function ClientMatchesScreen({ id }: { id: number }) {
   const { t, toast } = useApp();
+  const [matches, setMatches] = useState<Match[] | null>(null);
   const [dealFor, setDealFor] = useState<number | null>(null);
-  const active = (matches || []).filter((m) => m.status !== "dismissed");
+
+  async function load() {
+    const r = await api<Match[]>("/api/v1/clients/" + id + "/matches");
+    setMatches(r.ok && Array.isArray(r.data) ? r.data : []);
+  }
+  useEffect(() => {
+    load();
+    // Открыли список совпадений → «новые» считаем просмотренными (значок гаснет).
+    api("/api/v1/clients/" + id + "/matches/seen", { method: "POST" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   async function setStatus(m: Match, status: string) {
     const r = await api("/api/v1/clients/matches/" + m.id + "/status", { method: "POST", body: { status } });
     if (r.ok) {
       haptic();
-      reload();
+      load();
     } else toast(errText(r.data, r.status), "err");
   }
 
+  const active = (matches || []).filter((m) => m.status !== "dismissed");
+
+  if (matches === null) return <Spinner />;
+  if (!active.length) return <Empty icon={<Sparkles size={24} />}>{t("noClientMatches")}</Empty>;
+
   return (
-    <div className="mt-5">
-      <div className="flex items-center justify-between mb-2 mx-0.5">
-        <span className="text-[14px] font-extrabold tracking-tight">{t("matchesForClient")}</span>
-        {active.length > 0 && <span className="text-[12px] font-bold text-muted">{active.length}</span>}
-      </div>
-      {matches === null ? (
-        <Spinner />
-      ) : !active.length ? (
-        <div className="text-[12.5px] text-muted mx-0.5">{t("noClientMatches")}</div>
-      ) : (
-        active.map((m) => (
-          <Card key={m.id} className="mt-2.5">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <Bell size={15} className={m.status === "new" ? "text-rose-500" : "text-muted"} />
-              {typeof m.score === "number" && <span className={matchScoreClass(m.score)}>{m.score}%</span>}
-              {m.status === "offered" && <Badge color="green">{t("matchOffered")}</Badge>}
-              {m.source === "mls" && (
-                <span className="text-[11px] font-bold text-indigo-600 inline-flex items-center gap-1">
-                  🌐 {t("mlsBadge")}{m.mls_agency ? " · " + m.mls_agency : ""}{m.possible_dup ? " · " + t("possibleDup") : ""}
-                </span>
-              )}
+    <div>
+      <div className="text-[12.5px] text-muted mb-1 mx-0.5">{t("matchesCountSub").replace("{n}", String(active.length))}</div>
+      {active.map((m) => (
+        <Card key={m.id} className="mt-2.5">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <Bell size={15} className={m.status === "new" ? "text-rose-500" : "text-muted"} />
+            {typeof m.score === "number" && <span className={matchScoreClass(m.score)}>{m.score}%</span>}
+            {m.status === "offered" && <Badge color="green">{t("matchOffered")}</Badge>}
+            {m.source === "mls" && (
+              <span className="text-[11px] font-bold text-indigo-600 inline-flex items-center gap-1">
+                🌐 {t("mlsBadge")}{m.mls_agency ? " · " + m.mls_agency : ""}{m.possible_dup ? " · " + t("possibleDup") : ""}
+              </span>
+            )}
+          </div>
+          {!!(m.match_good && m.match_good.length) && (
+            <div className="text-[11px] text-emerald-600 mb-1">✓ {m.match_good.map((c) => t("mr_" + c)).join(" · ")}</div>
+          )}
+          {!!(m.match_missing && m.match_missing.length) && (
+            <div className="text-[11px] text-amber-600 mb-1">⚠ {t("matchIncomplete")}: {m.match_missing.map((c) => t("mf_" + c)).join(", ")}</div>
+          )}
+          <ApartmentCard o={m.apartment} onOpen={m.source === "mls" ? false : undefined} />
+          {dealFor === m.id ? (
+            <DealFromMatch
+              match={m}
+              clientId={id}
+              onDone={() => { setDealFor(null); setStatus(m, "offered"); }}
+              onCancel={() => setDealFor(null)}
+            />
+          ) : (
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <Button size="sm" onClick={() => setDealFor(m.id)}>{t("toDeal")}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>{t("markOffered")}</Button>
+              <Button size="sm" variant="danger" onClick={() => setStatus(m, "dismissed")}>{t("dismissMatch")}</Button>
             </div>
-            {!!(m.match_good && m.match_good.length) && (
-              <div className="text-[11px] text-emerald-600 mb-1">✓ {m.match_good.map((c) => t("mr_" + c)).join(" · ")}</div>
-            )}
-            {!!(m.match_missing && m.match_missing.length) && (
-              <div className="text-[11px] text-amber-600 mb-1">⚠ {t("matchIncomplete")}: {m.match_missing.map((c) => t("mf_" + c)).join(", ")}</div>
-            )}
-            <ApartmentCard o={m.apartment} onOpen={m.source === "mls" ? false : undefined} />
-            {dealFor === m.id ? (
-              <DealFromMatch
-                match={m}
-                clientId={clientId}
-                onDone={() => { setDealFor(null); onDeal(); setStatus(m, "offered"); }}
-                onCancel={() => setDealFor(null)}
-              />
-            ) : (
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <Button size="sm" onClick={() => setDealFor(m.id)}>{t("toDeal")}</Button>
-                <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>{t("markOffered")}</Button>
-                <Button size="sm" variant="danger" onClick={() => setStatus(m, "dismissed")}>{t("dismissMatch")}</Button>
-              </div>
-            )}
-          </Card>
-        ))
-      )}
+          )}
+        </Card>
+      ))}
     </div>
   );
 }
@@ -1099,7 +1108,6 @@ export function ClientDetailScreen({ id }: { id: number }) {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [matches, setMatches] = useState<Match[] | null>(null);
-  const [dealsVersion, setDealsVersion] = useState(0);
 
   async function load() {
     const r = await api<Client>("/api/v1/clients/" + id);
@@ -1108,11 +1116,12 @@ export function ClientDetailScreen({ id }: { id: number }) {
       setErr(null);
     } else setErr(errText(r.data, r.status));
   }
+  // Совпадения грузим для счётчика на кнопке и для выбора объекта при создании
+  // сделки. «Новыми» они перестают считаться при открытии экрана совпадений
+  // (ClientMatchesScreen), а не при простом открытии карточки клиента.
   async function loadMatches() {
     const r = await api<Match[]>("/api/v1/clients/" + id + "/matches");
     setMatches(r.ok && Array.isArray(r.data) ? r.data : []);
-    // Открыли карточку клиента → его новые совпадения считаем просмотренными.
-    api("/api/v1/clients/" + id + "/matches/seen", { method: "POST" });
   }
   useEffect(() => {
     load();
@@ -1181,6 +1190,8 @@ export function ClientDetailScreen({ id }: { id: number }) {
   if (err) return <Empty>{err}</Empty>;
   if (!c) return <Spinner />;
   const name = c.last_name ? `${c.name} ${c.last_name}` : c.name;
+  const activeMatchCount = matches ? matches.filter((m) => m.status !== "dismissed").length : 0;
+  const newMatchCount = matches ? matches.filter((m) => m.status === "new").length : 0;
 
   return (
     <div>
@@ -1283,9 +1294,28 @@ export function ClientDetailScreen({ id }: { id: number }) {
         </Card>
       ))}
 
-      <ClientMatches clientId={id} matches={matches} reload={loadMatches} onDeal={() => setDealsVersion((v) => v + 1)} />
+      {/* Совпадения — за отдельной кнопкой: если подходящих объектов много,
+          длинный список не «засоряет» карточку клиента. Открывается отдельный экран. */}
+      <button
+        onClick={() => { haptic(); nav.push({ name: "clientMatches", id }); }}
+        className="w-full mt-5 rounded-xl2 bg-card border border-line shadow-soft p-3.5 flex items-center gap-3 transition active:scale-[.99] hover:shadow-lg2"
+      >
+        <span className="w-10 h-10 shrink-0 rounded-xl bg-primary-soft text-primary flex items-center justify-center">
+          <Sparkles size={18} />
+        </span>
+        <div className="min-w-0 flex-1 text-left">
+          <div className="font-extrabold">{t("matchesForClient")}</div>
+          {matches !== null && (
+            <div className="text-[12.5px] text-muted truncate">
+              {activeMatchCount > 0 ? t("matchesCountSub").replace("{n}", String(activeMatchCount)) : t("noClientMatches")}
+            </div>
+          )}
+        </div>
+        {newMatchCount > 0 && <Badge color="red">{t("matchN").replace("{n}", String(newMatchCount))}</Badge>}
+        <ChevronRight size={18} className="text-muted shrink-0" />
+      </button>
 
-      <ClientDeals clientId={id} matches={matches || []} reloadSignal={dealsVersion} />
+      <ClientDeals clientId={id} matches={matches || []} reloadSignal={0} />
 
       <ClientTasks clientId={id} />
 

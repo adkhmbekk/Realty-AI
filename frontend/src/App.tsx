@@ -42,6 +42,7 @@ const SearchScreen = lazy(() => import("./screens/Apartments").then((m) => ({ de
 const MlsBrowseScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.MlsBrowseScreen })));
 const ClientDetailScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.ClientDetailScreen })));
 const ClientsScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.ClientsScreen })));
+const ClientMatchesScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.ClientMatchesScreen })));
 const MatchesScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.MatchesScreen })));
 const SaveRequestScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.SaveRequestScreen })));
 
@@ -136,6 +137,8 @@ function titleKeyFor(route: Route): string | null {
       return "clientsTitle";
     case "clientDetail":
       return "clientCard";
+    case "clientMatches":
+      return "matchesForClient";
     case "matches":
       return "matchesTitle";
     case "saveRequest":
@@ -205,6 +208,8 @@ function RouteView({ route }: { route: Route }) {
       return <ClientsScreen />;
     case "clientDetail":
       return <ClientDetailScreen id={route.id} />;
+    case "clientMatches":
+      return <ClientMatchesScreen id={route.id} />;
     case "matches":
       return <MatchesScreen />;
     case "saveRequest":
