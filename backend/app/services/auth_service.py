@@ -128,7 +128,13 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
     acting_agency = None
     if act_as_agency_id is not None and getattr(user, "role", None) == "superadmin":
         agency = agency_repo.get_by_id(db, act_as_agency_id)
-        if agency is not None and agency.owner_telegram_id == user.telegram_id:
+        # Личное агентство (owner_telegram_id == свой) ИЛИ ОБЩЕЕ агентство платформы
+        # (is_shared — «Realty AI», в него входят все владельцы) → acting-сессия
+        # главного админа. Так вход в общее агентство работает ТОЧНО как в личное.
+        if agency is not None and (
+            agency.owner_telegram_id == user.telegram_id
+            or getattr(agency, "is_shared", False)
+        ):
             acting_agency = agency
 
     if acting_agency is not None:
