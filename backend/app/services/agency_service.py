@@ -284,6 +284,12 @@ def register_agency(
     clean = (name or "").strip()
     if not clean:
         raise AppError("agency_name_empty", status.HTTP_400_BAD_REQUEST)
+    clean_owner = (owner_name or "").strip()
+    if not clean_owner:
+        raise AppError("owner_name_required", status.HTTP_400_BAD_REQUEST)
+    clean_phone = (phone or "").strip()
+    if not clean_phone:
+        raise AppError("phone_required", status.HTTP_400_BAD_REQUEST)
 
     # Подпись Telegram. anti_replay=False: «гасим» повтор только когда реально
     # регистрируем (ниже) — так вход-403 перед этим не «сжигает» тот же init_data.
@@ -317,18 +323,14 @@ def register_agency(
         db, name=clean, created_by=telegram_id, subscription_days=3650
     )
     agency.project_name = clean
-    if phone and phone.strip():
-        agency.contact_phone = phone.strip()
-        agency.client_phone = phone.strip()
+    agency.contact_phone = clean_phone
+    agency.client_phone = clean_phone
     # Наполняем справочниками по умолчанию (районы, типы) — как у обычного агентства.
     seeding_service.seed_agency_defaults(db, agency.id)
 
     # 2. Пользователь = главный админ (владелец) нового агентства.
     tg_username = tg_user.get("username")
-    tg_full = " ".join(
-        p for p in [tg_user.get("first_name"), tg_user.get("last_name")] if p
-    )
-    display_name = (owner_name or "").strip() or tg_full or None
+    display_name = clean_owner
     if existing is not None:
         user = existing
         user.agency_id = agency.id
@@ -392,14 +394,16 @@ def open_additional_agency(
     clean = (name or "").strip()
     if not clean:
         raise AppError("agency_name_empty", status.HTTP_400_BAD_REQUEST)
+    clean_phone = (phone or "").strip()
+    if not clean_phone:
+        raise AppError("phone_required", status.HTTP_400_BAD_REQUEST)
 
     agency = agency_repo.create(
         db, name=clean, created_by=user.telegram_id, subscription_days=3650
     )
     agency.project_name = clean
-    if phone and phone.strip():
-        agency.contact_phone = phone.strip()
-        agency.client_phone = phone.strip()
+    agency.contact_phone = clean_phone
+    agency.client_phone = clean_phone
     seeding_service.seed_agency_defaults(db, agency.id)
 
     agency_membership_repo.create(
@@ -423,6 +427,63 @@ def open_additional_agency(
     db.commit()
     db.refresh(user)
     return auth_service.build_auth_response(db, user, act_as_agency_id=agency.id)
+
+
+def delete_own_agency(db: Session, user: User, agency_id: int) -> dict:
+    """
+    Удалить СВОЁ агентство (владелец удаляет то, что открыл). Сносит агентство со
+    всеми данными (объекты/фото/команда/справочники), необратимо. Нельзя удалить
+    своё ЕДИНСТВЕННОЕ агентство — некуда будет вернуться. Возвращает домашнюю
+    сессию (пользователь оказывается в другом своём агентстве).
+    """
+    from app.repositories import agency_membership_repo
+    from app.services import auth_service
+
+    m = agency_membership_repo.get(db, user.id, agency_id)
+    if m is None or not m.is_owner:
+        raise AppError("agency_not_owned", status.HTTP_403_FORBIDDEN)
+    # Должно остаться хотя бы одно другое активное членство.
+    my = [mm for mm, _a in agency_membership_repo.list_for_user(db, user.id) if mm.is_active]
+    if not any(mm.agency_id != agency_id for mm in my):
+        raise AppError("cannot_delete_only_agency", status.HTTP_400_BAD_REQUEST)
+
+    agency = _get_agency_or_404(db, agency_id)
+    name = agency.name
+
+    # Переселяем всех, чьё ДОМАШНЕЕ агентство = удаляемое, в другое их членство
+    # (или удаляем, если больше некуда) — иначе они остались бы «без дома».
+    for u in user_repo.get_by_agency(db, agency_id):
+        others = [
+            mm
+            for mm, _a in agency_membership_repo.list_for_user(db, u.id)
+            if mm.agency_id != agency_id and mm.is_active
+        ]
+        if others:
+            u.agency_id = others[0].agency_id
+            u.role = others[0].role
+            u.is_owner = others[0].is_owner
+        else:
+            db.delete(u)
+    db.flush()
+
+    # Фото (файлы+строки), затем само агентство со всеми данными (членства к нему
+    # уходят каскадом по внешнему ключу).
+    photo_service.purge_agency(db, agency_id)
+    agency_repo.delete_with_data(db, agency)
+    audit_repo.add(
+        db,
+        action="agency_deleted",
+        agency_id=None,
+        target=name,
+        note=f"владелец удалил своё агентство id={agency_id}",
+        actor_user_id=user.id,
+        actor_telegram_id=user.telegram_id,
+        actor_name=_admin_display_name(user),
+    )
+    db.commit()
+    # Текущий владелец точно жив (у него было ещё агентство) — домашняя сессия.
+    fresh = user_repo.get_by_id(db, user.id)
+    return auth_service.build_auth_response(db, fresh)
 
 
 def update_subscription(

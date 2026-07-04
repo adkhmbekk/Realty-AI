@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { User, LifeBuoy, Building2, Plus, ChevronRight } from "lucide-react";
+import { User, LifeBuoy, Building2, Plus, ChevronRight, Trash2 } from "lucide-react";
 import { useApp } from "../store";
 import { useActing } from "../acting";
 import { api } from "../api";
 import { Card, Row, Hint, Button, Field, Input } from "../components/ui";
-import { openTelegramLink, haptic } from "../telegram";
+import { openTelegramLink, haptic, confirmDialog } from "../telegram";
 import { fmtDate, daysLeft, initials } from "../utils";
 import type { Membership } from "../types";
 
@@ -13,7 +13,7 @@ import type { Membership } from "../types";
 // суперадмина и для тех, у кого одно домашнее агентство без доп. членств.
 function MyAgenciesCard() {
   const { t, L, toast } = useApp();
-  const { enterAgency, openAgency } = useActing();
+  const { enterAgency, openAgency, deleteAgency } = useActing();
   const [items, setItems] = useState<Membership[] | null>(null);
   const [opening, setOpening] = useState(false);
   const [name, setName] = useState("");
@@ -28,10 +28,15 @@ function MyAgenciesCard() {
 
   async function create() {
     if (!name.trim()) { toast(t("regNameRequired"), "err"); return; }
+    if (!phone.trim()) { toast(t("regPhoneRequired"), "err"); return; }
     setBusy(true);
     await openAgency(name.trim(), phone.trim());
     setBusy(false);
     // При успехе приложение уже переключилось в новое агентство (applyAuth).
+  }
+
+  async function remove(id: number) {
+    if (await confirmDialog(t("delAgencyQ"))) deleteAgency(id);
   }
 
   // Показываем, только если человек — участник (у суперадмина членств нет).
@@ -45,28 +50,39 @@ function MyAgenciesCard() {
       </div>
       <div className="space-y-2">
         {items.map((m) => (
-          <button
+          <div
             key={m.agency_id}
-            disabled={m.is_current}
-            onClick={() => { haptic(); enterAgency(m.agency_id); }}
             className={
-              "w-full text-left rounded-xl p-3 border transition flex items-center gap-3 " +
-              (m.is_current ? "bg-primary-soft border-primary/40" : "bg-card border-line active:scale-[.99]")
+              "rounded-xl border flex items-center " +
+              (m.is_current ? "bg-primary-soft border-primary/40" : "bg-card border-line")
             }
           >
-            <span className="w-9 h-9 rounded-lg bg-[var(--soft)] text-primary flex items-center justify-center shrink-0">
-              <Building2 size={16} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="font-bold truncate">{m.project_name || m.agency_name}</div>
-              <div className="text-[12px] text-muted">{L.roleLabel(m.role, m.is_owner)}</div>
-            </div>
-            {m.is_current ? (
-              <span className="text-[11px] font-extrabold text-primary shrink-0">{t("currentAgency")}</span>
-            ) : (
-              <ChevronRight size={16} className="text-muted shrink-0" />
+            <button
+              disabled={m.is_current}
+              onClick={() => { haptic(); enterAgency(m.agency_id); }}
+              className="flex-1 min-w-0 text-left p-3 flex items-center gap-3 transition active:scale-[.99] disabled:active:scale-100"
+            >
+              <span className="w-9 h-9 rounded-lg bg-[var(--soft)] text-primary flex items-center justify-center shrink-0">
+                <Building2 size={16} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="font-bold truncate">{m.project_name || m.agency_name}</div>
+                <div className="text-[12px] text-muted truncate">
+                  {L.roleLabel(m.role, m.is_owner)}{m.is_current ? " · " + t("currentAgency") : ""}
+                </div>
+              </div>
+              {!m.is_current && <ChevronRight size={16} className="text-muted shrink-0" />}
+            </button>
+            {m.is_owner && items.length > 1 && (
+              <button
+                onClick={() => remove(m.agency_id)}
+                className="w-11 h-11 shrink-0 flex items-center justify-center text-rose-500 active:scale-90"
+                aria-label={t("delAgency")}
+              >
+                <Trash2 size={16} />
+              </button>
             )}
-          </button>
+          </div>
         ))}
       </div>
       {opening ? (

@@ -190,6 +190,23 @@ def enter_agency(
     )
 
 
+@router.delete("/{agency_id}/mine", response_model=AuthResponse)
+def delete_my_agency(
+    agency_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """
+    Удалить СВОЁ агентство (владелец). Необратимо: сносит агентство со всеми
+    данными. Возвращает домашнюю сессию (пользователь оказывается в другом своём
+    агентстве). Своё единственное агентство удалить нельзя.
+    """
+    real_user = user_repo.get_by_id(db, current_user.id)
+    if real_user is None or not real_user.is_active:
+        raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+    return agency_service.delete_own_agency(db, real_user, agency_id)
+
+
 @router.patch("/{agency_id}", response_model=AgencyOut)
 def update_agency(
     agency_id: int,

@@ -11,6 +11,8 @@ export interface ActingActions {
   exitToPlatform: () => Promise<void>;
   // Открыть ЕЩЁ ОДНО своё агентство (участник станет его владельцем) и войти в него.
   openAgency: (name: string, phone: string) => Promise<boolean>;
+  // Удалить СВОЁ агентство (владелец). Возвращает домашнюю сессию.
+  deleteAgency: (id: number) => Promise<boolean>;
 }
 
 const Ctx = createContext<ActingActions | null>(null);

@@ -148,6 +148,31 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Agentlik nomi boʻsh boʻlishi mumkin emas.",
         "en": "Agency name cannot be empty.",
     },
+    "owner_name_required": {
+        "ru": "Укажите имя владельца.",
+        "uz": "Egasining ismini kiriting.",
+        "en": "Enter the owner's name.",
+    },
+    "phone_required": {
+        "ru": "Укажите контактный телефон.",
+        "uz": "Aloqa telefonini kiriting.",
+        "en": "Enter a contact phone number.",
+    },
+    "superadmin_cannot_register": {
+        "ru": "Владелец платформы не регистрирует агентство этим способом.",
+        "uz": "Platforma egasi agentlikni bu usulda ochmaydi.",
+        "en": "The platform owner doesn't register an agency this way.",
+    },
+    "cannot_delete_only_agency": {
+        "ru": "Нельзя удалить своё единственное агентство.",
+        "uz": "Yagona agentligingizni oʻchirib boʻlmaydi.",
+        "en": "You can't delete your only agency.",
+    },
+    "client_not_archived": {
+        "ru": "Клиента можно удалить навсегда только из архива.",
+        "uz": "Mijozni butunlay faqat arxivdan oʻchirish mumkin.",
+        "en": "A client can only be permanently deleted from the archive.",
+    },
     "user_already_in_another_agency": {
         "ru": "Этот пользователь уже состоит в другом агентстве.",
         "uz": "Bu foydalanuvchi allaqachon boshqa agentlikda.",

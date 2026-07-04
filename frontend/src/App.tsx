@@ -488,6 +488,8 @@ function WelcomeScreen({ prefill, onAuth }: { prefill: string; onAuth: (r: AuthR
 
   async function register() {
     if (!name.trim()) { toast(t("regNameRequired"), "err"); return; }
+    if (!ownerName.trim()) { toast(t("regOwnerRequired"), "err"); return; }
+    if (!phone.trim()) { toast(t("regPhoneRequired"), "err"); return; }
     setBusy(true);
     const r = await api<AuthResponse>("/api/v1/agencies/register", {
       method: "POST",
@@ -643,6 +645,17 @@ export function App() {
     return false;
   }
 
+  // Удалить СВОЁ агентство (владелец). Сервер возвращает домашнюю сессию.
+  async function deleteAgency(id: number): Promise<boolean> {
+    const r = await api<AuthResponse>(`/api/v1/agencies/${id}/mine`, { method: "DELETE" });
+    if (r.ok && r.data) {
+      await applyAuth(r.data);
+      return true;
+    }
+    toast(errText(r.data, r.status) || t("loginFail"), "err");
+    return false;
+  }
+
   // Выйти из агентства обратно на платформу (роль суперадмина). Обновляем сессию
   // БЕЗ act_as — сервер вернёт обычную сессию владельца.
   async function exitToPlatform(): Promise<void> {
@@ -768,7 +781,7 @@ export function App() {
   const initialRoute: Route = user?.role === "superadmin" ? { name: "agencies" } : { name: "home" };
   return (
     <NavProvider initial={initialRoute}>
-      <ActingProvider value={{ enterAgency, exitToPlatform, openAgency }}>
+      <ActingProvider value={{ enterAgency, exitToPlatform, openAgency, deleteAgency }}>
         <Shell />
       </ActingProvider>
       <Toasts />
