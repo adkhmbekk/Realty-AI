@@ -474,9 +474,8 @@ export function AgenciesScreen() {
 
   return (
     <div>
-      <Button full onClick={() => nav.push({ name: "agencyCreate" })}>
-        <Plus size={18} /> {t("createAgency")}
-      </Button>
+      {/* Агентства создаются САМОСТОЯТЕЛЬНО (саморегистрация при входе в бот),
+          суперадмин их больше не создаёт — здесь только наблюдение и управление. */}
       {usageList.length > 0 && <UsageSummary usage={usageList} />}
       <RevenuePanel />
       <div className="mt-3">

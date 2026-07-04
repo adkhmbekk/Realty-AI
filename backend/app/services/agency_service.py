@@ -258,6 +258,125 @@ def create_personal_agency(db: Session, name: str, owner: User) -> Agency:
     return agency
 
 
+def register_agency(
+    db: Session,
+    init_data: str,
+    name: str,
+    owner_name: Optional[str] = None,
+    phone: Optional[str] = None,
+) -> dict:
+    """
+    САМОСТОЯТЕЛЬНАЯ регистрация агентства (2026-07): человек открывает бот без
+    агентства и создаёт своё — сразу становится главным админом (agency_admin,
+    is_owner) и получает членство-владельца. Возвращает готовую сессию
+    (build_auth_response). Заменяет создание агентства суперадмином.
+    """
+    from app.config import settings
+    from app.core import security
+    from app.repositories import agency_membership_repo
+    from app.services import auth_service
+
+    if not settings.bot_token:
+        raise AppError(
+            "telegram_login_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+    clean = (name or "").strip()
+    if not clean:
+        raise AppError("agency_name_empty", status.HTTP_400_BAD_REQUEST)
+
+    # Подпись Telegram. anti_replay=False: «гасим» повтор только когда реально
+    # регистрируем (ниже) — так вход-403 перед этим не «сжигает» тот же init_data.
+    try:
+        data = security.validate_init_data(
+            init_data,
+            settings.bot_token,
+            settings.init_data_max_age_seconds,
+            anti_replay=False,
+        )
+    except security.InitDataError as exc:
+        raise AppError(exc.key, status.HTTP_401_UNAUTHORIZED) from exc
+
+    tg_user = data["user"]
+    telegram_id = int(tg_user["id"])
+
+    existing = user_repo.get_by_telegram_id(db, telegram_id)
+    if existing is not None:
+        if existing.role == "superadmin":
+            raise AppError("superadmin_cannot_register", status.HTTP_400_BAD_REQUEST)
+        if existing.agency_id is not None:
+            # Уже есть домашнее агентство — доп. агентства открываются иначе (Волна 4).
+            raise AppError("already_in_agency", status.HTTP_409_CONFLICT)
+
+    # Регистрируем — теперь можно «погасить» повтор initData.
+    if security.remember_replay(data["init_data_hash"], data["replay_expires_at"]):
+        raise AppError("init_data_replayed", status.HTTP_401_UNAUTHORIZED)
+
+    # 1. Агентство (сразу активно; тариф 'start' по умолчанию).
+    agency = agency_repo.create(
+        db, name=clean, created_by=telegram_id, subscription_days=3650
+    )
+    agency.project_name = clean
+    if phone and phone.strip():
+        agency.contact_phone = phone.strip()
+        agency.client_phone = phone.strip()
+    # Наполняем справочниками по умолчанию (районы, типы) — как у обычного агентства.
+    seeding_service.seed_agency_defaults(db, agency.id)
+
+    # 2. Пользователь = главный админ (владелец) нового агентства.
+    tg_username = tg_user.get("username")
+    tg_full = " ".join(
+        p for p in [tg_user.get("first_name"), tg_user.get("last_name")] if p
+    )
+    display_name = (owner_name or "").strip() or tg_full or None
+    if existing is not None:
+        user = existing
+        user.agency_id = agency.id
+        user.role = "agency_admin"
+        user.is_owner = True
+        user.is_active = True
+        if tg_username:
+            user.username = tg_username
+        if display_name:
+            user.full_name = display_name
+    else:
+        user = user_repo.create(
+            db,
+            telegram_id=telegram_id,
+            role="agency_admin",
+            agency_id=agency.id,
+            username=tg_username,
+            full_name=display_name,
+            is_owner=True,
+        )
+    user.last_login_at = datetime.now(timezone.utc)
+
+    # 3. Членство-владелец (многоролевость).
+    agency_membership_repo.create(
+        db,
+        user_id=user.id,
+        agency_id=agency.id,
+        role="agency_admin",
+        is_owner=True,
+        is_active=True,
+    )
+
+    audit_repo.add(
+        db,
+        action="agency_created",
+        agency_id=agency.id,
+        target=clean,
+        note="самостоятельная регистрация",
+        actor_user_id=user.id,
+        actor_telegram_id=telegram_id,
+        actor_name=display_name,
+    )
+
+    db.commit()
+    db.refresh(user)
+    return auth_service.build_auth_response(db, user)
+
+
 def update_subscription(
     db: Session,
     agency_id: int,

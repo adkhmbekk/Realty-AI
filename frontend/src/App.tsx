@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Briefcase, Building2, Database, Home, Layers, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
+import { Briefcase, Building2, Database, Home, Layers, Mail, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
 import { NavProvider, Route, useNav } from "./nav";
 import { ActingProvider, useActing } from "./acting";
@@ -459,12 +459,19 @@ function OpenInTelegram() {
   );
 }
 
-// ── Экран вступления по коду ────────────────────────────────────────
-function JoinScreen({ prefill, onAuth }: { prefill: string; onAuth: (r: AuthResponse) => void }) {
+// ── Экран приветствия для нового человека (ещё без агентства) ─────────
+// Два пути: СОЗДАТЬ своё агентство (саморегистрация) или ВОЙТИ по коду
+// приглашения. Если пришли по ссылке-приглашению (есть код) — сразу режим кода.
+function WelcomeScreen({ prefill, onAuth }: { prefill: string; onAuth: (r: AuthResponse) => void }) {
   const { t, toast } = useApp();
+  const [mode, setMode] = useState<"choose" | "create" | "code">(prefill ? "code" : "choose");
   const [code, setCode] = useState(prefill || "");
   const [busy, setBusy] = useState(false);
   const triedAuto = useRef(false);
+  // Поля регистрации агентства.
+  const [name, setName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [phone, setPhone] = useState("");
 
   async function join(c: string) {
     const v = c.trim();
@@ -474,6 +481,18 @@ function JoinScreen({ prefill, onAuth }: { prefill: string; onAuth: (r: AuthResp
     setBusy(false);
     if (r.ok && r.data) onAuth(r.data);
     else toast(t("loginFail") + errText(r.data, r.status), "err");
+  }
+
+  async function register() {
+    if (!name.trim()) { toast(t("regNameRequired"), "err"); return; }
+    setBusy(true);
+    const r = await api<AuthResponse>("/api/v1/agencies/register", {
+      method: "POST",
+      body: { init_data: getInitData(), name: name.trim(), owner_name: ownerName.trim(), phone: phone.trim() },
+    });
+    setBusy(false);
+    if (r.ok && r.data) onAuth(r.data);
+    else toast(errText(r.data, r.status), "err");
   }
 
   useEffect(() => {
@@ -486,7 +505,6 @@ function JoinScreen({ prefill, onAuth }: { prefill: string; onAuth: (r: AuthResp
 
   return (
     <div className="max-w-[560px] mx-auto px-4 pt-10 animate-fade-up">
-      {/* Первое впечатление нового сотрудника: крупный брендовый блок. */}
       <div className="flex flex-col items-center text-center mb-5">
         <span className="w-16 h-16 rounded-[20px] flex items-center justify-center text-white shadow-glow mb-3" style={{ background: "var(--grad)" }}>
           <Building2 size={30} />
@@ -495,15 +513,72 @@ function JoinScreen({ prefill, onAuth }: { prefill: string; onAuth: (r: AuthResp
           Realty <span className="text-primary">AI</span>
         </span>
       </div>
-      <div className="rounded-[14px] px-4 py-3 text-sm bg-primary-soft text-primary mb-3 text-center">{t("notInAgency")}</div>
-      <Card>
-        <Field label={t("joinCodeLabel")}>
-          <Input value={code} onChange={(e) => setCode(e.target.value)} />
-        </Field>
-        <Button full className="mt-4" disabled={busy} onClick={() => join(code)}>
-          {busy ? t("joinChecking") : t("joinBtn")}
-        </Button>
-      </Card>
+
+      {mode === "choose" && (
+        <>
+          <div className="text-center text-[14px] text-muted mb-4">{t("welcomeSub")}</div>
+          <button
+            onClick={() => setMode("create")}
+            className="w-full text-left rounded-xl2 p-4 mb-3 text-white shadow-glow active:scale-[.99] transition"
+            style={{ background: "var(--grad)" }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0"><Plus size={22} /></span>
+              <div className="min-w-0">
+                <div className="text-[16px] font-extrabold">{t("welcomeCreateAgency")}</div>
+                <div className="text-[12.5px] opacity-90">{t("welcomeCreateSub")}</div>
+              </div>
+            </div>
+          </button>
+          <button
+            onClick={() => setMode("code")}
+            className="w-full text-left rounded-xl2 bg-card border border-line shadow-soft p-4 active:scale-[.99] transition"
+          >
+            <div className="flex items-center gap-3">
+              <span className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0"><Mail size={20} /></span>
+              <div className="min-w-0">
+                <div className="text-[16px] font-extrabold">{t("welcomeHaveCode")}</div>
+                <div className="text-[12.5px] text-muted">{t("welcomeHaveCodeSub")}</div>
+              </div>
+            </div>
+          </button>
+        </>
+      )}
+
+      {mode === "create" && (
+        <Card>
+          <div className="text-[16px] font-extrabold mb-1">{t("regTitle")}</div>
+          <div className="text-[13px] text-muted mb-2">{t("regSub")}</div>
+          <Field label={t("regName")}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("regNamePh")} />
+          </Field>
+          <Field label={t("regOwner")}>
+            <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder={t("regOwnerPh")} />
+          </Field>
+          <Field label={t("regPhone")}>
+            <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("regPhonePh")} />
+          </Field>
+          <Button full className="mt-4" disabled={busy} onClick={register}>
+            {busy ? t("joinChecking") : t("regSubmit")}
+          </Button>
+          <button onClick={() => setMode("choose")} className="w-full mt-3 text-[13px] font-bold text-muted">{t("regBack")}</button>
+        </Card>
+      )}
+
+      {mode === "code" && (
+        <Card>
+          <div className="rounded-[14px] px-4 py-3 text-sm bg-primary-soft text-primary mb-3 text-center">{t("notInAgency")}</div>
+          <Field label={t("joinCodeLabel")}>
+            <Input value={code} onChange={(e) => setCode(e.target.value)} />
+          </Field>
+          <Button full className="mt-4" disabled={busy} onClick={() => join(code)}>
+            {busy ? t("joinChecking") : t("joinBtn")}
+          </Button>
+          {!prefill && (
+            <button onClick={() => setMode("choose")} className="w-full mt-3 text-[13px] font-bold text-muted">{t("regBack")}</button>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
@@ -667,7 +742,7 @@ export function App() {
     );
   }
   if (phase === "open") return <OpenInTelegram />;
-  if (phase === "join") return <JoinScreen prefill={startParam} onAuth={applyAuth} />;
+  if (phase === "join") return <WelcomeScreen prefill={startParam} onAuth={applyAuth} />;
   if (phase === "suspended") {
     return (
       <div className="max-w-[560px] mx-auto px-3.5 pt-5">

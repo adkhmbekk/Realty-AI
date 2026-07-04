@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_superadmin
 from app.core.errors import AppError
+from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
 from app.repositories import agency_repo
@@ -22,6 +23,7 @@ from app.schemas.agency import (
     AgencyDraftOut,
     AgencyOut,
     AgencyPaymentOut,
+    AgencyRegister,
     AgencyUsageOut,
     PaymentsSummaryOut,
     AgencySubscriptionUpdate,
@@ -33,6 +35,22 @@ from app.schemas.auth import AuthResponse
 from app.services import agency_service, agency_usage_service, auth_service, invite_service, photo_service
 
 router = APIRouter(prefix="/agencies", tags=["agencies"])
+
+
+@router.post(
+    "/register",
+    response_model=AuthResponse,
+    dependencies=[Depends(rate_limit(10, 60, "agency_register"))],
+)
+def register_agency(body: AgencyRegister, db: Session = Depends(get_db)):
+    """
+    Самостоятельная регистрация агентства (публичный вход): человек создаёт своё
+    агентство и сразу становится его главным админом. Личность подтверждается
+    подписью Telegram (init_data), пропуск отдаётся в ответе.
+    """
+    return agency_service.register_agency(
+        db, body.init_data, body.name, owner_name=body.owner_name, phone=body.phone
+    )
 
 
 @router.post("", response_model=AgencyOut)

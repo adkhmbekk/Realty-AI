@@ -24,6 +24,15 @@ class PersonalAgencyCreate(BaseModel):
     name: str = Field(max_length=120)
 
 
+class AgencyRegister(BaseModel):
+    # Самостоятельная регистрация агентства (человек открывает бот без агентства
+    # и создаёт своё). Личность подтверждается подписью Telegram (init_data).
+    init_data: str
+    name: str = Field(max_length=120)
+    owner_name: Optional[str] = Field(default=None, max_length=120)
+    phone: Optional[str] = Field(default=None, max_length=64)
+
+
 class AgencyDraftCreate(BaseModel):
     # Создание агентства «по ссылке»: ID админа НЕ нужен — кто откроет ссылку
     # активации, тот и станет главным админом. Подписка стартует с активации.
