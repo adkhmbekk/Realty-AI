@@ -79,7 +79,10 @@ def run_subscription_warnings(db: Session, now: datetime | None = None) -> int:
     settings.subscription_warn_days дней, и предупредить их владельцев.
     Возвращает число отправленных предупреждений (для тестов/логов).
     """
-    warn_days = settings.subscription_warn_days
+    # ПОДПИСКА ОТКЛЮЧЕНА (переход на тарифы, 2026-07): не предупреждаем владельцев
+    # об окончании подписки — её больше нет, у всех бесплатный тариф 'start'.
+    return 0
+    warn_days = settings.subscription_warn_days  # noqa: unreachable (задел на тарифы)
     if warn_days <= 0 or not telegram_service.is_configured():
         return 0
 
@@ -125,7 +128,10 @@ def expire_due_subscriptions(db: Session, now: datetime | None = None) -> int:
     проверяет дату), но явный статус 'expired' делает панель суперадмина
     правдивой: видно, кто реально не оплатил. Возвращает число переведённых.
     """
-    now = now or datetime.now(timezone.utc)
+    # ПОДПИСКА ОТКЛЮЧЕНА (переход на тарифы, 2026-07): не переводим агентства в
+    # 'expired' — доступ больше не зависит от срока подписки (agency_is_active=True).
+    return 0
+    now = now or datetime.now(timezone.utc)  # noqa: unreachable (задел на тарифы)
     changed = 0
     agencies = db.execute(
         select(Agency).where(Agency.status.in_(_ACTIVE_STATUSES))

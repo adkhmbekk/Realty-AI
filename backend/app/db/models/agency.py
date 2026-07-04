@@ -41,6 +41,12 @@ class Agency(Base):
     project_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Статус подписки агентства: trial / active / frozen / expired
     status: Mapped[str] = mapped_column(String, nullable=False, default="trial")
+    # Тариф агентства. Сейчас у всех бесплатный 'start' (без даты окончания);
+    # подписка отключена (см. core/subscription.agency_is_active). Платные тарифы
+    # добавим позже — механизм оставлен на будущее.
+    tariff: Mapped[str] = mapped_column(
+        String, nullable=False, default="start", server_default=text("'start'")
+    )
     subscription_expires_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

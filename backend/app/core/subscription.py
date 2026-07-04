@@ -23,11 +23,9 @@ def _as_utc(dt: datetime) -> datetime:
 
 
 def agency_is_active(agency) -> bool:
-    if agency is None:
-        return False
-    if agency.status not in ACTIVE_STATUSES:
-        return False
-    expires_at = agency.subscription_expires_at
-    if expires_at is not None and _as_utc(expires_at) < datetime.now(timezone.utc):
-        return False
-    return True
+    # ПОДПИСКА ОТКЛЮЧЕНА (переход на тарифы, 2026-07): у всех бесплатный тариф
+    # 'start' без даты окончания, доступ никогда не блокируется по подписке.
+    # Функцию и её вызовы оставляем как единую точку — когда появятся платные
+    # тарифы с ограничениями, гейтинг вернётся сюда (например, tariff == 'blocked').
+    # Единственное условие — агентство существует.
+    return agency is not None

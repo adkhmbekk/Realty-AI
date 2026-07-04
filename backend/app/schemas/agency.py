@@ -120,6 +120,8 @@ class AgencySettingsOut(BaseModel):
     name: str
     project_name: Optional[str] = None
     status: str
+    # Тариф агентства (сейчас у всех бесплатный 'start'). Подписка отключена.
+    tariff: str = "start"
     subscription_expires_at: Optional[datetime] = None
     timezone: str
     default_currency: str
@@ -152,6 +154,8 @@ class AgencyOut(BaseModel):
     name: str
     project_name: Optional[str] = None
     status: str
+    # Тариф агентства (сейчас у всех бесплатный 'start').
+    tariff: str = "start"
     subscription_expires_at: Optional[datetime] = None
     activated_at: Optional[datetime] = None
     created_at: datetime
