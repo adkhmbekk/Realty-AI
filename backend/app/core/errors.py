@@ -173,6 +173,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Mijozni butunlay faqat arxivdan oʻchirish mumkin.",
         "en": "A client can only be permanently deleted from the archive.",
     },
+    "mls_take_own_object": {
+        "ru": "Это ваш собственный объект.",
+        "uz": "Bu sizning oʻz obyektingiz.",
+        "en": "This is your own object.",
+    },
     "user_already_in_another_agency": {
         "ru": "Этот пользователь уже состоит в другом агентстве.",
         "uz": "Bu foydalanuvchi allaqachon boshqa agentlikda.",

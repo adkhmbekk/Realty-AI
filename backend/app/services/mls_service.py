@@ -14,10 +14,10 @@ from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.repositories import agency_repo, apartment_repo
+from app.repositories import agency_repo, apartment_repo, user_repo
 from app.schemas.apartment import ApartmentOut, ApartmentStatsOut
 from app.schemas.mls import MlsPoolItemOut, MlsPoolOut
-from app.services import photo_service
+from app.services import photo_service, telegram_service
 
 
 def _blank_contacts(apt_out: ApartmentOut) -> ApartmentOut:
@@ -149,6 +149,39 @@ def object_photos(db: Session, object_id: int) -> list:
     if apt is None:
         raise AppError("apartment_not_found", http_status.HTTP_404_NOT_FOUND)
     return photo_service.list_photos(db, apt.agency_id, object_id)
+
+
+def take_for_client(db: Session, agency_id: int, user, object_id: int) -> dict:
+    """
+    «Беру для клиента» (Волна 5, связь риелторов): риелтор из agency_id хочет взять
+    объект из общей базы (MLS), принадлежащий ДРУГОМУ агентству, для своего клиента.
+    Уведомляем владельца объекта в боте — с контактом берущего агентства, чтобы
+    риелторы связались и договорились (совместная сделка/деление комиссии).
+    """
+    apt = apartment_repo.get_shared_mls(db, object_id)
+    if apt is None:
+        raise AppError("apartment_not_found", http_status.HTTP_404_NOT_FOUND)
+    if apt.agency_id == agency_id:
+        raise AppError("mls_take_own_object", http_status.HTTP_400_BAD_REQUEST)
+
+    # Контакт берущего агентства (по нему свяжется владелец объекта).
+    taker = agency_repo.get_by_id(db, agency_id)
+    taker_name = (taker.project_name or taker.name) if taker is not None else "—"
+    taker_phone = (taker.contact_phone if taker is not None else None) or "—"
+
+    # Владелец объекта — ему шлём уведомление в бот.
+    owner = user_repo.get_owner(db, apt.agency_id)
+    notified = False
+    if owner is not None and telegram_service.is_configured():
+        text = (
+            "🤝 Ваш объект интересует другого риелтора.\n"
+            f"Агентство «{taker_name}» хочет взять ваш объект №{apt.display_id} "
+            "для своего клиента.\n"
+            f"Свяжитесь для сотрудничества: {taker_phone}"
+        )
+        notified = telegram_service.send_message(owner.telegram_id, text)
+
+    return {"notified": notified}
 
 
 def pool_stats(db: Session) -> ApartmentStatsOut:

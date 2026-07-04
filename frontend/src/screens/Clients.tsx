@@ -1090,6 +1090,16 @@ export function ClientMatchesScreen({ clientId, requestId, label }: { clientId: 
     } else toast(errText(r.data, r.status), "err");
   }
 
+  // «Беру для клиента»: объект из общей базы (MLS) чужого агентства — уведомляем
+  // его владельца в боте (с нашим контактом), чтобы риелторы связались.
+  async function takeForClient(m: Match) {
+    const r = await api<{ notified: boolean }>("/api/v1/mls/objects/" + m.apartment.id + "/take", { method: "POST" });
+    if (r.ok) {
+      haptic();
+      toast(r.data?.notified ? t("takeNotified") : t("takeNotifiedFail"), r.data?.notified ? "ok" : "warn");
+    } else toast(errText(r.data, r.status), "err");
+  }
+
   const active = (matches || []).filter((m) => m.status !== "dismissed");
 
   if (matches === null) return <ListSkeleton />;
@@ -1143,11 +1153,18 @@ export function ClientMatchesScreen({ clientId, requestId, label }: { clientId: 
               onCancel={() => setDealFor(null)}
             />
           ) : (
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <Button size="sm" onClick={() => setDealFor(m.id)}>{t("toDeal")}</Button>
-              <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>{t("markOffered")}</Button>
-              <Button size="sm" variant="danger" onClick={() => setStatus(m, "dismissed")}>{t("dismissMatch")}</Button>
-            </div>
+            <>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <Button size="sm" onClick={() => setDealFor(m.id)}>{t("toDeal")}</Button>
+                <Button size="sm" variant="ghost" onClick={() => setStatus(m, "offered")}>{t("markOffered")}</Button>
+                <Button size="sm" variant="danger" onClick={() => setStatus(m, "dismissed")}>{t("dismissMatch")}</Button>
+              </div>
+              {m.source === "mls" && (
+                <Button size="sm" full variant="soft" className="mt-2" onClick={() => takeForClient(m)}>
+                  <Handshake size={15} /> {t("takeForClient")}
+                </Button>
+              )}
+            </>
           )}
         </Card>
       ))}

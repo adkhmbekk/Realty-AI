@@ -92,6 +92,20 @@ def mls_object_photos(
     return mls_service.object_photos(db, object_id)
 
 
+@router.post(
+    "/objects/{object_id}/take",
+    dependencies=[Depends(rate_limit(30, 60, "mls_take"))],
+)
+def mls_take_for_client(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """«Беру для клиента»: уведомить агентство-владельца объекта из общей базы, что
+    его объект берут для клиента — с контактом берущего агентства (связь риелторов)."""
+    return mls_service.take_for_client(db, current_user.agency_id, current_user, object_id)
+
+
 @router.get("/stats", response_model=ApartmentStatsOut)
 def mls_stats(
     db: Session = Depends(get_db),
