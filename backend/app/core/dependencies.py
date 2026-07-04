@@ -17,7 +17,7 @@ from app.core.errors import AppError
 from app.core.subscription import agency_is_active
 from app.db.models.user import User
 from app.db.session import get_db
-from app.repositories import agency_repo, user_repo
+from app.repositories import agency_membership_repo, agency_repo, user_repo
 
 # auto_error=False — сами решаем, как реагировать на отсутствие токена.
 _bearer = HTTPBearer(auto_error=False)
@@ -70,24 +70,48 @@ def get_current_user(
     if (payload.get("epoch") or 0) != (getattr(user, "session_epoch", 0) or 0):
         raise AppError("session_revoked", status.HTTP_401_UNAUTHORIZED)
 
-    # Acting-контекст: суперадмин «вошёл» в СВОЁ личное агентство. Владение
-    # перепроверяем из БД на КАЖДОМ запросе — claim'у из токена не доверяем.
+    # Acting-контекст: человек «вошёл» в ДРУГОЕ своё агентство (не домашнее).
+    # Права перепроверяем из БД на КАЖДОМ запросе — claim'у из токена не доверяем.
     act_as = payload.get("act_as_agency_id")
-    if act_as is not None and user.role == "superadmin":
-        agency = agency_repo.get_by_id(db, act_as)
-        if agency is not None and (
-            agency.owner_telegram_id == user.telegram_id
-            or getattr(agency, "is_shared", False)
-        ):
-            return ActingUser(
-                id=user.id,
-                telegram_id=user.telegram_id,
-                username=user.username,
-                full_name=user.full_name,
-                agency_id=agency.id,
-                acting_as_agency_id=agency.id,
-                acting_as_agency_name=agency.name,
-            )
+    if act_as is not None and act_as != user.agency_id:
+        # Путь А: суперадмин — в своё личное/общее агентство платформы.
+        if user.role == "superadmin":
+            agency = agency_repo.get_by_id(db, act_as)
+            if agency is not None and (
+                agency.owner_telegram_id == user.telegram_id
+                or getattr(agency, "is_shared", False)
+            ):
+                return ActingUser(
+                    id=user.id,
+                    telegram_id=user.telegram_id,
+                    username=user.username,
+                    full_name=user.full_name,
+                    agency_id=agency.id,
+                    role="agency_admin",
+                    is_owner=True,
+                    acting_as_agency_id=agency.id,
+                    acting_as_agency_name=agency.name,
+                    real_role="superadmin",
+                )
+        # Путь Б: обычный участник — в другое своё агентство (по членству).
+        # Роль и «владелец» берутся из членства именно в ТОМ агентстве.
+        else:
+            m = agency_membership_repo.get(db, user.id, act_as)
+            if m is not None and m.is_active:
+                agency = agency_repo.get_by_id(db, act_as)
+                if agency is not None:
+                    return ActingUser(
+                        id=user.id,
+                        telegram_id=user.telegram_id,
+                        username=user.username,
+                        full_name=user.full_name,
+                        agency_id=agency.id,
+                        role=m.role,
+                        is_owner=m.is_owner,
+                        acting_as_agency_id=agency.id,
+                        acting_as_agency_name=agency.name,
+                        real_role=user.role,
+                    )
     return user
 
 

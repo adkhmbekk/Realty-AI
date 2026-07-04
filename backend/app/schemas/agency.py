@@ -33,6 +33,13 @@ class AgencyRegister(BaseModel):
     phone: Optional[str] = Field(default=None, max_length=64)
 
 
+class OpenAgencyCreate(BaseModel):
+    # Открыть ЕЩЁ ОДНО своё агентство (для уже действующего участника). Нужны
+    # только название и (необязательно) телефон — человек станет владельцем.
+    name: str = Field(max_length=120)
+    phone: Optional[str] = Field(default=None, max_length=64)
+
+
 class AgencyDraftCreate(BaseModel):
     # Создание агентства «по ссылке»: ID админа НЕ нужен — кто откроет ссылку
     # активации, тот и станет главным админом. Подписка стартует с активации.

@@ -25,6 +25,18 @@ export interface AuthResponse {
   user: UserProfile;
 }
 
+// Одно членство пользователя: агентство + роль в нём (переключатель «мои агентства»).
+export interface Membership {
+  agency_id: number;
+  agency_name: string;
+  project_name?: string | null;
+  role: string;
+  is_owner: boolean;
+  is_active: boolean;
+  // Агентство, в котором пользователь работает прямо сейчас.
+  is_current: boolean;
+}
+
 export interface Apartment {
   id: number;
   display_id: string;

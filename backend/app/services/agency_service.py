@@ -377,6 +377,54 @@ def register_agency(
     return auth_service.build_auth_response(db, user)
 
 
+def open_additional_agency(
+    db: Session, user: User, name: str, phone: Optional[str] = None
+) -> dict:
+    """
+    Открыть ЕЩЁ ОДНО своё агентство (для уже действующего участника, Волна 4).
+    Домашнее агентство/роль человека НЕ меняются — создаётся новое агентство, он
+    становится его владельцем (членство owner). Возвращает сессию, сразу вошедшую
+    в новое агентство (через acting-контекст) — можно работать в нём немедленно.
+    """
+    from app.repositories import agency_membership_repo
+    from app.services import auth_service
+
+    clean = (name or "").strip()
+    if not clean:
+        raise AppError("agency_name_empty", status.HTTP_400_BAD_REQUEST)
+
+    agency = agency_repo.create(
+        db, name=clean, created_by=user.telegram_id, subscription_days=3650
+    )
+    agency.project_name = clean
+    if phone and phone.strip():
+        agency.contact_phone = phone.strip()
+        agency.client_phone = phone.strip()
+    seeding_service.seed_agency_defaults(db, agency.id)
+
+    agency_membership_repo.create(
+        db,
+        user_id=user.id,
+        agency_id=agency.id,
+        role="agency_admin",
+        is_owner=True,
+        is_active=True,
+    )
+    audit_repo.add(
+        db,
+        action="agency_created",
+        agency_id=agency.id,
+        target=clean,
+        note="доп. агентство участника",
+        actor_user_id=user.id,
+        actor_telegram_id=user.telegram_id,
+        actor_name=_admin_display_name(user),
+    )
+    db.commit()
+    db.refresh(user)
+    return auth_service.build_auth_response(db, user, act_as_agency_id=agency.id)
+
+
 def update_subscription(
     db: Session,
     agency_id: int,

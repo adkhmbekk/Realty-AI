@@ -5,10 +5,12 @@ import { createContext, useContext } from "react";
 // в дереве (экран «Мои агентства», баннер). Отдельный модуль — чтобы не было
 // циклического импорта между App и экранами.
 export interface ActingActions {
-  // Войти в личное агентство (id) как его главный админ.
+  // Войти в другое своё агентство (id) — переключение (acting-контекст).
   enterAgency: (id: number) => Promise<boolean>;
-  // Выйти из агентства обратно на платформу (роль суперадмина).
+  // Выйти из агентства обратно домой/на платформу.
   exitToPlatform: () => Promise<void>;
+  // Открыть ЕЩЁ ОДНО своё агентство (участник станет его владельцем) и войти в него.
+  openAgency: (name: string, phone: string) => Promise<boolean>;
 }
 
 const Ctx = createContext<ActingActions | null>(null);

@@ -300,7 +300,10 @@ function Shell() {
   const { t, user } = useApp();
   const { exitToPlatform } = useActing();
   const nav = useNav();
-  const acting = user?.real_role === "superadmin" && !!user?.acting_as_agency_id;
+  // «Вы в другом своём агентстве»: показываем плашку для любого переключения
+  // (и суперадмин в личном/общем, и участник в доп. агентстве).
+  const acting = !!user?.acting_as_agency_id;
+  const actingSuper = user?.real_role === "superadmin";
   const depth = nav.stack.length;
   const route = nav.current;
   const tkey = titleKeyFor(route);
@@ -384,14 +387,14 @@ function Shell() {
           <button
             onClick={async () => {
               await exitToPlatform();
-              nav.resetTo({ name: "agencies" });
+              nav.resetTo(actingSuper ? { name: "agencies" } : { name: "home" });
             }}
             className="w-full mb-3 rounded-xl2 px-3.5 py-2.5 text-left text-[13px] font-bold text-white shadow-soft active:scale-[.99] transition"
             style={{ background: "var(--grad)" }}
           >
             {t("actingBanner").replace("{name}", user?.acting_as_agency_name || "")}
             <span className="block text-[12px] font-semibold opacity-90 underline">
-              {t("exitToPlatform")}
+              {actingSuper ? t("exitToPlatform") : t("exitToHome")}
             </span>
           </button>
         )}
@@ -618,9 +621,20 @@ export function App() {
     }
   }
 
-  // Войти в своё личное агентство (acting): получить сессию главного админа.
+  // Войти в другое своё агентство (acting): получить сессию с ролью в нём.
   async function enterAgency(id: number): Promise<boolean> {
     const r = await api<AuthResponse>(`/api/v1/agencies/${id}/enter`, { method: "POST" });
+    if (r.ok && r.data) {
+      await applyAuth(r.data);
+      return true;
+    }
+    toast(errText(r.data, r.status) || t("loginFail"), "err");
+    return false;
+  }
+
+  // Открыть ЕЩЁ ОДНО своё агентство (участник становится владельцем) и войти в него.
+  async function openAgency(name: string, phone: string): Promise<boolean> {
+    const r = await api<AuthResponse>("/api/v1/agencies/open", { method: "POST", body: { name, phone } });
     if (r.ok && r.data) {
       await applyAuth(r.data);
       return true;
@@ -754,7 +768,7 @@ export function App() {
   const initialRoute: Route = user?.role === "superadmin" ? { name: "agencies" } : { name: "home" };
   return (
     <NavProvider initial={initialRoute}>
-      <ActingProvider value={{ enterAgency, exitToPlatform }}>
+      <ActingProvider value={{ enterAgency, exitToPlatform, openAgency }}>
         <Shell />
       </ActingProvider>
       <Toasts />

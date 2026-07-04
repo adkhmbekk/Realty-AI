@@ -131,16 +131,34 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
     # обесценивает все ранее выданные пропуска этого человека.
     epoch = getattr(user, "session_epoch", 0) or 0
     acting_agency = None
-    if act_as_agency_id is not None and getattr(user, "role", None) == "superadmin":
-        agency = agency_repo.get_by_id(db, act_as_agency_id)
-        # Личное агентство (owner_telegram_id == свой) ИЛИ ОБЩЕЕ агентство платформы
-        # (is_shared — «Realty AI», в него входят все владельцы) → acting-сессия
-        # главного админа. Так вход в общее агентство работает ТОЧНО как в личное.
-        if agency is not None and (
-            agency.owner_telegram_id == user.telegram_id
-            or getattr(agency, "is_shared", False)
-        ):
-            acting_agency = agency
+    acting_role = "agency_admin"
+    acting_is_owner = True
+    acting_real_role = "superadmin"
+    if act_as_agency_id is not None:
+        user_role = getattr(user, "role", None)
+        if user_role == "superadmin":
+            # Путь А: суперадмин в своё личное ИЛИ ОБЩЕЕ агентство платформы
+            # (is_shared — «Realty AI») → acting-сессия главного админа.
+            agency = agency_repo.get_by_id(db, act_as_agency_id)
+            if agency is not None and (
+                agency.owner_telegram_id == user.telegram_id
+                or getattr(agency, "is_shared", False)
+            ):
+                acting_agency = agency
+                acting_role = "agency_admin"
+                acting_is_owner = True
+                acting_real_role = "superadmin"
+        elif act_as_agency_id != getattr(user, "agency_id", None):
+            # Путь Б: обычный участник в другое своё агентство (по членству).
+            # Роль/владелец берутся из членства именно в ТОМ агентстве.
+            m = agency_membership_repo.get(db, user.id, act_as_agency_id)
+            if m is not None and m.is_active:
+                agency = agency_repo.get_by_id(db, act_as_agency_id)
+                if agency is not None:
+                    acting_agency = agency
+                    acting_role = m.role
+                    acting_is_owner = m.is_owner
+                    acting_real_role = user_role
 
     if acting_agency is not None:
         token = security.create_access_token(
@@ -148,7 +166,7 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
                 "user_id": user.id,
                 "telegram_id": user.telegram_id,
                 "agency_id": acting_agency.id,
-                "role": "agency_admin",
+                "role": acting_role,
                 "act_as_agency_id": acting_agency.id,
                 "epoch": epoch,
             }
@@ -158,19 +176,19 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
             "access_token": token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            # Личное агентство подписке не подчиняется — доступ всегда полный.
+            # Агентство «поверх» доступу по подписке не подчиняется (её и нет).
             "subscription_active": True,
             "user": {
                 "id": user.id,
                 "telegram_id": user.telegram_id,
                 "username": user.username,
                 "full_name": user.full_name,
-                "role": "agency_admin",
-                "is_owner": True,
+                "role": acting_role,
+                "is_owner": acting_is_owner,
                 "agency_id": acting_agency.id,
                 "acting_as_agency_id": acting_agency.id,
                 "acting_as_agency_name": acting_agency.name,
-                "real_role": "superadmin",
+                "real_role": acting_real_role,
             },
         }
 

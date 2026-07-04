@@ -7,12 +7,16 @@ from fastapi import APIRouter, Depends, Query, status
 
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_superadmin
+from app.core.dependencies import (
+    get_current_user,
+    require_agency_member,
+    require_superadmin,
+)
 from app.core.errors import AppError
 from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
-from app.repositories import agency_repo
+from app.repositories import agency_membership_repo, agency_repo, user_repo
 from app.schemas.agency import (
     ActivationOut,
     AgencyActivityOut,
@@ -25,6 +29,7 @@ from app.schemas.agency import (
     AgencyPaymentOut,
     AgencyRegister,
     AgencyUsageOut,
+    OpenAgencyCreate,
     PaymentsSummaryOut,
     AgencySubscriptionUpdate,
     AgencyUpdate,
@@ -50,6 +55,28 @@ def register_agency(body: AgencyRegister, db: Session = Depends(get_db)):
     """
     return agency_service.register_agency(
         db, body.init_data, body.name, owner_name=body.owner_name, phone=body.phone
+    )
+
+
+@router.post("/open", response_model=AuthResponse)
+def open_agency(
+    body: OpenAgencyCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """
+    Открыть ЕЩЁ ОДНО своё агентство (для действующего участника). Человек станет
+    владельцем нового агентства и сразу «войдёт» в него (переключатель). Домашнее
+    агентство при этом не меняется.
+    """
+    real_user = user_repo.get_by_id(db, current_user.id)
+    if real_user is None or not real_user.is_active:
+        raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+    if real_user.role == "superadmin":
+        # Суперадмин открывает агентства иначе (личные — /agencies/mine).
+        raise AppError("forbidden_member_only", status.HTTP_403_FORBIDDEN)
+    return agency_service.open_additional_agency(
+        db, real_user, body.name, phone=body.phone
     )
 
 
@@ -130,21 +157,36 @@ def create_my_agency(
 def enter_agency(
     agency_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superadmin),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    «Войти» в своё личное агентство: выдать сессию главного админа этого
-    агентства (acting-контекст). Войти можно только в агентство, которым
-    владеешь (owner_telegram_id == telegram_id).
+    «Войти» в другое своё агентство (переключение). Доступно:
+      - суперадмину — в его личное/общее агентство платформы;
+      - обычному участнику — в агентство, где у него есть активное членство.
+    Выдаёт сессию с ролью именно в том агентстве.
     """
+    # Берём НАСТОЯЩЕГО пользователя из БД (current_user мог быть acting-объектом).
+    real_user = user_repo.get_by_id(db, current_user.id)
+    if real_user is None or not real_user.is_active:
+        raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+
     agency = agency_repo.get_by_id(db, agency_id)
-    if agency is None or not (
-        agency.owner_telegram_id == current_user.telegram_id
-        or getattr(agency, "is_shared", False)
-    ):
+    if agency is None:
+        raise AppError("agency_not_found", status.HTTP_404_NOT_FOUND)
+
+    if real_user.role == "superadmin":
+        allowed = (
+            agency.owner_telegram_id == real_user.telegram_id
+            or getattr(agency, "is_shared", False)
+        )
+    else:
+        m = agency_membership_repo.get(db, real_user.id, agency_id)
+        allowed = m is not None and m.is_active
+    if not allowed:
         raise AppError("agency_not_owned", status.HTTP_403_FORBIDDEN)
+
     return auth_service.build_auth_response(
-        db, current_user, act_as_agency_id=agency_id
+        db, real_user, act_as_agency_id=agency_id
     )
 
 
