@@ -3,6 +3,7 @@
 (через Base.metadata) и смог создать соответствующие таблицы.
 """
 from app.db.models.agency import Agency
+from app.db.models.agency_membership import AgencyMembership
 from app.db.models.agency_sheet import AgencySheet
 from app.db.models.apartment import Apartment
 from app.db.models.apartment_event import ApartmentEvent
@@ -23,6 +24,7 @@ from app.db.models.watched_channel import WatchedChannel
 
 __all__ = [
     "Agency",
+    "AgencyMembership",
     "AgencySheet",
     "User",
     "Invite",

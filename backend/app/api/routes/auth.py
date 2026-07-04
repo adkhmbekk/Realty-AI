@@ -2,6 +2,8 @@
 Эндпоинты входа и профиля.
 Роуты не содержат бизнес-логику — они вызывают сервисы.
 """
+from typing import List
+
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
@@ -11,6 +13,7 @@ from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.auth import (
     AuthResponse,
+    MembershipOut,
     RefreshRequest,
     TelegramAuthRequest,
     UserProfile,
@@ -46,6 +49,15 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
 def me(current_user: User = Depends(get_current_user)):
     """Вернуть профиль текущего пользователя (по присланному пропуску)."""
     return current_user
+
+
+@router.get("/memberships", response_model=List[MembershipOut])
+def my_memberships(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Агентства, в которых состоит пользователь (для переключателя «мои агентства»)."""
+    return auth_service.list_my_memberships(db, current_user)
 
 
 @router.post(

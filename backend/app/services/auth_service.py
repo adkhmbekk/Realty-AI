@@ -18,7 +18,12 @@ from app.config import settings
 from app.core import security
 from app.core.errors import AppError
 from app.core.subscription import agency_is_active
-from app.repositories import agency_repo, audit_repo, user_repo
+from app.repositories import (
+    agency_membership_repo,
+    agency_repo,
+    audit_repo,
+    user_repo,
+)
 
 
 def login_with_init_data(db: Session, init_data: str, ip: Optional[str] = None) -> dict:
@@ -194,6 +199,29 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
         "subscription_active": subscription_active,
         "user": user,
     }
+
+
+def list_my_memberships(db: Session, user) -> list:
+    """
+    Все агентства, в которых состоит пользователь (для переключателя «мои
+    агентства», многоролевость 2026-07). is_current — агентство, в котором он
+    работает прямо сейчас (совместимо с acting-контекстом). У суперадмина
+    членств нет (он работает через личные/общее агентства) — вернётся пусто.
+    """
+    rows = agency_membership_repo.list_for_user(db, user.id)
+    current = getattr(user, "agency_id", None)
+    return [
+        {
+            "agency_id": a.id,
+            "agency_name": a.name,
+            "project_name": a.project_name,
+            "role": m.role,
+            "is_owner": m.is_owner,
+            "is_active": m.is_active,
+            "is_current": a.id == current,
+        }
+        for m, a in rows
+    ]
 
 
 def touch_last_seen(db: Session, user_id: Optional[int]) -> None:

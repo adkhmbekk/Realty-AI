@@ -40,6 +40,19 @@ class UserProfile(BaseModel):
     match_notify: Optional[str] = None
 
 
+class MembershipOut(BaseModel):
+    # Одно членство пользователя: в каком агентстве и с какой ролью (для
+    # переключателя «мои агентства», многоролевость 2026-07).
+    agency_id: int
+    agency_name: str
+    project_name: Optional[str] = None
+    role: str
+    is_owner: bool = False
+    is_active: bool = True
+    # Агентство, в котором пользователь работает прямо сейчас (активное).
+    is_current: bool = False
+
+
 class AuthResponse(BaseModel):
     access_token: str
     # Долгоживущий пропуск для тихого обновления сессии (см. /auth/refresh).
