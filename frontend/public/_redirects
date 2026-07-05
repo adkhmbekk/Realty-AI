@@ -1,5 +1,0 @@
-# Netlify: /api/* — серверный прокси на backend (офисный сервер за ngrok).
-# ВАЖНО: строка /api/* должна идти ПЕРЕД /* (Netlify читает сверху вниз).
-/api/*  https://pagan-crawling-retiring.ngrok-free.dev/api/:splat  200
-# SPA: любой путь отдаёт index.html (клиентская навигация React).
-/*  /index.html  200
