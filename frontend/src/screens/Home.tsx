@@ -141,7 +141,7 @@ function Bases() {
       <button
         onClick={() => {
           haptic();
-          nav.push({ name: "addObject" });
+          nav.pushTransient({ name: "addObject" });
         }}
         className="w-full text-left rounded-xl2 bg-card border border-line shadow-soft p-5 mb-4 transition active:scale-[.99] hover:shadow-lg2 animate-fade-up"
       >
@@ -268,7 +268,9 @@ export function HomeScreen() {
   const { t, user } = useApp();
   const nav = useNav();
   const role = user?.role;
-  const go = (r: Route) => nav.push(r);
+  // «Добавить объект» — одноразовый экран: через pushTransient, чтобы повторные
+  // нажатия не плодили слои (см. nav.tsx). Остальное — обычная навигация.
+  const go = (r: Route) => (r.name === "addObject" ? nav.pushTransient(r) : nav.push(r));
 
   const add = { icon: <Plus size={21} />, label: t("addObject"), route: { name: "addObject" } as Route };
   const search = { icon: <Search size={21} />, label: t("findObject"), route: { name: "search" } as Route };

@@ -58,6 +58,7 @@ interface NavCtx {
   current: Route; // верх активного стека
   stack: Route[]; // активный стек (используется stack[0].name, stack.length)
   push: (r: Route) => void;
+  pushTransient: (r: Route) => void; // одноразовый экран («Добавить объект»): всегда РОВНО один слой
   pop: () => void;
   resetTo: (r: Route) => void; // жёсткий сброс всей навигации (выход из acting и т.п.)
   switchTab: (r: Route) => void; // нижняя вкладка: сохранить всё; повторный тап → корень
@@ -125,6 +126,19 @@ export function NavProvider({ initial, children }: { initial: Route; children: R
     });
   }, []);
 
+  // Одноразовый экран (глобальное действие, напр. «Добавить объект» по «+»).
+  // Повторное нажатие НЕ плодит слои: сначала убираем прежние transient-экраны из
+  // активной вкладки, затем кладём ровно один новый. Так «Назад» жмётся один раз и
+  // возвращает туда, откуда открыли, а не через 10 одинаковых окон.
+  const pushTransient = useCallback((r: Route) => {
+    const entry = { id: nextId(), route: r };
+    setState((s) => {
+      const cur = s.tabs[s.activeTab] ?? [];
+      const base = cur.filter((p) => !TRANSIENT_ROUTES.has(p.route.name));
+      return { ...s, tabs: { ...s.tabs, [s.activeTab]: [...base, entry] } };
+    });
+  }, []);
+
   const pop = useCallback(() => {
     setState((s) => {
       const cur = s.tabs[s.activeTab] ?? [];
@@ -176,6 +190,7 @@ export function NavProvider({ initial, children }: { initial: Route; children: R
     current,
     stack,
     push,
+    pushTransient,
     pop,
     resetTo,
     switchTab,

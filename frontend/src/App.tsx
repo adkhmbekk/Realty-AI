@@ -263,7 +263,7 @@ function BottomTabs() {
           <TabButton key={i} active={activeTab === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
         ))}
         <button
-          onClick={() => nav.push({ name: "addObject" })}
+          onClick={() => nav.pushTransient({ name: "addObject" })}
           className="-mt-7 w-14 h-14 rounded-2xl text-white flex items-center justify-center shadow-glow active:scale-95 transition shrink-0"
           style={{ background: "var(--grad)" }}
           aria-label={t("addObject")}
