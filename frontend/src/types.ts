@@ -191,6 +191,7 @@ export interface AgencySettings {
   is_shared?: boolean;
   contact_phone?: string | null;
   contact_username?: string | null;
+  owner_name?: string | null;
   support_url?: string | null;
 }
 

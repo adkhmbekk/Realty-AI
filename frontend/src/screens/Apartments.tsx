@@ -685,9 +685,48 @@ const MLS_STATUSES: { key: string; labelKey: string }[] = [
   { key: "sold", labelKey: "statusSold" },
 ];
 
-export function MlsBrowseScreen() {
+// Одна строка объекта общей базы (MLS): бейдж «моё»/агентство, контакт (у чужих
+// скрыт), карточка. Свои объекты открываются в редактируемой карточке, чужие — в
+// read-only. Переиспользуется на экране «Общая база» и в секции поиска «В общей базе».
+function MlsItemRow({ it }: { it: MlsPoolItem }) {
   const { t, user } = useApp();
   const nav = useNav();
+  const mine = user?.agency_id != null && it.agency_id === user.agency_id;
+  return (
+    <div>
+      <div className="flex items-center gap-x-2 gap-y-1 mt-2.5 mx-0.5 text-[11.5px] font-bold flex-wrap">
+        <span className={"px-1.5 py-0.5 rounded-full " + (mine ? "bg-emerald-100 text-emerald-700" : "bg-primary-soft text-primary")}>
+          {mine ? t("mlsMine") : it.agency_name || t("mlsOtherAgency")}
+        </span>
+        {!mine &&
+          (it.agency_phone ? (
+            <a
+              href={"tel:" + it.agency_phone}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-primary font-extrabold"
+            >
+              <Phone size={12} /> {it.agency_phone}
+            </a>
+          ) : (
+            <span className="text-muted inline-flex items-center gap-1">
+              <Lock size={11} /> {t("mlsContactHidden")}
+            </span>
+          ))}
+      </div>
+      <ApartmentCard
+        o={it.apartment}
+        onOpen={
+          mine
+            ? () => nav.push({ name: "objectDetail", id: it.apartment.id })
+            : () => nav.push({ name: "mlsObjectDetail", item: it })
+        }
+      />
+    </div>
+  );
+}
+
+export function MlsBrowseScreen() {
+  const { t } = useApp();
   const [items, setItems] = useState<MlsPoolItem[] | null>(null);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState("active");
@@ -747,40 +786,9 @@ export function MlsBrowseScreen() {
           <div className="text-[12.5px] text-muted mt-2 mb-1 mx-0.5">
             {t("mlsTotal")}: {total}
           </div>
-          {items.map((it, i) => {
-            const mine = user?.agency_id != null && it.agency_id === user.agency_id;
-            return (
-              <div key={String(it.apartment.id) + "_" + i}>
-                <div className="flex items-center gap-x-2 gap-y-1 mt-2.5 mx-0.5 text-[11.5px] font-bold flex-wrap">
-                  <span className={"px-1.5 py-0.5 rounded-full " + (mine ? "bg-emerald-100 text-emerald-700" : "bg-primary-soft text-primary")}>
-                    {mine ? t("mlsMine") : it.agency_name || t("mlsOtherAgency")}
-                  </span>
-                  {!mine &&
-                    (it.agency_phone ? (
-                      <a
-                        href={"tel:" + it.agency_phone}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 text-primary font-extrabold"
-                      >
-                        <Phone size={12} /> {it.agency_phone}
-                      </a>
-                    ) : (
-                      <span className="text-muted inline-flex items-center gap-1">
-                        <Lock size={11} /> {t("mlsContactHidden")}
-                      </span>
-                    ))}
-                </div>
-                <ApartmentCard
-                  o={it.apartment}
-                  onOpen={
-                    mine
-                      ? () => nav.push({ name: "objectDetail", id: it.apartment.id })
-                      : () => nav.push({ name: "mlsObjectDetail", item: it })
-                  }
-                />
-              </div>
-            );
-          })}
+          {items.map((it, i) => (
+            <MlsItemRow key={String(it.apartment.id) + "_" + i} it={it} />
+          ))}
           {items.length < total && (
             <Button full variant="ghost" className="mt-3" disabled={busy} onClick={() => load(false)}>
               {busy ? t("loading") : t("showMore")}
@@ -820,11 +828,17 @@ function SaveRequestButton({ params }: { params: SearchParams }) {
 // ── Список/поиск с пагинацией ───────────────────────────────────────
 export function ObjectList({ params, allowSaveRequest }: { params: SearchParams; allowSaveRequest?: boolean }) {
   const { t } = useApp();
+  // Свои объекты (личная база).
   const [items, setItems] = useState<Apartment[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // Общая база (MLS): те же критерии, объекты других агентств (контакты скрыты).
+  const [mlsItems, setMlsItems] = useState<MlsPoolItem[] | null>(null);
+  const [mlsTotal, setMlsTotal] = useState(0);
+  const [mlsOffset, setMlsOffset] = useState(0);
+  const [mlsBusy, setMlsBusy] = useState(false);
 
   async function load(reset: boolean) {
     setLoading(true);
@@ -843,36 +857,80 @@ export function ObjectList({ params, allowSaveRequest }: { params: SearchParams;
     setOffset(off + newItems.length);
   }
 
+  async function loadMls(reset: boolean) {
+    setMlsBusy(true);
+    const off = reset ? 0 : mlsOffset;
+    // MLS-статус строгий; «all/archived/пусто» → показываем активные из общей базы.
+    const st = params.status && ["active", "deposit", "sold", "unsold"].includes(params.status) ? params.status : "active";
+    const q = buildQuery({ ...params, status: st, limit: 20, offset: off });
+    const r = await api<MlsPoolResponse>("/api/v1/mls/browse?" + q);
+    setMlsBusy(false);
+    if (r.ok && r.data) {
+      setMlsTotal(r.data.total);
+      setMlsItems((prev) => (reset || !prev ? r.data!.items : [...prev, ...r.data!.items]));
+      setMlsOffset(off + r.data.items.length);
+    } else if (reset) setMlsItems([]);
+  }
+
   useEffect(() => {
     load(true);
+    setMlsItems(null);
+    setMlsOffset(0);
+    loadMls(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(params)]);
 
-  if (loading && !items.length) return <ListSkeleton />;
-  if (err) return <Empty>{err}</Empty>;
-  if (!items.length)
-    return (
-      <div>
-        <Empty icon={<SearchX size={24} />} sub={t("emptyListSub")}>
-          {t("notFound")}
-        </Empty>
-        {allowSaveRequest && <SaveRequestButton params={params} />}
-      </div>
-    );
   const left = total - items.length;
   return (
     <div>
-      <div className="text-[13px] text-muted my-1.5">
-        {t("found")}: {total}
+      {/* ── Мои объекты (личная база) ── */}
+      <div className="flex items-center justify-between mt-1 mb-0.5 mx-0.5">
+        <span className="text-[13.5px] font-extrabold tracking-tight">{t("myObjects")}</span>
+        <span className="text-[12px] text-muted">{total}</span>
       </div>
-      {items.map((o) => (
-        <ApartmentCard key={o.id} o={o} />
-      ))}
-      {left > 0 && (
-        <Button variant="ghost" full className="mt-3" onClick={() => load(false)}>
-          {t("showMore")} ({left})
-        </Button>
+      {loading && !items.length ? (
+        <ListSkeleton />
+      ) : err ? (
+        <Empty>{err}</Empty>
+      ) : !items.length ? (
+        <Empty icon={<SearchX size={22} />} sub={t("emptyListSub")}>
+          {t("notFound")}
+        </Empty>
+      ) : (
+        <>
+          {items.map((o) => (
+            <ApartmentCard key={o.id} o={o} />
+          ))}
+          {left > 0 && (
+            <Button variant="ghost" full className="mt-3" onClick={() => load(false)}>
+              {t("showMore")} ({left})
+            </Button>
+          )}
+        </>
       )}
+
+      {/* ── В общей базе (MLS) ── */}
+      <div className="flex items-center justify-between mt-5 mb-0.5 mx-0.5">
+        <span className="text-[13.5px] font-extrabold tracking-tight">{t("inMlsBase")}</span>
+        <span className="text-[12px] text-muted">{mlsTotal}</span>
+      </div>
+      {mlsItems === null ? (
+        <ListSkeleton />
+      ) : !mlsItems.length ? (
+        <Empty icon={<HomeIcon size={22} />}>{t("mlsEmpty")}</Empty>
+      ) : (
+        <>
+          {mlsItems.map((it, i) => (
+            <MlsItemRow key={String(it.apartment.id) + "_m" + i} it={it} />
+          ))}
+          {mlsItems.length < mlsTotal && (
+            <Button variant="ghost" full className="mt-3" disabled={mlsBusy} onClick={() => loadMls(false)}>
+              {mlsBusy ? t("loading") : t("showMore")}
+            </Button>
+          )}
+        </>
+      )}
+
       {allowSaveRequest && <SaveRequestButton params={params} />}
     </div>
   );

@@ -327,6 +327,7 @@ def list_mls_pool(
     status: Optional[str] = "active",
     agency_id: Optional[int] = None,
     districts: Optional[Sequence[str]] = None,
+    types: Optional[Sequence[str]] = None,
     deal_type: Optional[str] = None,
     rooms_min: Optional[int] = None,
     rooms_max: Optional[int] = None,
@@ -354,6 +355,8 @@ def list_mls_pool(
         conds.append(Apartment.deal_type == deal_type)
     if districts:
         conds.append(Apartment.district.in_(list(districts)))
+    if types:
+        conds.append(Apartment.type.in_(list(types)))
     if rooms_min is not None:
         conds.append(Apartment.rooms >= rooms_min)
     if rooms_max is not None:

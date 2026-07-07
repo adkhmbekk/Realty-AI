@@ -5,7 +5,7 @@
 по всем агентствам, с фильтрами. Контакты собственника скрыты (как видят
 агентства друг друга). Только чтение — ничего не меняет и не удаляет.
 """
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -59,6 +59,13 @@ def mls_browse(
     agency_id: Optional[int] = Query(default=None),
     deal_type: Optional[str] = Query(default=None),
     district: Optional[str] = Query(default=None),
+    districts: Optional[List[str]] = Query(default=None),
+    types: Optional[List[str]] = Query(default=None),
+    rooms_min: Optional[int] = Query(default=None),
+    rooms_max: Optional[int] = Query(default=None),
+    price_min: Optional[float] = Query(default=None),
+    price_max: Optional[float] = Query(default=None),
+    currency: Optional[str] = Query(default=None),
     status: str = Query(default="active"),
     q: Optional[str] = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
@@ -66,15 +73,26 @@ def mls_browse(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_agency_member),
 ):
-    """Общая база (MLS) для агентства: все объекты, которыми поделились агентства.
-    Телефон собственника виден ТОЛЬКО у своих объектов (кто добавил — тот и видит)."""
+    """Общая база (MLS) для агентства: все объекты, которыми поделились агентства,
+    с фильтрами (район/тип/комнаты/цена) — используется и на экране «Общая база», и в
+    поиске (секция «В общей базе»). Телефон собственника виден ТОЛЬКО у своих объектов."""
+    # Районы: поддерживаем и одиночный district (совместимость), и список districts.
+    dl = list(districts) if districts else []
+    if district:
+        dl.append(district)
     return mls_service.list_pool_for_member(
         db,
         current_user.agency_id,
         status=status,
         agency_id=agency_id,
-        districts=[district] if district else None,
+        districts=dl or None,
+        types=types,
         deal_type=deal_type,
+        rooms_min=rooms_min,
+        rooms_max=rooms_max,
+        price_min=price_min,
+        price_max=price_max,
+        currency=currency,
         q=q,
         limit=limit,
         offset=offset,

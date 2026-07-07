@@ -28,8 +28,10 @@ def get_settings(
     agency = agency_repo.get_by_id(db, current_user.agency_id)
     out = AgencySettingsOut.model_validate(agency)
     owner = user_repo.get_owner(db, current_user.agency_id)
-    if owner is not None and getattr(owner, "username", None):
-        out.contact_username = "@" + owner.username
+    if owner is not None:
+        out.owner_name = owner.full_name
+        if getattr(owner, "username", None):
+            out.contact_username = "@" + owner.username
     # Контакт поддержки — общий для всех агентств (из настройки SUPPORT_URL).
     out.support_url = cfg.support_url or None
     return out
@@ -42,11 +44,21 @@ def update_settings(
     current_user: User = Depends(require_agency_owner),
 ):
     """Изменить настройки агентства (только главный администратор агентства)."""
-    return agency_service.update_settings(
+    agency = agency_service.update_settings(
         db,
         current_user.agency_id,
+        name=body.name,
+        owner_name=body.owner_name,
         project_name=body.project_name,
         timezone_value=body.timezone,
         default_currency=body.default_currency,
         contact_phone=body.contact_phone,
     )
+    out = AgencySettingsOut.model_validate(agency)
+    owner = user_repo.get_owner(db, current_user.agency_id)
+    if owner is not None:
+        out.owner_name = owner.full_name
+        if getattr(owner, "username", None):
+            out.contact_username = "@" + owner.username
+    out.support_url = cfg.support_url or None
+    return out

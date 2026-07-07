@@ -149,6 +149,8 @@ class AgencySettingsOut(BaseModel):
     contact_phone: Optional[str] = None
     # Telegram-логин владельца агентства (@username), показывается клиентам в карточке.
     contact_username: Optional[str] = None
+    # Имя владельца агентства (full_name главного админа) — для формы «Редактировать агентство».
+    owner_name: Optional[str] = None
     # Контакт поддержки платформы (общий для всех агентств): ссылка на Telegram,
     # открывается кнопкой «Поддержка» в приложении. Берётся из настройки SUPPORT_URL.
     support_url: Optional[str] = None
@@ -156,6 +158,10 @@ class AgencySettingsOut(BaseModel):
 
 class AgencySettingsUpdate(BaseModel):
     # Что админ агентства может менять в настройках.
+    # Название агентства (бренд, виден клиентам в карточках и в общей базе).
+    name: Optional[str] = Field(default=None, max_length=120)
+    # Имя владельца агентства (full_name главного админа).
+    owner_name: Optional[str] = Field(default=None, max_length=120)
     project_name: Optional[str] = Field(default=None, max_length=120)
     timezone: Optional[str] = Field(default=None, max_length=64)
     default_currency: Optional[str] = Field(default=None, max_length=8)

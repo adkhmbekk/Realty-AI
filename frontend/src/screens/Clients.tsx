@@ -1186,6 +1186,8 @@ export function ClientDetailScreen({ id }: { id: number }) {
   // Редактирование существующей заявки: id заявки в правке + её критерии в форме.
   const [editReqId, setEditReqId] = useState<number | null>(null);
   const [editCrit, setEditCrit] = useState<Criteria>(emptyCriteria());
+  // Активная вкладка карточки клиента (Обзор/Заявки/Сделки/Задачи/История).
+  const [tab, setTab] = useState<"overview" | "requests" | "deals" | "tasks" | "history">("overview");
 
   async function load() {
     const r = await api<Client>("/api/v1/clients/" + id);
@@ -1334,16 +1336,47 @@ export function ClientDetailScreen({ id }: { id: number }) {
         )}
       </Card>
 
-      <ClientHints clientId={id} />
-
-      <div className="flex items-center justify-between mt-4 mx-0.5 mb-1.5">
-        <span className="text-[14px] font-extrabold tracking-tight">{t("wantedTitle")}</span>
-        <button onClick={() => setAddReq((v) => !v)} className="text-[13px] font-bold text-primary inline-flex items-center gap-1 active:scale-95">
-          <Plus size={15} /> {t("addRequest")}
-        </button>
+      {/* Вкладки: разложили длинную карточку по разделам, чтобы не было «свалки» */}
+      <div className="flex gap-1.5 mt-3 mb-1 overflow-x-auto no-scrollbar -mx-0.5 px-0.5">
+        {([
+          { key: "overview", label: t("tabOverview") },
+          { key: "requests", label: t("tabRequests"), badge: c.requests.length, dot: c.requests.reduce((s, r) => s + (r.new_match_count || 0), 0) > 0 },
+          { key: "deals", label: t("tabDeals") },
+          { key: "tasks", label: t("tabTasks") },
+          { key: "history", label: t("tabHistory") },
+        ] as const).map((tb) => (
+          <button
+            key={tb.key}
+            type="button"
+            onClick={() => setTab(tb.key)}
+            className={"shrink-0 min-h-[36px] px-3 rounded-xl text-[13px] font-bold transition active:scale-95 inline-flex items-center gap-1.5 " + (tab === tb.key ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted")}
+          >
+            {tb.label}
+            {"badge" in tb && tb.badge ? <span className="text-[11px] opacity-90">{tb.badge}</span> : null}
+            {"dot" in tb && tb.dot ? <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> : null}
+          </button>
+        ))}
       </div>
 
-      {addReq && (
+      {tab === "overview" && (
+        <>
+          <ClientHints clientId={id} />
+          <Button full variant="danger" className="mt-5" onClick={delClient}>
+            <Trash2 size={16} /> {t("delClient")}
+          </Button>
+        </>
+      )}
+
+      {tab === "requests" && (
+        <>
+          <div className="flex items-center justify-between mt-2 mx-0.5 mb-1.5">
+            <span className="text-[14px] font-extrabold tracking-tight">{t("wantedTitle")}</span>
+            <button onClick={() => setAddReq((v) => !v)} className="text-[13px] font-bold text-primary inline-flex items-center gap-1 active:scale-95">
+              <Plus size={15} /> {t("addRequest")}
+            </button>
+          </div>
+
+          {addReq && (
         <Card className="mb-2">
           <Hint>{t("wantedHint")}</Hint>
           <CriteriaEditor value={crit} onChange={setCrit} />
@@ -1418,16 +1451,14 @@ export function ClientDetailScreen({ id }: { id: number }) {
           </Card>
         )
       )}
+        </>
+      )}
 
-      <ClientDeals clientId={id} matches={matches || []} reloadSignal={0} />
+      {tab === "deals" && <ClientDeals clientId={id} matches={matches || []} reloadSignal={0} />}
 
-      <ClientTasks clientId={id} />
+      {tab === "tasks" && <ClientTasks clientId={id} />}
 
-      <ClientHistory clientId={id} />
-
-      <Button full variant="danger" className="mt-5" onClick={delClient}>
-        <Trash2 size={16} /> {t("delClient")}
-      </Button>
+      {tab === "history" && <ClientHistory clientId={id} />}
     </div>
   );
 }

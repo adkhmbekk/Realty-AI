@@ -786,13 +786,27 @@ def list_audit(db: Session, agency_id: int) -> list:
 def update_settings(
     db: Session,
     agency_id: int,
+    name: Optional[str] = None,
+    owner_name: Optional[str] = None,
     project_name: Optional[str] = None,
     timezone_value: Optional[str] = None,
     default_currency: Optional[str] = None,
     contact_phone: Optional[str] = None,
 ) -> Agency:
-    """Обновить настройки агентства (название проекта, часовой пояс, валюта, контакт)."""
+    """Обновить настройки агентства (название, владелец, часовой пояс, валюта, контакт)."""
     agency = _get_agency_or_404(db, agency_id)
+    if name is not None:
+        clean_name = name.strip()
+        if clean_name:
+            # «Название агентства» = бренд: держим name и project_name синхронными,
+            # чтобы клиенты и общая база видели актуальное имя.
+            agency.name = clean_name
+            agency.project_name = clean_name
+    if owner_name is not None:
+        # Имя владельца агентства (full_name главного админа). Пустая строка очищает.
+        owner = user_repo.get_owner(db, agency_id)
+        if owner is not None:
+            owner.full_name = owner_name.strip() or None
     if project_name is not None:
         # Пустая строка очищает название проекта.
         agency.project_name = project_name.strip() or None
