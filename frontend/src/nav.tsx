@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Apartment, MlsPoolItem, SearchParams } from "./types";
 
 // Все экраны приложения. Стек хранит историю для кнопки «Назад».
@@ -82,50 +82,57 @@ export function usePaneActive(): boolean {
 let _seq = 0;
 const nextId = () => `p${++_seq}`;
 
+// Вкладка и стеки — в ОДНОМ состоянии, чтобы все переходы были атомарными и
+// колбэки читали актуальные данные через функциональный апдейт (без ref-хаков,
+// устойчиво к прерванному рендеру Suspense/concurrent).
+interface NavState {
+  activeTab: string;
+  tabs: Record<string, Pane[]>;
+}
+
 export function NavProvider({ initial, children }: { initial: Route; children: React.ReactNode }) {
-  const [tabs, setTabs] = useState<Record<string, Pane[]>>(() => ({
-    [initial.name]: [{ id: nextId(), route: initial }],
+  const [state, setState] = useState<NavState>(() => ({
+    activeTab: initial.name,
+    tabs: { [initial.name]: [{ id: nextId(), route: initial }] },
   }));
-  const [activeTab, setActiveTab] = useState<string>(initial.name);
-  // Актуальная активная вкладка для стабильных колбэков (без устаревших замыканий).
-  const activeTabRef = useRef(activeTab);
-  activeTabRef.current = activeTab;
 
   const push = useCallback((r: Route) => {
-    setTabs((prev) => {
-      const tab = activeTabRef.current;
-      const cur = prev[tab] ?? [];
-      return { ...prev, [tab]: [...cur, { id: nextId(), route: r }] };
+    const entry = { id: nextId(), route: r };
+    setState((s) => {
+      const cur = s.tabs[s.activeTab] ?? [];
+      return { ...s, tabs: { ...s.tabs, [s.activeTab]: [...cur, entry] } };
     });
   }, []);
 
   const pop = useCallback(() => {
-    setTabs((prev) => {
-      const tab = activeTabRef.current;
-      const cur = prev[tab] ?? [];
-      return cur.length > 1 ? { ...prev, [tab]: cur.slice(0, -1) } : prev;
+    setState((s) => {
+      const cur = s.tabs[s.activeTab] ?? [];
+      if (cur.length <= 1) return s;
+      return { ...s, tabs: { ...s.tabs, [s.activeTab]: cur.slice(0, -1) } };
     });
   }, []);
 
   // Жёсткий сброс: одна вкладка, чистый стек (выход из acting-режима и т.п.).
   const resetTo = useCallback((r: Route) => {
-    setTabs({ [r.name]: [{ id: nextId(), route: r }] });
-    setActiveTab(r.name);
+    setState({ activeTab: r.name, tabs: { [r.name]: [{ id: nextId(), route: r }] } });
   }, []);
 
   // Нижняя вкладка. Другая вкладка → переключаемся, сохраняя обе. Та же вкладка →
   // возвращаемся к её корню (привычное поведение iOS/Telegram).
   const switchTab = useCallback((r: Route) => {
-    setTabs((prev) => {
-      if (activeTabRef.current === r.name) {
-        const cur = prev[r.name] ?? [];
-        return cur.length <= 1 ? prev : { ...prev, [r.name]: [cur[0]] };
+    const rootEntry = { id: nextId(), route: r };
+    setState((s) => {
+      if (s.activeTab === r.name) {
+        const cur = s.tabs[r.name] ?? [];
+        if (cur.length <= 1) return s;
+        return { activeTab: r.name, tabs: { ...s.tabs, [r.name]: [cur[0]] } };
       }
-      return prev[r.name] ? prev : { ...prev, [r.name]: [{ id: nextId(), route: r }] };
+      const tabs = s.tabs[r.name] ? s.tabs : { ...s.tabs, [r.name]: [rootEntry] };
+      return { activeTab: r.name, tabs };
     });
-    setActiveTab(r.name);
   }, []);
 
+  const { activeTab, tabs } = state;
   const activeStack = tabs[activeTab] ?? [];
   const top = activeStack[activeStack.length - 1];
   const current = top?.route ?? initial;

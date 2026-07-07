@@ -287,7 +287,11 @@ function PageHost({ pane, active }: { pane: Pane; active: boolean }) {
     <div
       aria-hidden={!active}
       className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain"
-      style={{ visibility: active ? "visible" : "hidden", zIndex: active ? 1 : 0 }}
+      style={{
+        visibility: active ? "visible" : "hidden",
+        zIndex: active ? 1 : 0,
+        WebkitOverflowScrolling: "touch",
+      }}
     >
       <motion.div
         className="max-w-[560px] mx-auto px-3.5 py-3.5"
@@ -407,7 +411,12 @@ function Shell() {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div
+      className="fixed left-0 right-0 bottom-0 flex flex-col"
+      style={{ top: "var(--tg-top-inset, 0px)" }}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       {/* Верхняя область (баннер + шапка) — фиксирована, не участвует в скролле страниц */}
       <div className="shrink-0 w-full max-w-[560px] mx-auto px-3.5 pt-3.5">
         {/* Баннер acting-режима: владелец платформы внутри своего агентства */}
@@ -445,7 +454,7 @@ function Shell() {
 
       {/* Область страниц: каждая страница — живой, независимый экран со своим скроллом.
           Все смонтированы (состояние/скролл сохраняются), видна только активная. */}
-      <div className="relative flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0 overflow-hidden">
         {nav.panes.map((pane) => (
           <PageHost key={pane.id} pane={pane} active={pane.id === nav.activePaneId} />
         ))}

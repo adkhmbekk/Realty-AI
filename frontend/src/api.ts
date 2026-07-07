@@ -100,9 +100,14 @@ export async function api<T = any>(
   } catch {
     data = null;
   }
-  // Успешная НЕ-GET операция изменила данные → сигналим для умного обновления
+  // Успешная НЕ-GET операция изменила ДАННЫЕ → сигналим для умного обновления
   // (страницы под нами подтянут свежее при возврате, см. refresh.ts / useRevisit).
-  if (res.ok && (opts.method || "GET").toUpperCase() !== "GET") bumpData();
+  // ВАЖНО: служебные вызовы /auth/* (heartbeat раз в минуту, вход/перелогин) данные
+  // НЕ меняют — их исключаем, иначе список перезагружался бы при КАЖДОМ возврате и
+  // терял позицию скролла.
+  if (res.ok && (opts.method || "GET").toUpperCase() !== "GET" && !path.includes("/auth/")) {
+    bumpData();
+  }
   return { ok: res.ok, status: res.status, data };
 }
 
