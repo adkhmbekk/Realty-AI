@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Briefcase, Building2, Home, Layers, Mail, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
@@ -278,25 +278,36 @@ function BottomTabs() {
   );
 }
 
-// Хост одной живой страницы: собственный контейнер скролла (overflow-y-auto),
-// собственное состояние (никогда не размонтируется, пока в стеке), собственная
-// анимация. Неактивные — visibility:hidden (скролл сохраняется, в отличие от
-// display:none). PaneActiveContext даёт экрану знать, что он снова виден.
+// Хост одной живой страницы: собственный контейнер скролла, собственное состояние
+// (никогда не размонтируется, пока в стеке), собственная анимация. Неактивные —
+// display:none: страница полностью убрана из отрисовки и не может «просвечивать»
+// поверх активной. Позиция скролла у каждой страницы своя: сохраняем её при
+// прокрутке и восстанавливаем при возврате на страницу (не сброс, а именно
+// сохранение). PaneActiveContext даёт экрану знать, что он снова виден.
 function PageHost({ pane, active }: { pane: Pane; active: boolean }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const savedTop = useRef(0);
+  const prevActive = useRef(active);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    // Восстанавливаем скролл при переходе «скрыт → виден» (свой у каждой страницы).
+    if (el && active && !prevActive.current) el.scrollTop = savedTop.current;
+    prevActive.current = active;
+  });
   return (
     <div
+      ref={scrollRef}
       aria-hidden={!active}
-      className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain"
-      style={{
-        visibility: active ? "visible" : "hidden",
-        zIndex: active ? 1 : 0,
-        WebkitOverflowScrolling: "touch",
+      onScroll={(e) => {
+        savedTop.current = e.currentTarget.scrollTop;
       }}
+      className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain"
+      style={{ display: active ? undefined : "none", WebkitOverflowScrolling: "touch" }}
     >
       <motion.div
         className="max-w-[560px] mx-auto px-3.5 py-3.5"
         initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: active ? 1 : 0, y: active ? 0 : 6 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
       >
         <PaneActiveContext.Provider value={active}>
