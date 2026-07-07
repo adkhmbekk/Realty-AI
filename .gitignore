@@ -29,4 +29,5 @@ Thumbs.db
 
 # Локальные агентские скиллы (не часть приложения)
 .agents/
+.claude/skills/
 skills-lock.json
