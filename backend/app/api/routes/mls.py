@@ -15,7 +15,7 @@ from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.apartment import ApartmentStatsOut
-from app.schemas.mls import MlsPoolOut
+from app.schemas.mls import MlsAgencyOut, MlsPoolOut
 from app.services import mls_service
 
 router = APIRouter(prefix="/mls", tags=["mls"])
@@ -66,7 +66,7 @@ def mls_browse(
     price_min: Optional[float] = Query(default=None),
     price_max: Optional[float] = Query(default=None),
     currency: Optional[str] = Query(default=None),
-    status: str = Query(default="active"),
+    status: Optional[str] = Query(default=None),
     q: Optional[str] = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -97,6 +97,19 @@ def mls_browse(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get(
+    "/agencies",
+    response_model=List[MlsAgencyOut],
+    dependencies=[Depends(rate_limit(60, 60, "mls_agencies"))],
+)
+def mls_agencies(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_agency_member),
+):
+    """Список агентств, присутствующих в общей базе — для фильтра «по агентствам»."""
+    return mls_service.list_agencies(db)
 
 
 @router.get("/objects/{object_id}/photos")

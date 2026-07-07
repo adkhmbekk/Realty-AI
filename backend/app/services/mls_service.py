@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.repositories import agency_repo, apartment_repo, user_repo
 from app.schemas.apartment import ApartmentOut, ApartmentStatsOut
-from app.schemas.mls import MlsPoolItemOut, MlsPoolOut
+from app.schemas.mls import MlsAgencyOut, MlsPoolItemOut, MlsPoolOut
 from app.services import photo_service, telegram_service
 
 
@@ -151,6 +151,19 @@ def list_pool_for_member(
             )
         )
     return MlsPoolOut(items=out_items, total=total, limit=limit, offset=offset)
+
+
+def list_agencies(db: Session) -> list:
+    """Агентства, присутствующие в общей базе (MLS) — для фильтра «по агентствам».
+    Имя — бренд проекта (иначе name). Сортировка по имени для стабильного списка."""
+    ids = apartment_repo.list_mls_agency_ids(db)
+    out = []
+    for aid in ids:
+        ag = agency_repo.get_by_id(db, aid)
+        name = (ag.project_name or ag.name) if ag is not None else None
+        out.append(MlsAgencyOut(agency_id=aid, agency_name=name))
+    out.sort(key=lambda a: (a.agency_name or "").lower())
+    return out
 
 
 def object_photos(db: Session, object_id: int) -> list:

@@ -394,6 +394,17 @@ def list_mls_pool(
     return items, total
 
 
+def list_mls_agency_ids(db: Session) -> List[int]:
+    """id всех агентств, у которых есть хотя бы один объект в общей базе
+    (shared_mls=True, не удалён) — для фильтра «по агентствам» в общей базе."""
+    rows = db.execute(
+        select(Apartment.agency_id)
+        .where(Apartment.deleted_at.is_(None), Apartment.shared_mls.is_(True))
+        .distinct()
+    ).scalars().all()
+    return list(rows)
+
+
 def list_agency_objects(
     db: Session, agency_id: int, *, q: Optional[str] = None, limit: int = 50, offset: int = 0,
 ) -> Tuple[List[Apartment], int]:

@@ -29,3 +29,9 @@ class MlsPoolOut(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class MlsAgencyOut(BaseModel):
+    # Агентство, присутствующее в общей базе — для фильтра «по агентствам».
+    agency_id: int
+    agency_name: Optional[str] = None

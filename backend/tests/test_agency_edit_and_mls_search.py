@@ -64,3 +64,35 @@ def test_mls_search_filters_and_contacts(db):
     assert by_agency[a.id].apartment.owner_phone == "+998900000001"
     # Чужой объект — телефон скрыт.
     assert by_agency[b.id].apartment.owner_phone is None
+
+
+def test_mls_agencies_list_and_agency_filter(db):
+    a, ua = _agency_with_owner(db, "Zebra", 210)
+    b, ub = _agency_with_owner(db, "Alpha", 211)
+    _mk(db, a, ua, type="Квартира", district="Чиланзар", rooms=2, price=50000)
+    _mk(db, b, ub, type="Дом", district="Юнусабад", rooms=4, price=90000)
+
+    # Список агентств общей базы — оба, отсортированы по имени (Alpha, затем Zebra).
+    ags = mls_service.list_agencies(db)
+    assert [x.agency_name for x in ags] == ["Alpha", "Zebra"]
+
+    # Фильтр по агентству b — только его объект.
+    only_b = mls_service.list_pool_for_member(db, a.id, agency_id=b.id)
+    assert only_b.total == 1
+    assert only_b.items[0].agency_id == b.id
+
+
+def test_mls_browse_no_status_returns_all(db):
+    a, ua = _agency_with_owner(db, "Gamma", 212)
+    act = _mk(db, a, ua, type="Квартира", district="Чиланзар", rooms=2, price=50000)
+    sold = _mk(db, a, ua, type="Квартира", district="Сергели", rooms=3, price=70000)
+    sold.status = "sold"
+    db.commit()
+
+    # Без статуса (общий список по порядку) — видны и активный, и проданный.
+    out = mls_service.list_pool_for_member(db, a.id, status=None)
+    ids = {it.apartment.id for it in out.items}
+    assert {act.id, sold.id} <= ids
+    # Явный фильтр по статусу — только проданный.
+    only_sold = mls_service.list_pool_for_member(db, a.id, status="sold")
+    assert [it.apartment.id for it in only_sold.items] == [sold.id]

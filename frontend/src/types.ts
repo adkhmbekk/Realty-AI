@@ -99,6 +99,12 @@ export interface MlsPoolResponse {
   offset: number;
 }
 
+// Агентство в общей базе — для фильтра «по агентствам».
+export interface MlsAgency {
+  agency_id: number;
+  agency_name?: string | null;
+}
+
 export interface ApartmentStats {
   active: number;
   deposit: number;

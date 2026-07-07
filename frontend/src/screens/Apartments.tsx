@@ -50,7 +50,7 @@ import {
   STATUS_BADGE,
 } from "../i18n";
 import { Badge } from "../components/ui";
-import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, ListingImport, MlsPoolItem, MlsPoolResponse, SearchParams } from "../types";
+import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, ListingImport, MlsAgency, MlsPoolItem, MlsPoolResponse, SearchParams } from "../types";
 import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
 import { canShareMessage, haptic, openLink, shareMessage, confirmDialog } from "../telegram";
 
@@ -714,66 +714,75 @@ function cx2(...a: Array<string | false | null | undefined>) {
 // ── Экран: общая база MLS (открыта всем агентствам) ─────────────────
 // Показывает объекты, которыми поделились агентства платформы. Номер собственника
 // виден ТОЛЬКО у своих объектов (у чужих — скрыт, карточка не открывается).
-const MLS_STATUSES: { key: string; labelKey: string }[] = [
-  { key: "active", labelKey: "statusActive" },
-  { key: "deposit", labelKey: "statusDeposit" },
-  { key: "sold", labelKey: "statusSold" },
-];
+// Валидные статусы объекта по типу сделки (для фильтра общей базы). Для аренды
+// «sold» не бывает — вместо него «rented» (см. L.statusLabel).
+const MLS_DEAL_STATUSES: Record<string, string[]> = {
+  sale: ["active", "deposit", "sold"],
+  rent: ["active", "deposit", "rented"],
+};
+
+interface MlsFilters {
+  agencyId: string; // "" = все агентства
+  dealType: string; // "" | "sale" | "rent"
+  status: string; // "" = любой статус
+}
+const EMPTY_MLS_FILTERS: MlsFilters = { agencyId: "", dealType: "", status: "" };
 
 // Одна строка объекта общей базы (MLS): бейдж «моё»/агентство, контакт (у чужих
 // скрыт), карточка. Свои объекты открываются в редактируемой карточке, чужие — в
 // read-only. Переиспользуется на экране «Общая база» и в секции поиска «В общей базе».
 function MlsItemRow({ it }: { it: MlsPoolItem }) {
-  const { t, user } = useApp();
+  const { user } = useApp();
   const nav = useNav();
+  // Свои объекты открываем в редактируемой карточке (телефон собственника виден),
+  // чужие — в read-only (контакты скрыты бэкендом). Название/телефон агентства над
+  // карточкой НЕ показываем — общая база это единый обезличенный список.
   const mine = user?.agency_id != null && it.agency_id === user.agency_id;
   return (
-    <div>
-      <div className="flex items-center gap-x-2 gap-y-1 mt-2.5 mx-0.5 text-[11.5px] font-bold flex-wrap">
-        <span className={"px-1.5 py-0.5 rounded-full " + (mine ? "bg-emerald-100 text-emerald-700" : "bg-primary-soft text-primary")}>
-          {mine ? t("mlsMine") : it.agency_name || t("mlsOtherAgency")}
-        </span>
-        {!mine &&
-          (it.agency_phone ? (
-            <a
-              href={"tel:" + it.agency_phone}
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 text-primary font-extrabold"
-            >
-              <Phone size={12} /> {it.agency_phone}
-            </a>
-          ) : (
-            <span className="text-muted inline-flex items-center gap-1">
-              <Lock size={11} /> {t("mlsContactHidden")}
-            </span>
-          ))}
-      </div>
-      <ApartmentCard
-        o={it.apartment}
-        onOpen={
-          mine
-            ? () => nav.push({ name: "objectDetail", id: it.apartment.id })
-            : () => nav.push({ name: "mlsObjectDetail", item: it })
-        }
-      />
-    </div>
+    <ApartmentCard
+      o={it.apartment}
+      onOpen={
+        mine
+          ? () => nav.push({ name: "objectDetail", id: it.apartment.id })
+          : () => nav.push({ name: "mlsObjectDetail", item: it })
+      }
+    />
   );
 }
 
 export function MlsBrowseScreen() {
-  const { t } = useApp();
+  const { t, L } = useApp();
   const [items, setItems] = useState<MlsPoolItem[] | null>(null);
   const [total, setTotal] = useState(0);
-  const [status, setStatus] = useState("active");
   const [q, setQ] = useState("");
   const [offset, setOffset] = useState(0);
   const [busy, setBusy] = useState(false);
+  // Применённые фильтры (по ним грузим список) и черновик в открытой панели.
+  const [filters, setFilters] = useState<MlsFilters>(EMPTY_MLS_FILTERS);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [draft, setDraft] = useState<MlsFilters>(EMPTY_MLS_FILTERS);
+  const [agencies, setAgencies] = useState<MlsAgency[]>([]);
   const LIMIT = 20;
+
+  // Список агентств для фильтра — грузим один раз на жизнь экрана.
+  useEffect(() => {
+    let alive = true;
+    api<MlsAgency[]>("/api/v1/mls/agencies").then((r) => {
+      if (alive && r.ok && Array.isArray(r.data)) setAgencies(r.data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function load(reset: boolean) {
     setBusy(true);
     const off = reset ? 0 : offset;
-    const params = new URLSearchParams({ status, limit: String(LIMIT), offset: String(off) });
+    const params = new URLSearchParams({ limit: String(LIMIT), offset: String(off) });
+    // Без фильтров — весь список по порядку добавления (новые сверху, сортировка на бэке).
+    if (filters.status) params.set("status", filters.status);
+    if (filters.dealType) params.set("deal_type", filters.dealType);
+    if (filters.agencyId) params.set("agency_id", filters.agencyId);
     if (q.trim()) params.set("q", q.trim());
     const r = await api<MlsPoolResponse>("/api/v1/mls/browse?" + params.toString());
     setBusy(false);
@@ -791,27 +800,110 @@ export function MlsBrowseScreen() {
     const id = window.setTimeout(() => load(true), q ? 300 : 0);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, q]);
+  }, [filters, q]);
+
+  // Живая страница (keep-alive): при возврате тихо обновляем, если данные менялись.
+  useRevisit(() => load(true));
+
+  const activeCount =
+    (filters.agencyId ? 1 : 0) + (filters.dealType ? 1 : 0) + (filters.status ? 1 : 0);
+
+  function openPanel() {
+    setDraft(filters);
+    setPanelOpen(true);
+  }
+  function applyDraft() {
+    setFilters(draft);
+    setPanelOpen(false);
+  }
+  function resetDraft() {
+    setDraft(EMPTY_MLS_FILTERS);
+    setFilters(EMPTY_MLS_FILTERS);
+    setPanelOpen(false);
+  }
+  // Смена типа сделки сбрасывает статус, если он не подходит новому типу.
+  function setDraftDeal(dealType: string) {
+    setDraft((d) => {
+      const valid = MLS_DEAL_STATUSES[dealType] || [];
+      return { ...d, dealType, status: valid.includes(d.status) ? d.status : "" };
+    });
+  }
+
+  const statusOpts = (MLS_DEAL_STATUSES[draft.dealType] || []).map((k) => ({
+    value: k,
+    label: L.statusLabel(k, draft.dealType),
+  }));
 
   return (
     <div>
       <Hint>{t("mlsBrowseHint")}</Hint>
-      <div className="relative mt-2 mb-2">
-        <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-        <Input className="pl-9" placeholder={t("mlsSearchPlaceholder")} value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="flex gap-2 mt-2 mb-2">
+        <div className="relative flex-1">
+          <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <Input className="pl-9" placeholder={t("mlsSearchPlaceholder")} value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+        <button
+          type="button"
+          onClick={() => (panelOpen ? setPanelOpen(false) : openPanel())}
+          className={
+            "relative shrink-0 min-h-[44px] px-3.5 rounded-xl2 text-[13px] font-bold inline-flex items-center gap-1.5 transition active:scale-95 " +
+            (activeCount || panelOpen ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted")
+          }
+        >
+          <SlidersHorizontal size={16} /> {t("filterBtn")}
+          {activeCount > 0 && (
+            <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-white/25 text-[11px] font-extrabold inline-flex items-center justify-center">
+              {activeCount}
+            </span>
+          )}
+        </button>
       </div>
-      <div className="flex gap-2 mb-1">
-        {MLS_STATUSES.map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            onClick={() => setStatus(s.key)}
-            className={"flex-1 min-h-[38px] rounded-xl text-[13px] font-bold transition active:scale-95 " + (status === s.key ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted")}
-          >
-            {t(s.labelKey)}
-          </button>
-        ))}
-      </div>
+
+      {panelOpen && (
+        <Card className="p-3.5 mb-2 space-y-3">
+          <Field label={t("mlsFilterAgency")}>
+            <Select value={draft.agencyId} onChange={(e) => setDraft((d) => ({ ...d, agencyId: e.target.value }))}>
+              <option value="">{t("mlsAllAgencies")}</option>
+              {agencies.map((a) => (
+                <option key={a.agency_id} value={String(a.agency_id)}>
+                  {a.agency_name || "#" + a.agency_id}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t("dealType")}>
+            <Segmented
+              value={draft.dealType}
+              onChange={setDraftDeal}
+              options={[
+                { value: "", label: t("dealAll") },
+                { value: "sale", label: t("dealSale") },
+                { value: "rent", label: t("dealRent") },
+              ]}
+            />
+          </Field>
+          <Field label={t("objStatusLbl")}>
+            {draft.dealType ? (
+              <Chips
+                options={statusOpts}
+                selected={draft.status ? [draft.status] : []}
+                onToggle={(v) => setDraft((d) => ({ ...d, status: d.status === v ? "" : v }))}
+              />
+            ) : (
+              <Hint>{t("mlsPickDealFirst")}</Hint>
+            )}
+          </Field>
+          <div className="flex gap-2 pt-1">
+            <Button variant="ghost" className="flex-1" onClick={resetDraft}>
+              {t("filterReset")}
+            </Button>
+            <Button className="flex-1" onClick={applyDraft}>
+              {t("applyBtn")}
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {items === null ? (
         <ListSkeleton />
       ) : !items.length ? (
