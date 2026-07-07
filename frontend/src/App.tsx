@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Briefcase, Building2, Database, Home, Layers, Mail, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
+import { Briefcase, Building2, Home, Layers, Mail, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
 import { NavProvider, Route, useNav } from "./nav";
 import { ActingProvider, useActing } from "./acting";
@@ -253,7 +253,7 @@ function BottomTabs() {
     { route: { name: "search" }, icon: <Search size={22} />, label: t("findObject") },
   ];
   const right: { route: Route; icon: JSX.Element; label: string }[] = [
-    { route: { name: "database" }, icon: <Database size={22} />, label: t("myDatabase") },
+    { route: { name: "settings" }, icon: <SettingsIcon size={22} />, label: t("settings") },
     { route: { name: "profile" }, icon: <User size={22} />, label: t("profile") },
   ];
   return (

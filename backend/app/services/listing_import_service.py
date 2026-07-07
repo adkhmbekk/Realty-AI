@@ -362,10 +362,12 @@ def _system_prompt(districts: List[str]) -> str:
         "оставь price = null, а саму цену за м² впиши в description (например "
         "«Цена за м²: 1200 $»). В price попадает только полная цена объекта целиком.\n"
         "- currency: \"USD\" (доллары, $, у.е.), \"UZS\" (сум, сўм) или \"EUR\" (евро, €).\n"
-        "- owner_phone: телефон из объявления, если есть.\n"
+        "- owner_phone: ВСЕ телефонные номера из объявления. Если номеров несколько — "
+        "перечисли их все через перенос строки. Только сюда попадают номера.\n"
         "- description: на русском, кратко собери ВСЮ полезную информацию, которая не "
-        "попала в отдельные поля (особенности, инфраструктура, условия и т.п.). Не "
-        "выдумывай факты.\n"
+        "попала в отдельные поля (особенности, инфраструктура, условия и т.п.). "
+        "КАТЕГОРИЧЕСКИ НЕ включай сюда телефонные номера и контакты — они идут только в "
+        "owner_phone. Не выдумывай факты.\n"
         "- Чего в тексте нет — ставь null. Ничего не придумывай.\n\n"
         "Верни ТОЛЬКО JSON-объект (без пояснений) с ключами: deal_type (строка 'sale'/'rent'), "
         "rent_period (строка 'month'/'day' или null), name (строка), type (строка), "
@@ -594,6 +596,95 @@ def _extract_with_ai(text: str, districts: List[str], model: Optional[str] = Non
 
 
 # ── Пост-обработка ───────────────────────────────────────────────────
+# ── Приватность: телефоны собственника — ТОЛЬКО в поле owner_phone ─────
+# Токен-кандидат в телефон: цифра, затем 6+ символов из цифр/разделителей, затем цифра.
+_PHONE_TOKEN_RE = re.compile(r"\+?\d[\d\s()\-–.]{5,}\d")
+# Коды мобильных операторов Узбекистана (первые 2 цифры 9-значного номера).
+_UZ_MOBILE_CODES = {"90", "91", "93", "94", "95", "97", "98", "99", "88", "77", "33", "20"}
+# Что идёт СРАЗУ после числа и делает его ценой/площадью, а не телефоном.
+_PRICE_UNIT_RE = re.compile(
+    r"^\s*(сум|со['ʻ]?м|so[’'ʻ]?m|uzs|у\.?\s?е|y\.?\s?e|\$|usd|доллар|евро|eur|€|млн|млрд|"
+    r"м2|м²|кв|соток|сот\b)",
+    re.I,
+)
+
+
+def _digits(s: Optional[str]) -> str:
+    return re.sub(r"\D", "", s or "")
+
+
+def _is_phone(raw: str, digits: str, after: str, lenient: bool) -> bool:
+    # Число, за которым сразу валюта/площадь — это цена, не телефон.
+    if _PRICE_UNIT_RE.match(after or ""):
+        return False
+    if raw.lstrip().startswith("+"):
+        return 9 <= len(digits) <= 15
+    if len(digits) == 12 and digits.startswith("998"):
+        return True
+    if len(digits) == 9 and digits[:2] in _UZ_MOBILE_CODES:
+        return True
+    # Явная телефонная группировка дефисами: XX-XXX-XX-XX.
+    if raw.count("-") + raw.count("–") >= 2 and 9 <= len(digits) <= 13:
+        return True
+    # В owner_phone (модель уже назвала это телефоном) — мягче.
+    if lenient and 7 <= len(digits) <= 15:
+        return True
+    return False
+
+
+def _pull_phones(text: Optional[str], lenient: bool = False) -> Tuple[List[str], Optional[str]]:
+    """Достать телефоны из текста; вернуть (номера, текст-без-номеров)."""
+    if not text:
+        return [], text
+    phones: List[str] = []
+    parts: List[str] = []
+    last = 0
+    for m in _PHONE_TOKEN_RE.finditer(text):
+        d = _digits(m.group(0))
+        after = text[m.end():m.end() + 6]
+        if _is_phone(m.group(0), d, after, lenient):
+            phones.append(m.group(0).strip(" .,-–()"))
+            parts.append(text[last:m.start()])
+            last = m.end()
+    parts.append(text[last:])
+    cleaned = "".join(parts)
+    # Осиротевшие метки «тел:/контакт:» и лишние разделители.
+    cleaned = re.sub(r"(?i)\b(тел(ефон)?|контакт|phone|моб(ил)?|aloqa|tel)\.?\s*[:№]?\s*", " ", cleaned)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"\s+([,.;:])", r"\1", cleaned)
+    cleaned = re.sub(r"([,;:]\s*){2,}", ", ", cleaned)
+    return phones, (cleaned.strip(" ,;:-–\n") or None)
+
+
+def _sanitize_phones(out: dict) -> dict:
+    """Гарантия приватности: ВСЕ номера — только в owner_phone (до 5), а из
+    описания/адреса/названия они вырезаны. Дедуп по цифрам."""
+    collected: List[str] = []
+    if out.get("owner_phone"):
+        ph, _ = _pull_phones(out["owner_phone"], lenient=True)
+        collected.extend(ph)
+    for field in ("description", "address", "name"):
+        val = out.get(field)
+        if not val:
+            continue
+        ph, cleaned = _pull_phones(val, lenient=False)
+        if ph:
+            collected.extend(ph)
+            out[field] = cleaned
+    seen: set = set()
+    uniq: List[str] = []
+    for p in collected:
+        key = _digits(p)
+        if len(key) < 7 or key in seen:
+            continue
+        seen.add(key)
+        uniq.append(p)
+        if len(uniq) >= 5:
+            break
+    out["owner_phone"] = "\n".join(uniq) if uniq else None
+    return out
+
+
 def _clean(data: dict) -> dict:
     """Подчистить ответ модели: типы, валюта, согласованность земли/этажей."""
     def s(v):
@@ -646,7 +737,8 @@ def _clean(data: dict) -> dict:
         v = out[k]
         if isinstance(v, (int, float)) and v < 0:
             out[k] = None
-    return out
+    # Приватность: номера собственника — только в owner_phone, не в описании и пр.
+    return _sanitize_phones(out)
 
 
 def extract_fields_from_text(text: str, districts: List[str]) -> dict:

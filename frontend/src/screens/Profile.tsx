@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { User, LifeBuoy, Building2, Plus, ChevronRight, Trash2 } from "lucide-react";
+import { User, LifeBuoy, Building2, Pencil, Plus, ChevronRight, Trash2 } from "lucide-react";
 import { useApp } from "../store";
 import { useActing } from "../acting";
-import { api } from "../api";
+import { api, errText } from "../api";
 import { Card, Row, Hint, Button, Field, Input } from "../components/ui";
 import { openTelegramLink, haptic, confirmDialog } from "../telegram";
 import { fmtDate, daysLeft, initials } from "../utils";
-import type { Membership } from "../types";
+import type { Membership, AgencySettings } from "../types";
 
 // «Мои агентства»: переключатель между агентствами/должностями человека +
 // возможность открыть ещё одно своё агентство. Пусто (не показывается) для
@@ -110,6 +110,90 @@ function MyAgenciesCard() {
   );
 }
 
+// Карточка агентства в профиле: название, контактный телефон, имя владельца.
+// Владелец может отредактировать (карандаш справа сверху) — название/телефон/владелец.
+function AgencyCard() {
+  const { t, user, settings, setSettings, toast } = useApp();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [saving, setSaving] = useState(false);
+  if (!settings) return null;
+  const canEdit = !!user?.is_owner;
+
+  function open() {
+    setName(settings!.name || "");
+    setPhone(settings!.contact_phone || "");
+    setOwnerName(settings!.owner_name || "");
+    setEditing(true);
+  }
+  async function save() {
+    if (!name.trim()) {
+      toast(t("agencyNameEmpty"), "err");
+      return;
+    }
+    setSaving(true);
+    const r = await api<AgencySettings>("/api/v1/agency/settings", {
+      method: "PATCH",
+      body: { name: name.trim(), contact_phone: phone.trim(), owner_name: ownerName.trim() },
+    });
+    setSaving(false);
+    if (r.ok && r.data) {
+      setSettings(r.data);
+      setEditing(false);
+      toast(t("saved"), "ok");
+    } else toast(errText(r.data, r.status), "err");
+  }
+
+  return (
+    <Card className="mt-3">
+      {editing ? (
+        <>
+          <Field label={t("agencyNameLbl")}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label={t("contactPhone")}>
+            <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </Field>
+          <Hint>{t("contactPhoneHint")}</Hint>
+          <Field label={t("ownerNameLbl")}>
+            <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+          </Field>
+          {settings.contact_username && <Hint>{t("ownerTgLbl")}: {settings.contact_username}</Hint>}
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <Button variant="ghost" disabled={saving} onClick={() => setEditing(false)}>{t("cancel")}</Button>
+            <Button disabled={saving} onClick={save}>{t("saveChanges")}</Button>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Building2 size={16} className="text-primary" />
+              <span className="font-extrabold">{t("agencyLbl")}</span>
+            </div>
+            <div className="text-[15px] font-extrabold truncate">{settings.name || "—"}</div>
+            <div className="text-[12.5px] text-muted mt-0.5">{settings.contact_phone || t("notSet")}</div>
+            {settings.owner_name && (
+              <div className="text-[12.5px] text-muted mt-0.5">{t("ownerNameLbl")}: {settings.owner_name}</div>
+            )}
+          </div>
+          {canEdit && (
+            <button
+              onClick={open}
+              title={t("editAgency")}
+              className="w-9 h-9 shrink-0 rounded-xl bg-primary-soft text-primary flex items-center justify-center active:scale-90"
+            >
+              <Pencil size={16} />
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function ProfileScreen() {
   const { t, L, lang, user, settings } = useApp();
   if (!user) return null;
@@ -135,11 +219,7 @@ export function ProfileScreen() {
         <Row label={t("tgId")} value={user.telegram_id} />
       </Card>
       <MyAgenciesCard />
-      {settings?.project_name && (
-        <Hint>
-          {t("projectName")}: {settings.project_name}
-        </Hint>
-      )}
+      <AgencyCard />
       {user.is_owner && settings?.subscription_expires_at && (
         <Card className="mt-3">
           <Row label={t("subUntil")} value={fmtDate(settings.subscription_expires_at, lang, settings.timezone)} />

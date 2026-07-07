@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, ChevronRight, DownloadCloud, FileDown, FileUp, Moon, Pencil, Radio, Sheet, Sun, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronRight, DownloadCloud, FileDown, FileUp, Moon, Radio, Sheet, Sun, Trash2 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { api, apiUpload, errText, type ApiResult } from "../api";
 import { Button, Card, Field, Hint, Input, Label, Segmented, Select, SectionTitle, Switch } from "../components/ui";
 import { Lang } from "../i18n";
-import type { AgencySettings, SheetStatus } from "../types";
+import type { SheetStatus } from "../types";
 import { confirmDialog, openLink } from "../telegram";
 import { fmtDate } from "../utils";
 
@@ -624,45 +624,10 @@ export function ToolWatchScreen() {
 }
 
 export function SettingsScreen() {
-  const { t, lang, theme, setLang, setTheme, user, setUser, settings, setSettings, toast } = useApp();
+  const { t, lang, theme, setLang, setTheme, user, setUser, toast } = useApp();
   const nav = useNav();
   const role = user?.role;
   const isOwnerAdmin = role === "agency_admin" && !!user?.is_owner;
-
-  const [editingAgency, setEditingAgency] = useState(false);
-  const [agencyName, setAgencyName] = useState(settings?.name || "");
-  const [contactPhone, setContactPhone] = useState(settings?.contact_phone || "");
-  const [ownerName, setOwnerName] = useState(settings?.owner_name || "");
-  const [saving, setSaving] = useState(false);
-
-  function openAgencyEdit() {
-    setAgencyName(settings?.name || "");
-    setContactPhone(settings?.contact_phone || "");
-    setOwnerName(settings?.owner_name || "");
-    setEditingAgency(true);
-  }
-
-  async function saveAgency() {
-    if (!agencyName.trim()) {
-      toast(t("agencyNameEmpty"), "err");
-      return;
-    }
-    setSaving(true);
-    const r = await api<AgencySettings>("/api/v1/agency/settings", {
-      method: "PATCH",
-      body: {
-        name: agencyName.trim(),
-        contact_phone: contactPhone.trim(),
-        owner_name: ownerName.trim(),
-      },
-    });
-    setSaving(false);
-    if (r.ok && r.data) {
-      setSettings(r.data);
-      setEditingAgency(false);
-      toast(t("saved"), "ok");
-    } else toast(errText(r.data, r.status), "err");
-  }
 
   const langOpts: { value: Lang; label: string }[] = [
     { value: "ru", label: t("lang_ru") },
@@ -709,43 +674,6 @@ export function SettingsScreen() {
 
       {isOwnerAdmin && (
         <div className="mt-2">
-          <SectionTitle>{t("agencyLbl")}</SectionTitle>
-          {editingAgency ? (
-            <Card>
-              <Field label={t("agencyNameLbl")}>
-                <Input value={agencyName} onChange={(e) => setAgencyName(e.target.value)} />
-              </Field>
-              <Field label={t("contactPhone")}>
-                <Input inputMode="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
-              </Field>
-              <Hint>{t("contactPhoneHint")}</Hint>
-              <Field label={t("ownerNameLbl")}>
-                <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-              </Field>
-              {settings?.contact_username && (
-                <Hint>{t("ownerTgLbl")}: {settings.contact_username}</Hint>
-              )}
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                <Button variant="ghost" disabled={saving} onClick={() => setEditingAgency(false)}>{t("cancel")}</Button>
-                <Button disabled={saving} onClick={saveAgency}>{t("saveChanges")}</Button>
-              </div>
-            </Card>
-          ) : (
-            <Card>
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-[15px] font-extrabold truncate">{settings?.name || "—"}</div>
-                  <div className="text-[12.5px] text-muted mt-0.5 truncate">
-                    {settings?.contact_phone || t("notSet")}
-                    {settings?.owner_name ? " · " + settings.owner_name : ""}
-                  </div>
-                </div>
-                <Button size="sm" variant="ghost" onClick={openAgencyEdit}>
-                  <Pencil size={14} /> {t("editAgency")}
-                </Button>
-              </div>
-            </Card>
-          )}
           <SectionTitle>{t("toolsTitle")}</SectionTitle>
           <div className="grid grid-cols-1 gap-2">
             <ToolButton icon={<Sheet size={20} />} label={t("sheetsTitle")} sub={t("sheetsHint")} onClick={() => nav.push({ name: "toolSheets" })} />

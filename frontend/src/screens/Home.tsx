@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { BarChart3, ChevronRight, Database, Layers, Mail, Plus, Search, Settings as SettingsIcon, User, Users } from "lucide-react";
+import { BarChart3, ChevronRight, Database, Layers, Mail, Plus, Search, User, Users } from "lucide-react";
 import { useApp } from "../store";
 import { useNav, Route } from "../nav";
 import { api } from "../api";
@@ -262,18 +262,17 @@ export function HomeScreen() {
   const search = { icon: <Search size={21} />, label: t("findObject"), route: { name: "search" } as Route };
   const team = { icon: <Users size={21} />, label: t("team"), route: { name: "team" } as Route };
   const invites = { icon: <Mail size={21} />, label: t("invites"), route: { name: "invites" } as Route };
-  const settings = { icon: <SettingsIcon size={21} />, label: t("settings"), route: { name: "settings" } as Route };
+  const database = { icon: <Database size={21} />, label: t("myDatabase"), route: { name: "database" } as Route };
   const analytics = { icon: <BarChart3 size={21} />, label: t("analytics"), route: { name: "analytics" } as Route };
 
-  // Быстрые действия НЕ дублируют нижнюю панель (там уже есть «Добавить» и «Найти»).
-  // Главный админ: аналитика, команда, приглашения, настройки (4).
-  // Обычный админ: аналитика, команда, приглашения, настройки (4) — может звать агентов.
-  // Агент: добавить, найти, настройки (3).
+  // Быстрые действия — 3 кнопки (настройки переехали в нижнюю панель).
+  // Главный/обычный админ: аналитика, команда, приглашения.
+  // Агент: добавить, найти, своя база.
   let actions: { icon: React.ReactNode; label: string; route: Route }[];
   if (role === "agency_admin") {
-    actions = [analytics, team, invites, settings];
+    actions = [analytics, team, invites];
   } else {
-    actions = [add, search, settings];
+    actions = [add, search, database];
   }
 
   return (

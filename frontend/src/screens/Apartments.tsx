@@ -13,6 +13,7 @@ import {
   Lock,
   Pencil,
   Phone,
+  Plus,
   RotateCcw,
   Search as SearchIcon,
   SearchX,
@@ -132,6 +133,15 @@ function ObjectForm({
     shared_mls: o.shared_mls ?? (settings?.is_shared ?? false),
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
+  // Телефоны собственника: до 5 номеров. В БД хранятся в owner_phone через перенос
+  // строки; в форме — список инпутов с кнопкой «+».
+  const [phones, setPhones] = useState<string[]>(() => {
+    const raw = (o.owner_phone ?? "").split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+    return raw.length ? raw.slice(0, 5) : [""];
+  });
+  const setPhone = (i: number, v: string) => setPhones((p) => p.map((x, idx) => (idx === i ? v : x)));
+  const addPhone = () => setPhones((p) => (p.length >= 5 ? p : [...p, ""]));
+  const removePhone = (i: number) => setPhones((p) => (p.length <= 1 ? [""] : p.filter((_, idx) => idx !== i)));
   // Дом/участок/земля: вместо «Этажа» показываем «Соток»; «Этажность» остаётся.
   const withLand = hasLandArea(f.type);
 
@@ -157,7 +167,7 @@ function ObjectForm({
       currency: f.currency,
       condition: f.condition || null,
       furniture_appliances: f.furniture_appliances || null,
-      owner_phone: f.owner_phone.trim() || null,
+      owner_phone: phones.map((s) => s.trim()).filter(Boolean).slice(0, 5).join("\n") || null,
       source_link: f.source_link.trim() || null,
       source: f.source.trim() || null,
       description: f.description.trim() || null,
@@ -317,7 +327,31 @@ function ObjectForm({
 
       <Sec>{t("sectionContacts")}</Sec>
       <Field label={t("f_owner_phone")}>
-        <Input value={f.owner_phone} onChange={(e) => set("owner_phone", e.target.value)} />
+        <div className="space-y-2">
+          {phones.map((ph, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input inputMode="tel" value={ph} onChange={(e) => setPhone(i, e.target.value)} placeholder={t("f_owner_phone")} />
+              {phones.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removePhone(i)}
+                  className="w-9 h-9 shrink-0 rounded-xl bg-[var(--soft)] text-muted flex items-center justify-center active:scale-90"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+          ))}
+          {phones.length < 5 && (
+            <button
+              type="button"
+              onClick={addPhone}
+              className="text-[13px] font-bold text-primary inline-flex items-center gap-1 active:scale-95"
+            >
+              <Plus size={15} /> {t("addPhone")}
+            </button>
+          )}
+        </div>
       </Field>
       <Hint>{t("ownerPhoneHint")}</Hint>
 
@@ -2025,7 +2059,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
     [isRent ? t("priceRent") : t("f_price"), o.price != null ? `${fmtPrice(o.price, o.currency)}${L.priceSuffix(o.deal_type, o.rent_period)}` : null],
     [t("f_condition"), o.condition ? L.condLabel(o.condition) : null],
     [t("f_furniture"), L.faLabel(o.furniture_appliances)],
-    [t("f_owner_phone"), o.owner_phone],
+    [t("f_owner_phone"), o.owner_phone ? o.owner_phone.split(/\r?\n+/).join(", ") : null],
     [t("f_sourceName"), o.source],
     [t("f_desc"), o.description],
     [t("addedBy"), o.created_by_name],
