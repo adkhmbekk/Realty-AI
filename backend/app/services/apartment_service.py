@@ -249,6 +249,9 @@ def search_apartments(
         archived=archived,
         created_from=created_from,
         created_to=created_to,
+        # Личная база: расшаренные в общей базе объекты не показываем (только в
+        # активном списке; архив остаётся полным, чтобы объекты можно было восстановить).
+        exclude_shared=not archived,
         limit=limit,
         offset=offset,
     )
@@ -353,8 +356,12 @@ def purge_apartment(db: Session, agency_id: int, apartment_id: int) -> None:
 
 
 def get_stats(db: Session, agency_id: int) -> dict:
-    """Мини-статистика по объектам агентства: счётчики по статусам."""
-    counts = apartment_repo.count_by_status(db, agency_id)
+    """Мини-статистика по объектам агентства: счётчики по статусам.
+
+    Счётчики карточки «Моя база» — без расшаренных в общей базе объектов, чтобы
+    совпадать со списком личной базы (search_apartments).
+    """
+    counts = apartment_repo.count_by_status(db, agency_id, exclude_shared=True)
     active = counts.get(STATUS_ACTIVE, 0)
     deposit = counts.get(STATUS_DEPOSIT, 0)
     sold = counts.get(STATUS_SOLD, 0)

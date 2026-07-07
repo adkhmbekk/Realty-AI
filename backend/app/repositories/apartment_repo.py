@@ -69,6 +69,7 @@ def _build_conditions(
     archived: bool = False,
     created_from=None,
     created_to=None,
+    exclude_shared: bool = False,
 ) -> list:
     # Первое и главное условие — принадлежность агентству.
     conditions = [Apartment.agency_id == agency_id]
@@ -78,6 +79,13 @@ def _build_conditions(
         conditions.append(Apartment.deleted_at.is_not(None))
     else:
         conditions.append(Apartment.deleted_at.is_(None))
+
+    # Личная база («Моя база»): объекты, которыми агент поделился в ОБЩЕЙ базе (MLS,
+    # shared_mls=True), в личной базе не показываем — их и так видно в общей базе, там же
+    # автор видит контакт собственника. Снял «поделиться» → объект вернулся в личную базу.
+    # Фильтр opt-in: включаем только для списка личной базы, не трогая подбор/выгрузку.
+    if exclude_shared:
+        conditions.append(Apartment.shared_mls.is_(False))
 
     if status == "unsold":
         # «В работе»: всё, кроме закрытых сделок — продано (sold) и сдано (rented).
@@ -187,6 +195,7 @@ def search(
     archived: bool = False,
     created_from=None,
     created_to=None,
+    exclude_shared: bool = False,
     limit: int = 50,
     offset: int = 0,
 ) -> Tuple[List[Apartment], int]:
@@ -219,6 +228,7 @@ def search(
         archived=archived,
         created_from=created_from,
         created_to=created_to,
+        exclude_shared=exclude_shared,
     )
 
     total = db.execute(
@@ -441,11 +451,18 @@ def list_archived(
     return items, total
 
 
-def count_by_status(db: Session, agency_id: int) -> dict:
-    """Вернуть количество объектов агентства по каждому статусу."""
+def count_by_status(db: Session, agency_id: int, *, exclude_shared: bool = False) -> dict:
+    """Вернуть количество объектов агентства по каждому статусу.
+
+    exclude_shared=True — не считать объекты, отданные в общую базу (shared_mls),
+    чтобы счётчики «Моя база» совпадали со списком личной базы.
+    """
+    conds = [Apartment.agency_id == agency_id, Apartment.deleted_at.is_(None)]
+    if exclude_shared:
+        conds.append(Apartment.shared_mls.is_(False))
     rows = db.execute(
         select(Apartment.status, func.count())
-        .where(Apartment.agency_id == agency_id, Apartment.deleted_at.is_(None))
+        .where(*conds)
         .group_by(Apartment.status)
     ).all()
     return {row[0]: row[1] for row in rows}

@@ -772,7 +772,11 @@ export function MlsBrowseScreen() {
                 </div>
                 <ApartmentCard
                   o={it.apartment}
-                  onOpen={mine ? undefined : () => nav.push({ name: "mlsObjectDetail", item: it })}
+                  onOpen={
+                    mine
+                      ? () => nav.push({ name: "objectDetail", id: it.apartment.id })
+                      : () => nav.push({ name: "mlsObjectDetail", item: it })
+                  }
                 />
               </div>
             );
