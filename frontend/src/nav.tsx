@@ -82,6 +82,27 @@ export function usePaneActive(): boolean {
 let _seq = 0;
 const nextId = () => `p${++_seq}`;
 
+// Глобальные «действия» (не часть навигации внутри вкладки): открываются кнопкой,
+// но НЕ должны «прилипать» к вкладке и всплывать при возврате на неё. При смене
+// вкладки убираем их из всех стеков. Пока это «Добавить объект» (центральная «+»).
+const TRANSIENT_ROUTES = new Set<string>(["addObject"]);
+
+function stripTransient(tabs: Record<string, Pane[]>): Record<string, Pane[]> {
+  let changed = false;
+  const out: Record<string, Pane[]> = {};
+  for (const name of Object.keys(tabs)) {
+    const stack = tabs[name];
+    const filtered = stack.filter((p) => !TRANSIENT_ROUTES.has(p.route.name));
+    if (filtered.length !== stack.length) {
+      changed = true;
+      out[name] = filtered.length ? filtered : [stack[0]]; // корень вкладки не трогаем
+    } else {
+      out[name] = stack;
+    }
+  }
+  return changed ? out : tabs;
+}
+
 // Вкладка и стеки — в ОДНОМ состоянии, чтобы все переходы были атомарными и
 // колбэки читали актуальные данные через функциональный апдейт (без ref-хаков,
 // устойчиво к прерванному рендеру Suspense/concurrent).
@@ -122,12 +143,14 @@ export function NavProvider({ initial, children }: { initial: Route; children: R
   const switchTab = useCallback((r: Route) => {
     const rootEntry = { id: nextId(), route: r };
     setState((s) => {
+      // Смена вкладки закрывает глобальные действия («Добавить объект») во всех вкладках.
+      const base = stripTransient(s.tabs);
       if (s.activeTab === r.name) {
-        const cur = s.tabs[r.name] ?? [];
-        if (cur.length <= 1) return s;
-        return { activeTab: r.name, tabs: { ...s.tabs, [r.name]: [cur[0]] } };
+        const cur = base[r.name] ?? [];
+        const tabs = cur.length <= 1 ? base : { ...base, [r.name]: [cur[0]] };
+        return { activeTab: r.name, tabs };
       }
-      const tabs = s.tabs[r.name] ? s.tabs : { ...s.tabs, [r.name]: [rootEntry] };
+      const tabs = base[r.name] ? base : { ...base, [r.name]: [rootEntry] };
       return { activeTab: r.name, tabs };
     });
   }, []);
