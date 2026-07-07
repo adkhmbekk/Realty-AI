@@ -27,6 +27,7 @@ import {
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { api, buildQuery, errText } from "../api";
+import { useRevisit } from "../refresh";
 import {
   Button,
   Card,
@@ -913,6 +914,13 @@ export function ObjectList({ params, allowSaveRequest }: { params: SearchParams;
     loadMls(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(params)]);
+
+  // Умное обновление: вернулись к списку после изменения данных (добавили/правили
+  // объект) — тихо подтягиваем свежее, скролл сохраняется (см. refresh.ts).
+  useRevisit(() => {
+    load(true);
+    loadMls(true);
+  });
 
   const left = total - items.length;
   return (

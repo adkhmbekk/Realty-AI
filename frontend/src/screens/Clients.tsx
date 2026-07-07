@@ -25,6 +25,7 @@ import {
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { api, errText } from "../api";
+import { useRevisit } from "../refresh";
 import {
   Badge,
   Button,
@@ -394,6 +395,8 @@ export function ClientsScreen() {
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, archived]);
+  // Умное обновление списка клиентов при возврате, если данные менялись.
+  useRevisit(load);
 
   return (
     <div>

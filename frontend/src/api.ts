@@ -1,4 +1,5 @@
 // Клиент к backend. Токен подставляется из переданного getter'а.
+import { bumpData } from "./refresh";
 
 export interface ApiResult<T = any> {
   ok: boolean;
@@ -99,6 +100,9 @@ export async function api<T = any>(
   } catch {
     data = null;
   }
+  // Успешная НЕ-GET операция изменила данные → сигналим для умного обновления
+  // (страницы под нами подтянут свежее при возврате, см. refresh.ts / useRevisit).
+  if (res.ok && (opts.method || "GET").toUpperCase() !== "GET") bumpData();
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -168,6 +172,7 @@ export async function apiUpload<T = any>(
   } catch {
     data = null;
   }
+  if (res.ok) bumpData(); // загрузка файла (импорт базы) меняет данные
   return { ok: res.ok, status: res.status, data };
 }
 

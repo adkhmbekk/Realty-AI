@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "rea
 import { AnimatePresence, motion } from "framer-motion";
 import { Briefcase, Building2, Home, Layers, Mail, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
 import { useApp } from "./store";
-import { NavProvider, Route, useNav } from "./nav";
+import { NavProvider, PaneActiveContext, Pane, Route, useNav } from "./nav";
 import { ActingProvider, useActing } from "./acting";
 import { api, errText, setReauthHandler } from "./api";
 import { tg, tgReady, getInitData, getStartParam, haptic } from "./telegram";
@@ -227,7 +227,7 @@ function BottomTabs() {
   const { t, user } = useApp();
   const nav = useNav();
   const role = user?.role;
-  const rootName = nav.stack[0].name;
+  const activeTab = nav.activeTab;
 
   if (role === "superadmin") {
     const tabs: { route: Route; icon: JSX.Element; label: string; key: string }[] = [
@@ -238,10 +238,10 @@ function BottomTabs() {
       { route: { name: "profile" }, icon: <User size={22} />, label: t("profile"), key: "profile" },
     ];
     return (
-      <nav className="fixed bottom-0 left-0 right-0 z-40 glass border-t border-line px-6 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2">
+      <nav className="shrink-0 z-40 glass border-t border-line px-6 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2">
         <div className="max-w-[560px] mx-auto flex justify-around">
           {tabs.map((tb) => (
-            <TabButton key={tb.key} active={rootName === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.resetTo(tb.route)} />
+            <TabButton key={tb.key} active={activeTab === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
           ))}
         </div>
       </nav>
@@ -257,10 +257,10 @@ function BottomTabs() {
     { route: { name: "profile" }, icon: <User size={22} />, label: t("profile") },
   ];
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 glass border-t border-line px-3 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2">
+    <nav className="shrink-0 z-40 glass border-t border-line px-3 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2">
       <div className="max-w-[560px] mx-auto flex items-end justify-between">
         {left.map((tb, i) => (
-          <TabButton key={i} active={rootName === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.resetTo(tb.route)} />
+          <TabButton key={i} active={activeTab === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
         ))}
         <button
           onClick={() => nav.push({ name: "addObject" })}
@@ -271,10 +271,37 @@ function BottomTabs() {
           <Plus size={26} />
         </button>
         {right.map((tb, i) => (
-          <TabButton key={i} active={rootName === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.resetTo(tb.route)} />
+          <TabButton key={i} active={activeTab === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
         ))}
       </div>
     </nav>
+  );
+}
+
+// Хост одной живой страницы: собственный контейнер скролла (overflow-y-auto),
+// собственное состояние (никогда не размонтируется, пока в стеке), собственная
+// анимация. Неактивные — visibility:hidden (скролл сохраняется, в отличие от
+// display:none). PaneActiveContext даёт экрану знать, что он снова виден.
+function PageHost({ pane, active }: { pane: Pane; active: boolean }) {
+  return (
+    <div
+      aria-hidden={!active}
+      className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain"
+      style={{ visibility: active ? "visible" : "hidden", zIndex: active ? 1 : 0 }}
+    >
+      <motion.div
+        className="max-w-[560px] mx-auto px-3.5 py-3.5"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: active ? 1 : 0, y: active ? 0 : 6 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+      >
+        <PaneActiveContext.Provider value={active}>
+          <Suspense fallback={<div className="py-12"><Spinner /></div>}>
+            <RouteView route={pane.route} />
+          </Suspense>
+        </PaneActiveContext.Provider>
+      </motion.div>
+    </div>
   );
 }
 
@@ -380,8 +407,9 @@ function Shell() {
   };
 
   return (
-    <div className="min-h-screen pb-28" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      <div className="max-w-[560px] mx-auto px-3.5 pt-3.5">
+    <div className="fixed inset-0 flex flex-col" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {/* Верхняя область (баннер + шапка) — фиксирована, не участвует в скролле страниц */}
+      <div className="shrink-0 w-full max-w-[560px] mx-auto px-3.5 pt-3.5">
         {/* Баннер acting-режима: владелец платформы внутри своего агентства */}
         {acting && (
           <button
@@ -399,7 +427,7 @@ function Shell() {
           </button>
         )}
         {/* Шапка */}
-        <header className="flex items-center gap-3 min-h-[40px] mb-3">
+        <header className="flex items-center gap-3 min-h-[40px] mb-2">
           {showBack ? (
             <span className="text-[19px] font-extrabold tracking-tight">{tkey ? t(tkey) : ""}</span>
           ) : (
@@ -413,22 +441,16 @@ function Shell() {
             </div>
           )}
         </header>
-
-        {/* Контент с анимацией */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={depth + ":" + route.name}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, transition: { duration: 0.08 } }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-          >
-            <Suspense fallback={<div className="py-12"><Spinner /></div>}>
-              <RouteView route={route} />
-            </Suspense>
-          </motion.div>
-        </AnimatePresence>
       </div>
+
+      {/* Область страниц: каждая страница — живой, независимый экран со своим скроллом.
+          Все смонтированы (состояние/скролл сохраняются), видна только активная. */}
+      <div className="relative flex-1 min-h-0">
+        {nav.panes.map((pane) => (
+          <PageHost key={pane.id} pane={pane} active={pane.id === nav.activePaneId} />
+        ))}
+      </div>
+
       <BottomTabs />
     </div>
   );

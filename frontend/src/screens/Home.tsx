@@ -3,6 +3,7 @@ import { BarChart3, ChevronRight, Database, Layers, Mail, Plus, Search, User, Us
 import { useApp } from "../store";
 import { useNav, Route } from "../nav";
 import { api } from "../api";
+import { useRevisit } from "../refresh";
 import { Card, Skeleton } from "../components/ui";
 import type { ApartmentStats, ClientStats } from "../types";
 import { initials } from "../utils";
@@ -113,12 +114,18 @@ function Bases() {
   const nav = useNav();
   const [own, setOwn] = useState<ApartmentStats | null>(null);
   const [mls, setMls] = useState<ApartmentStats | null>(null);
-  useEffect(() => {
+  const load = () => {
     // При ошибке ставим нули (а не оставляем null) — иначе «каркас» завис бы навсегда.
     const zero: ApartmentStats = { active: 0, deposit: 0, sold: 0, total: 0 };
     api<ApartmentStats>("/api/v1/apartments/stats").then((r) => setOwn(r.ok && r.data ? r.data : zero));
     api<ApartmentStats>("/api/v1/mls/stats").then((r) => setMls(r.ok && r.data ? r.data : zero));
+  };
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Счётчики баз обновляются при возврате на главную, если данные менялись.
+  useRevisit(load);
   // Пока грузятся обе базы — показываем «каркас» вместо пустоты.
   if (!own || !mls) {
     return (
@@ -166,14 +173,19 @@ function ClientsCard() {
   const nav = useNav();
   const [s, setS] = useState<ClientStats | null>(null);
   const [newCount, setNewCount] = useState(0);
-  useEffect(() => {
+  const load = () => {
     api<ClientStats>("/api/v1/clients/stats").then((r) => {
       if (r.ok && r.data) setS(r.data);
     });
     api<{ new_count: number }>("/api/v1/clients/matches/summary").then((r) => {
       if (r.ok && r.data) setNewCount(r.data.new_count);
     });
+  };
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useRevisit(load);
   const hot = newCount > 0;
   const hasStats = !!s && (s.clients > 0 || s.deals_active > 0 || s.deals_won > 0);
   const tiles = s
