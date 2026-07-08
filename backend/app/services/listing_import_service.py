@@ -28,6 +28,7 @@ import httpx
 from fastapi import status
 
 from app.config import settings
+from app.core import ssrf
 from app.core.errors import AppError
 from app.services import browser_render_service, photo_service
 
@@ -68,7 +69,9 @@ def _fetch_html(url: str) -> Tuple[str, str]:
     """
     current = url
     try:
-        with httpx.Client(follow_redirects=False, timeout=_FETCH_TIMEOUT) as client:
+        with httpx.Client(
+            transport=ssrf.sync_transport(), follow_redirects=False, timeout=_FETCH_TIMEOUT
+        ) as client:
             for _ in range(_MAX_REDIRECTS + 1):
                 # бросит AppError при внутреннем/непубличном адресе
                 photo_service._assert_public_url(current)

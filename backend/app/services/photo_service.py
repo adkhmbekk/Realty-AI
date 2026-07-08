@@ -14,11 +14,9 @@ Docker-том), а метаданные — в таблице apartment_photos. 
 """
 import asyncio
 import html as html_lib
-import ipaddress
 import logging
 import re
 import secrets
-import socket
 import time
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
@@ -27,6 +25,7 @@ import httpx
 from fastapi import status
 from fastapi.concurrency import run_in_threadpool
 
+from app.core import ssrf
 from app.core.errors import AppError
 from app.repositories import apartment_photo_repo, apartment_repo
 from app.services.storage import storage
@@ -51,59 +50,14 @@ def _is_telegram_url(url: str) -> bool:
     return any(host == h or host.endswith("." + h) for h in _ALLOWED_IMPORT_HOSTS)
 
 
-# Внутри Docker/WSL «встроенный» DNS-резолвер изредка кратковременно
-# «проваливается» (getaddrinfo: Temporary failure in name resolution), хотя
-# интернет есть. Чтобы импорт не падал на ровном месте, несколько раз повторяем
-# разрешение имени с короткой паузой — это переживает кратковременные сбои DNS.
-_DNS_RETRY_BACKOFF = (0.5, 1.5, 3.0)
-
-
-def _resolve_host(host: str):
-    """getaddrinfo с повторами при кратковременном сбое DNS (Docker/WSL).
-
-    Возвращает список infos (как socket.getaddrinfo) либо бросает
-    AppError('link_host_unresolved'), исчерпав попытки.
-    """
-    last_exc: Optional[Exception] = None
-    for delay in (0.0,) + _DNS_RETRY_BACKOFF:
-        if delay:
-            time.sleep(delay)
-        try:
-            return socket.getaddrinfo(host, None)
-        except Exception as exc:  # noqa: BLE001
-            last_exc = exc
-    raise AppError("link_host_unresolved", status.HTTP_400_BAD_REQUEST) from last_exc
-
-
 def _assert_public_url(url: str) -> None:
     """
-    Защита от SSRF (подмены адреса). Разрешаем загрузку только по http/https и
-    только с публичных адресов. Блокируем обращения во внутреннюю сеть
-    (localhost, 10.x, 192.168.x, 169.254.x и т.п.), чтобы по присланной ссылке
-    нельзя было «достучаться» до внутренних сервисов сервера.
+    Защита от SSRF: разрешаем только http/https и только публичные адреса.
+    Делегируем единому модулю app.core.ssrf (там же — пиннинг IP при соединении,
+    закрывающий DNS-rebinding). Оставлено тонкой обёрткой ради совместимости с
+    вызовами browser_render_service / listing_import_service.
     """
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        raise AppError("only_http_links", status.HTTP_400_BAD_REQUEST)
-    host = parsed.hostname
-    if not host:
-        raise AppError("invalid_link", status.HTTP_400_BAD_REQUEST)
-    infos = _resolve_host(host)
-    for info in infos:
-        ip_str = info[4][0]
-        try:
-            addr = ipaddress.ip_address(ip_str)
-        except ValueError:
-            continue
-        if (
-            addr.is_private
-            or addr.is_loopback
-            or addr.is_link_local
-            or addr.is_reserved
-            or addr.is_multicast
-            or addr.is_unspecified
-        ):
-            raise AppError("link_internal_blocked", status.HTTP_400_BAD_REQUEST)
+    ssrf.assert_public_url(url)
 
 
 # Максимальный размер стороны изображения после сжатия (px).
@@ -351,7 +305,7 @@ async def import_from_telegram(db, agency_id: int, apartment_id: int, url: str) 
         raise AppError("no_photos_or_limit", status.HTTP_400_BAD_REQUEST)
 
     async with httpx.AsyncClient(
-        follow_redirects=False, timeout=_IMPORT_TIMEOUT
+        transport=ssrf.async_transport(), follow_redirects=False, timeout=_IMPORT_TIMEOUT
     ) as client:
         try:
             page, _ = await _afetch(client, fetch_url, MAX_HTML_BYTES)
@@ -415,7 +369,9 @@ async def import_from_image_urls(
     if slots <= 0:
         raise AppError("no_photos_or_limit", status.HTTP_400_BAD_REQUEST)
 
-    async with httpx.AsyncClient(follow_redirects=False, timeout=_IMPORT_TIMEOUT) as client:
+    async with httpx.AsyncClient(
+        transport=ssrf.async_transport(), follow_redirects=False, timeout=_IMPORT_TIMEOUT
+    ) as client:
         sem = asyncio.Semaphore(_IMPORT_CONCURRENCY)
 
         async def _download(u: str) -> Optional[Tuple[bytes, str]]:
