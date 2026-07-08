@@ -73,6 +73,16 @@ class Apartment(Base):
         Index("ix_apartments_agency_created", "agency_id", "created_at"),
         Index("ix_apartments_agency_created_by", "agency_id", "created_by"),
         Index("ix_apartments_agency_deleted", "agency_id", "deleted_at"),
+        # Общая база (MLS): список по ВСЕМ агентствам (без фильтра agency_id),
+        # новые сверху. ix_apartments_shared_mls (создан миграцией 0029) добавлен
+        # в модель для устранения дрейфа модель↔БД (L6). Частичный индекс
+        # ix_apartments_mls_pool покрывает предикат shared_mls + сортировку по
+        # created_at → без seq-scan+sort на экране «Общая база» (M5).
+        Index("ix_apartments_shared_mls", "shared_mls"),
+        Index(
+            "ix_apartments_mls_pool", "created_at",
+            postgresql_where=text("shared_mls AND deleted_at IS NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

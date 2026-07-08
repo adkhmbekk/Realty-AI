@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from app.core import security
 from app.core.errors import AppError
-from app.core.subscription import agency_is_active
 from app.db.models.user import User
 from app.db.session import get_db
 from app.repositories import agency_membership_repo, agency_repo, user_repo
@@ -123,17 +122,15 @@ def require_superadmin(user: User = Depends(get_current_user)) -> User:
 
 def _ensure_subscription_active(db: Session, user: User) -> None:
     """
-    Жёсткая блокировка по подписке: если агентство заморожено или срок истёк —
-    закрываем доступ к рабочим эндпоинтам (данные при этом не трогаем).
+    Блокировка по подписке (единая точка). ПОДПИСКА ОТКЛЮЧЕНА (тарифы, 2026-07):
+    доступ по подписке никогда не блокируется, поэтому проверка ничего не делает.
+
+    Раньше здесь на КАЖДЫЙ авторизованный запрос шёл лишний SELECT агентства
+    (PERF1) — на горячем пути это лишний round-trip к БД без всякого эффекта.
+    Убираем его до возврата платных тарифов. Когда гейтинг вернётся —
+    восстановить прежнюю логику (agency_repo.get_by_id + проверка срока) здесь.
     """
-    agency = agency_repo.get_by_id(db, user.agency_id)
-    # Личное/общее агентство владельца платформы подписке не подчиняется — всегда активно.
-    if agency is not None and (
-        agency.owner_telegram_id is not None or getattr(agency, "is_shared", False)
-    ):
-        return
-    if not agency_is_active(agency):
-        raise AppError("subscription_suspended", status.HTTP_403_FORBIDDEN)
+    return
 
 
 def require_agency_member(

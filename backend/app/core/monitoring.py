@@ -29,7 +29,10 @@ _last_sent: dict[str, float] = {}
 
 
 def _signature(exc: BaseException, path: str) -> str:
-    return f"{type(exc).__name__}|{path}|{str(exc)[:100]}"
+    # Троттлинг по ТИПУ+пути, без текста исключения (M4): иначе атакующий, меняя
+    # сообщение ошибки (например, разный ввод в 500), обходил бы дебаунс и
+    # заваливал бот владельца потоком уведомлений.
+    return f"{type(exc).__name__}|{path}"
 
 
 def report_error(

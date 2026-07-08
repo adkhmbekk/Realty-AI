@@ -284,7 +284,11 @@ function BottomTabs() {
 // поверх активной. Позиция скролла у каждой страницы своя: сохраняем её при
 // прокрутке и восстанавливаем при возврате на страницу (не сброс, а именно
 // сохранение). PaneActiveContext даёт экрану знать, что он снова виден.
-function PageHost({ pane, active }: { pane: Pane; active: boolean }) {
+// React.memo: панели живут постоянно (keep-alive), и при ЛЮБОЙ навигации шелл
+// перерисовывается. Без memo это перерисовывало бы ВСЕ смонтированные экраны
+// (включая скрытые) на каждый переход (FE1). pane-объекты стабильны по ссылке,
+// поэтому memo перерисовывает только ту панель, у которой изменился active.
+const PageHost = React.memo(function PageHost({ pane, active }: { pane: Pane; active: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedTop = useRef(0);
   const prevActive = useRef(active);
@@ -318,7 +322,7 @@ function PageHost({ pane, active }: { pane: Pane; active: boolean }) {
       </motion.div>
     </div>
   );
-}
+});
 
 function TabButton({ active, icon, label, onClick }: { active: boolean; icon: JSX.Element; label: string; onClick: () => void }) {
   return (
