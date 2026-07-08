@@ -48,10 +48,12 @@ def _mk(db, ag, owner, **extra):
 def test_mls_search_filters_and_contacts(db):
     a, ua = _agency_with_owner(db, "Alpha", 202)
     b, ub = _agency_with_owner(db, "Beta", 203)
-    # Свой объект A: 2к / 50k / Квартира, с телефоном собственника.
-    _mk(db, a, ua, type="Квартира", district="Чиланзар", rooms=2, price=50000, owner_phone="+998900000001")
-    # Чужой B: 2к / 48k / Квартира.
-    _mk(db, b, ub, type="Квартира", district="Юнусабад", rooms=2, price=48000, owner_phone="+998900000002")
+    # Свой объект A: 2к / 50k / Квартира, с телефоном и источником собственника.
+    _mk(db, a, ua, type="Квартира", district="Чиланзар", rooms=2, price=50000,
+        owner_phone="+998900000001", source_link="https://t.me/chanA/1", source="@chanA")
+    # Чужой B: 2к / 48k / Квартира, тоже с телефоном и источником.
+    _mk(db, b, ub, type="Квартира", district="Юнусабад", rooms=2, price=48000,
+        owner_phone="+998900000002", source_link="https://t.me/chanB/2", source="@chanB")
     # Чужой B: 4к / 120k / Дом — под фильтр (1-2к, до 60k, Квартира) НЕ попадает.
     _mk(db, b, ub, type="Дом", district="Юнусабад", rooms=4, price=120000)
 
@@ -64,6 +66,13 @@ def test_mls_search_filters_and_contacts(db):
     assert by_agency[a.id].apartment.owner_phone == "+998900000001"
     # Чужой объект — телефон скрыт.
     assert by_agency[b.id].apartment.owner_phone is None
+    # Источник (ссылка на канал/пост) — как и телефон: у СВОЕГО виден, у ЧУЖОГО
+    # скрыт. В источнике могут быть контакты собственника → иначе можно увести
+    # объект из общей базы (кража). Не ослаблять.
+    assert by_agency[a.id].apartment.source_link == "https://t.me/chanA/1"
+    assert by_agency[a.id].apartment.source == "@chanA"
+    assert by_agency[b.id].apartment.source_link is None
+    assert by_agency[b.id].apartment.source is None
 
 
 def test_mls_agencies_list_and_agency_filter(db):

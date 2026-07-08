@@ -52,7 +52,7 @@ import {
 import { Badge } from "../components/ui";
 import type { Apartment, ApartmentEvent, ApartmentList, ApartmentPhoto, DictItem, ListingImport, MlsAgency, MlsPoolItem, MlsPoolResponse, SearchParams } from "../types";
 import { copyText, downscaleToDataUrl, fmtDate, fmtPrice } from "../utils";
-import { canShareMessage, haptic, openLink, shareMessage, confirmDialog } from "../telegram";
+import { canShareMessage, haptic, openSourceLink, shareMessage, confirmDialog } from "../telegram";
 
 // Загрузка справочника районов (один раз на жизнь экрана).
 function useDistricts(): DictItem[] {
@@ -2044,7 +2044,7 @@ function ReadonlyObjectCard({ o, photosUrl }: { o: Apartment; photosUrl: string 
       </Card>
 
       {o.source_link && (
-        <Button variant="ghost" className="mt-2.5" onClick={() => openLink(o.source_link!)}>
+        <Button variant="ghost" className="mt-2.5" onClick={() => openSourceLink(o.source_link!)}>
           <ExternalLink size={16} /> {t("openSource")}
         </Button>
       )}
@@ -2263,7 +2263,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
       </Card>
 
       {o.source_link && (
-        <Button variant="ghost" className="mt-2.5" onClick={() => openLink(o.source_link!)}>
+        <Button variant="ghost" className="mt-2.5" onClick={() => openSourceLink(o.source_link!)}>
           <ExternalLink size={16} /> {t("openSource")}
         </Button>
       )}

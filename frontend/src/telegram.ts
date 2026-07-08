@@ -149,6 +149,32 @@ export function openLink(url: string) {
   }
 }
 
+// Открыть ссылку на ИСТОЧНИК объекта. Источник почти всегда — пост в
+// Telegram-канале (t.me/…). Такие ссылки НЕЛЬЗЯ открывать через openLink: он
+// уводит во внешний браузер, тот редиректит в Telegram, и Mini App при этом
+// выгружается — теряется весь поиск/состояние (жалоба пользователя). Правильно:
+// t.me/tg-ссылки открывать через openTelegramLink (канал показывается ПОВЕРХ
+// приложения, Mini App остаётся живым), а обычные веб-ссылки — через openLink.
+export function openSourceLink(url: string) {
+  let u: URL | null = null;
+  try {
+    u = new URL(url, window.location.href);
+  } catch {
+    return;
+  }
+  // Безопасность: пускаем только http(s)/tg (source_link — пользовательское поле).
+  if (u.protocol !== "http:" && u.protocol !== "https:" && u.protocol !== "tg:") return;
+  const host = u.hostname.toLowerCase();
+  const isTelegram =
+    u.protocol === "tg:" ||
+    host === "t.me" ||
+    host === "telegram.me" ||
+    host === "telegram.dog" ||
+    host.endsWith(".t.me");
+  if (isTelegram) openTelegramLink(url);
+  else openLink(url);
+}
+
 export function shareToTelegram(text: string) {
   const link = "https://t.me/share/url?url=&text=" + encodeURIComponent(text);
   openTelegramLink(link);
