@@ -373,9 +373,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Invite not found.",
     },
     "invite_already_used": {
-        "ru": "Это приглашение уже использовано.",
-        "uz": "Bu taklif allaqachon ishlatilgan.",
-        "en": "This invite has already been used.",
+        "ru": "Это приглашение больше не действует (исчерпан лимит использований).",
+        "uz": "Bu taklif endi amal qilmaydi (foydalanish limiti tugagan).",
+        "en": "This invite is no longer valid (usage limit reached).",
     },
     "invite_expired": {
         "ru": "Срок действия приглашения истёк.",
@@ -585,6 +585,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Срок приглашения — от 1 до 365 дней.",
         "uz": "Taklif muddati — 1 dan 365 kungacha.",
         "en": "Invite validity must be from 1 to 365 days.",
+    },
+    "invite_uses_range": {
+        "ru": "Лимит использований — от 1 до 100.",
+        "uz": "Foydalanish limiti — 1 dan 100 gacha.",
+        "en": "Usage limit must be from 1 to 100.",
     },
     "invite_code_empty": {
         "ru": "Код приглашения не может быть пустым.",

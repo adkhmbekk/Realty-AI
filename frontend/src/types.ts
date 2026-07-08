@@ -215,6 +215,8 @@ export interface Invite {
   id: number;
   code: string;
   role: string;
+  max_uses?: number;
+  used_count?: number;
   status: string;
   join_link?: string | null;
   expires_at: string;

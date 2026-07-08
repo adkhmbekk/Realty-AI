@@ -8,7 +8,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.db.models.invite import Invite
@@ -21,6 +21,7 @@ def create(
     role: str,
     created_by: Optional[int],
     expires_at: datetime,
+    max_uses: int = 1,
 ) -> Invite:
     invite = Invite(
         agency_id=agency_id,
@@ -28,10 +29,35 @@ def create(
         role=role,
         created_by=created_by,
         expires_at=expires_at,
+        max_uses=max_uses,
     )
     db.add(invite)
     db.flush()
     return invite
+
+
+def claim_use(
+    db: Session, invite_id: int, telegram_id: int, now: datetime
+) -> bool:
+    """
+    Атомарно «занять» одно использование приглашения. Одним UPDATE увеличивает
+    used_count на 1 ТОЛЬКО если лимит ещё не исчерпан (used_count < max_uses) —
+    так два одновременных вступления не пробьют лимит (защита от гонки).
+
+    Возвращает True, если использование засчитано; False — если лимит исчерпан.
+    Также обновляет «кто/когда вступил последним» (used_at/used_by_telegram_id).
+    """
+    res = db.execute(
+        update(Invite)
+        .where(Invite.id == invite_id, Invite.used_count < Invite.max_uses)
+        .values(
+            used_count=Invite.used_count + 1,
+            used_at=now,
+            used_by_telegram_id=telegram_id,
+        )
+        .execution_options(synchronize_session=False),
+    )
+    return res.rowcount == 1
 
 
 def get_by_code(db: Session, code: str) -> Optional[Invite]:

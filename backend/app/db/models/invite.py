@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -30,6 +30,17 @@ class Invite(Base):
         BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Многоразовость (2026-07): сколько РАЗ по коду можно вступить (лимит) и
+    # сколько раз им уже воспользовались. По умолчанию 1/0 — прежнее одноразовое
+    # поведение. Приглашение «исчерпано», когда used_count >= max_uses.
+    max_uses: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+    used_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    # used_at / used_by_telegram_id — время и Telegram ID ПОСЛЕДНЕГО вступления
+    # (для многоразового кода это последний, кто вступил).
     used_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

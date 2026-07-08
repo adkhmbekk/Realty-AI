@@ -23,6 +23,7 @@ export function InvitesScreen() {
   }
   const [role, setRole] = useState("agent");
   const [days, setDays] = useState("7");
+  const [uses, setUses] = useState("1");
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<Invite | null>(null);
   const [list, setList] = useState<Invite[] | null>(null);
@@ -40,7 +41,15 @@ export function InvitesScreen() {
     setCreating(true);
     // Явная проверка на «не число»: || превращал бы введённый 0 в 7 молча.
     const parsedDays = parseInt(days, 10);
-    const r = await api<Invite>("/api/v1/invites", { method: "POST", body: { role, expires_in_days: Number.isNaN(parsedDays) ? 7 : parsedDays } });
+    const parsedUses = parseInt(uses, 10);
+    const r = await api<Invite>("/api/v1/invites", {
+      method: "POST",
+      body: {
+        role,
+        expires_in_days: Number.isNaN(parsedDays) ? 7 : parsedDays,
+        max_uses: Number.isNaN(parsedUses) || parsedUses < 1 ? 1 : parsedUses,
+      },
+    });
     setCreating(false);
     if (r.ok && r.data) {
       toast(t("inviteCreated"), "ok");
@@ -81,6 +90,9 @@ export function InvitesScreen() {
         )}
         <Field label={t("inviteDays")}>
           <Input inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
+        </Field>
+        <Field label={t("inviteUses")}>
+          <Input inputMode="numeric" value={uses} onChange={(e) => setUses(e.target.value)} />
         </Field>
         <Button full className="mt-4" disabled={creating} onClick={create}>
           {t("createInvite")}
@@ -133,6 +145,11 @@ export function InvitesScreen() {
                 <div className="text-[13px] text-muted mt-1 break-all">
                   {t("codeLbl")}: {inv.code}
                 </div>
+                {(inv.max_uses ?? 1) > 1 && (
+                  <div className="text-[13px] text-muted mt-1">
+                    {t("usesLbl")}: {inv.used_count ?? 0}/{inv.max_uses}
+                  </div>
+                )}
                 <div className="mt-2 flex gap-1.5">
                   <Button size="sm" variant="ghost" onClick={() => shareInvite(inv)}>
                     <Send size={14} /> {t("shareInviteBtn")}

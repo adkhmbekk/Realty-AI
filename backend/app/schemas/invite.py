@@ -20,6 +20,9 @@ class InviteCreate(BaseModel):
     role: str = "agent"
     # Через сколько дней приглашение перестанет действовать.
     expires_in_days: int = 7
+    # Сколько человек может вступить по этому коду (лимит использований).
+    # По умолчанию 1 — прежнее одноразовое приглашение.
+    max_uses: int = 1
 
     @field_validator("role")
     @classmethod
@@ -36,6 +39,13 @@ class InviteCreate(BaseModel):
             raise ValueError("invite_days_range")
         return value
 
+    @field_validator("max_uses")
+    @classmethod
+    def _check_uses(cls, value: int) -> int:
+        if value < 1 or value > 100:
+            raise ValueError("invite_uses_range")
+        return value
+
 
 class InviteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -43,8 +53,11 @@ class InviteOut(BaseModel):
     id: int
     code: str
     role: str
-    # Статус: active (активно) / used (использовано) / expired (просрочено).
+    # Статус: active (активно) / used (лимит исчерпан) / expired (просрочено).
     status: str
+    # Лимит использований и сколько уже использовано (многоразовость).
+    max_uses: int = 1
+    used_count: int = 0
     # Готовая ссылка-приглашение для Telegram (если задано имя бота), иначе null.
     join_link: Optional[str] = None
     expires_at: datetime

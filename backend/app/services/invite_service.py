@@ -59,7 +59,8 @@ def _as_utc(dt: datetime) -> datetime:
 
 
 def _status_of(invite) -> str:
-    if invite.used_at is not None:
+    # Исчерпано, когда израсходован лимит использований (многоразовость).
+    if (invite.used_count or 0) >= (invite.max_uses or 1):
         return "used"
     if _as_utc(invite.expires_at) <= datetime.now(timezone.utc):
         return "expired"
@@ -79,6 +80,8 @@ def _to_out(invite) -> InviteOut:
         code=invite.code,
         role=invite.role,
         status=_status_of(invite),
+        max_uses=invite.max_uses or 1,
+        used_count=invite.used_count or 0,
         join_link=_join_link(invite.code),
         expires_at=invite.expires_at,
         used_at=invite.used_at,
@@ -104,10 +107,12 @@ def create_invite(
         role=payload.role,
         created_by=created_by,
         expires_at=expires_at,
+        max_uses=payload.max_uses,
     )
     audit_repo.add(
         db, action="invite_created", agency_id=agency_id, actor_user_id=created_by,
-        target=payload.role, note=f"срок {payload.expires_in_days} дн.",
+        target=payload.role,
+        note=f"срок {payload.expires_in_days} дн., лимит {payload.max_uses}",
     )
     db.commit()
     db.refresh(invite)
@@ -197,12 +202,15 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
     telegram_id = int(tg_user["id"])
 
     # 3. Находим и проверяем приглашение.
+    now = datetime.now(timezone.utc)
     invite = invite_repo.get_by_code(db, code)
     if invite is None:
         raise AppError("invite_not_found", status.HTTP_404_NOT_FOUND)
-    if invite.used_at is not None:
+    # Быстрая проверка лимита/срока (понятная ошибка). АВТОРИТЕТНЫЙ, защищённый
+    # от гонки контроль лимита — ниже, в атомарном claim_use.
+    if (invite.used_count or 0) >= (invite.max_uses or 1):
         raise AppError("invite_already_used", status.HTTP_409_CONFLICT)
-    if _as_utc(invite.expires_at) <= datetime.now(timezone.utc):
+    if _as_utc(invite.expires_at) <= now:
         raise AppError("invite_expired", status.HTTP_400_BAD_REQUEST)
 
     # 4. Создаём или привязываем пользователя к агентству приглашения.
@@ -218,11 +226,22 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
     target_role = "agency_admin" if is_owner_invite else invite.role
 
     user = user_repo.get_by_telegram_id(db, telegram_id)
+    # Проверяем право на вступление ДО «занятия» использования — чтобы отказ
+    # (уже в агентстве / суперадмин) не съедал лимит приглашения.
     if user is not None:
         if user.role == "superadmin":
             raise AppError("superadmin_cannot_join", status.HTTP_400_BAD_REQUEST)
         if user.agency_id is not None:
             raise AppError("already_in_agency", status.HTTP_409_CONFLICT)
+
+    # 4.0. Атомарно занимаем одно использование приглашения (защита от гонки:
+    # два одновременных вступления не пробьют лимит). Если лимит уже исчерпан —
+    # claim_use вернёт False. Всё в одной транзакции с привязкой пользователя:
+    # если привязка упадёт — откатится и «занятие», лимит не потеряется.
+    if not invite_repo.claim_use(db, invite.id, telegram_id, now):
+        raise AppError("invite_already_used", status.HTTP_409_CONFLICT)
+
+    if user is not None:
         # Пользователь существовал без агентства — привязываем.
         user.agency_id = invite.agency_id
         user.role = target_role
@@ -254,9 +273,8 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
             agency.activated_at = datetime.now(timezone.utc)
             agency.pending_days = None
 
-    # 5. Помечаем приглашение использованным (одноразовое).
-    invite.used_at = datetime.now(timezone.utc)
-    invite.used_by_telegram_id = telegram_id
+    # 5. Использование уже засчитано атомарно (claim_use, см. п. 4.0) —
+    # used_count/used_at/used_by_telegram_id обновлены там.
     user.last_login_at = datetime.now(timezone.utc)
 
     audit_repo.add(
