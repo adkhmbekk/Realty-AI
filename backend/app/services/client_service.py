@@ -25,7 +25,6 @@ from app.db.models.apartment import Apartment
 from app.db.models.client import Client
 from app.db.models.client_request import ClientRequest
 from app.db.models.deal import Deal
-from app.db.models.request_match import RequestMatch
 from app.repositories import apartment_repo, client_repo, user_repo
 from app.schemas.apartment import ApartmentOut
 from app.schemas.client import (
