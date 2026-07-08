@@ -415,21 +415,48 @@ def remove_watch(db: Session, agency_id: int, watch_id: int) -> None:
         db.commit()
 
 
+def _mark_watch(db: Session, watch_id: int, *, last_post_id: Optional[int] = None) -> None:
+    """Короткое обновление строки канала (курсор/время проверки) отдельным UPDATE
+    и commit — чтобы НЕ держать транзакцию открытой во время внешних вызовов и
+    сразу фиксировать прогресс. synchronize_session=False: ORM-объект в памяти не
+    трогаем (после commit он всё равно перечитается)."""
+    values: dict = {"last_checked_at": datetime.now(timezone.utc)}
+    if last_post_id is not None:
+        values["last_post_id"] = last_post_id
+    db.query(WatchedChannel).filter(WatchedChannel.id == watch_id).update(
+        values, synchronize_session=False
+    )
+    db.commit()
+
+
 async def auto_import_channel(db: Session, watch: WatchedChannel, max_new: int = _AUTO_MAX_NEW) -> int:
     """
     Один тик слежения за каналом: добрать НОВЫЕ посты (id > last_post_id) от
     старых к новым (не больше max_new ИИ-разборов), создать объекты, продвинуть
     курсор. Reply «продано» архивирует исходный объект; проданные/неактуальные и
     дубли (тот же пост) пропускаются, но курсор через них продвигается.
+
+    ВАЖНО (инцидент 2026-07): внешние вызовы (лента Telegram, Gemini, загрузка
+    фото) НЕ должны идти при ОТКРЫТОЙ транзакции БД — иначе соединение «висит»
+    занятым и (при серверном таймауте) «травит» пул. Поэтому читаем нужные поля в
+    локальные переменные, а к БД обращаемся короткими сериями с commit — в том
+    числе ПОСЛЕ каждого созданного объекта (заодно прогресс сохраняется поштучно).
     """
     channel = watch.channel
+    agency_id = watch.agency_id
+    created_by = watch.created_by
+    share_mls = watch.share_mls
+    watch_id = watch.id
     last_id = watch.last_post_id or 0
-    # Собираем ВСЕ новые посты (листая ленту назад до курсора), а не только
-    # последнюю страницу — иначе при большой пачке старые посты терялись.
+
+    # Закрываем любую унаследованную транзакцию ПЕРЕД внешними вызовами.
+    db.commit()
+
+    # Собираем ВСЕ новые посты (листая ленту назад до курсора) — внешние вызовы
+    # идут без открытой транзакции БД.
     posts = await _collect_new_posts(channel, last_id)
-    watch.last_checked_at = datetime.now(timezone.utc)
     if not posts:
-        db.commit()
+        _mark_watch(db, watch_id)
         return 0
 
     # Архивируем объекты, под постами которых появился ответ «продано».
@@ -441,44 +468,49 @@ async def auto_import_channel(db: Session, watch: WatchedChannel, max_new: int =
         parent_links = [f"https://t.me/{channel}/{pid}" for pid in sold_parents]
         rows = (
             db.query(Apartment.id)
-            .filter(Apartment.agency_id == watch.agency_id,
+            .filter(Apartment.agency_id == agency_id,
                     Apartment.source_link.in_(parent_links),
                     Apartment.deleted_at.is_(None))
             .all()
         )
         for (aid,) in rows:
             try:
-                await run_in_threadpool(apartment_service.delete_apartment, db, watch.agency_id, aid)
+                await run_in_threadpool(apartment_service.delete_apartment, db, agency_id, aid)
             except Exception as exc:  # noqa: BLE001
                 logger.info("Авто-импорт: не удалось архивировать %s: %s", aid, exc)
+        db.commit()
 
-    last_id = watch.last_post_id or 0
     new_posts = sorted((p for p in posts if p["id"] > last_id), key=lambda x: x["id"])
     if not new_posts:
-        db.commit()
+        _mark_watch(db, watch_id)
         return 0
 
     districts = [
-        d.value for d in dictionary_service.list_dictionaries(db, watch.agency_id, category="district")
+        d.value for d in dictionary_service.list_dictionaries(db, agency_id, category="district")
     ]
     urls = {p["id"]: f"https://t.me/{channel}/{p['id']}" for p in new_posts}
     existing = {
         row[0] for row in db.query(Apartment.source_link)
-        .filter(Apartment.agency_id == watch.agency_id,
+        .filter(Apartment.agency_id == agency_id,
                 Apartment.source_link.in_(list(urls.values()))).all()
     }
+    # Закрываем транзакцию ЧТЕНИЯ перед циклом с ИИ-вызовами.
+    db.commit()
 
     created = ai_done = 0
     cursor = last_id
     for p in new_posts:
         pid = p["id"]
         # Ответы, дубли, проданные/неактуальные, пустые — мимо (курсор двигаем).
+        # Проверки чисто по Python-множествам (existing/sold_parents) — БД не трогают.
         if (p["reply_to"] or urls[pid] in existing or not p["text"]
                 or pid in sold_parents or _INACTIVE_RE.search(p["text"])):
             cursor = max(cursor, pid)
             continue
         if ai_done >= max_new:
             break  # остаток добежит на следующем тике (id > cursor)
+        # ИИ-разбор — ВНЕШНИЙ вызов; транзакция закрыта (коммитим перед циклом и
+        # после каждого поста), поэтому соединение БД сейчас свободно.
         try:
             fields = await run_in_threadpool(
                 listing_import_service.extract_fields_from_text, p["text"], districts
@@ -502,11 +534,11 @@ async def auto_import_channel(db: Session, watch: WatchedChannel, max_new: int =
         body.pop("photo_urls", None)
         body["source_link"] = urls[pid]
         body["source"] = f"@{channel}"
-        body["shared_mls"] = watch.share_mls
+        body["shared_mls"] = share_mls
         try:
             apt = await run_in_threadpool(
                 apartment_service.create_apartment,
-                db, watch.agency_id, watch.created_by, ApartmentCreate(**body), "auto",
+                db, agency_id, created_by, ApartmentCreate(**body), "auto",
             )
         except AppError:
             cursor = max(cursor, pid)
@@ -516,13 +548,17 @@ async def auto_import_channel(db: Session, watch: WatchedChannel, max_new: int =
         if p["images"]:
             try:
                 await photo_service.import_from_image_urls(
-                    db, watch.agency_id, apt.id, p["images"][:_MAX_PHOTOS_PER_OBJ]
+                    db, agency_id, apt.id, p["images"][:_MAX_PHOTOS_PER_OBJ]
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.info("Авто-импорт: фото поста %s не прикреплены: %s", pid, exc)
+        # Фиксируем прогресс ПОСЛЕ каждого объекта: курсор в БД и закрытая
+        # транзакция → следующий ИИ-вызов снова идёт без открытой транзакции.
+        _mark_watch(db, watch_id, last_post_id=cursor)
 
-    watch.last_post_id = max(watch.last_post_id or 0, cursor)
-    db.commit()
+    # Финальная отметка курсора (учитывает посты, пропущенные после последнего
+    # созданного объекта — на них commit в цикле не делался).
+    _mark_watch(db, watch_id, last_post_id=cursor)
     return created
 
 
