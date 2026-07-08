@@ -8,7 +8,7 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
