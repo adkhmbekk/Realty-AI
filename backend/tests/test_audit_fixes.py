@@ -65,19 +65,15 @@ def test_create_agency_rejects_user_from_another_agency(db):
 
 # ── 1.3 истечение подписки ───────────────────────────────────────────────
 def test_expire_due_subscriptions(db):
+    # ПОДПИСКА ОТКЛЮЧЕНА (тарифы, 2026-07): функция — стаб, статусы не трогает.
     now = datetime(2026, 6, 1, tzinfo=timezone.utc)
     overdue = _agency(db, "Просрочена", status="active")
     overdue.subscription_expires_at = now - timedelta(days=1)
-    ok = _agency(db, "Активна", status="active")
-    ok.subscription_expires_at = now + timedelta(days=10)
     db.commit()
 
-    changed = scheduler.expire_due_subscriptions(db, now=now)
-    assert changed == 1
+    assert scheduler.expire_due_subscriptions(db, now=now) == 0
     db.refresh(overdue)
-    db.refresh(ok)
-    assert overdue.status == "expired"
-    assert ok.status == "active"
+    assert overdue.status == "active"  # статус не меняется — гейтинг убран
 
 
 # ── 1.5 исключение сотрудника ────────────────────────────────────────────

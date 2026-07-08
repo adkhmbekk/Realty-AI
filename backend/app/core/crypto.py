@@ -53,6 +53,13 @@ def encrypt(value: Optional[str]) -> Optional[str]:
         return value
     f = _get_fernet()
     if f is None:
+        # #6 fail-closed: в проде запрещаем хранить секрет открытым текстом —
+        # иначе Google refresh-токены молча легли бы в БД/бэкап в открытом виде.
+        if settings.is_prod:
+            raise RuntimeError(
+                "APP_ENCRYPTION_KEY обязателен при ENV=prod: отказываюсь хранить "
+                "секрет в открытом виде в БД."
+            )
         return value
     return _PREFIX + f.encrypt(value.encode()).decode()
 

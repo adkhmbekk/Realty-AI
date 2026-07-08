@@ -46,7 +46,11 @@ def excel_link(
     return {"url": f"{base}/api/v1/exports/excel/file?t={code}"}
 
 
-@router.get("/excel/file", include_in_schema=False)
+@router.get(
+    "/excel/file",
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit(30, 60, "export_excel_file"))],
+)
 def excel_file(
     t: str = Query(default=""),
     db: Session = Depends(get_db),

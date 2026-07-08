@@ -626,8 +626,14 @@ def _is_phone(raw: str, digits: str, after: str, lenient: bool) -> bool:
         return True
     if len(digits) == 9 and digits[:2] in _UZ_MOBILE_CODES:
         return True
-    # Явная телефонная группировка дефисами: XX-XXX-XX-XX.
-    if raw.count("-") + raw.count("–") >= 2 and 9 <= len(digits) <= 13:
+    # Явная телефонная группировка дефисами: XX-XXX-XX-XX. Чтобы НЕ принять за
+    # телефон кадастровые/документные номера (например 12-34-567-89-01 — 4 группы,
+    # 11 цифр, часто с ':'), сужаем: не более 3 дефисов, без ':', телефонная длина
+    # (9–12 цифр), а 12 цифр обязаны начинаться на 998 (BL2).
+    dashes = raw.count("-") + raw.count("–")
+    if ":" not in raw and 2 <= dashes <= 3 and 9 <= len(digits) <= 12:
+        if len(digits) == 12 and not digits.startswith("998"):
+            return False
         return True
     # В owner_phone (модель уже назвала это телефоном) — мягче.
     if lenient and 7 <= len(digits) <= 15:

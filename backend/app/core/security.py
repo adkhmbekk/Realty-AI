@@ -91,6 +91,15 @@ def _resolve_jwt_secret() -> str:
     if settings.jwt_secret:
         return settings.jwt_secret
 
+    # В проде секрет ОБЯЗАН быть задан явно: автогенерация даёт РАЗНЫЕ секреты на
+    # каждый процесс/хост → при масштабировании (несколько воркеров/инстансов)
+    # пропуска перестают проверяться, пользователей массово разлогинивает (#7).
+    if settings.is_prod:
+        raise RuntimeError(
+            "JWT_SECRET обязателен при ENV=prod. Сгенерируйте и задайте его в .env: "
+            'python -c "import secrets; print(secrets.token_urlsafe(48))"'
+        )
+
     secret_dir = settings.secret_dir
     legacy_dir = settings.photos_dir
 

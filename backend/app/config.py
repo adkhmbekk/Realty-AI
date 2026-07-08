@@ -137,6 +137,12 @@ class Settings(BaseSettings):
     # Если не задан — секреты хранятся как есть (только для разработки/тестов).
     app_encryption_key: Optional[str] = None
 
+    # Окружение: "dev" (по умолчанию) или "prod". В prod включаются жёсткие
+    # проверки (fail-closed): JWT_SECRET обязателен (иначе при нескольких
+    # воркерах/хостах автосекрет разойдётся → массовый разлогин), и запрещено
+    # хранить секреты в БД без ключа шифрования. Задаётся переменной ENV.
+    env: str = "dev"
+
     @field_validator(
         "bot_token", "jwt_secret", "bot_username", "gemini_api_key",
         "openrouter_api_key", "google_client_id", "google_client_secret",
@@ -157,6 +163,11 @@ class Settings(BaseSettings):
         if value is None or (isinstance(value, str) and value.strip() == ""):
             return None
         return value
+
+    @property
+    def is_prod(self) -> bool:
+        """Прод-режим (жёсткие проверки безопасности). Включается ENV=prod."""
+        return (self.env or "").strip().lower() in ("prod", "production")
 
     def superadmin_ids(self) -> set[int]:
         """Все Telegram ID владельцев платформы (из обоих источников настроек)."""

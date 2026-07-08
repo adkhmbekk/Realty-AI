@@ -96,15 +96,16 @@ def test_personal_agency_bypasses_subscription(db):
     dependencies._ensure_subscription_active(db, fake)
 
 
-def test_client_agency_subscription_still_enforced(db):
+def test_client_agency_subscription_gate_disabled(db):
+    # ПОДПИСКА ОТКЛЮЧЕНА (тарифы, 2026-07): _ensure_subscription_active больше НЕ
+    # блокирует — даже 'frozen' агентство проходит (PERF1: убран и лишний SELECT).
+    # Гейтинг вернётся вместе с платными тарифами.
     client = Agency(name="Клиент", status="frozen", timezone="Asia/Tashkent",
                     default_currency="USD")
     db.add(client)
     db.commit()
     fake = SimpleNamespace(agency_id=client.id)
-    with pytest.raises(AppError) as exc:
-        dependencies._ensure_subscription_active(db, fake)
-    assert exc.value.key == "subscription_suspended"
+    dependencies._ensure_subscription_active(db, fake)  # не бросает
 
 
 # ─── Регрессия: вступление сотрудника по коду после 403 на входе ────────────

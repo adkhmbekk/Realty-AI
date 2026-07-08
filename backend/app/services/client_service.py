@@ -124,40 +124,72 @@ def apartment_matches_request(apt: Apartment, req: ClientRequest) -> bool:
     return True
 
 
+def _price_closeness(price, price_min, price_max) -> float:
+    """
+    Насколько цена комфортна В РАМКАХ бюджета (0..1). Жёсткий фильтр уже отсёк
+    объекты вне бюджета, поэтому здесь объект гарантированно внутри диапазона.
+    При обеих заданных границах дешевле = комфортнее: полный балл у нижней
+    границы, ~0.6 у верхней («на пределе бюджета»). Одна граница/некорректная
+    цена — полный балл.
+    """
+    try:
+        p = float(price)
+    except (TypeError, ValueError):
+        return 1.0
+    if price_min is not None and price_max is not None:
+        lo, hi = float(price_min), float(price_max)
+        if hi > lo:
+            frac = min(1.0, max(0.0, (p - lo) / (hi - lo)))
+            return 1.0 - 0.4 * frac
+    return 1.0
+
+
 def score_match(apt: Apartment, req: ClientRequest) -> Tuple[int, dict]:
     """
     Балл совпадения 0-100 + причины {"good": [...], "missing": [...]}.
 
-    Жёсткие фильтры (тип сделки, район, тип, валюта, цена) к этому моменту уже
-    пройдены, поэтому всегда «в плюс». Балл снижают только числовые поля, которые
-    клиент указал, но в объекте они НЕ заполнены — это и есть «данные неполные».
+    Жёсткие фильтры (тип сделки, район, тип, валюта, диапазон цены) к этому моменту
+    уже пройдены. Балл отражает КАЧЕСТВО совпадения (закрыт BL1 — раньше цена всегда
+    давала полный балл, даже без цены и без учёта близости к бюджету):
+      - цена (вес 30): у объекта ДОЛЖНА быть цена, иначе вес теряется; внутри
+        бюджета дешевле объект ценится выше;
+      - район/тип: объект прошёл жёсткий фильтр → точное совпадение (полный балл);
+      - числовые поля (комнаты/площадь/этаж/участок): вес даём, если поле заполнено.
     """
     good: List[str] = []
     missing: List[str] = []
     total = 0
     got = 0
 
-    def crit(specified: bool, weight: int, present: bool, good_label: str, miss_label: str) -> None:
+    def crit(specified: bool, weight: int, present: bool, label: str) -> None:
         nonlocal total, got
         if not specified:
             return
         total += weight
         if present:
             got += weight
-            good.append(good_label)
+            good.append(label)
         else:
-            missing.append(miss_label)
+            missing.append(label)
 
-    # Коды (price/district/rooms/...), слова подставит фронтенд на нужном языке.
-    crit(req.price_min is not None or req.price_max is not None, 30, True, "price", "price")
-    crit(bool(req.districts), 25, True, "district", "district")
-    crit(bool(req.types), 12, True, "type", "type")
-    crit(req.rooms_min is not None or req.rooms_max is not None, 18, apt.rooms is not None, "rooms", "rooms")
+    # Цена: требуем наличие цены и учитываем близость к бюджету.
+    if req.price_min is not None or req.price_max is not None:
+        total += 30
+        if apt.price is not None:
+            got += round(30 * _price_closeness(apt.price, req.price_min, req.price_max))
+            good.append("price")
+        else:
+            missing.append("price")
+
+    # Район и тип уже прошли жёсткий фильтр → точное совпадение.
+    crit(bool(req.districts), 25, True, "district")
+    crit(bool(req.types), 12, True, "type")
+    crit(req.rooms_min is not None or req.rooms_max is not None, 18, apt.rooms is not None, "rooms")
     a_min = getattr(req, "area_min", None)
     a_max = getattr(req, "area_max", None)
-    crit(a_min is not None or a_max is not None, 10, getattr(apt, "area", None) is not None, "area", "area")
-    crit(req.floor_min is not None or req.floor_max is not None, 5, apt.floor is not None, "floor", "floor")
-    crit(req.land_area_min is not None or req.land_area_max is not None, 10, apt.land_area is not None, "land", "land")
+    crit(a_min is not None or a_max is not None, 10, getattr(apt, "area", None) is not None, "area")
+    crit(req.floor_min is not None or req.floor_max is not None, 5, apt.floor is not None, "floor")
+    crit(req.land_area_min is not None or req.land_area_max is not None, 10, apt.land_area is not None, "land")
 
     score = 100 if total == 0 else round(got / total * 100)
     return score, {"good": good, "missing": missing}

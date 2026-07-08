@@ -243,22 +243,18 @@ def root():
 
 @app.get("/health")
 def health(db: Session = Depends(get_db)):
-    """Проверка: жив ли сервис, доступна ли база и доступно ли хранилище фото."""
+    """Проверка живости для healthcheck: сервис отвечает, БД и хранилище доступны.
+    Наружу отдаём ТОЛЬКО общий статус — без версии и деталей подсистем: они не
+    нужны неаутентифицированному клиенту (лишняя разведка), а детали видны в логах."""
     try:
         db.execute(text("SELECT 1"))
         db_ok = True
     except Exception:  # noqa: BLE001
         db_ok = False
-    # Хранилище фото должно существовать и быть доступно на запись (L6) —
-    # иначе загрузка/отдача фото молча сломается, а /health бы об этом не сказал.
+    # Хранилище фото должно существовать и быть доступно на запись — иначе
+    # загрузка/отдача фото молча сломается, а /health бы об этом не сказал.
     storage_ok = os.path.isdir(settings.photos_dir) and os.access(settings.photos_dir, os.W_OK)
-    ok = db_ok and storage_ok
-    return {
-        "status": "healthy" if ok else "degraded",
-        "database": "connected" if db_ok else "unavailable",
-        "storage": "writable" if storage_ok else "unavailable",
-        "version": settings.app_version,
-    }
+    return {"status": "healthy" if (db_ok and storage_ok) else "degraded"}
 
 
 # Бесшовный повтор запроса при обрыве соединения с БД (например, при перезагрузке

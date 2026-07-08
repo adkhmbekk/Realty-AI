@@ -10,30 +10,20 @@ docker-compose (он использует образ postgres:16 с нужной
 складывает копии в папку backups, как и ручной backup.bat).
 """
 import logging
-import math
 import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.db.models.agency import Agency
-from app.db.models.user import User
 from app.db.session import SessionLocal
-from app.services import telegram_service
 from app.services import photo_service
 
 logger = logging.getLogger("uvicorn.error")
 
-# Как часто проверять подписки (одна задача в сутки была бы достаточна, но
-# проверяем чаще, чтобы не зависеть от точного момента запуска).
+# Как часто крутить общий цикл обслуживания (подчистка фото и т.п.).
 CHECK_INTERVAL_SECONDS = 6 * 3600
-# Не слать одному агентству предупреждение чаще, чем раз в ~сутки.
-_WARN_THROTTLE = timedelta(hours=20)
-_ACTIVE_STATUSES = ("trial", "active")
-# Подчистку осиротевших файлов фото запускаем не чаще раза в сутки (M4).
+# Подчистку осиротевших файлов фото запускаем не чаще раза в сутки.
 _SWEEP_INTERVAL = timedelta(hours=24)
 _last_sweep: datetime | None = None
 # Суточный дайджест совпадений (Волна 8) — раз в ~сутки.
@@ -41,109 +31,17 @@ _DIGEST_INTERVAL = timedelta(hours=24)
 _last_digest: datetime | None = None
 
 
-def _as_utc(dt: datetime | None) -> datetime | None:
-    """Привести дату к timezone-aware UTC (на случай наивных дат из БД)."""
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
-
-
-def _owner_telegram_id(db: Session, agency_id: int) -> int | None:
-    """Telegram ID главного админа агентства (или любого админа как запас)."""
-    owner = db.execute(
-        select(User).where(
-            User.agency_id == agency_id,
-            User.role == "agency_admin",
-            User.is_owner.is_(True),
-            User.is_active.is_(True),
-        )
-    ).scalar_one_or_none()
-    if owner is None:
-        owner = db.execute(
-            select(User)
-            .where(
-                User.agency_id == agency_id,
-                User.role == "agency_admin",
-                User.is_active.is_(True),
-            )
-            .order_by(User.created_at, User.id)
-        ).scalars().first()
-    return owner.telegram_id if owner and owner.telegram_id else None
-
-
 def run_subscription_warnings(db: Session, now: datetime | None = None) -> int:
-    """
-    Найти агентства, у которых подписка истекает в ближайшие
-    settings.subscription_warn_days дней, и предупредить их владельцев.
-    Возвращает число отправленных предупреждений (для тестов/логов).
-    """
-    # ПОДПИСКА ОТКЛЮЧЕНА (переход на тарифы, 2026-07): не предупреждаем владельцев
-    # об окончании подписки — её больше нет, у всех бесплатный тариф 'start'.
+    """ПОДПИСКА ОТКЛЮЧЕНА (переход на тарифы, 2026-07): у всех бесплатный тариф
+    'start' без срока — предупреждать не о чем. Оставлено стабом (задел на возврат
+    платных тарифов), вызывается из _loop. Возвращает 0."""
     return 0
-    warn_days = settings.subscription_warn_days  # noqa: unreachable (задел на тарифы)
-    if warn_days <= 0 or not telegram_service.is_configured():
-        return 0
-
-    now = now or datetime.now(timezone.utc)
-    window_end = now + timedelta(days=warn_days)
-
-    sent = 0
-    agencies = db.execute(select(Agency)).scalars().all()
-    for agency in agencies:
-        if agency.status not in _ACTIVE_STATUSES:
-            continue
-        expires = _as_utc(agency.subscription_expires_at)
-        if expires is None or expires <= now or expires > window_end:
-            continue
-        warned = _as_utc(agency.subscription_warned_at)
-        if warned is not None and (now - warned) < _WARN_THROTTLE:
-            continue
-
-        chat_id = _owner_telegram_id(db, agency.id)
-        if chat_id is not None:
-            days_left = max(1, math.ceil((expires - now).total_seconds() / 86400))
-            name = agency.project_name or agency.name
-            text = (
-                f"⏳ Подписка агентства «{name}» скоро закончится.\n"
-                f"Осталось дней: {days_left} (до {expires:%Y-%m-%d}).\n"
-                f"Обратитесь к владельцу платформы для продления, "
-                f"чтобы доступ не приостановился."
-            )
-            if telegram_service.send_message(chat_id, text):
-                sent += 1
-        # Метку ставим в любом случае, чтобы не долбить проверками каждые 6 часов.
-        agency.subscription_warned_at = now
-
-    if sent or any(a.subscription_warned_at == now for a in agencies):
-        db.commit()
-    return sent
 
 
 def expire_due_subscriptions(db: Session, now: datetime | None = None) -> int:
-    """
-    Перевести в статус 'expired' агентства, у которых срок подписки истёк, а
-    статус всё ещё trial/active. Доступ блокируется и так (agency_is_active
-    проверяет дату), но явный статус 'expired' делает панель суперадмина
-    правдивой: видно, кто реально не оплатил. Возвращает число переведённых.
-    """
-    # ПОДПИСКА ОТКЛЮЧЕНА (переход на тарифы, 2026-07): не переводим агентства в
-    # 'expired' — доступ больше не зависит от срока подписки (agency_is_active=True).
+    """ПОДПИСКА ОТКЛЮЧЕНА (переход на тарифы, 2026-07): доступ не зависит от срока
+    подписки. Оставлено стабом (задел на тарифы). Возвращает 0."""
     return 0
-    now = now or datetime.now(timezone.utc)  # noqa: unreachable (задел на тарифы)
-    changed = 0
-    agencies = db.execute(
-        select(Agency).where(Agency.status.in_(_ACTIVE_STATUSES))
-    ).scalars().all()
-    for agency in agencies:
-        expires = _as_utc(agency.subscription_expires_at)
-        if expires is not None and expires < now:
-            agency.status = "expired"
-            changed += 1
-    if changed:
-        db.commit()
-    return changed
 
 
 def _loop() -> None:
