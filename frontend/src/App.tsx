@@ -47,7 +47,7 @@ const ClientMatchesScreen = lazy(() => import("./screens/Clients").then((m) => (
 const MatchesScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.MatchesScreen })));
 const SaveRequestScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.SaveRequestScreen })));
 
-type Phase = "loading" | "open" | "join" | "ready" | "suspended";
+type Phase = "loading" | "open" | "join" | "ready" | "suspended" | "reconnect";
 
 // ── Тосты ───────────────────────────────────────────────────────────
 function Toasts() {
@@ -508,6 +508,37 @@ function OpenInTelegram() {
   );
 }
 
+// ── Экран «нет связи» при запуске ─────────────────────────────────────
+// Показывается, когда первичный вход не удался из-за связи (а НЕ из-за того,
+// что человек не в агентстве). Само-восстанавливается: пока открыт, тихо
+// повторяет вход каждые 6 c — вернулась связь, приложение войдёт само.
+function ReconnectScreen({ onRetry }: { onRetry: () => void }) {
+  const { t } = useApp();
+  useEffect(() => {
+    const id = setInterval(onRetry, 6000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="max-w-[560px] mx-auto px-4 pt-14 animate-fade-up">
+      <div className="flex flex-col items-center text-center mb-5">
+        <span className="w-16 h-16 rounded-[20px] flex items-center justify-center text-white shadow-glow mb-3" style={{ background: "var(--grad)" }}>
+          <Building2 size={30} />
+        </span>
+        <span className="text-[24px] font-extrabold tracking-tight">
+          Realty <span className="text-primary">AI</span>
+        </span>
+      </div>
+      <Card>
+        <div className="text-[16px] font-extrabold text-center">{t("connLostTitle")}</div>
+        <p className="text-muted text-sm mt-2 text-center">{t("connLostMsg")}</p>
+        <div className="flex justify-center mt-3"><Spinner /></div>
+        <Button full className="mt-3" onClick={onRetry}>{t("retryBtn")}</Button>
+      </Card>
+    </div>
+  );
+}
+
 // ── Экран приветствия для нового человека (ещё без агентства) ─────────
 // Два пути: СОЗДАТЬ своё агентство (саморегистрация) или ВОЙТИ по коду
 // приглашения. Если пришли по ссылке-приглашению (есть код) — сразу режим кода.
@@ -669,6 +700,50 @@ export function App() {
     }
   }
 
+  // Первичный вход при запуске приложения. КЛЮЧЕВОЕ: обрыв связи ≠ «нет
+  // агентства». Раньше любой не-200 (включая status 0 — обрыв сети/таймаут
+  // туннеля) сваливался в экран «создать агентство», и существующего риелтора
+  // выкидывало на регистрацию при секундном моргании интернета. Теперь:
+  //   • 200            → входим;
+  //   • 403            → человек реально не в агентстве → экран вступления;
+  //   • обрыв/5xx/иное → НЕ трогаем агентство: тихо повторяем несколько раз,
+  //                      потом показываем экран «нет связи, повторить».
+  const bootstrapping = useRef(false);
+  async function bootstrapAuth(): Promise<void> {
+    // Защита от параллельных запусков (авто-повтор с экрана «нет связи» не должен
+    // накладываться на уже идущую попытку).
+    if (bootstrapping.current) return;
+    bootstrapping.current = true;
+    try {
+      const initData = getInitData();
+      if (!initData) {
+        setPhase("open");
+        return;
+      }
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const r = await api<AuthResponse>("/api/v1/auth/telegram", { method: "POST", body: { init_data: initData } });
+        if (r.ok && r.data) {
+          await applyAuth(r.data);
+          return;
+        }
+        if (r.status === 403) {
+          setPhase("join");
+          return;
+        }
+        // Временная неудача (обрыв сети / таймаут туннеля / сервер занят):
+        // повторяем с нарастающей паузой, НЕ выкидывая пользователя на создание
+        // агентства.
+        if (attempt < 4) {
+          setPhase("loading");
+          await new Promise((res) => setTimeout(res, 800 * 2 ** attempt)); // 0.8→1.6→3.2→6.4 c
+        }
+      }
+      setPhase("reconnect");
+    } finally {
+      bootstrapping.current = false;
+    }
+  }
+
   // Войти в другое своё агентство (acting): получить сессию с ролью в нём.
   async function enterAgency(id: number): Promise<boolean> {
     const r = await api<AuthResponse>(`/api/v1/agencies/${id}/enter`, { method: "POST" });
@@ -729,7 +804,6 @@ export function App() {
 
   useEffect(() => {
     tgReady();
-    const initData = getInitData();
     const sp = getStartParam();
     setStartParam(sp);
 
@@ -784,21 +858,7 @@ export function App() {
       }
     });
 
-    if (!initData) {
-      setPhase("open");
-      return;
-    }
-    (async () => {
-      const r = await api<AuthResponse>("/api/v1/auth/telegram", { method: "POST", body: { init_data: initData } });
-      if (r.ok && r.data) {
-        await applyAuth(r.data);
-      } else if (r.status === 403) {
-        setPhase("join");
-      } else {
-        // Покажем экран входа по коду как запасной (или открыть в Telegram).
-        setPhase(initData ? "join" : "open");
-      }
-    })();
+    bootstrapAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -815,6 +875,7 @@ export function App() {
     );
   }
   if (phase === "open") return <OpenInTelegram />;
+  if (phase === "reconnect") return <ReconnectScreen onRetry={() => { setPhase("loading"); bootstrapAuth(); }} />;
   if (phase === "join") return <WelcomeScreen prefill={startParam} onAuth={applyAuth} />;
   if (phase === "suspended") {
     return (
