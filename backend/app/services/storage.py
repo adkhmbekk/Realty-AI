@@ -12,7 +12,7 @@
 в том числе те, что уже записаны в Google-таблицы клиентов.
 """
 import os
-from typing import Iterable, List, Optional, Protocol, runtime_checkable
+from typing import List, Optional, Protocol, runtime_checkable
 
 from app.config import settings
 
@@ -86,10 +86,8 @@ class LocalDiskStorage:
 
 
 def _build_storage() -> Storage:
-    backend = (settings.photo_storage_backend or "local").lower()
-    # if backend == "s3":
-    #     from app.services.storage_s3 import S3Storage
-    #     return S3Storage(...)   # будущее: переезд на S3 без правок остального кода
+    # Будущее: при photo_storage_backend == "s3" вернуть S3Storage(...) —
+    # переезд на S3 без правок остального кода (ссылки на фото стабильны).
     return LocalDiskStorage()
 
 

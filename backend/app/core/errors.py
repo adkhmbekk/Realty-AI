@@ -199,6 +199,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Obyekt topilmadi.",
         "en": "Property not found.",
     },
+    "watch_not_found": {
+        "ru": "Отслеживаемый канал не найден.",
+        "uz": "Kuzatilayotgan kanal topilmadi.",
+        "en": "Watched channel not found.",
+    },
     "invalid_apartment_status": {
         "ru": "Недопустимый статус объекта.",
         "uz": "Obyektning yaroqsiz holati.",
