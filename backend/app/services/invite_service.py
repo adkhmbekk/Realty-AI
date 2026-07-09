@@ -233,11 +233,17 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
 
     user = user_repo.get_by_telegram_id(db, telegram_id)
     # Проверяем право на вступление ДО «занятия» использования — чтобы отказ
-    # (уже в агентстве / суперадмин) не съедал лимит приглашения.
+    # (повторно в это же агентство / суперадмин) не съедал лимит приглашения.
     if user is not None:
         if user.role == "superadmin":
             raise AppError("superadmin_cannot_join", status.HTTP_400_BAD_REQUEST)
-        if user.agency_id is not None:
+        # Мультиагентство (2026-07): состоять можно в НЕСКОЛЬКИХ агентствах.
+        # Запрет — только на повторное вступление в ЭТО ЖЕ агентство (уже есть
+        # активное членство либо это домашнее агентство).
+        existing_m = agency_membership_repo.get(db, user.id, invite.agency_id)
+        if (existing_m is not None and existing_m.is_active) or (
+            user.agency_id == invite.agency_id
+        ):
             raise AppError("already_in_agency", status.HTTP_409_CONFLICT)
 
     # 4.0. Атомарно занимаем одно использование приглашения (защита от гонки:
@@ -248,12 +254,15 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
         raise AppError("invite_already_used", status.HTTP_409_CONFLICT)
 
     if user is not None:
-        # Пользователь существовал без агентства — привязываем.
-        user.agency_id = invite.agency_id
-        user.role = target_role
+        # Первое агентство (личный аккаунт без «домашнего») → делаем его домашним.
+        # Если домашнее уже есть (мультиагентство) — его НЕ трогаем; ниже
+        # создаётся отдельное членство в новом агентстве.
+        if user.agency_id is None:
+            user.agency_id = invite.agency_id
+            user.role = target_role
+            if is_owner_invite:
+                user.is_owner = True
         user.is_active = True
-        if is_owner_invite:
-            user.is_owner = True
         if username:
             user.username = username
         if full_name:
