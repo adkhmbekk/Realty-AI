@@ -77,3 +77,24 @@ def test_personal_user_role_allowed(db):
     db.refresh(u)
     assert u.role == "user"
     assert u.agency_id is None
+
+
+def test_user_profile_schema_exposes_profile_fields(db):
+    """Схема ответа /auth/me отдаёт поля профиля (нужно фронту)."""
+    from app.schemas.auth import UserProfile
+
+    u = User(
+        telegram_id=900005, role="user", agency_id=None,
+        first_name="Азиз", last_name="Каримов",
+        phone="+998901234567", phone_verified=True, language="uz",
+    )
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+
+    out = UserProfile.model_validate(u)
+    assert out.first_name == "Азиз"
+    assert out.last_name == "Каримов"
+    assert out.phone == "+998901234567"
+    assert out.phone_verified is True
+    assert out.language == "uz"
