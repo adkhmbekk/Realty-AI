@@ -33,6 +33,22 @@ class User(Base):
     )
     username: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # ── Личный профиль (2026-07, юзер-центричная модель) ──────────────────
+    # Имя/фамилия — отдельно от full_name. full_name ОСТАВЛЯЕМ (его использует
+    # существующий код отображения: created_by_name и т.п.); при правке профиля
+    # держим full_name = first_name + ' ' + last_name.
+    first_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Номер телефона — «якорь» аккаунта для будущего входа с сайта/приложения.
+    # Уникальный, пока необязательный. Из Telegram-контакта приходит подтверждённым.
+    phone: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
+    phone_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # Язык интерфейса (раньше язык не хранился — шёл через заголовок X-Lang).
+    language: Mapped[str] = mapped_column(
+        String, nullable=False, default="ru", server_default=text("'ru'")
+    )
     # NULL только у суперадмина. У остальных — id их агентства.
     agency_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
