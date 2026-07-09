@@ -31,3 +31,6 @@ Thumbs.db
 .agents/
 .claude/skills/
 skills-lock.json
+
+# Визуальный компаньон брейнсторминга
+.superpowers/
