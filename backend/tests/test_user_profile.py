@@ -63,3 +63,17 @@ def test_backfill_first_name_from_full_name(db):
     _backfill_first_name(db)
     db.refresh(u)
     assert u.first_name == "Сардор Алиев"
+
+
+def test_personal_user_role_allowed(db):
+    """Личный аккаунт без агентства (role='user', agency_id=NULL) — валиден.
+
+    Основа открытой регистрации: человек вошёл, но ещё не в агентстве.
+    Проверяем, что CHECK-ограничение роли пропускает 'user'.
+    """
+    u = User(telegram_id=900004, role="user", agency_id=None, first_name="Нур")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    assert u.role == "user"
+    assert u.agency_id is None

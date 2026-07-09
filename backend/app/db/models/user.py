@@ -6,7 +6,9 @@
 Роли:
   - superadmin    — владелец платформы (agency_id = NULL);
   - agency_admin  — администратор агентства;
-  - agent         — рядовой сотрудник агентства.
+  - agent         — рядовой сотрудник агентства;
+  - user          — личный аккаунт без агентства (открытая регистрация, 2026-07):
+                    человек вошёл, но ещё не создал/не вступил в агентство.
 """
 from datetime import datetime
 from typing import Optional
@@ -22,7 +24,7 @@ class User(Base):
     __table_args__ = (
         # Роль ограничена известным набором (целостность на уровне БД).
         CheckConstraint(
-            "role IN ('superadmin','agency_admin','agent')", name="ck_users_role"
+            "role IN ('superadmin','agency_admin','agent','user')", name="ck_users_role"
         ),
     )
 
