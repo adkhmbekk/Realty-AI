@@ -22,7 +22,13 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.core import security
 from app.core.errors import AppError
-from app.repositories import agency_repo, audit_repo, invite_repo, user_repo
+from app.repositories import (
+    agency_membership_repo,
+    agency_repo,
+    audit_repo,
+    invite_repo,
+    user_repo,
+)
 from app.schemas.agency import ActivationOut
 from app.schemas.invite import InviteCreate, InviteOut
 from app.services import auth_service
@@ -262,6 +268,19 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
             full_name=full_name,
             is_owner=is_owner_invite,
         )
+
+    # 4.2. Членство (источник правды многоролевости): создаём/подтверждаем
+    # членство в этом агентстве. Без него вступивший не появлялся бы в списке
+    # «мои агентства» и не мог бы переключаться (раньше членство не создавалось —
+    # латентная дырка мультиагентства).
+    agency_membership_repo.get_or_create(
+        db,
+        user_id=user.id,
+        agency_id=invite.agency_id,
+        role=target_role,
+        is_owner=is_owner_invite,
+        is_active=True,
+    )
 
     # 4.1. Активация агентства-черновика: запускаем подписку с этого момента.
     if is_owner_invite:

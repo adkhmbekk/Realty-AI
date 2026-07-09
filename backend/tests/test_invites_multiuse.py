@@ -12,7 +12,7 @@ import pytest
 
 from app.core.errors import AppError
 from app.db.models.agency import Agency
-from app.repositories import invite_repo, user_repo
+from app.repositories import agency_membership_repo, invite_repo, user_repo
 from app.schemas.invite import InviteCreate
 from app.services import invite_service
 
@@ -132,3 +132,27 @@ def test_uses_range_validation():
         InviteCreate(role="agent", max_uses=0)
     with pytest.raises(Exception):
         InviteCreate(role="agent", max_uses=101)
+
+
+def test_redeem_creates_membership(db, monkeypatch):
+    """Вступление по коду создаёт членство (источник правды многоролевости).
+
+    Раньше redeem только ставил user.agency_id, но НЕ создавал членство — из-за
+    чего вступивший не появлялся в списке «мои агентства» и не мог переключаться.
+    """
+    _prep(monkeypatch)
+    agency, admin = _agency_with_admin(db)
+    inv = invite_service.create_invite(
+        db, agency.id, created_by=admin.id,
+        payload=InviteCreate(role="agent", expires_in_days=7),
+        is_owner=True,
+    )
+    invite_service.redeem_invite(db, _sign_init_data(telegram_id=705001), inv.code)
+
+    u = user_repo.get_by_telegram_id(db, 705001)
+    assert u is not None
+    m = agency_membership_repo.get(db, u.id, agency.id)
+    assert m is not None
+    assert m.role == "agent"
+    assert m.is_owner is False
+    assert m.is_active is True
