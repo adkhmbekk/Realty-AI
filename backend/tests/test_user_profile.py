@@ -98,3 +98,21 @@ def test_user_profile_schema_exposes_profile_fields(db):
     assert out.phone == "+998901234567"
     assert out.phone_verified is True
     assert out.language == "uz"
+
+
+def test_update_profile_syncs_full_name(db):
+    """Правка профиля обновляет поля и держит full_name в синхроне."""
+    from app.services import auth_service
+
+    u = User(telegram_id=900006, role="user", first_name="Old", full_name="Old")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+
+    out = auth_service.update_profile(
+        db, u, first_name="Азиз", last_name="Каримов", language="uz"
+    )
+    assert out.first_name == "Азиз"
+    assert out.last_name == "Каримов"
+    assert out.language == "uz"
+    assert out.full_name == "Азиз Каримов"

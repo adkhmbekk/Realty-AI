@@ -244,6 +244,35 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
     }
 
 
+def update_profile(
+    db: Session,
+    user,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None,
+    language: Optional[str] = None,
+) -> "object":
+    """
+    Обновить личный профиль (имя/фамилия/язык). Берём НАСТОЯЩУЮ строку из БД
+    (user мог быть acting-объектом суперадмина). full_name держим в синхроне
+    (first + last) — его использует существующий код отображения.
+    """
+    real = user_repo.get_by_id(db, user.id)
+    if real is None:
+        raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+    if first_name is not None:
+        real.first_name = first_name.strip() or None
+    if last_name is not None:
+        real.last_name = last_name.strip() or None
+    if language is not None and language in ("ru", "uz", "en"):
+        real.language = language
+    fn = " ".join(p for p in [real.first_name, real.last_name] if p) or None
+    if fn:
+        real.full_name = fn
+    db.commit()
+    db.refresh(real)
+    return real
+
+
 def list_my_memberships(db: Session, user) -> list:
     """
     Все агентства, в которых состоит пользователь (для переключателя «мои

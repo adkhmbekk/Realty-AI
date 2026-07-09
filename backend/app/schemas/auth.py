@@ -20,6 +20,14 @@ class RefreshRequest(BaseModel):
     act_as_agency_id: Optional[int] = None
 
 
+class ProfileUpdate(BaseModel):
+    # Правка личного профиля (имя/фамилия/язык). Все поля необязательны —
+    # обновляем только присланные.
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    language: Optional[str] = None
+
+
 class UserProfile(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
