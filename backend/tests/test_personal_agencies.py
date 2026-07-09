@@ -163,10 +163,13 @@ def test_new_employee_can_join_personal_agency_after_login_403(db, monkeypatch):
     # 2. Новый сотрудник открывает ссылку: тот же initData используется дважды.
     init_data = _sign_init_data(telegram_id=777001, username="employee")
 
-    # 2a. Сначала вход — незнакомца ещё нет в базе → 403 (но initData НЕ сгорает).
-    with pytest.raises(AppError) as exc:
-        auth_service.login_with_init_data(db, init_data)
-    assert exc.value.key == "not_in_agency"
+    # 2a. Сначала вход — незнакомца ещё нет в базе → создаётся ЛИЧНЫЙ аккаунт
+    #     (открытая регистрация 2026-07: role='user', без агентства). initData НЕ
+    #     «гасится», чтобы следующий redeem с той же подписью прошёл.
+    resp0 = auth_service.login_with_init_data(db, init_data)
+    assert resp0["user"].role == "user"
+    pre = user_repo.get_by_telegram_id(db, 777001)
+    assert pre is not None and pre.agency_id is None and pre.role == "user"
 
     # 2b. Затем вступление по коду с ТЕМ ЖЕ initData — должно пройти.
     resp = invite_service.redeem_invite(db, init_data, invite.code)

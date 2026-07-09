@@ -52,10 +52,33 @@ def login_with_init_data(db: Session, init_data: str, ip: Optional[str] = None) 
 
     # 3. Ищем пользователя в нашей базе.
     user = user_repo.get_by_telegram_id(db, telegram_id)
-    if user is None:
-        raise AppError("not_in_agency", status.HTTP_403_FORBIDDEN)
-    if not user.is_active:
+    if user is not None and not user.is_active:
         raise AppError("access_deactivated", status.HTTP_403_FORBIDDEN)
+    if user is None:
+        # Открытая регистрация (2026-07): незнакомец получает ЛИЧНЫЙ аккаунт
+        # (role='user', без агентства) и попадает в личное пространство, откуда
+        # сам создаёт агентство или вступает по коду. Подпись здесь НЕ «гасим»
+        # (как прежде для «незнакомца») — чтобы последующий redeem с той же
+        # подписью не посчитался повтором; она погасится при redeem/след. входе.
+        first = tg_user.get("first_name")
+        last = tg_user.get("last_name")
+        full = " ".join(p for p in [first, last] if p) or None
+        user = user_repo.create(
+            db,
+            telegram_id=telegram_id,
+            role="user",
+            agency_id=None,
+            username=tg_user.get("username"),
+            full_name=full,
+        )
+        user.first_name = first
+        user.last_name = last
+        lang = (tg_user.get("language_code") or "ru").split("-")[0]
+        user.language = lang if lang in ("ru", "uz", "en") else "ru"
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user)
+        return build_auth_response(db, user)
 
     # Пользователь есть и активен — выдаём сессию, поэтому теперь «гасим» повтор.
     if security.remember_replay(data["init_data_hash"], data["replay_expires_at"]):
@@ -195,8 +218,10 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
     # У суперадмина (владельца платформы) подписки нет — оставляем None,
     # чтобы фронтенд не показывал ему строку про подписку.
     subscription_active = None
-    if user.role != "superadmin":
-        agency = agency_repo.get_by_id(db, user.agency_id) if user.agency_id else None
+    # Личный аккаунт без агентства (role='user') — подписка неприменима (None),
+    # как и у суперадмина; фронтенд покажет личное пространство, не экран подписки.
+    if user.role != "superadmin" and getattr(user, "agency_id", None) is not None:
+        agency = agency_repo.get_by_id(db, user.agency_id)
         subscription_active = agency_is_active(agency)
 
     token = security.create_access_token(
