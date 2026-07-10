@@ -4,7 +4,7 @@
 """
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TelegramAuthRequest(BaseModel):
@@ -26,6 +26,12 @@ class ProfileUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     language: Optional[str] = None
+
+
+class PhoneUpdate(BaseModel):
+    # Номер приходит из Telegram-контакта (кнопка «Поделиться контактом») —
+    # считаем его подтверждённым. Нормализуется на сервере.
+    phone: str = Field(min_length=3, max_length=32)
 
 
 class UserProfile(BaseModel):

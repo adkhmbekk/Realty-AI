@@ -6,6 +6,9 @@ phone_verified/language) и бэкфилл first_name из full_name. Повед
 авторизации/изоляции при этом НЕ меняется — членства (0035) остаются
 источником правды о ролях.
 """
+import pytest
+
+from app.core.errors import AppError
 from app.db.models.user import User
 
 
@@ -116,3 +119,29 @@ def test_update_profile_syncs_full_name(db):
     assert out.last_name == "Каримов"
     assert out.language == "uz"
     assert out.full_name == "Азиз Каримов"
+
+
+def test_set_phone_verified_and_unique(db):
+    """Номер нормализуется, помечается подтверждённым и уникален между аккаунтами."""
+    from app.services import auth_service
+
+    u1 = User(telegram_id=900007, role="user")
+    u2 = User(telegram_id=900008, role="user")
+    db.add(u1)
+    db.add(u2)
+    db.commit()
+    db.refresh(u1)
+    db.refresh(u2)
+
+    out = auth_service.set_phone(db, u1, "+998 90 123 45 67")
+    assert out.phone == "+998901234567"
+    assert out.phone_verified is True
+
+    # Тот же номер (в другом виде) второму аккаунту — занят.
+    with pytest.raises(AppError) as exc:
+        auth_service.set_phone(db, u2, "998901234567")
+    assert exc.value.key == "phone_taken"
+
+    # Свой же номер повторно себе — не ошибка.
+    again = auth_service.set_phone(db, u1, "998901234567")
+    assert again.phone == "+998901234567"

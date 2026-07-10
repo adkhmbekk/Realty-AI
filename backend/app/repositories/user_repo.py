@@ -20,6 +20,13 @@ def get_by_telegram_id(db: Session, telegram_id: int) -> Optional[User]:
     ).scalar_one_or_none()
 
 
+def get_by_phone(db: Session, phone: str) -> Optional[User]:
+    """Пользователь по номеру телефона (номер уникален; юзер-центричная модель)."""
+    return db.execute(
+        select(User).where(User.phone == phone)
+    ).scalar_one_or_none()
+
+
 def get_by_agency(db: Session, agency_id: int) -> List[User]:
     """Все сотрудники агентства (для управления командой)."""
     return list(

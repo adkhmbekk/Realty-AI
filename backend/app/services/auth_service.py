@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -269,6 +270,38 @@ def update_profile(
     if fn:
         real.full_name = fn
     db.commit()
+    db.refresh(real)
+    return real
+
+
+def _normalize_phone(raw: str) -> str:
+    """Единый вид номера: '+' + только цифры. Так '+998 90 …' и '998 90 …'
+    приводятся к одному виду и уникальность работает надёжно."""
+    digits = "".join(c for c in (raw or "") if c.isdigit())
+    return ("+" + digits) if digits else ""
+
+
+def set_phone(db: Session, user, phone: str) -> "object":
+    """
+    Задать/сменить номер телефона личного аккаунта. Номер приходит из
+    Telegram-контакта → считаем подтверждённым (phone_verified=True). Номер
+    уникален: если уже привязан к ДРУГОМУ аккаунту — phone_taken.
+    """
+    real = user_repo.get_by_id(db, user.id)
+    if real is None:
+        raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+    normalized = _normalize_phone(phone)
+    existing = user_repo.get_by_phone(db, normalized)
+    if existing is not None and existing.id != real.id:
+        raise AppError("phone_taken", status.HTTP_409_CONFLICT)
+    real.phone = normalized
+    real.phone_verified = True
+    try:
+        db.commit()
+    except IntegrityError:
+        # Гонка: номер занят между проверкой и commit (уникальный индекс).
+        db.rollback()
+        raise AppError("phone_taken", status.HTTP_409_CONFLICT)
     db.refresh(real)
     return real
 
