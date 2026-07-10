@@ -23,7 +23,7 @@ const STR: Record<string, Record<string, string>> = {
     profileSub: "Это ваша личная карточка — она с вами во всех агентствах.",
     firstName: "Имя", lastName: "Фамилия", phone: "Номер телефона",
     sharePhone: "Поделиться номером из Telegram",
-    phoneHint: "Номер можно оставить на потом — он обязателен только когда создаёте агентство.",
+    phoneHint: "Имя, фамилия и номер обязательны для первого входа.",
     change: "Изменить", continueBtn: "Продолжить",
     greeting: "С возвращением", noPhone: "номер не задан",
     home: "Главная", settings: "Настройки", profile: "Профиль",
@@ -45,7 +45,7 @@ const STR: Record<string, Record<string, string>> = {
     profileSub: "Bu sizning shaxsiy kartangiz — barcha agentliklarda siz bilan.",
     firstName: "Ism", lastName: "Familiya", phone: "Telefon raqami",
     sharePhone: "Telegramdan raqamni ulashish",
-    phoneHint: "Raqamni keyinroq qoldirsangiz boʻladi — u faqat agentlik ochganda kerak.",
+    phoneHint: "Ism, familiya va raqam birinchi kirishda majburiy.",
     change: "Oʻzgartirish", continueBtn: "Davom etish",
     greeting: "Xush kelibsiz", noPhone: "raqam kiritilmagan",
     home: "Asosiy", settings: "Sozlamalar", profile: "Profil",
@@ -67,7 +67,7 @@ const STR: Record<string, Record<string, string>> = {
     profileSub: "This is your personal card — it stays with you across agencies.",
     firstName: "First name", lastName: "Last name", phone: "Phone number",
     sharePhone: "Share number from Telegram",
-    phoneHint: "You can add the number later — it’s only required when creating an agency.",
+    phoneHint: "Name, surname and phone are required to get started.",
     change: "Change", continueBtn: "Continue",
     greeting: "Welcome back", noPhone: "no number set",
     home: "Home", settings: "Settings", profile: "Profile",
@@ -217,7 +217,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
         <p className="text-muted text-[13px] mt-2 leading-relaxed">{s.phoneHint}</p>
       </div>
       <div className="shrink-0 w-full max-w-[560px] mx-auto px-4 pt-2 pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
-        <Button full disabled={!first.trim() || busy} onClick={finish}>{busy ? "…" : s.continueBtn}</Button>
+        <Button full disabled={!first.trim() || !last.trim() || !phone.trim() || busy} onClick={finish}>{busy ? "…" : s.continueBtn}</Button>
       </div>
     </div>
   );
