@@ -105,7 +105,11 @@ export function PersonalApp({ onEnterAgency }: { onEnterAgency: (data: AuthRespo
   const { user } = useApp();
   const [onboarded, setOnboarded] = useState(() => !!localStorage.getItem(onboardKey(user)));
 
-  if (!onboarded) {
+  // Онбординг — только у НОВЫХ юзеров (role='user' = личный аккаунт, ещё не в
+  // агентстве). Существующие (agency_admin/agent) сразу видят личный кабинет.
+  // localStorage-флаг лишь подстраховка, чтобы не переспрашивать нового юзера.
+  const needsOnboarding = user?.role === "user" && !onboarded;
+  if (needsOnboarding) {
     return (
       <Onboarding
         onDone={() => {
