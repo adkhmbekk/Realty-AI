@@ -5,9 +5,9 @@
 agency_memberships — источник правды. Существующие User.agency_id/role/is_owner
 остаются «домашним» членством (совместимость).
 """
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models.agency import Agency
@@ -33,6 +33,19 @@ def list_for_user(db: Session, user_id: int) -> List[Tuple[AgencyMembership, Age
         .order_by(AgencyMembership.created_at, AgencyMembership.id)
     ).all()
     return [(m, a) for m, a in rows]
+
+
+def counts_for_users(db: Session, user_ids: List[int]) -> Dict[int, int]:
+    """Сколько активных членств у каждого из перечисленных пользователей —
+    одним запросом (без N+1). Для витрины «юзеры» у владельца платформы."""
+    if not user_ids:
+        return {}
+    rows = db.execute(
+        select(AgencyMembership.user_id, func.count())
+        .where(AgencyMembership.user_id.in_(user_ids))
+        .group_by(AgencyMembership.user_id)
+    ).all()
+    return {uid: cnt for uid, cnt in rows}
 
 
 def create(
