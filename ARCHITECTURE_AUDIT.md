@@ -3,6 +3,8 @@
 > **Scope:** entire codebase (backend + frontend + infra), not a single feature.
 > **Method:** files read directly and cross‑referenced (routes → services → repositories → models, config, auth, scheduler, Docker/Caddy). Where a claim is not directly verified from source it is marked **[inferred]**.
 > **Date:** 2026‑07‑01 · **Reviewer role:** incoming Lead Architect.
+>
+> **⚡ Update 2026‑07‑10 — user‑centric pivot (LIVE).** This audit predates the pivot. Since then: a personal‑account role **`user`** and self‑serve registration replaced the "login → 403 if not in agency" flow (unknown Telegram users now get a personal account and a personal hub); multi‑agency membership landed via the **`agency_memberships`** table; a **`superadmin`** router exposes a platform users view (objects only, clients private). Counts below are refreshed inline: **14 routers · migrations 0001→0039 · ≈200 tests**. See `TECHNICAL_DOCUMENTATION.md` (sections flagged **[pivot]**) for the authoritative current state.
 
 ---
 
@@ -34,7 +36,7 @@ Core value propositions:
 ### 1.2 Primary user journeys
 1. **Agent/Admin**: opens Mini App in Telegram → auto‑login via `initData` → Home dashboard → add/search listings, manage clients & requests, review auto‑matches, create deals, share a listing to a client via bot.
 2. **Superadmin**: manages agencies (create by link/draft, subscription, freeze/delete), monitors engagement, reviews the MLS pool, operates personal agencies via **acting** context.
-3. **New employee**: opens invite link → `initData` login fails (403 "not in agency") → app auto‑calls `/invites/redeem` with the code → becomes agent.
+3. **New employee**: opens invite link → `initData` login now yields a **personal account** (no 403) → app calls `/invites/redeem` with the code → an `agency_memberships` row is created → becomes agent in that agency (may still belong to others).
 
 ### 1.3 Architecture style
 **Modular monolith**, cleanly **layered**:
@@ -106,7 +108,7 @@ Realty-AI/
 │  │  ├─ main.py            app factory, lifespan, middleware, health
 │  │  ├─ config.py          pydantic-settings (all env)
 │  │  ├─ api/
-│  │  │  ├─ router.py       aggregates 13 routers under /api/v1
+│  │  │  ├─ router.py       aggregates 14 routers under /api/v1 (incl. superadmin [pivot])
 │  │  │  └─ routes/         auth, agencies, apartments, clients, dictionaries,
 │  │  │                     exports, imports, invites, mls, photos, settings, sheets, team
 │  │  ├─ core/              security, errors, dependencies (guards), subscription,
@@ -118,8 +120,8 @@ Realty-AI/
 │  │  │                     audit, dictionary, invite, ...)
 │  │  ├─ db/                base, session, migrate, retry, models/ (19)
 │  │  └─ schemas/           Pydantic I/O models
-│  ├─ alembic/versions/     0001..0030 migrations
-│  ├─ tests/                158 tests (pytest, SQLite in‑memory)
+│  ├─ alembic/versions/     0001..0039 migrations
+│  ├─ tests/                ≈200 tests (pytest, SQLite in‑memory)
 │  ├─ requirements.txt · Dockerfile
 ├─ frontend/                React + Vite SPA
 │  ├─ src/                  App.tsx, api.ts, store.tsx, nav.tsx, i18n.ts, telegram.ts,
@@ -272,7 +274,7 @@ erDiagram
 - **Soft delete is inconsistent**: apartments use `deleted_at`; clients use `status='archived'`; requests/deals/tasks/activities/matches are **hard‑deleted**. Intentional (history vs disposable) but worth documenting as a rule.
 - **Audit fields**: `created_at/updated_at` broadly present; `created_by` on apartments/clients/activities. No global "updated_by".
 - **CheckConstraints** exist for `agencies.status`, `users.role`, and (per migrations) status×deal_type — cross‑field DB constraints for listings were **deferred** (enforced at API layer via Literal + service guard).
-- **Migrations**: 30 linear Alembic revisions (0001→0030), applied automatically at boot (`run_migrations`). Additive discipline is strong. No down‑migrations exercised in prod.
+- **Migrations**: 39 linear Alembic revisions (0001→0039), applied automatically at boot (`run_migrations`). Additive discipline is strong. No down‑migrations exercised in prod. **[pivot]** `0035` adds `agency_memberships`; `0038`/`0039` add user profile fields and the `user` role.
 
 ---
 
@@ -506,7 +508,7 @@ superadmin: bootstrap on boot; enter(personal agency) → acting → exit(refres
 - **Security‑forward**: initData HMAC + anti‑replay, revocable sessions, SSRF guards everywhere, encrypted third‑party tokens, strict CSP, secrets isolation, prod‑safe defaults.
 - **Operational resilience touches**: DB‑retry wrapper, healthchecks, auto‑backups (DB+photos), self‑healing superadmin, graceful AI/import fallbacks.
 - **Product depth**: AI import, cross‑agency MLS with contact hiding, auto‑matching, Sheets sync, monitoring — well beyond a CRUD app.
-- **Testing culture growing** (158 tests + catalog‑completeness guard).
+- **Testing culture growing** (≈200 tests + catalog‑completeness guard).
 
 ### 20.2 Weaknesses / risks (prioritized)
 | Priority | Issue | Impact | Recommendation |

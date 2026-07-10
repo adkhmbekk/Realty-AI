@@ -11,20 +11,23 @@
 
 # PART 1 — Executive Overview
 
-**What it is.** Realty‑AI is a **multi‑tenant SaaS for real‑estate agencies**, delivered as a **Telegram Mini App** (a web app that runs inside Telegram). One platform, many isolated "agencies"; each agency runs its listings, team, client CRM, deals, and optional cross‑agency sharing.
+> **⚡ 2026‑07 — User‑centric pivot (LIVE in prod).** The platform is now organized **around the person, not the agency**. Anyone can open the Mini App and gets a **personal account** (role `user`); from a **personal hub** they create their own agency or join one by invite code. One person can belong to **several agencies** with different roles (source of truth: `agency_memberships`) and switch between them. CRM data (clients/objects) stays strictly **agency‑scoped** — only membership is multi‑agency. Sections touched by the pivot are flagged **[pivot]** below.
+
+**What it is.** Realty‑AI is a **multi‑tenant SaaS for real‑estate agencies**, delivered as a **Telegram Mini App** (a web app that runs inside Telegram). One platform, many isolated "agencies"; each agency runs its listings, team, client CRM, deals, and optional cross‑agency sharing. **[pivot]** Membership is now user‑centric: a person holds a personal account and may participate in many agencies.
 
 **Why it exists.** Uzbek agencies previously worked in a single Telegram bot with hard‑coded lists and no per‑agency isolation, no CRM, no analytics, and manual data entry. Realty‑AI turns that into a proper product: isolated tenants, AI‑assisted data entry, client matching, and monetization by subscription.
 
-**Business model.** The **platform owner (superadmin)** rents "agencies" to customers and manages their **subscriptions manually** (extend N days / set a date, optionally recording an amount). Agencies get full access while their subscription is active; frozen/expired agencies are blocked (data preserved). Superadmins may also run their own **personal agencies** (free, no subscription).
+**Business model.** The **platform owner (superadmin)** rents "agencies" to customers and manages their **subscriptions manually** (extend N days / set a date, optionally recording an amount). Agencies get full access while their subscription is active; frozen/expired agencies are blocked (data preserved). Superadmins may also run their own **personal agencies** (free, no subscription). **[pivot]** Agency creation is now **self‑serve** — any user can register their own agency (`POST /agencies/register`) and becomes its main admin; opening additional agencies is `POST /agencies/open`.
 
 **Target users.**
-- **Superadmin** — platform owner (1..N people). Manages agencies, subscriptions, monitoring, MLS oversight, personal agencies.
+- **Superadmin** — platform owner (1..N people). Manages agencies, subscriptions, monitoring, MLS oversight, personal agencies, and now a **platform‑wide users view** (who exists, their agencies/roles, their objects — *not* their clients).
+- **User (personal account)** — **[pivot]** anyone who logged in but has not yet created/joined an agency. Lives in the **personal hub**: onboarding (language → name → phone), then "Create agency" / "Join by code"; once a member, sees a switchable list of their agencies.
 - **Agency admin (main / regular)** — runs an agency: listings, team, clients, settings, imports.
 - **Agent** — day‑to‑day employee: adds/searches listings, manages *their own* clients and deals.
 
-**Main use cases / typical day (agent).** Open the Mini App from Telegram → land on Home dashboard → add a listing (manually, by AI link import, or reviewed from a watched channel) → search the base → save a client request → get auto‑matched listings → log calls/showings, create tasks and deals → share a listing to a client via the bot.
+**Main use cases / typical day (agent).** Open the Mini App from Telegram → **[pivot]** land in the **personal hub**, tap an agency to *enter* it → Home dashboard → add a listing (manually, by AI link import, or reviewed from a watched channel) → search the base → save a client request → get auto‑matched listings → log calls/showings, create tasks and deals → share a listing to a client via the bot. From Profile the user can **exit back to the personal hub** and switch agencies.
 
-**System capabilities.** Listings CRUD (+archive/restore/permanent), photos, duplicate manager, AI import (link + bulk Telegram channel + Excel/CSV), client CRM (requests, activities, tasks, deals), auto‑matching, cross‑agency **MLS**, Google Sheets 2‑way sync, Excel export, team/invites, agency management + monitoring, subscription lifecycle, in‑app & bot notifications.
+**System capabilities.** **[pivot]** personal accounts + open registration + personal hub + multi‑agency membership + agency switching (acting); Listings CRUD (+archive/restore/permanent), photos, duplicate manager, AI import (link + bulk Telegram channel + Excel/CSV), client CRM (requests, activities, tasks, deals), auto‑matching, cross‑agency **MLS**, Google Sheets 2‑way sync, Excel export, team/invites (multi‑use), agency management + monitoring + platform users view, subscription lifecycle, presence ("last seen"), in‑app & bot notifications.
 
 **Limitations (by design, today).** Single backend instance (background jobs and some security state live in‑process → not horizontally scalable); runs on one office PC in WSL2 Docker behind an **ngrok** tunnel; Telegram‑only authentication; no CI/CD or staging; local backups only. → *see* `ARCHITECTURE_AUDIT.md` for scoring.
 
@@ -101,23 +104,24 @@ sequenceDiagram
 
 # PART 3 — User Roles
 
-Roles are stored on `users.role` with a DB CheckConstraint `('superadmin','agency_admin','agent')` (→ PART 7). `is_owner` distinguishes the **main admin**. There is a synthetic **ActingUser** (a superadmin operating inside a personal agency).
+Roles are stored on `users.role` with a DB CheckConstraint **`('superadmin','agency_admin','agent','user')`** (→ PART 7; `user` added by migration `0039`). `is_owner` distinguishes the **main admin**. **[pivot]** There is a synthetic **ActingUser** used whenever anyone (superadmin *or* a regular member) operates inside an agency they entered — the role it carries comes from that agency's `agency_memberships` row (or `owner_telegram_id` for a superadmin's personal/shared agency).
 
 ## 3.1 Role reference
-| Attribute | superadmin | agency_admin (owner) | agency_admin | agent |
-|---|---|---|---|---|
-| Purpose | platform owner | run agency + manage team | run agency | daily work |
-| `agency_id` | NULL | set | set | set |
-| Visible tabs | Agencies, Мои (personal), Общая база (MLS), Settings, Profile | Home, Search, Add, Database, Clients, Team, Analytics, Settings, Profile | same minus team‑mgmt actions | Home, Search, Add, Database (own scope), Clients (own), Profile |
-| Data scope | none (no agency)¹ | all agency data | all agency data | **own** clients/deals |
-| Team mgmt | ✗ | invite/remove/roles/transfer | ✗ | ✗ |
-| Agencies mgmt | ✓ | ✗ | ✗ | ✗ |
-| Subscription bypass | n/a | if personal agency | if personal agency | if personal agency |
+| Attribute | superadmin | **user (personal)** | agency_admin (owner) | agency_admin | agent |
+|---|---|---|---|---|---|
+| Purpose | platform owner | **[pivot]** logged‑in, no agency yet | run agency + manage team | run agency | daily work |
+| `agency_id` | NULL | **NULL** | set (home) | set (home) | set (home) |
+| Visible surface | Agencies, Мои (personal), Общая база (MLS), **Users**, Settings, Profile | **Personal hub** (Home/Settings/Profile): onboarding + create/join agency + agency switcher | Home, Search, Add, Database, Clients, Team, Analytics, Settings, Profile | same minus team‑mgmt actions | Home, Search, Add, Database (own scope), Clients (own), Profile |
+| Data scope | none (no agency)¹ | **none** (not in any agency) | all agency data | all agency data | **own** clients/deals |
+| Team mgmt | ✗ | ✗ | invite/remove/roles/transfer | ✗ | ✗ |
+| Agencies mgmt | ✓ | **self‑serve create/join own** | ✗ | ✗ | ✗ |
+| Subscription bypass | n/a | n/a | if personal agency | if personal agency | if personal agency |
 
 ¹ To touch listings a superadmin must **enter a personal agency** (→ PART 20.20, acting).
+**[pivot]** A `user` never sees agency screens directly; once they belong to an agency they **enter** it (`POST /agencies/{id}/enter`) and act with that agency's role. Being in one agency does not change data scope in another — memberships are parallel and isolated.
 
 ## 3.2 Permission inheritance
-No DB inheritance; enforced procedurally by guards (`require_superadmin`, `require_agency_member/admin/owner`) that check `role`, `agency_id`, `is_owner`, and subscription. Hierarchy: superadmin ⟶ (acting) admin(owner) ⟶ admin ⟶ agent.
+No DB inheritance; enforced procedurally by guards (`require_superadmin`, `require_agency_member/admin/owner`) that check `role`, `agency_id`, `is_owner`, and subscription. Hierarchy: superadmin ⟶ (acting) admin(owner) ⟶ admin ⟶ agent ⟶ **user (no agency)**. **[pivot]** `require_agency_member` rejects a bare `user` with `not_in_agency` until they create/join and enter an agency.
 
 ## 3.3 Permission matrix (● / ○ / ◐ own‑only) → identical to `ARCHITECTURE_AUDIT.md` §3.3; reproduced there.
 
@@ -125,6 +129,7 @@ No DB inheritance; enforced procedurally by guards (`require_superadmin`, `requi
 - Agent scope = `created_by == user.id` (`client_service._owner_filter`, `_load_client_for_user`). Admin = all (`_can_see_all`).
 - Disabling/removing a member bumps `session_epoch` → all their JWTs die instantly (→ PART 12).
 - ActingUser is **read‑only** and must never be `db.add`/`commit`‑ed (→ PART 23).
+- **[pivot]** Acting now applies to **any** member entering an agency (role from `agency_memberships`), not just superadmins; a bare `user` (no membership anywhere) has no agency scope at all.
 
 ---
 
@@ -133,7 +138,7 @@ No DB inheritance; enforced procedurally by guards (`require_superadmin`, `requi
 Each feature below lists: purpose · who · frontend · backend · models · endpoints · logic · errors · limits. Cross‑references point to detailed API (PART 6), DB (PART 7), workflows (PART 20).
 
 ### 4.1 Telegram Login & Session
-Purpose: identify the Telegram user and mint a session. Who: everyone. Frontend: `App.tsx` phase machine + `api.ts` silent refresh. Backend: `auth_service`, `core/security`. Models: `users`. Endpoints: `POST /auth/telegram`, `POST /auth/refresh`, `GET /auth/me`. Logic: validate `initData` HMAC + freshness + anti‑replay → load active user → issue access(120m)+refresh(30d). Errors: `telegram_login_not_configured`, `init_data_*`, `not_in_agency`, `access_deactivated`. → PART 12, PART 20.1.
+Purpose: identify the Telegram user and mint a session. Who: everyone. Frontend: `App.tsx` phase machine + `api.ts` silent refresh. Backend: `auth_service`, `core/security`. Models: `users`. Endpoints: `POST /auth/telegram`, `POST /auth/refresh`, `GET /auth/me`, **`PATCH /auth/me`** (name/language), **`POST /auth/me/phone`** (set phone), **`GET /auth/memberships`**, **`POST /auth/heartbeat`** (presence). Logic: validate `initData` HMAC + freshness + anti‑replay → **[pivot] if the Telegram user is unknown, create a *personal account* (`role='user'`, `agency_id=NULL`, seeded first/last/language from Telegram) instead of returning 403** → issue access(120m)+refresh(30d). Existing users log in as before. Errors: `telegram_login_not_configured`, `init_data_*`, `access_deactivated` (`not_in_agency` is no longer raised at login — a bare user is routed to the personal hub client‑side). → PART 12, PART 20.1.
 
 ### 4.2 Listings (Apartments) CRUD + lifecycle
 Purpose: the product core — manage properties. Who: agency members. Frontend: `screens/Apartments.tsx` (Add/Edit/Detail/List/Database/Archive/Duplicates/Search). Backend: `apartment_service`, `apartment_repo`. Models: `apartments`, `apartment_photos`, `apartment_events`. Endpoints: `/apartments` (+ `stats`, `archived`, `similar`, `analytics`, `timeseries`, `duplicates`, `import`) and `/{id}` (`get/patch/status/delete/restore/permanent/share/share-prepare/events`). Logic: per‑agency `display_id` counter; status×deal_type invariant; soft delete `deleted_at`; every mutation logs an `apartment_event`. Errors: `apartment_not_found`, `invalid_apartment_status`, `empty_apartment`, `invalid_currency`, `range_min_gt_max`, `value_negative`. → PART 20.2–20.6.
@@ -172,13 +177,19 @@ Purpose: mirror listings to a Google Sheet, both directions. Who: owner. Fronten
 Purpose: download listings as `.xlsx`. Endpoint: `POST /exports/excel` → signed link → `GET /exports/excel/file`. Errors: `excel_unsupported`, `export_link_invalid`.
 
 ### 4.14 Team & Invites
-Purpose: add/manage employees. Who: owner (mgmt), members (view). Frontend: `screens/Team.tsx`, `Invites.tsx`. Backend: `member_service`, `invite_service`. Models: `users`, `invites`, `audit_log`. Endpoints: `/team/*`, `/invites/*`. Logic: invite code/link; redeem binds Telegram user; disable/remove bumps `session_epoch`; owner‑only role changes/transfer. → PART 20.18–20.19.
+Purpose: add/manage employees. Who: owner (mgmt), members (view). Frontend: `screens/Team.tsx`, `Invites.tsx`. Backend: `member_service`, `invite_service`. Models: `users`, `invites`, `agency_memberships`, `audit_log`. Endpoints: `/team/*`, `/invites/*`. Logic: invite code/link (**[pivot] multi‑use since `0037`**); **[pivot]** redeem creates/updates an `agency_memberships` row (get‑or‑create) so the person joins **in addition to** any agencies they already belong to (home agency untouched if already set); disable/remove bumps `session_epoch`; owner‑only role changes/transfer. Blocked only when already a member of *that same* agency. → PART 20.18–20.19.
 
 ### 4.15 Agencies management & monitoring
 Purpose: platform owner runs tenants. Frontend: `screens/Superadmin.tsx`. Backend: `agency_service`, `agency_usage_service`. Models: `agencies`, `subscription_payments`, `audit_log`. Endpoints: `/agencies/*`. Logic: create direct / by draft+activation link; subscription extend/set/freeze/activate; usage "traffic‑light"; per‑agency activity. → PART 20.20.
 
-### 4.16 Personal agencies + acting
-Purpose: superadmin owns free agencies and operates them as admin. Endpoints: `GET/POST /agencies/mine`, `POST /agencies/{id}/enter`. Logic: `agencies.owner_telegram_id` marks ownership; `enter` mints a JWT with `act_as_agency_id`; every request re‑verifies ownership. → PART 12, PART 13.
+### 4.16 Personal agencies + acting (+ agency switching)
+Purpose: **[pivot]** anyone owns/joins agencies and switches between them; superadmins additionally own free personal agencies. Endpoints: `GET/POST /agencies/mine` (superadmin personal), `POST /agencies/register` (self‑serve first agency), `POST /agencies/open` (additional agency for a member), `POST /agencies/{id}/enter` (switch/enter), `DELETE /agencies/{id}/mine` (delete own agency, returns a home session), `GET /auth/memberships` (list for the switcher). Logic: `enter` mints a JWT with `act_as_agency_id`; **[pivot]** access is re‑verified **every request** — for a superadmin by `owner_telegram_id`/`is_shared`, for a regular member by an **active `agency_memberships` row**. The JWT claim is never trusted alone. → PART 12, PART 13, PART 20.20.
+
+### 4.19 Personal hub & onboarding **[pivot]**
+Purpose: the user‑centric landing surface. Who: `role='user'` (and any member who "exits to personal"). Frontend: `screens/Personal.tsx` (`PersonalApp` → `Onboarding` | `Hub`). Backend: `auth_service.update_profile/set_phone/list_my_memberships`, `agency_service.register_agency/open_additional_agency`, `invite_service.redeem_invite`. Endpoints: `PATCH /auth/me`, `POST /auth/me/phone`, `GET /auth/memberships`, `POST /agencies/register|open`, `POST /invites/redeem`, `POST /agencies/{id}/enter`. Logic: **onboarding** (language → first/last name → phone, all required for a first‑time `user`) runs once, gated on `role==='user'`; the **Hub** has a persistent bottom nav (Home/Settings/Profile) whose tabs stay mounted (input + scroll position preserved), an agency list with role badges, and Create‑agency / Join‑by‑code actions. Errors: `phone_taken`, `phone_required_for_agency`, `regNameRequired`/`regPhoneRequired` (client).
+
+### 4.20 Platform users view (superadmin) **[pivot]**
+Purpose: superadmin sees **people**, not just agencies. Who: superadmin. Frontend: `screens/PlatformUsers.tsx` (list → detail). Backend: `platform_service`, `superadmin` router. Models: `users`, `agency_memberships`, `apartments`. Endpoints: `GET /superadmin/users`, `GET /superadmin/users/{id}`. Logic: list shows each user with agency/membership counts; detail shows their agencies+roles and **their objects only** — **clients are intentionally private and never exposed** here. Missing/superadmin target → `user_not_found_or_inactive` (404).
 
 ### 4.17 Subscription lifecycle
 Purpose: keep tenants paid/blocked correctly. Backend: `scheduler` (warn + auto‑expire), `agency_service`. Endpoint: `POST /agencies/{id}/subscription`. Logic: warn owner `subscription_warn_days` before expiry; auto‑set status `expired`; blocked at guard (`_ensure_subscription_active`); personal agencies bypass. → PART 11, PART 16.
@@ -195,14 +206,17 @@ Purpose: at‑a‑glance metrics. Frontend: Home stats, Analytics, Superadmin an
 > **Coverage note (Inference where marked):** the following documents each screen's purpose, access, navigation, and primary actions/requests. Button‑level detail is verified for screens read in full (Clients, Superadmin/PaymentHistory/MLS, Settings import card, Apartments filter/photos); other button texts come from i18n keys and may be labelled **Inference**.
 
 ### 5.1 Phase screens (pre‑app, `App.tsx`)
+Phase machine: `"loading" | "open" | "join" | "personal" | "ready" | "suspended" | "reconnect"`.
 - **Loading** — spinner while `initData` login/refresh resolves.
 - **OpenInTelegram** — shown when not launched inside Telegram; also probes `/health`.
-- **Join** — invite redemption path (auto after 403 `not_in_agency`).
+- **Join** — invite redemption path.
+- **personal [pivot]** — renders `<PersonalApp/>` (personal hub) for a `role='user'` (or after "exit to personal"). `applyAuth(data, {enterAgency})` routes: superadmin→`ready`, member‑not‑yet‑in‑agency→`personal`, in‑agency→`ready`.
 - **Suspended (`Profile.SuspendedScreen`)** — agency frozen/expired; explains blocked access.
 
 ### 5.2 BottomTabs (navigation)
-- **Superadmin:** Agencies · Мои (personal) · Общая база (MLS) · Settings · Profile.
+- **Superadmin:** Agencies · Мои (personal) · Общая база (MLS) · **Users [pivot]** · Settings · Profile.
 - **Member:** Home · Search · [+ Add floating] · Database · Profile. (Clients/Analytics/Team reached from Home/menus.)
+- **User (personal hub) [pivot]:** Home (agency list + create/join) · Settings (language/theme + agency actions) · Profile (name/phone edit) — persistent bottom nav in `screens/Personal.tsx`; tabs stay mounted so input and scroll position survive switching.
 
 ### 5.3 Home (`screens/Home.tsx`)
 Purpose: dashboard. Access: members. Contains: greeting/brand hero, **ClientStatsBlock** (`/clients/stats`), listing stats (`/apartments/stats`), onboarding card when base empty (→ addObject). Empty/loading/error states handled. **Inference** on exact widget list.
@@ -241,7 +255,9 @@ Language + theme (Sun/Moon), notify preference, **Telegram bulk import card** (c
 - **MlsPoolScreen** — all shared objects platform‑wide: deal‑type pills, agency filter `<select>`, text search, "Всего", cards (agency badge, district/type/rooms/price/status/date), "Показать ещё". Contacts hidden.
 
 ### 5.13 Profile / Team / Invites / Analytics / AgentDetail
-- **Profile** — user identity, role label, language/theme link, "logout everywhere" (session_epoch), acting banner + "exit to platform".
+- **Profile** — user identity, role label, language/theme link, "logout everywhere" (session_epoch), acting banner + "exit to platform". **[pivot]** `MyAgenciesCard` (switch between agencies / open another / delete own) and, for non‑superadmins, an **"exit to personal hub"** button (`exitToPersonal`).
+- **Personal hub (`screens/Personal.tsx`) [pivot]** — see 4.19: `Onboarding` (language → name → phone, required) and `Hub` (Home/Settings/Profile tabs; agency list with admin/agent badges; Create agency / Join by code).
+- **Platform users (`screens/PlatformUsers.tsx`) [pivot]** — superadmin: users list → user detail (agencies + roles + their **objects only**; clients hidden).
 - **Team** — members list, audit, patch (enable/disable/role), remove, revoke sessions, transfer owner.
 - **Invites** — create invite (role/days), list, revoke, share link/QR.
 - **Analytics** — month cards, conversion, agent leaderboard.
@@ -258,11 +274,22 @@ Base prefix `/api/v1`. Auth = `Authorization: Bearer <access JWT>` unless noted.
 ### 6.1 `auth` (`/auth`)
 **`POST /auth/telegram`** — *Login.* Auth: none. Body: `{ init_data: string }`. Logic: `security.validate_init_data` (HMAC over sorted fields with secret `HMAC("WebAppData", bot_token)`, both signature‑in/out check strings accepted; `auth_date` freshness ≤ `init_data_max_age_seconds`; **anti‑replay deferred** until session actually issued) → find active `users` row by `telegram_id` → update username/full_name/last_login → `audit_log` login → `build_auth_response`. Output: `{access_token, refresh_token, token_type:"bearer", subscription_active, user}`. Errors: `telegram_login_not_configured`(503), `init_data_*`(401), `not_in_agency`(403), `access_deactivated`(403), `init_data_replayed`(401). Side effects: user update + audit row.
 **`POST /auth/refresh`** — *Silent renew.* Auth: refresh token in body `{refresh_token, act_as_agency_id?}`. Logic: `decode_refresh_token` (must be `type=refresh`) → load active user → check `session_epoch` → `build_auth_response(act_as_agency_id)`. Errors: `auth_invalid_token`, `user_not_found_or_inactive`, `session_revoked`. Used by `api.ts` on 401 (single‑flight).
-**`GET /auth/me`** — current `UserProfile`. Auth: any logged‑in user.
+**`GET /auth/me`** — current `UserProfile` (now includes `first_name/last_name/phone/phone_verified/language`). Auth: any logged‑in user.
+**`PATCH /auth/me`** — **[pivot]** update personal profile (`first_name`, `last_name`, `language`); keeps `full_name = first + ' ' + last`. Output: `UserProfile`.
+**`POST /auth/me/phone`** — **[pivot]** set/replace phone `{phone}`; normalized to `+`digits; unique (`phone_taken` 409/400). From a Telegram contact it arrives verified. Output: `UserProfile`.
+**`GET /auth/memberships`** — **[pivot]** `MembershipOut[]` — agencies the user belongs to (id, name, project_name, role, is_owner, is_current) for the agency switcher.
+**`POST /auth/heartbeat`** — presence ping (204); updates `users.last_seen_at` (rate‑limited 60/60).
 
-### 6.2 `agencies` (`/agencies`, `require_superadmin`)
+### 6.2 `agencies` (`/agencies`)
+**[pivot]** Most rows are `require_superadmin`, but the self‑serve/switching routes are **not**: `register` is public (initData‑bound), `open`/`{id}/mine` need `require_agency_member`, `{id}/enter` needs any logged‑in user.
 | Method · Path | Purpose | Input | Output | Notes / errors |
 |---|---|---|---|---|
+| POST `/register` | **[pivot, public]** self‑serve create own agency → become main admin | AgencyRegister `{init_data,name,owner_name,phone}` | AuthResponse | rate‑limited 10/60; `phone_required_for_agency` |
+| POST `/open` | **[pivot, member]** open an additional own agency + enter it (home unchanged) | OpenAgencyCreate `{name,phone}` | AuthResponse | — |
+| POST `/{id}/enter` | **[pivot, any user]** enter/switch to an agency (owner or active membership) | — | AuthResponse | `agency_not_found`, `agency_not_owned` |
+| DELETE `/{id}/mine` | **[pivot, member]** delete own agency (returns a home session) | — | AuthResponse | can't delete your only agency |
+| GET `/{id}/objects` | **[superadmin]** listings of an agency (platform users view) | filters | ApartmentListOut | — |
+| GET `/{id}/objects/{oid}/photos` | **[superadmin]** photos of an object | — | photos | — |
 | POST `""` | create agency (direct, with admin) | AgencyCreate | AgencyOut | `agency_name_empty`, `cannot_assign_superadmin_as_admin` |
 | POST `/draft` | create pending draft + activation link | AgencyDraftCreate | AgencyDraftOut | activation QR/code |
 | GET `""` | list agencies | — | AgencyOut[] | — |
@@ -341,12 +368,13 @@ Errors: `client_not_found`, `request_not_found/empty`, `match_not_found`, `inval
 - **`photos`**: GET `/apartments/{id}/photos` · POST upload/import/reorder · DELETE `/apartments/{id}/photos/{pid}` · **GET `/photos/{key}` (public, no auth)**.
 - **`sheets` (`/sheets`)**: POST `/connect` · GET `/oauth/callback` (hidden) · GET `/status` · POST push/pull/… · POST `/disconnect`.
 - **`team` (`/team`, owner)**: GET (members) · GET `/audit` · PATCH `/{id}` (enable/disable/role) · DELETE `/{id}` · POST `/{id}/revoke` · POST `/{id}/owner` (transfer).
+- **`superadmin` (`/superadmin`, superadmin) [pivot]**: GET `/users` (`PlatformUserList` — people + agency/membership counts) · GET `/users/{id}` (`PlatformUserDetail` — agencies+roles + **their objects only**, clients never exposed; `user_not_found_or_inactive` for missing/superadmin target).
 
 ---
 
 # PART 7 — Database Documentation
 
-PostgreSQL 16. All BIGINT PKs (autoincrement). Nearly every table carries `agency_id BIGINT FK→agencies ON DELETE CASCADE` (tenant isolation). Timestamps are `timezone=True`. 30 Alembic migrations (`0001`→`0030`), applied at boot.
+PostgreSQL 16. All BIGINT PKs (autoincrement). Nearly every table carries `agency_id BIGINT FK→agencies ON DELETE CASCADE` (tenant isolation). Timestamps are `timezone=True`. **39 Alembic migrations (`0001`→`0039`)**, applied at boot. **[pivot]** `0031` last‑seen, `0032` apartment `added_via`, `0033` agency `is_shared`, `0034` agency tariff, `0035` **`agency_memberships`** (multi‑agency source of truth), `0036` MLS‑pool index, `0037` multi‑use invites, `0038` user profile fields (`first/last/phone/phone_verified/language`), `0039` `role='user'`.
 
 ### 7.1 `agencies`
 Purpose: tenant. Constraints: `status IN (trial,active,frozen,expired,pending)`.
@@ -368,11 +396,14 @@ Purpose: tenant. Constraints: `status IN (trial,active,frozen,expired,pending)`.
 | owner_telegram_id | BIGINT idx | ✗ | NULL | **personal agency** owner |
 | pending_days | Integer | ✗ | NULL | days to grant on activation |
 | last_display_number | Integer | ✓ | 0 | per‑agency listing counter |
+| is_shared | Bool | ✓ | false | **[pivot]** platform "shared" agency any superadmin may enter (`0033`) |
+| tariff | String | ✗ | NULL | subscription tariff/plan tag (`0034`) |
 | created_at/updated_at | tz ts | ✓ | now() | audit |
 
 ### 7.2 `users`
-Constraint `role IN (superadmin,agency_admin,agent)`; `telegram_id` unique idx; `agency_id` FK→agencies **CASCADE**.
-Key fields: `telegram_id`(uniq), `username`, `full_name`, `agency_id`(NULL only for superadmin), `role`, `is_owner`(main admin), `is_active`, `match_notify`(off/instant/daily), **`session_epoch`**(revocation counter), `last_login_at`, timestamps.
+Constraint **`role IN (superadmin,agency_admin,agent,user)`** (`ck_users_role`, extended by `0039`); `telegram_id` unique idx; `agency_id` FK→agencies **CASCADE**.
+Key fields: `telegram_id`(uniq), `username`, `full_name`, `agency_id`(**NULL for superadmin *and* for a bare `user`**), `role`, `is_owner`(main admin), `is_active`, `match_notify`(off/instant/daily), **`session_epoch`**(revocation counter), `last_login_at`, `last_seen_at`(presence, `0031`), timestamps.
+**[pivot] Personal profile fields (`0038`):** `first_name`, `last_name` (split from `full_name`, which is kept in sync `first + ' ' + last`); **`phone`** (unique, nullable — account "anchor" for future web/app login; partial unique index `uq_users_phone`); `phone_verified`(bool, true when from a Telegram contact); **`language`**(`ru`/`uz`/`en`, default `ru` — previously only via `X-Lang` header).
 
 ### 7.3 `apartments`
 Constraints: unique `(agency_id, display_id)`; `status IN (active,deposit,sold,rented)`; `deal_type IN (sale,rent)`; `rent_period NULL|month|day`; furniture enum; `length(currency) 1..8`. Indexes on agency×{status,district,type,deal,rooms,price,created,created_by,deleted}. FK `created_by`→users **SET NULL**.
@@ -389,6 +420,7 @@ Constraints: unique `(agency_id, display_id)`; `status IN (active,deposit,sold,r
 | currency | String | default USD |
 | shared_mls | Bool | MLS opt‑in |
 | created_by | BIGINT FK users SET NULL | author |
+| added_via | String | how it was added: manual/import/channel (`0032`) |
 | archived_at | tz ts | when sold |
 | deleted_at | tz ts | **soft delete** |
 
@@ -437,7 +469,10 @@ Platform‑wide event log. `agency_id`(nullable, **no FK** — survives agency d
 ### 7.18 `duplicate_dismissal`
 Unique `(agency_id, group_key)`. `group_key` = normalized owner phone (last 9 digits).
 
-### 7.19 Ownership, lifecycle, normalization notes
+### 7.19 `agency_memberships` **[pivot]**
+Purpose: the **source of truth for who belongs to which agency in what role** — the backbone of multi‑agency membership (`0035`). Unique `(user_id, agency_id)` (`uq_membership_user_agency`); both FKs CASCADE. Fields: `user_id`, `agency_id`, `role`(agency_admin/agent), `is_owner`(main admin of *this* agency), `is_active`(soft‑disable without deleting), `created_at`. Compatibility: `users.agency_id/role/is_owner` remain as the **home / currently‑active** membership so existing agency‑scoped code is unchanged; switching agencies = choosing a different active membership (acting, `act_as_agency_id`). Backfilled from existing users on migration.
+
+### 7.20 Ownership, lifecycle, normalization notes
 - **Tenant ownership** = `agency_id` everywhere; **user ownership** = `created_by`.
 - **Soft delete**: apartments (`deleted_at`), clients (`status=archived`); everything else hard‑deletes. Audit logs & payments are intentionally FK‑less to survive deletions.
 - **Inference:** no obvious denormalization problems; `actor_name`/`display_id` are deliberate denorm for display without joins.
@@ -462,6 +497,11 @@ Unique `(agency_id, group_key)`. `group_key` = normalized owner phone (last 9 di
 | Error‑catalog completeness | `test_error_catalog` | test | no raw codes leak to users |
 | Anti‑replay (initData) | `security._replay_check_and_remember` | in‑proc set | prevent replay of captured initData |
 | Instant revocation | `session_epoch` in JWT | guard check | logout‑everywhere / kick |
+| **Open registration [pivot]** | `login_with_init_data` | unknown TG user → `role='user'` (no 403) | let anyone in without pre‑provisioning |
+| **Replay not burned for new user [pivot]** | `login_with_init_data` (`anti_replay=False`, deferred) | in‑proc set | same initData can immediately redeem/register without false replay |
+| **Multi‑agency membership [pivot]** | `agency_memberships` (unique user×agency) | acting re‑verifies active row each request | one person, many agencies, isolated data |
+| **Clients stay agency‑private [pivot]** | `platform_service` (objects only) | field selection | superadmin users view never exposes clients |
+| **Phone uniqueness [pivot]** | `users.phone` unique + `set_phone` | DB + normalize | phone as a future cross‑platform login anchor |
 
 **Hidden assumptions:** single backend instance (in‑proc replay/rate‑limit/scheduler); Telegram‑only auth; currencies USD/UZS/EUR.
 
@@ -526,13 +566,13 @@ sequenceDiagram
   TG->>FE: initData (signed by bot)
   FE->>BE: POST /auth/telegram {init_data}
   BE->>BE: validate_init_data (HMAC, freshness, replay deferred)
-  BE->>BE: user by telegram_id (active?) else 403
-  BE->>BE: remember_replay(hash) (now burn it)
+  BE->>BE: user by telegram_id? — unknown → create role='user' (open reg), replay NOT burned
+  BE->>BE: known+active → remember_replay(hash) (now burn it)
   BE-->>FE: access(120m)+refresh(30d)+user
   FE->>BE: any /api with Bearer access
   Note over FE,BE: 401 → POST /auth/refresh (single-flight) → retry
 ```
-- **initData validation** (`core/security.validate_init_data`): parse query string; recompute HMAC‑SHA256 over sorted `k=v` lines with `secret=HMAC("WebAppData", bot_token)`; accept signature‑included or excluded string; `hmac.compare_digest`; `auth_date` freshness; **anti‑replay** by remembered hash (in‑proc, TTL). Login uses `anti_replay=False` then burns the hash only on real session issue (so login→redeem with same initData isn't a false replay).
+- **initData validation** (`core/security.validate_init_data`): parse query string; recompute HMAC‑SHA256 over sorted `k=v` lines with `secret=HMAC("WebAppData", bot_token)`; accept signature‑included or excluded string; `hmac.compare_digest`; `auth_date` freshness; **anti‑replay** by remembered hash (in‑proc, TTL). Login uses `anti_replay=False` then burns the hash only on real session issue (so login→redeem/register with same initData isn't a false replay). **[pivot]** An **unknown** Telegram user is not rejected — a personal account (`role='user'`, `agency_id=NULL`, first/last/language seeded from Telegram) is created and a session issued; the hash is deliberately **not** burned so a follow‑up redeem/register succeeds.
 - **JWT** (HS256): secret from `JWT_SECRET` or auto‑generated & persisted to the **`/secrets` volume** (isolated from photos/backups). Access token `type=access` exp 120 min; refresh `type=refresh` exp 30 d. Claims: `user_id, telegram_id, agency_id, role, epoch` (+ `act_as_agency_id` when acting).
 - **Session lifecycle & revocation:** `session_epoch` in both tokens; incrementing it (disable/remove member, "logout everywhere") invalidates all outstanding tokens immediately.
 - **Token refresh:** `/auth/refresh` re‑checks user active + epoch; optional `act_as_agency_id` preserves acting across silent renew.
@@ -547,7 +587,7 @@ flowchart TD
   A -->|bad JWT| E401b[401 auth_invalid_token]
   A -->|user inactive| E401c[401 user_not_found_or_inactive]
   A -->|epoch mismatch| E401d[401 session_revoked]
-  A -->|act_as + owns agency| ACT[ActingUser role=agency_admin]
+  A -->|act_as + owner OR active membership| ACT[ActingUser role from membership]
   A --> U[real User]
   U --> G{require_*}
   G -->|superadmin| SA[superadmin only]
@@ -555,7 +595,7 @@ flowchart TD
   G -->|frozen/expired| E403[403 subscription_suspended]
 ```
 - **Guards** (`core/dependencies`): `require_superadmin`, `require_agency_member`, `require_agency_admin`, `require_agency_owner`. Member/admin/owner also run `_ensure_subscription_active` (personal agencies bypass).
-- **Ownership rules:** agent = own rows; admin = all; superadmin = platform (no agency data). Acting re‑verifies `owner_telegram_id == user.telegram_id` **every request** — the JWT claim is never trusted alone.
+- **Ownership rules:** agent = own rows; admin = all; superadmin = platform (no agency data); **[pivot]** bare `user` = no agency data until they enter one. Acting re‑verifies access **every request** — a superadmin by `owner_telegram_id == user.telegram_id` **or** `agencies.is_shared`; **[pivot]** a regular member by an **active `agency_memberships` row** for `act_as_agency_id`. The JWT claim is never trusted alone.
 - **Edge:** ActingUser is a dataclass, not ORM → must not be committed.
 
 ---
@@ -641,11 +681,12 @@ Empty‑string env values are coerced to `None` (validators). `superadmin_ids()`
 → tree in `ARCHITECTURE_AUDIT.md` §2.1. Key files:
 - `backend/app/main.py` — factory, lifespan, middleware, health, exception handlers.
 - `backend/app/config.py` — all settings.
-- `backend/app/api/router.py` — mounts 13 routers under `/api/v1`.
+- `backend/app/api/router.py` — mounts **14 routers** under `/api/v1` (added `superadmin` **[pivot]**).
 - `backend/app/core/*` — `security` (JWT/initData), `errors` (i18n catalog + AppError + LanguageMiddleware), `dependencies` (guards, ActingUser), `subscription`, `ratelimit`, `crypto`, `monitoring`, `browser_render`.
-- `backend/app/db/*` — `base`, `session`, `migrate`, `retry`, `types` (EncryptedText), `models/` (19).
-- `backend/alembic/versions/*` — migrations 0001–0030.
-- `frontend/src/*` — `App.tsx` (routing/phases), `api.ts` (fetch+auth), `store.tsx` (context), `nav.tsx` (stack nav), `acting.tsx`, `telegram.ts`, `i18n.ts`, `components/ui.tsx`, `screens/*`.
+- `backend/app/db/*` — `base`, `session`, `migrate`, `retry`, `types` (EncryptedText), `models/` (incl. **[pivot]** `agency_membership.py`).
+- `backend/app/services/platform_service.py` — **[pivot]** superadmin users view (objects only, no clients).
+- `backend/alembic/versions/*` — migrations **0001–0039**.
+- `frontend/src/*` — `App.tsx` (routing/phases incl. `personal`), `api.ts` (fetch+auth), `store.tsx` (context), `nav.tsx` (stack nav; `platformUsers` route), `acting.tsx` (incl. `exitToPersonal`), `telegram.ts` (incl. `requestContact`), `i18n.ts`, `components/ui.tsx`, `screens/*` (incl. **[pivot]** `Personal.tsx`, `PlatformUsers.tsx`).
 - `docker-compose.yml`, `frontend/Caddyfile`, `backend/Dockerfile`, `frontend/Dockerfile`, `scripts/auto_backup.sh`.
 
 ---
@@ -780,8 +821,9 @@ flowchart LR
 - Layered service/repo; localized errors; soft‑delete (deleted_at vs status); per‑agency counter for display IDs; scheduler daemon threads; JWT `epoch` revocation; acting via re‑verified claim; extensive Russian docstrings explaining *why*.
 
 ### 23.6 Testing & deploy
-- `cd backend && python -m pytest -q` (158 tests, SQLite in‑memory). `cd frontend && npm run build` (tsc + vite).
-- Deploy: `git push origin main` then `bash ~/deploy-realty.sh` (SSH → `git pull --ff-only && docker compose up -d --build`); verify site 200 and data intact.
+- `cd backend && python -m pytest -q` (**≈200 tests**, SQLite in‑memory; incl. `test_user_profile`, `test_open_registration`, `test_platform_users`, `test_personal_agencies`, `test_invites_multiuse`). `cd frontend && npm run build` (tsc + vite). **Note:** the prod backend image ships without `pytest`/`ruff` — to run in‑container: `docker compose exec -T backend pip install -q pytest ruff && docker compose exec -T backend python -m pytest` (ephemeral, wiped on recreate).
+- CI (`.github/workflows/ci.yml`, PR/push to `main`): backend = `ruff check` + `pytest`; `pip-audit` is **continue‑on‑error** (currently red on known CVEs in cryptography/starlette — see backlog, non‑blocking).
+- **Deploy (prod = pc1, Windows + WSL2 Docker) [2026‑07]:** `git push origin main`, then on pc1 `cd ~/Realty-AI && git pull --ff-only && docker compose up -d --build`. SSH login is the Windows account **`USER`** (key auth currently rejected → password via PuTTY `plink -hostkey … -pw …`; remote shell is PowerShell → wrap as `wsl -e bash -lc '…'`). Long builds can drop the Tailscale SSH session → run detached (`setsid bash deploy.sh </dev/null >log 2>&1 &`) and poll the log. Verify `docker compose ps` healthy + site 200 + data intact.
 
 ---
 
