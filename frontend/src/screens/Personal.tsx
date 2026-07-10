@@ -7,7 +7,7 @@
 // Онбординг показываем ОДИН РАЗ (флаг в localStorage) — existing-юзеры (у кого
 // имя уже заполнено бэкфиллом) тоже проходят его при первом входе в новую версию.
 import React, { useCallback, useEffect, useState } from "react";
-import { Home as HomeIcon, Settings as SettingsIcon, User as UserIcon, Plus, KeyRound, ChevronRight } from "lucide-react";
+import { Home as HomeIcon, Settings as SettingsIcon, User as UserIcon, Plus, KeyRound, ChevronRight, Building2 } from "lucide-react";
 import { useApp } from "../store";
 import { api, errText } from "../api";
 import { getInitData, requestContact, haptic } from "../telegram";
@@ -170,43 +170,51 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 
   if (step === "lang") {
     return (
-      <div className="min-h-[100dvh] flex flex-col px-4 pt-10 pb-6 max-w-[560px] mx-auto animate-fade-up">
-        <div className="text-center mb-6">
-          <div className="mx-auto mb-4 w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-extrabold shadow-glow" style={{ background: "var(--grad)" }}>R</div>
-          <h1 className="text-[26px] font-extrabold tracking-tight">Realty AI</h1>
-          <p className="text-muted text-sm mt-1.5">{s.chooseLang}</p>
+      <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, 0px)" }}>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-10 w-full max-w-[560px] mx-auto animate-fade-up">
+          <div className="text-center mb-6">
+            <div className="mx-auto mb-4 w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
+              <Building2 size={30} />
+            </div>
+            <h1 className="text-[26px] font-extrabold tracking-tight">Realty <span className="text-primary">AI</span></h1>
+            <p className="text-muted text-sm mt-1.5">{s.chooseLang}</p>
+          </div>
+          <div className="space-y-2.5">
+            {langOpt("ru", "🇷🇺", "Русский")}
+            {langOpt("uz", "🇺🇿", "Oʻzbekcha")}
+            {langOpt("en", "🇬🇧", "English")}
+          </div>
         </div>
-        <div className="space-y-2.5">
-          {langOpt("ru", "🇷🇺", "Русский")}
-          {langOpt("uz", "🇺🇿", "Oʻzbekcha")}
-          {langOpt("en", "🇬🇧", "English")}
+        <div className="shrink-0 w-full max-w-[560px] mx-auto px-4 pt-2 pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
+          <Button full onClick={() => setStep("profile")}>{s.next}</Button>
         </div>
-        <div className="flex-1" />
-        <Button full onClick={() => setStep("profile")}>{s.next}</Button>
       </div>
     );
   }
 
   const shared = !!phone;
   return (
-    <div className="min-h-[100dvh] flex flex-col px-4 pt-8 pb-6 max-w-[560px] mx-auto animate-fade-up">
-      <h1 className="text-[24px] font-extrabold tracking-tight">{s.getAcquainted}</h1>
-      <p className="text-muted text-sm mt-1.5">{s.profileSub}</p>
-      <Field label={s.firstName}><Input value={first} onChange={(e) => setFirst(e.target.value)} placeholder="Азиз" /></Field>
-      <Field label={s.lastName}><Input value={last} onChange={(e) => setLast(e.target.value)} placeholder="Каримов" /></Field>
-      <Field label={s.phone}>
-        {shared ? (
-          <div className="flex items-center gap-2.5">
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
-            <Button variant="soft" size="sm" onClick={shareContact}>{s.change}</Button>
-          </div>
-        ) : (
-          <Button variant="ghost" full onClick={shareContact}>📲 {s.sharePhone}</Button>
-        )}
-      </Field>
-      <p className="text-muted text-[13px] mt-2 leading-relaxed">{s.phoneHint}</p>
-      <div className="flex-1 min-h-[16px]" />
-      <Button full disabled={!first.trim() || busy} onClick={finish}>{busy ? "…" : s.continueBtn}</Button>
+    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, 0px)" }}>
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-8 w-full max-w-[560px] mx-auto animate-fade-up">
+        <h1 className="text-[24px] font-extrabold tracking-tight">{s.getAcquainted}</h1>
+        <p className="text-muted text-sm mt-1.5">{s.profileSub}</p>
+        <Field label={s.firstName}><Input value={first} onChange={(e) => setFirst(e.target.value)} placeholder="Азиз" /></Field>
+        <Field label={s.lastName}><Input value={last} onChange={(e) => setLast(e.target.value)} placeholder="Каримов" /></Field>
+        <Field label={s.phone}>
+          {shared ? (
+            <div className="flex items-center gap-2.5">
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
+              <Button variant="soft" size="sm" onClick={shareContact}>{s.change}</Button>
+            </div>
+          ) : (
+            <Button variant="ghost" full onClick={shareContact}>📲 {s.sharePhone}</Button>
+          )}
+        </Field>
+        <p className="text-muted text-[13px] mt-2 leading-relaxed">{s.phoneHint}</p>
+      </div>
+      <div className="shrink-0 w-full max-w-[560px] mx-auto px-4 pt-2 pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
+        <Button full disabled={!first.trim() || busy} onClick={finish}>{busy ? "…" : s.continueBtn}</Button>
+      </div>
     </div>
   );
 }
@@ -266,13 +274,13 @@ function Hub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void })
   );
 
   return (
-    <div className="flex flex-col h-[100dvh]">
+    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, 0px)" }}>
       {entering && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3" style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)" }}>
           <Spinner /><div className="text-muted text-sm">{s.entering}</div>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         {tab === "home" && <HomeTab s={s} user={user} memberships={memberships} onEnter={enter} onCreate={createAgency} onJoin={joinByCode} />}
         {tab === "settings" && <SettingsTab s={s} onCreate={createAgency} onJoin={joinByCode} />}
         {tab === "profile" && <ProfileTab s={s} />}
@@ -296,8 +304,8 @@ function HomeTab({ s, user, memberships, onEnter, onCreate, onJoin }: {
   const heroName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.full_name || "—";
   const has = (memberships?.length || 0) > 0;
   return (
-    <div className="animate-fade-up">
-      <div className="px-5 pt-8 pb-7 text-white" style={{ background: "var(--grad-hero)" }}>
+    <div className="max-w-[560px] mx-auto px-3.5 pt-3.5 pb-4 animate-fade-up">
+      <div className="rounded-xl3 px-5 py-5 text-white overflow-hidden" style={{ background: "var(--grad-hero)", boxShadow: "0 16px 40px rgba(52,31,163,.30)" }}>
         <div className="flex items-center gap-3.5">
           <div className="w-14 h-14 shrink-0 rounded-2xl bg-white/20 border border-white/40 backdrop-blur flex items-center justify-center text-xl font-extrabold">
             {initials(user?.first_name || user?.full_name, user?.last_name)}
@@ -309,7 +317,7 @@ function HomeTab({ s, user, memberships, onEnter, onCreate, onJoin }: {
           </div>
         </div>
       </div>
-      <div className="max-w-[560px] mx-auto px-3.5 py-4">
+      <div className="pt-4">
         {memberships === null ? (
           <Spinner />
         ) : has ? (
@@ -411,8 +419,8 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
   }
 
   return (
-    <div className="animate-fade-up">
-      <div className="px-5 pt-8 pb-7 text-white" style={{ background: "var(--grad-hero)" }}>
+    <div className="max-w-[560px] mx-auto px-3.5 pt-3.5 pb-4 animate-fade-up">
+      <div className="rounded-xl3 px-5 py-5 text-white overflow-hidden" style={{ background: "var(--grad-hero)", boxShadow: "0 16px 40px rgba(52,31,163,.30)" }}>
         <div className="flex items-center gap-3.5">
           <div className="w-16 h-16 shrink-0 rounded-2xl bg-white/20 border border-white/40 backdrop-blur flex items-center justify-center text-2xl font-extrabold">
             {initials(user?.first_name || user?.full_name, user?.last_name)}
@@ -423,7 +431,7 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
           </div>
         </div>
       </div>
-      <div className="max-w-[560px] mx-auto px-3.5 py-4">
+      <div className="pt-4">
         <Card>
           <div className="text-[12px] font-bold text-muted mb-2">{s.editProfile}</div>
           <Field label={s.firstName}><Input value={first} onChange={(e) => setFirst(e.target.value)} /></Field>
