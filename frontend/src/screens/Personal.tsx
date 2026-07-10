@@ -91,7 +91,11 @@ function useStr() {
 }
 
 function initials(a?: string | null, b?: string | null): string {
-  return ((a || "?")[0] + (b || "")[0]).toUpperCase();
+  // Берём по одной букве; indexing пустой строки даёт undefined (в квадратике
+  // вылезало «undefined», когда фамилия пуста) — поэтому падаем на "".
+  const first = (a || "").trim()[0] || "";
+  const second = (b || "").trim()[0] || "";
+  return (first + second).toUpperCase() || "?";
 }
 function agShort(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
