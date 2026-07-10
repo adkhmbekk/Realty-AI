@@ -67,8 +67,9 @@ class InviteOut(BaseModel):
 
 
 class InviteRedeem(BaseModel):
-    # initData от Telegram — подтверждает личность нового сотрудника.
-    init_data: str
+    # Личность обычно берётся из пропуска (JWT). init_data оставлен опциональным
+    # для запасного пути (прямой вызов сервиса / безтокенный вход по диплинку).
+    init_data: Optional[str] = None
     # Код приглашения.
     code: str
 

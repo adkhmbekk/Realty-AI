@@ -189,23 +189,38 @@ def revoke_invite(db: Session, agency_id: int, invite_id: int) -> None:
     db.commit()
 
 
-def redeem_invite(db: Session, init_data: str, code: str) -> dict:
-    # 1. Без токена бота проверить подлинность входа невозможно.
-    if not settings.bot_token:
-        raise AppError(
-            "telegram_login_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE
-        )
-
-    # 2. Проверяем подпись Telegram — это подтверждает личность сотрудника.
-    try:
-        data = security.validate_init_data(
-            init_data, settings.bot_token, settings.init_data_max_age_seconds
-        )
-    except security.InitDataError as exc:
-        raise AppError(exc.key, status.HTTP_401_UNAUTHORIZED) from exc
-
-    tg_user = data["user"]
-    telegram_id = int(tg_user["id"])
+def redeem_invite(
+    db: Session, init_data: Optional[str], code: str, current_user=None
+) -> dict:
+    # Личность вступающего. Путь JWT (current_user задан эндпоинтом) — доверяем
+    # пропуску, initData повторно НЕ проверяем: вход уже мог «сжечь» тот же
+    # init_data сессии, и redeem падал с init_data_replayed (баг F-01). Иначе —
+    # запасной путь по подписи Telegram (прямые вызовы сервиса: тесты/безтокенно).
+    if current_user is not None:
+        user = user_repo.get_by_id(db, current_user.id)
+        if user is None or not user.is_active:
+            raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+        telegram_id = user.telegram_id
+        username = user.username
+        full_name = user.full_name
+    else:
+        if not settings.bot_token:
+            raise AppError(
+                "telegram_login_not_configured", status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        try:
+            data = security.validate_init_data(
+                init_data or "", settings.bot_token, settings.init_data_max_age_seconds
+            )
+        except security.InitDataError as exc:
+            raise AppError(exc.key, status.HTTP_401_UNAUTHORIZED) from exc
+        tg_user = data["user"]
+        telegram_id = int(tg_user["id"])
+        username = tg_user.get("username")
+        full_name = " ".join(
+            part for part in [tg_user.get("first_name"), tg_user.get("last_name")] if part
+        ) or None
+        user = user_repo.get_by_telegram_id(db, telegram_id)
 
     # 3. Находим и проверяем приглашение.
     now = datetime.now(timezone.utc)
@@ -220,10 +235,7 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
         raise AppError("invite_expired", status.HTTP_400_BAD_REQUEST)
 
     # 4. Создаём или привязываем пользователя к агентству приглашения.
-    username = tg_user.get("username")
-    full_name = " ".join(
-        part for part in [tg_user.get("first_name"), tg_user.get("last_name")] if part
-    ) or None
+    # username/full_name и user уже определены выше (JWT или initData путь).
 
     # Ссылка активации агентства (role='owner') делает вступившего ГЛАВНЫМ
     # админом (agency_admin + is_owner) и запускает подписку. Обычная ссылка —
@@ -231,7 +243,6 @@ def redeem_invite(db: Session, init_data: str, code: str) -> dict:
     is_owner_invite = invite.role == _OWNER_ROLE
     target_role = "agency_admin" if is_owner_invite else invite.role
 
-    user = user_repo.get_by_telegram_id(db, telegram_id)
     # Проверяем право на вступление ДО «занятия» использования — чтобы отказ
     # (повторно в это же агентство / суперадмин) не съедал лимит приглашения.
     if user is not None:

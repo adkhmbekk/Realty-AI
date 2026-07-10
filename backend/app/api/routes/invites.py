@@ -7,12 +7,12 @@
 Вступление по коду (redeem) — публичный эндпоинт: личность подтверждается
 не пропуском (его у нового сотрудника ещё нет), а подписью Telegram (initData).
 """
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_agency_admin
+from app.core.dependencies import get_current_user_optional, require_agency_admin
 from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
@@ -66,10 +66,14 @@ def revoke_invite(
     response_model=AuthResponse,
     dependencies=[Depends(rate_limit(15, 60, "invite_redeem"))],
 )
-def redeem_invite(body: InviteRedeem, db: Session = Depends(get_db)):
+def redeem_invite(
+    body: InviteRedeem,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """
-    Вступить в агентство по коду приглашения.
-    Публичный эндпоинт: проверяет подпись Telegram (initData) и код,
-    привязывает пользователя к агентству и выдаёт пропуск.
+    Вступить в агентство по коду приглашения. Если есть пропуск (JWT) —
+    личность берём из него (обычный случай: юзер уже вошёл); иначе — по подписи
+    Telegram (initData). Затем привязываем к агентству и выдаём пропуск.
     """
-    return invite_service.redeem_invite(db, body.init_data, body.code)
+    return invite_service.redeem_invite(db, body.init_data, body.code, current_user=current_user)

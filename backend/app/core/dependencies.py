@@ -12,6 +12,7 @@ from fastapi import Depends, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.core import security
 from app.core.errors import AppError
 from app.db.models.user import User
@@ -114,6 +115,22 @@ def get_current_user(
     return user
 
 
+def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    Как get_current_user, но БЕЗ ошибки при отсутствии/невалидности пропуска —
+    возвращает None. Нужно для эндпоинтов, которые работают и для залогиненного
+    пользователя (тогда доверяем JWT-личности), и в «безтокенном» запасном
+    сценарии (тогда личность подтверждается иначе, напр. initData).
+    """
+    try:
+        return get_current_user(credentials, db)
+    except AppError:
+        return None
+
+
 def require_superadmin(user: User = Depends(get_current_user)) -> User:
     if user.role != "superadmin":
         raise AppError("forbidden_superadmin_only", status.HTTP_403_FORBIDDEN)
@@ -122,15 +139,28 @@ def require_superadmin(user: User = Depends(get_current_user)) -> User:
 
 def _ensure_subscription_active(db: Session, user: User) -> None:
     """
-    Блокировка по подписке (единая точка). ПОДПИСКА ОТКЛЮЧЕНА (тарифы, 2026-07):
-    доступ по подписке никогда не блокируется, поэтому проверка ничего не делает.
+    Блокировка по подписке (единая точка). По умолчанию ОТКЛЮЧЕНА (тарифы, 2026-07):
+    settings.subscription_gating_enabled = False → доступ никогда не блокируется,
+    и лишнего SELECT агентства на горячем пути нет (PERF1).
 
-    Раньше здесь на КАЖДЫЙ авторизованный запрос шёл лишний SELECT агентства
-    (PERF1) — на горячем пути это лишний round-trip к БД без всякого эффекта.
-    Убираем его до возврата платных тарифов. Когда гейтинг вернётся —
-    восстановить прежнюю логику (agency_repo.get_by_id + проверка срока) здесь.
+    Когда платные тарифы вернутся — SUBSCRIPTION_GATING_ENABLED=true включает
+    честную проверку: замороженное/просроченное агентство блокируется. Личные
+    агентства (owner_telegram_id задан) подписке не подчиняются.
     """
-    return
+    if not settings.subscription_gating_enabled:
+        return
+    # Ленивая загрузка, чтобы избежать циклов импорта и не платить ничего, пока
+    # гейт выключен.
+    from app.core.subscription import agency_is_active
+
+    agency = agency_repo.get_by_id(db, user.agency_id)
+    if agency is None:
+        return
+    # Личное агентство (есть владелец-телеграм) не подчиняется подписке.
+    if getattr(agency, "owner_telegram_id", None) is not None:
+        return
+    if not agency_is_active(agency):
+        raise AppError("subscription_suspended", status.HTTP_403_FORBIDDEN)
 
 
 def require_agency_member(

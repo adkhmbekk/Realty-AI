@@ -25,9 +25,9 @@ class PersonalAgencyCreate(BaseModel):
 
 
 class AgencyRegister(BaseModel):
-    # Самостоятельная регистрация агентства (человек открывает бот без агентства
-    # и создаёт своё). Личность подтверждается подписью Telegram (init_data).
-    init_data: str
+    # Самостоятельная регистрация агентства. Личность обычно берётся из пропуска
+    # (JWT) — тогда init_data не нужен; оставлен опциональным для запасного пути.
+    init_data: Optional[str] = None
     name: str = Field(max_length=120)
     owner_name: Optional[str] = Field(default=None, max_length=120)
     phone: Optional[str] = Field(default=None, max_length=64)

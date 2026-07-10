@@ -65,6 +65,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Agentlik yaratish uchun avval tasdiqlangan telefon raqamini qoʻshing.",
         "en": "To create an agency, first add a verified phone number.",
     },
+    "phone_invalid": {
+        "ru": "Неверный номер телефона. Укажите номер в международном формате (от 9 до 15 цифр).",
+        "uz": "Notoʻgʻri telefon raqami. Xalqaro formatda kiriting (9 dan 15 gacha raqam).",
+        "en": "Invalid phone number. Enter it in international format (9 to 15 digits).",
+    },
     "auth_invalid_token": {
         "ru": "Недействительный или истёкший пропуск. Войдите заново.",
         "uz": "Yaroqsiz yoki muddati oʻtgan kirish. Qaytadan kiring.",

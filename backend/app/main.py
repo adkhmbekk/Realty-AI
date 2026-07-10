@@ -80,7 +80,10 @@ def ensure_superadmins(db: Session, telegram_ids) -> None:
         )
     ).scalars().all()
     for u in others:
-        u.role = "agent"
+        # Демотим в 'user' (личный аккаунт без агентства), а НЕ в 'agent':
+        # агент обязан иметь agency_id, а тут он NULL — это ломало бы инвариант
+        # (require_agency_member). Роль 'user' легитимно живёт без агентства.
+        u.role = "user"
         u.agency_id = None
         u.is_active = False
         logger.info(
