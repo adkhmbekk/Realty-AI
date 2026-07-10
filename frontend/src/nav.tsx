@@ -7,6 +7,7 @@ export type Route =
   | { name: "profile" }
   | { name: "settings" }
   | { name: "agencies" }
+  | { name: "platformUsers" }
   | { name: "myAgencies" }
   | { name: "mlsPool" }
   | { name: "mlsBrowse" }

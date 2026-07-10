@@ -54,6 +54,17 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Soʻrovlar juda koʻp. Biroz kuting va qayta urinib koʻring.",
         "en": "Too many requests. Please wait a moment and try again.",
     },
+    # Личный профиль / номер телефона (юзер-центричная модель, 2026-07).
+    "phone_taken": {
+        "ru": "Этот номер уже привязан к другому аккаунту.",
+        "uz": "Bu raqam boshqa hisobga bogʻlangan.",
+        "en": "This phone number is already linked to another account.",
+    },
+    "phone_required_for_agency": {
+        "ru": "Чтобы создать агентство, сначала добавьте подтверждённый номер телефона.",
+        "uz": "Agentlik yaratish uchun avval tasdiqlangan telefon raqamini qoʻshing.",
+        "en": "To create an agency, first add a verified phone number.",
+    },
     "auth_invalid_token": {
         "ru": "Недействительный или истёкший пропуск. Войдите заново.",
         "uz": "Yaroqsiz yoki muddati oʻtgan kirish. Qaytadan kiring.",

@@ -2,9 +2,9 @@
 Доступ к данным пользователей (таблица users).
 Только этот слой обращается к БД напрямую — бизнес-логика ходит сюда.
 """
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.user import User
@@ -17,6 +17,48 @@ def get_by_id(db: Session, user_id: int) -> Optional[User]:
 def get_by_telegram_id(db: Session, telegram_id: int) -> Optional[User]:
     return db.execute(
         select(User).where(User.telegram_id == telegram_id)
+    ).scalar_one_or_none()
+
+
+def list_all(
+    db: Session, *, q: Optional[str] = None, limit: int = 50, offset: int = 0
+) -> Tuple[List[User], int]:
+    """Все пользователи прошки (КРОМЕ суперадминов) — для витрины «юзеры» у
+    владельца платформы (юзер-центричная модель, 2026-07). Новые сверху; фильтр q
+    по имени/username/телефону. Возвращает (список, всего)."""
+    conds = [User.role != "superadmin"]
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        conds.append(
+            or_(
+                User.full_name.ilike(like),
+                User.first_name.ilike(like),
+                User.last_name.ilike(like),
+                User.username.ilike(like),
+                User.phone.ilike(like),
+            )
+        )
+    total = db.execute(
+        select(func.count()).select_from(User).where(*conds)
+    ).scalar_one()
+    items = list(
+        db.execute(
+            select(User)
+            .where(*conds)
+            .order_by(User.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        .scalars()
+        .all()
+    )
+    return items, total
+
+
+def get_by_phone(db: Session, phone: str) -> Optional[User]:
+    """Пользователь по номеру телефона (номер уникален; юзер-центричная модель)."""
+    return db.execute(
+        select(User).where(User.phone == phone)
     ).scalar_one_or_none()
 
 

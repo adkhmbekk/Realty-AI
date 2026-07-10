@@ -64,31 +64,42 @@ def test_claim_activates_agency_and_makes_owner(db, monkeypatch):
     assert timedelta(days=15) - timedelta(minutes=2) <= delta <= timedelta(days=15) + timedelta(minutes=2)
 
 
-def test_claim_blocked_if_already_in_agency(db, monkeypatch):
+def test_claim_second_agency_allowed_multiagency(db, monkeypatch):
+    """Мультиагентство (2026-07): человек из агентства A может активировать
+    (стать владельцем) ВТОРОГО агентства B по owner-приглашению. Раньше это
+    блокировалось (один человек — одно агентство); теперь разрешено. Домашнее
+    агентство при этом не перезаписывается."""
     from app.config import settings
     from app.core import security
+    from app.db.models.agency import Agency
+    from app.repositories import agency_membership_repo
 
     monkeypatch.setattr(settings, "bot_token", _TEST_BOT_TOKEN, raising=False)
     security._seen_init_data.clear()
 
     owner = _superadmin(db)
     agency, invite = _draft(db, owner)
-    # Человек уже состоит в другом (реальном) агентстве — активировать не должен.
-    from app.db.models.agency import Agency
-
+    # Человек уже состоит в другом (реальном) агентстве A + членство в A.
     other = Agency(name="Другое", status="active", timezone="Asia/Tashkent", default_currency="USD")
     db.add(other)
     db.commit()
-    user_repo.create(db, telegram_id=900200, role="agent", agency_id=other.id)
+    u = user_repo.create(db, telegram_id=900200, role="agent", agency_id=other.id)
+    agency_membership_repo.create(
+        db, user_id=u.id, agency_id=other.id, role="agent", is_owner=False,
+    )
     db.commit()
 
     init_data = _sign_init_data(telegram_id=900200, username="busy")
-    with pytest.raises(AppError) as exc:
-        invite_service.redeem_invite(db, init_data, invite.code)
-    assert exc.value.key == "already_in_agency"
-    # Агентство осталось черновиком.
+    invite_service.redeem_invite(db, init_data, invite.code)
+
+    # Агентство B активировалось.
     db.refresh(agency)
-    assert agency.status == "pending"
+    assert agency.status == "active"
+    # Домашнее агентство (A) не изменилось; в B — членство владельца.
+    u2 = user_repo.get_by_telegram_id(db, 900200)
+    assert u2.agency_id == other.id
+    m_b = agency_membership_repo.get(db, u2.id, agency.id)
+    assert m_b is not None and m_b.is_owner is True and m_b.role == "agency_admin"
 
 
 def test_reissue_replaces_link(db, monkeypatch):

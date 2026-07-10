@@ -12,7 +12,7 @@ import pytest
 
 from app.core.errors import AppError
 from app.db.models.agency import Agency
-from app.repositories import invite_repo, user_repo
+from app.repositories import agency_membership_repo, invite_repo, user_repo
 from app.schemas.invite import InviteCreate
 from app.services import invite_service
 
@@ -96,18 +96,55 @@ def test_rejected_join_does_not_consume_use(db, monkeypatch):
         payload=InviteCreate(role="agent", max_uses=2),
         is_owner=True,
     )
-    # Человек уже состоит в ДРУГОМ агентстве — вступление отклоняется.
-    other = Agency(name="Другое", status="active", timezone="Asia/Tashkent",
-                   default_currency="USD")
-    db.add(other)
-    db.commit()
-    user_repo.create(db, telegram_id=703001, role="agent", agency_id=other.id)
+    # Человек уже состоит в ЭТОМ ЖЕ агентстве — повторное вступление отклоняется
+    # (мультиагентство разрешает РАЗНЫЕ агентства, но не одно и то же дважды).
+    u = user_repo.create(db, telegram_id=703001, role="agent", agency_id=agency.id)
+    agency_membership_repo.create(
+        db, user_id=u.id, agency_id=agency.id, role="agent", is_owner=False,
+    )
     db.commit()
     with pytest.raises(AppError) as exc:
         invite_service.redeem_invite(db, _sign_init_data(telegram_id=703001), inv.code)
     assert exc.value.key == "already_in_agency"
     # Лимит НЕ израсходован (отказ не занял использование).
     assert invite_repo.get_by_code(db, inv.code).used_count == 0
+
+
+def test_join_second_agency_allowed(db, monkeypatch):
+    """Мультиагентство (2026-07): человек из агентства A может вступить в B.
+
+    Домашнее агентство (user.agency_id) не перезаписывается; появляется отдельное
+    членство в новом агентстве; использование засчитывается.
+    """
+    _prep(monkeypatch)
+    agency_b, admin_b = _agency_with_admin(db)
+    inv = invite_service.create_invite(
+        db, agency_b.id, created_by=admin_b.id,
+        payload=InviteCreate(role="agent", expires_in_days=7),
+        is_owner=True,
+    )
+    # Человек уже в ДРУГОМ агентстве A (домашнее) + членство в A.
+    agency_a = Agency(name="A", status="active", timezone="Asia/Tashkent",
+                      default_currency="USD")
+    db.add(agency_a)
+    db.commit()
+    u = user_repo.create(db, telegram_id=703050, role="agent", agency_id=agency_a.id)
+    agency_membership_repo.create(
+        db, user_id=u.id, agency_id=agency_a.id, role="agent", is_owner=False,
+    )
+    db.commit()
+
+    invite_service.redeem_invite(db, _sign_init_data(telegram_id=703050), inv.code)
+
+    u2 = user_repo.get_by_telegram_id(db, 703050)
+    # Домашнее агентство НЕ изменилось.
+    assert u2.agency_id == agency_a.id
+    # Появилось членство в агентстве B и осталось членство в A.
+    m_b = agency_membership_repo.get(db, u2.id, agency_b.id)
+    assert m_b is not None and m_b.role == "agent"
+    assert agency_membership_repo.get(db, u2.id, agency_a.id) is not None
+    # Использование засчитано.
+    assert invite_repo.get_by_code(db, inv.code).used_count == 1
 
 
 def test_expired_multiuse_invite_blocked(db, monkeypatch):
@@ -132,3 +169,27 @@ def test_uses_range_validation():
         InviteCreate(role="agent", max_uses=0)
     with pytest.raises(Exception):
         InviteCreate(role="agent", max_uses=101)
+
+
+def test_redeem_creates_membership(db, monkeypatch):
+    """Вступление по коду создаёт членство (источник правды многоролевости).
+
+    Раньше redeem только ставил user.agency_id, но НЕ создавал членство — из-за
+    чего вступивший не появлялся в списке «мои агентства» и не мог переключаться.
+    """
+    _prep(monkeypatch)
+    agency, admin = _agency_with_admin(db)
+    inv = invite_service.create_invite(
+        db, agency.id, created_by=admin.id,
+        payload=InviteCreate(role="agent", expires_in_days=7),
+        is_owner=True,
+    )
+    invite_service.redeem_invite(db, _sign_init_data(telegram_id=705001), inv.code)
+
+    u = user_repo.get_by_telegram_id(db, 705001)
+    assert u is not None
+    m = agency_membership_repo.get(db, u.id, agency.id)
+    assert m is not None
+    assert m.role == "agent"
+    assert m.is_owner is False
+    assert m.is_active is True

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Realty AI — прототип (юзер-центричный)</title>
+<style>
+:root{
+  --bg:#f5f7fc;--card:#fff;--soft:#eff2f9;--text:#0b1220;--muted:#5b6b86;--border:#e6ebf4;
+  --input-bg:#fff;--input-border:#dde4f0;--primary:#4f46e5;--primary-2:#4338ca;--primary-soft:#eef0fe;
+  --accent:#7c5cf6;--ring:rgba(79,70,229,.22);--danger:#dc2626;--danger-soft:#fdecea;--ok:#16a34a;--warn:#d97706;
+  --shadow:0 1px 2px rgba(16,24,64,.05),0 4px 12px rgba(28,35,84,.06),0 14px 34px rgba(28,35,84,.07);
+  --shadow-lg:0 2px 6px rgba(16,24,64,.06),0 12px 28px rgba(28,35,84,.12),0 32px 68px rgba(28,35,84,.16);
+  --grad:linear-gradient(135deg,#6d70f9 0%,#4f46e5 48%,#4630c9 100%);
+  --grad-hero:radial-gradient(150% 140% at 0% 0%,#818cf8 0%,#4f46e5 42%,#4029c2 78%,#341fa3 100%);
+}
+.dark{
+  --bg:#070b16;--card:#111726;--soft:#18202f;--text:#e9eefb;--muted:#93a1bd;--border:#212b41;
+  --input-bg:#0c1322;--input-border:#283450;--primary:#818cf8;--primary-2:#6366f1;--primary-soft:#1b2340;
+  --accent:#a78bfa;--ring:rgba(129,140,248,.32);--danger:#f87171;--danger-soft:#3a1d1d;--ok:#4ade80;--warn:#fbbf24;
+  --shadow:0 1px 3px rgba(0,0,0,.32),0 6px 18px rgba(0,0,0,.4),0 16px 44px rgba(0,0,0,.46);
+  --shadow-lg:0 4px 12px rgba(0,0,0,.46),0 16px 36px rgba(0,0,0,.52),0 36px 76px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Manrope",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",Roboto,sans-serif;
+  letter-spacing:-.011em;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;
+  background:#0b1020;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
+}
+/* Рамка «телефона» на широком экране; на телефоне занимает весь экран */
+.device{
+  width:390px;height:min(844px,96vh);border-radius:44px;background:#000;padding:11px;
+  box-shadow:0 40px 90px rgba(0,0,0,.55),0 0 0 2px #222 inset;position:relative;
+}
+.screen{
+  width:100%;height:100%;border-radius:34px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);
+  display:flex;flex-direction:column;
+}
+.notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:150px;height:26px;background:#000;border-radius:0 0 18px 18px;z-index:60}
+@media(max-width:480px){
+  body{padding:0}
+  .device{width:100vw;height:100vh;border-radius:0;padding:0}
+  .screen{border-radius:0}
+  .notch{display:none}
+}
+/* фон приложения */
+.appbg{position:absolute;inset:0;background:
+  radial-gradient(1100px 440px at 8% -14%,rgba(99,102,241,.18),transparent 60%),
+  radial-gradient(940px 380px at 114% -6%,rgba(129,140,248,.13),transparent 55%),var(--bg);z-index:0}
+.appbg::before{content:"";position:absolute;inset:0;opacity:.5;background-image:radial-gradient(rgba(79,70,229,.05) 1px,transparent 1px);background-size:22px 22px}
+.dark .appbg::before{background-image:radial-gradient(rgba(129,140,248,.06) 1px,transparent 1px)}
+
+.view{position:relative;z-index:1;flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.pad{padding:16px}
+.fade{animation:fu .18s ease-out}
+@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* компоненты */
+.card{border-radius:18px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);padding:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;letter-spacing:-.01em;
+  border-radius:12px;cursor:pointer;user-select:none;transition:all .2s;border:0;min-height:48px;padding:12px 16px;font-size:15px;width:100%;font-family:inherit}
+.btn:active{transform:scale(.97)}
+.btn-primary{color:#fff;background:var(--grad);box-shadow:0 10px 24px rgba(79,70,229,.34)}
+.btn-ghost{background:var(--soft);color:var(--text);border:1px solid var(--border)}
+.btn-soft{background:var(--primary-soft);color:var(--primary)}
+.btn-danger{background:var(--danger-soft);color:var(--danger)}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.btn-sm{min-height:40px;padding:8px 14px;font-size:13px;border-radius:11px;width:auto}
+.label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 6px}
+.input{width:100%;padding:13px 14px;border-radius:14px;font-size:16px;background:var(--input-bg);color:var(--text);
+  border:1px solid var(--input-border);outline:none;transition:.15s;font-family:inherit}
+.input:focus{border-color:var(--primary);box-shadow:0 0 0 4px var(--ring)}
+.muted{color:var(--muted)}
+.h1{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:0}
+.h2{font-size:18px;font-weight:800;letter-spacing:-.01em;margin:0}
+.small{font-size:13px}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.02em}
+.badge::before{content:"";width:6px;height:6px;border-radius:999px;background:currentColor;opacity:.8}
+.badge-blue{background:rgba(59,130,246,.15);color:#2563eb}.dark .badge-blue{color:#60a5fa}
+.badge-green{background:rgba(16,185,129,.15);color:#059669}.dark .badge-green{color:#34d399}
+.badge-amber{background:rgba(245,158,11,.15);color:#b45309}.dark .badge-amber{color:#fbbf24}
+.badge-gray{background:rgba(100,116,139,.15);color:#475569}.dark .badge-gray{color:#cbd5e1}
+
+/* hero-шапка */
+.hero{background:var(--grad-hero);color:#fff;padding:22px 18px 20px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:0;opacity:.5;background-image:radial-gradient(rgba(255,255,255,.10) 1px,transparent 1px);background-size:20px 20px}
+.hero>*{position:relative;z-index:1}
+.avatar{width:56px;height:56px;border-radius:18px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;backdrop-filter:blur(6px)}
+.avatar-lg{width:64px;height:64px;border-radius:20px}
+
+/* список-строка */
+.item{display:flex;align-items:center;gap:12px;padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);cursor:pointer;transition:.15s;width:100%;text-align:left;font-family:inherit;color:var(--text)}
+.item:active{transform:scale(.985)}
+.ico{width:44px;height:44px;border-radius:12px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0}
+.chev{margin-left:auto;color:var(--muted);font-size:20px}
+.stack>*+*{margin-top:10px}
+.stack-sm>*+*{margin-top:7px}
+.section-t{display:flex;align-items:center;justify-content:between;font-size:14px;font-weight:800;margin:2px 2px 10px}
+
+/* topbar внутри агентства/страниц */
+.topbar{display:flex;align-items:center;gap:10px;padding:14px 14px;background:color-mix(in srgb,var(--card) 82%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);position:relative;z-index:5}
+.iconbtn{width:38px;height:38px;border-radius:12px;background:var(--soft);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--text);flex-shrink:0}
+.switcher{display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0}
+
+/* нижние вкладки — как в реальном приложении (пилюля под активной иконкой) */
+.tabs{background:color-mix(in srgb,var(--card) 82%,transparent);backdrop-filter:blur(14px) saturate(140%);border-top:1px solid var(--border);z-index:5;padding:8px 10px}
+.tabinner{max-width:560px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-around}
+.tab{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:56px;padding:0;color:var(--muted);cursor:pointer;font-family:inherit;transition:color .2s}
+.tab:active{transform:scale(.95)}
+.tab.on{color:var(--primary)}
+.tpill{display:flex;align-items:center;justify-content:center;width:44px;height:28px;border-radius:999px;transition:background .2s}
+.tab.on .tpill{background:var(--primary-soft)}
+.tlab{font-size:10.5px;font-weight:700;line-height:1;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab svg,.fab-plus svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.fab-plus{margin-top:-26px;width:54px;height:54px;border-radius:17px;background:var(--grad);color:#fff;border:0;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 30px rgba(79,70,229,.4);flex-shrink:0;cursor:pointer;transition:transform .15s}
+.fab-plus:active{transform:scale(.94)}
+.fab-plus svg{width:26px;height:26px}
+
+/* нижний лист (sheet) */
+.overlay{position:absolute;inset:0;background:rgba(6,10,22,.5);z-index:40;display:flex;align-items:flex-end;animation:fade .18s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet{width:100%;background:var(--card);border-radius:24px 24px 0 0;padding:8px 16px 22px;box-shadow:var(--shadow-lg);animation:up .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.grabber{width:40px;height:4px;border-radius:999px;background:var(--border);margin:8px auto 12px}
+
+.spinner{width:30px;height:30px;border-radius:999px;border:3px solid var(--border);border-top-color:var(--primary);animation:sp .8s linear infinite;margin:0 auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+.center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;height:100%;text-align:center;padding:24px}
+.pill{position:absolute;top:10px;right:12px;z-index:70;display:flex;gap:6px}
+.pill button{background:rgba(0,0,0,.35);color:#fff;border:0;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;backdrop-filter:blur(6px);font-family:inherit}
+.langbtn{width:100%;text-align:left;padding:16px;border-radius:16px;background:var(--card);border:2px solid var(--border);cursor:pointer;font-family:inherit;color:var(--text);display:flex;align-items:center;gap:14px;transition:.15s}
+.langbtn.sel{border-color:var(--primary);box-shadow:0 0 0 4px var(--ring)}
+.flag{font-size:26px}
+.empty-ic{width:60px;height:60px;border-radius:20px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hint{margin-top:12px;border-radius:14px;background:var(--soft);border:1px solid var(--border);padding:12px 14px;font-size:13px;color:var(--muted);line-height:1.5}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--border);font-size:14px}
+.kv:first-child{border-top:0}
+/* плавающая кнопка профиля в правом нижнем углу */
+.profile-fab{position:absolute;right:16px;bottom:74px;width:56px;height:56px;border-radius:50%;background:var(--grad);color:#fff;border:2px solid var(--card);
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;cursor:pointer;z-index:20;font-family:inherit;
+  box-shadow:0 10px 26px rgba(79,70,229,.45);transition:transform .15s;animation:fu .2s}
+.profile-fab:active{transform:scale(.92)}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="notch"></div>
+  <div class="pill">
+    <button onclick="toggleTheme()" id="themeBtn">🌙 Тема</button>
+    <button onclick="resetDemo()">↺ Заново</button>
+  </div>
+  <div class="screen">
+    <div class="appbg"></div>
+    <div id="app" class="view"></div>
+    <div id="fab"></div>
+    <div id="tabsbar"></div>
+  </div>
+</div>
+
+<script>
+// ─────────── СОСТОЯНИЕ (всё фейковое, реальный бэкенд не трогается) ───────────
+const S = {
+  screen: "lang",
+  lang: "ru",
+  theme: "light",
+  first: "", last: "", phone: "",
+  agencies: [],           // {id,name,role:'admin'|'agent',short}
+  currentAgencyId: null,  // null = личное пространство
+  personalTab: "home",    // home | profile | settings
+  agencyTab: "objects",
+  showSwitch: false,
+  loadingNext: null,
+};
+let idSeq = 1;
+
+// Контурные иконки в духе lucide-react (как в реальном приложении)
+const IC={
+ home:'<svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',
+ search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+ settings:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7 5.6 5.6"/></svg>',
+ user:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 21c0-4 3.5-6 7-6s7 2 7 6"/></svg>',
+ plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+ building:'<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 7v0M9 11v0M9 15v0M15 7v0M15 11v0M15 15v0M10 21v-3h4v3"/></svg>',
+ users:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3 2.9-4.6 6.5-4.6S15.5 17 15.5 20"/><path d="M16 5.3a3.2 3.2 0 0 1 0 5.8M21.5 20c0-2.4-1.6-4-4-4.5"/></svg>',
+ briefcase:'<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7"/></svg>',
+ chart:'<svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 2 4-6"/></svg>',
+ layers:'<svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 13l9 5 9-5"/></svg>',
+};
+function addObjDemo(){alert('«Добавить объект» — как в реальном приложении (демо).');}
+
+const T = {
+  ru:{next:"Далее",back:"Назад",role_admin:"главный админ",role_agent:"агент",
+      myAg:"Мои агентства",create:"Создать агентство",join:"Вступить по коду",
+      objects:"Объекты",clients:"Клиенты",team:"Команда",more:"Ещё",
+      home:"Главная",profile:"Профиль",settings:"Настройки",personal:"Личное пространство"},
+};
+const t = k => (T[S.lang]||T.ru)[k];
+
+// ─────────── УТИЛИТЫ ───────────
+const $ = id => document.getElementById(id);
+function initials(a,b){return ((a||"?")[0]+(b||"")[0]||"").toUpperCase();}
+function agShort(name){return name.trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();}
+function go(screen){S.screen=screen;render();}
+function toggleTheme(){S.theme=S.theme==="light"?"dark":"light";document.body.classList.toggle("dark",S.theme==="dark");$("themeBtn").textContent=S.theme==="light"?"🌙 Тема":"☀️ Тема";}
+function resetDemo(){Object.assign(S,{screen:"lang",first:"",last:"",phone:"",agencies:[],currentAgencyId:null,personalTab:"home",agencyTab:"objects",showSwitch:false});render();}
+
+// ─────────── РЕНДЕР ───────────
+function render(){
+  const app=$("app"); const tabs=$("tabsbar");
+  app.className="view"; tabs.innerHTML="";
+  const s=S.screen;
+  if(s==="lang")        app.innerHTML=vLang();
+  else if(s==="profile")app.innerHTML=vProfile();
+  else if(s==="hubPersonal"){app.innerHTML=vPersonal();tabs.innerHTML=personalTabs();}
+  else if(s==="create") app.innerHTML=vCreate();
+  else if(s==="joinc")  app.innerHTML=vJoin();
+  else if(s==="loading")app.innerHTML=vLoading();
+  else if(s==="agency"){app.innerHTML=vAgency();tabs.innerHTML=agencyTabs();}
+  $("fab").innerHTML="";
+  app.scrollTop=0;
+}
+
+// экран 1 — язык
+function vLang(){
+  const opt=(code,flag,name)=>`<button class="langbtn ${S.lang===code?'sel':''}" onclick="S.lang='${code}';render()"><span class="flag">${flag}</span><div><div style="font-weight:800">${name}</div><div class="muted small">${code.toUpperCase()}</div></div></button>`;
+  return `<div class="pad fade" style="display:flex;flex-direction:column;min-height:100%">
+    <div style="height:26px"></div>
+    <div style="text-align:center;margin-bottom:8px">
+      <div class="avatar avatar-lg" style="margin:0 auto 16px;background:var(--grad)">R</div>
+      <h1 class="h1">Realty AI</h1>
+      <p class="muted small" style="margin-top:6px">Выберите язык · Tilni tanlang · Choose language</p>
+    </div>
+    <div class="stack-sm" style="margin-top:18px">
+      ${opt("ru","🇷🇺","Русский")}
+      ${opt("uz","🇺🇿","O‘zbekcha")}
+      ${opt("en","🇬🇧","English")}
+    </div>
+    <div style="flex:1"></div>
+    <button class="btn btn-primary" onclick="go('profile')">${t('next')} →</button>
+    <div class="hint">Это первый вход. Никакого «создай агентство» — сначала знакомимся с тобой.</div>
+  </div>`;
+}
+
+// экран 2 — профиль + номер
+function vProfile(){
+  const shared=!!S.phone;
+  return `<div class="pad fade" style="display:flex;flex-direction:column;min-height:100%">
+    <div style="height:20px"></div>
+    <h1 class="h1">Давай познакомимся</h1>
+    <p class="muted small" style="margin-top:6px">Это твоя личная карточка — она с тобой во всех агентствах.</p>
+    <label class="label">Имя</label>
+    <input class="input" id="f_first" placeholder="Азиз" value="${S.first}" oninput="S.first=this.value;syncProfileBtn()">
+    <label class="label">Фамилия</label>
+    <input class="input" id="f_last" placeholder="Каримов" value="${S.last}" oninput="S.last=this.value;syncProfileBtn()">
+    <label class="label">Номер телефона</label>
+    ${shared
+      ? `<div class="item" style="cursor:default"><div class="ico">📞</div><div><div style="font-weight:700">${S.phone}</div><div class="muted small">Из Telegram · подтверждён</div></div><button class="btn btn-soft btn-sm chev" style="margin-left:auto" onclick="editPhone()">Изменить</button></div>`
+      : `<button class="btn btn-ghost" onclick="sharePhone()">📲 Поделиться номером из Telegram</button>
+         <div class="hint">Нажатие имитирует кнопку Telegram «Поделиться контактом» — номер приходит уже подтверждённым.</div>`}
+    <div style="flex:1;min-height:20px"></div>
+    <button class="btn btn-primary" id="profileNext" onclick="finishOnboarding()" ${S.first.trim()?'':'disabled'}>Продолжить →</button>
+    <p class="muted small" style="text-align:center;margin-top:10px">Номер можно оставить на потом — он обязателен только когда создаёшь агентство.</p>
+  </div>`;
+}
+function syncProfileBtn(){const b=$("profileNext");if(b)b.disabled=!S.first.trim();}
+function sharePhone(){S.phone="+998 90 123 45 67";render();}
+function editPhone(){const v=prompt("Новый номер (демо):",S.phone);if(v){S.phone=v;render();}}
+function finishOnboarding(){if(!S.first.trim())return;S.screen="hubPersonal";S.personalTab="home";render();}
+
+// ─────────── ЛИЧНОЕ ПРОСТРАНСТВО ───────────
+function personalTabs(){
+  const tb=(id,ic,lab)=>`<button class="tab ${S.personalTab===id?'on':''}" onclick="S.personalTab='${id}';render()"><span class="tpill">${IC[ic]}</span><span class="tlab">${lab}</span></button>`;
+  return `<div class="tabs"><div class="tabinner">${tb('home','home','Главная')}${tb('settings','settings','Настройки')}${tb('profile','user','Профиль')}</div></div>`;
+}
+function vPersonal(){
+  if(S.personalTab==="profile")return vPersonalProfile();
+  if(S.personalTab==="settings")return vSettings();
+  // Главная
+  const has=S.agencies.length>0;
+  const heroName=(S.first+" "+S.last).trim()||"Гость";
+  let body;
+  if(!has){
+    body=`<div class="card fade" style="text-align:center;padding:26px 18px">
+      <div class="empty-ic">🏢</div>
+      <div class="h2">Пока ты сам по себе</div>
+      <p class="muted small" style="margin:8px auto 0;max-width:260px">Создай своё агентство или вступи в существующее по коду-приглашению.</p>
+      <div class="stack" style="margin-top:18px">
+        <button class="btn btn-primary" onclick="go('create')">＋ ${t('create')}</button>
+        <button class="btn btn-ghost" onclick="go('joinc')">🔑 ${t('join')}</button>
+      </div>
+    </div>`;
+  } else {
+    body=`<div class="section-t" style="justify-content:space-between"><span>${t('myAg')}</span><button class="btn btn-soft btn-sm" onclick="openAddSheet()">＋ Добавить</button></div>
+      <div class="stack fade">${S.agencies.map(agItem).join("")}</div>
+      <div class="hint">Профиль — аватар в правом верхнем углу. «＋ Добавить» — создать ещё одно агентство или вступить по коду («в другом месте»). Тап по агентству → войдёшь в своей роли.</div>`;
+  }
+  return `<div class="hero">
+      <div style="min-width:0">
+        <div style="opacity:.85;font-size:13px">С возвращением 👋</div>
+        <div style="font-weight:800;font-size:21px;margin-top:2px">${heroName}</div>
+        <div style="opacity:.85;font-size:13px;margin-top:2px">${S.phone||"номер не задан"}</div>
+      </div>
+    </div>
+    <div class="pad">${body}</div>
+    ${S.showSwitch?addSheet():""}`;
+}
+function agItem(a){
+  const badge=a.role==="admin"?`<span class="badge badge-blue">${t('role_admin')}</span>`:`<span class="badge badge-gray">${t('role_agent')}</span>`;
+  return `<button class="item" onclick="enterAgency(${a.id})"><div class="ico">${a.short}</div>
+    <div style="min-width:0"><div style="font-weight:800">${a.name}</div><div style="margin-top:3px">${badge}</div></div>
+    <span class="chev">›</span></button>`;
+}
+function openAddSheet(){S.showSwitch=true;render();}
+function closeSheet(){S.showSwitch=false;render();}
+function addSheet(){
+  return `<div class="overlay" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+    <div class="grabber"></div>
+    <div class="h2" style="margin-bottom:12px">Добавить агентство</div>
+    <div class="stack">
+      <button class="btn btn-primary" onclick="closeSheet();go('create')">＋ ${t('create')}</button>
+      <button class="btn btn-ghost" onclick="closeSheet();go('joinc')">🔑 ${t('join')}</button>
+    </div>
+    <button class="btn btn-soft" style="margin-top:14px" onclick="closeSheet()">Закрыть</button>
+  </div></div>`;
+}
+
+function vPersonalProfile(){
+  return `<div class="hero">
+      <div style="display:flex;align-items:center;gap:14px">
+      <div class="avatar avatar-lg">${initials(S.first,S.last)}</div>
+      <div><div style="font-weight:800;font-size:20px">${(S.first+" "+S.last).trim()||"Гость"}</div>
+      <div style="opacity:.85;font-size:13px">Личный профиль</div></div></div></div>
+    <div class="pad fade">
+      <div class="card">
+        <div class="kv"><span class="muted">Имя</span><b>${S.first||"—"}</b></div>
+        <div class="kv"><span class="muted">Фамилия</span><b>${S.last||"—"}</b></div>
+        <div class="kv"><span class="muted">Телефон</span><b>${S.phone||"—"}</b></div>
+        <div class="kv"><span class="muted">Агентств</span><b>${S.agencies.length}</b></div>
+      </div>
+      <div class="stack" style="margin-top:14px">
+        <button class="btn btn-ghost" onclick="editName()">✏️ Изменить имя/фамилию</button>
+        <button class="btn btn-ghost" onclick="editPhone()">📞 Изменить номер</button>
+      </div>
+      <div class="hint">Профиль — единый на всех платформах (Telegram, сайт, приложение) и во всех агентствах.</div>
+    </div>`;
+}
+function editName(){const f=prompt("Имя:",S.first);if(f!==null)S.first=f;const l=prompt("Фамилия:",S.last);if(l!==null)S.last=l;render();}
+
+function vSettings(){
+  const lang=(c,n)=>`<button class="btn ${S.lang===c?'btn-primary':'btn-ghost'} btn-sm" onclick="S.lang='${c}';render()">${n}</button>`;
+  return `<div class="pad fade"><div style="height:8px"></div><h1 class="h1">Настройки</h1>
+    <div class="card" style="margin-top:16px">
+      <div class="label" style="margin-top:0">Язык приложения</div>
+      <div style="display:flex;gap:8px">${lang('ru','RU')}${lang('uz','UZ')}${lang('en','EN')}</div>
+      <div class="label">Тема</div>
+      <button class="btn btn-ghost btn-sm" onclick="toggleTheme()">${S.theme==='light'?'🌙 Тёмная':'☀️ Светлая'}</button>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="label" style="margin-top:0">Агентства</div>
+      <button class="btn btn-primary btn-sm" onclick="go('create')">＋ Создать</button>
+      <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="go('joinc')">🔑 Вступить по коду</button>
+    </div>
+    <div class="hint">Здесь и через «＋» на главной — то самое «другое место», где можно завести ещё одно агентство или вступить в новое.</div>
+  </div>`;
+}
+
+// ─────────── СОЗДАТЬ / ВСТУПИТЬ ───────────
+function vCreate(){
+  const needPhone=!S.phone;
+  return `<div class="topbar"><button class="iconbtn" onclick="go('hubPersonal')">‹</button><b>Создать агентство</b></div>
+  <div class="pad fade">
+    <p class="muted small">Ты станешь <b>главным админом</b> этого агентства.</p>
+    <label class="label">Название агентства</label>
+    <input class="input" id="ag_name" placeholder="Олтин Уй" oninput="$('createBtn').disabled=!this.value.trim()||${needPhone}">
+    ${needPhone?`<div class="hint" style="border-color:var(--warn);color:var(--warn)">⚠️ Для главного админа нужен подтверждённый номер. <a href="#" onclick="sharePhoneThen('create');return false" style="color:var(--primary);font-weight:700">Поделиться номером</a></div>`:""}
+    <button class="btn btn-primary" id="createBtn" style="margin-top:18px" disabled onclick="doCreate()">Создать →</button>
+  </div>`;
+}
+function sharePhoneThen(scr){S.phone="+998 90 123 45 67";S.screen=scr;render();}
+function doCreate(){
+  const name=$("ag_name").value.trim();if(!name)return;
+  S.agencies.push({id:idSeq++,name,role:"admin",short:agShort(name)});
+  S.screen="hubPersonal";S.personalTab="home";render();
+}
+function vJoin(){
+  return `<div class="topbar"><button class="iconbtn" onclick="go('hubPersonal')">‹</button><b>Вступить по коду</b></div>
+  <div class="pad fade">
+    <p class="muted small">Введи код-приглашение от главного админа. Ты вступишь как <b>агент</b>.</p>
+    <label class="label">Код приглашения</label>
+    <input class="input" id="join_code" placeholder="напр. MEGA-2026" oninput="$('joinBtn').disabled=!this.value.trim()">
+    <button class="btn btn-primary" id="joinBtn" style="margin-top:18px" disabled onclick="doJoin()">Вступить →</button>
+    <div class="hint">Демо: любой код добавит агентство «Мега Хаус» с ролью агента.</div>
+  </div>`;
+}
+function doJoin(){
+  S.agencies.push({id:idSeq++,name:"Мега Хаус",role:"agent",short:"МХ"});
+  S.screen="hubPersonal";S.personalTab="home";render();
+}
+
+// ─────────── ВХОД В АГЕНТСТВО ───────────
+function enterAgency(id){S.loadingNext=id;S.screen="loading";render();setTimeout(()=>{S.currentAgencyId=id;S.agencyTab="objects";S.screen="agency";render();},1100);}
+function vLoading(){const a=S.agencies.find(x=>x.id===S.loadingNext);
+  return `<div class="center fade"><div class="ico" style="width:60px;height:60px;font-size:22px;border-radius:18px">${a?a.short:"…"}</div>
+    <div class="spinner"></div><div class="muted small">Вход в «${a?a.name:""}»…</div></div>`;}
+
+function curAgency(){return S.agencies.find(x=>x.id===S.currentAgencyId);}
+function agencyTabs(){
+  const a=curAgency();const admin=a.role==="admin";
+  const tb=(id,ic,lab)=>`<button class="tab ${S.agencyTab===id?'on':''}" onclick="S.agencyTab='${id}';render()"><span class="tpill">${IC[ic]}</span><span class="tlab">${lab}</span></button>`;
+  const r1=admin?tb('team','briefcase','Команда'):tb('analytics','chart','Аналитика');
+  return `<div class="tabs"><div class="tabinner">
+    ${tb('objects','building','Объекты')}
+    ${tb('clients','users','Клиенты')}
+    <button class="fab-plus" onclick="addObjDemo()">${IC.plus}</button>
+    ${r1}
+    ${tb('more','layers','Ещё')}
+  </div></div>`;
+}
+function vAgency(){
+  const a=curAgency();const admin=a.role==="admin";
+  const roleBadge=admin?`<span class="badge badge-blue">${t('role_admin')}</span>`:`<span class="badge badge-gray">${t('role_agent')}</span>`;
+  let content="";
+  if(S.agencyTab==="objects"){
+    const objs=admin?["№128 · 2-комн · $52 000","№131 · студия · $31 000","№140 · 3-комн · $74 500","№142 · участок · $120 000"]:["№128 · 2-комн · $52 000 (мой)","№140 · 3-комн · $74 500 (мой)"];
+    content=`<div class="section-t"><span>${admin?'Все объекты агентства':'Мои объекты'}</span></div>
+      <div class="stack-sm">${objs.map(o=>`<div class="item" style="cursor:default"><div class="ico">🏠</div><div style="font-weight:700">${o}</div></div>`).join("")}</div>`;
+  } else if(S.agencyTab==="clients"){
+    const cl=admin?["Дилдора — покупка 2-комн","Рустам — аренда офиса","Нигора — продажа дома"]:["Дилдора — покупка 2-комн (мой)"];
+    content=`<div class="section-t"><span>${admin?'Клиенты агентства':'Мои клиенты'}</span></div>
+      <div class="stack-sm">${cl.map(o=>`<div class="item" style="cursor:default"><div class="ico">👤</div><div style="font-weight:700">${o}</div></div>`).join("")}</div>
+      ${admin?"":'<div class="hint">Агент видит только своих клиентов — изоляция внутри агентства сохраняется.</div>'}`;
+  } else if(S.agencyTab==="team"){
+    content=`<div class="section-t"><span>Команда</span></div>
+      <div class="stack-sm">
+        <div class="item" style="cursor:default"><div class="ico">${initials(S.first,S.last)}</div><div><div style="font-weight:700">${(S.first+' '+S.last).trim()} (ты)</div><div style="margin-top:3px"><span class="badge badge-blue">${t('role_admin')}</span></div></div></div>
+        <div class="item" style="cursor:default"><div class="ico">СА</div><div><div style="font-weight:700">Сардор Алиев</div><div style="margin-top:3px"><span class="badge badge-gray">${t('role_agent')}</span></div></div></div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px">＋ Пригласить сотрудника</button>`;
+  } else if(S.agencyTab==="analytics"){
+    content=`<div class="section-t"><span>Моя аналитика</span></div>
+      <div class="grid2">
+        <div class="card"><div class="muted small">Мои объекты</div><div style="font-size:26px;font-weight:800">2</div></div>
+        <div class="card"><div class="muted small">Мои клиенты</div><div style="font-size:26px;font-weight:800">1</div></div>
+        <div class="card"><div class="muted small">Показы</div><div style="font-size:26px;font-weight:800">5</div></div>
+        <div class="card"><div class="muted small">Сделки</div><div style="font-size:26px;font-weight:800">1</div></div>
+      </div>
+      <div class="hint">Агент видит только свою статистику — изоляция внутри агентства сохраняется.</div>`;
+  } else {
+    content=`<div class="stack">
+      <button class="item" style="cursor:default"><div class="ico">📊</div><div style="font-weight:700">Аналитика</div><span class="chev">›</span></button>
+      <button class="item" style="cursor:default"><div class="ico">📥</div><div style="font-weight:700">Импорт объявлений</div><span class="chev">›</span></button>
+      <button class="item" onclick="leaveToPersonal()"><div class="ico">🚪</div><div style="font-weight:700">Выйти в личное пространство</div><span class="chev">›</span></button>
+    </div>`;
+  }
+  return `<div class="topbar">
+      <button class="iconbtn" onclick="leaveToPersonal()" title="В личное пространство">‹</button>
+      <div class="switcher" onclick="S.showSwitch=true;render()">
+        <div class="ico" style="width:34px;height:34px;font-size:13px">${a.short}</div>
+        <div style="min-width:0"><div style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.name} ▾</div></div>
+      </div>
+      ${roleBadge}
+    </div>
+    <div class="view" style="flex:1"><div class="pad fade">${content}</div></div>
+    ${S.showSwitch?switchSheet():""}`;
+}
+function leaveToPersonal(){S.showSwitch=false;S.currentAgencyId=null;S.screen="hubPersonal";S.personalTab="home";render();}
+function switchSheet(){
+  const rows=S.agencies.map(a=>{
+    const on=a.id===S.currentAgencyId;
+    const badge=a.role==="admin"?`<span class="badge badge-blue">${t('role_admin')}</span>`:`<span class="badge badge-gray">${t('role_agent')}</span>`;
+    return `<button class="item" style="${on?'outline:2px solid var(--primary)':''}" onclick="switchTo(${a.id})"><div class="ico">${a.short}</div><div><div style="font-weight:800">${a.name}</div><div style="margin-top:3px">${badge}</div></div>${on?'<span class="chev">✓</span>':'<span class="chev">›</span>'}</button>`;
+  }).join("");
+  return `<div class="overlay" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+    <div class="grabber"></div>
+    <div class="h2" style="margin-bottom:12px">Переключить агентство</div>
+    <div class="stack-sm">${rows}</div>
+    <button class="btn btn-ghost" style="margin-top:14px" onclick="leaveToPersonal()">🏠 ${t('personal')}</button>
+  </div></div>`;
+}
+function switchTo(id){if(id===S.currentAgencyId){closeSheet();return;}S.showSwitch=false;enterAgency(id);}
+
+render();
+</script>
+</body>
+</html>

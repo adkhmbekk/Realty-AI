@@ -196,6 +196,7 @@ function AgencyCard() {
 
 export function ProfileScreen() {
   const { t, L, lang, user, settings } = useApp();
+  const { exitToPersonal } = useActing();
   if (!user) return null;
   const displayName = user.full_name || (user.username ? "@" + user.username : t("notSet"));
   const supportUrl = settings?.support_url || null;
@@ -238,6 +239,13 @@ export function ProfileScreen() {
             {t("contactSupport")}
           </Button>
         </Card>
+      )}
+      {/* Выйти в личное пространство (юзер-центричная модель): вернуться к списку
+          своих агентств. Для суперадмина не показываем — у него нет личного хаба. */}
+      {user.role !== "superadmin" && (
+        <Button variant="ghost" full className="mt-3" onClick={() => { haptic(); exitToPersonal(); }}>
+          {t("exitToPersonalHub")}
+        </Button>
       )}
       {/* Версия сборки — чтобы было видно, что приложение обновилось до свежей. */}
       <div className="text-center text-[11px] text-muted mt-5">
