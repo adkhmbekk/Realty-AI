@@ -7,11 +7,11 @@
 // Онбординг показываем ОДИН РАЗ (флаг в localStorage) — existing-юзеры (у кого
 // имя уже заполнено бэкфиллом) тоже проходят его при первом входе в новую версию.
 import React, { useCallback, useEffect, useState } from "react";
-import { Home as HomeIcon, Settings as SettingsIcon, User as UserIcon, Plus, KeyRound, ChevronRight, Building2 } from "lucide-react";
+import { Home as HomeIcon, Settings as SettingsIcon, User as UserIcon, Plus, KeyRound, ChevronRight, Building2, Languages, Moon } from "lucide-react";
 import { useApp } from "../store";
 import { api, errText } from "../api";
 import { getInitData, requestContact, haptic } from "../telegram";
-import { Button, Card, Field, Input, Spinner } from "../components/ui";
+import { Button, Card, Field, Input, Spinner, Segmented, Switch } from "../components/ui";
 import type { AuthResponse, Membership, UserProfile } from "../types";
 import type { Lang } from "../i18n";
 
@@ -368,25 +368,43 @@ function HomeTab({ s, user, memberships, onEnter, onCreate, onJoin }: {
 // ── Вкладка «Настройки» ───────────────────────────────────────────────────────
 function SettingsTab({ s, onCreate, onJoin }: { s: Record<string, string>; onCreate: () => void; onJoin: () => void }) {
   const { lang, setLang, theme, setTheme } = useApp();
-  const langBtn = (c: Lang, label: string) => (
-    <Button variant={lang === c ? "primary" : "ghost"} size="sm" onClick={() => setLang(c)}>{label}</Button>
-  );
   return (
     <div className="max-w-[560px] mx-auto px-3.5 py-5 animate-fade-up">
-      <h1 className="text-[22px] font-extrabold tracking-tight mx-0.5 mb-4">{s.settings}</h1>
+      <h1 className="text-[24px] font-extrabold tracking-tight mx-0.5 mb-4">{s.settings}</h1>
+
       <Card>
-        <div className="text-[12px] font-bold text-muted mb-2">{s.language}</div>
-        <div className="flex gap-2">{langBtn("ru", "RU")}{langBtn("uz", "UZ")}{langBtn("en", "EN")}</div>
-        <div className="text-[12px] font-bold text-muted mt-4 mb-2">{s.theme}</div>
-        <Button variant="ghost" size="sm" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
-          {theme === "light" ? "🌙 " + s.themeDark : "☀️ " + s.themeLight}
-        </Button>
+        <div className="flex items-center gap-2.5 mb-3">
+          <span className="w-8 h-8 rounded-[10px] bg-primary-soft text-primary flex items-center justify-center"><Languages size={17} /></span>
+          <span className="font-extrabold">{s.language}</span>
+        </div>
+        <Segmented<Lang>
+          value={lang}
+          onChange={setLang}
+          options={[{ value: "ru", label: "Русский" }, { value: "uz", label: "Oʻzbek" }, { value: "en", label: "English" }]}
+        />
       </Card>
+
       <Card className="mt-3">
-        <div className="text-[12px] font-bold text-muted mb-2">{s.agenciesActions}</div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-[10px] bg-primary-soft text-primary flex items-center justify-center"><Moon size={17} /></span>
+            <div>
+              <div className="font-extrabold">{s.theme}</div>
+              <div className="text-[12px] text-muted">{theme === "dark" ? s.themeDark : s.themeLight}</div>
+            </div>
+          </div>
+          <Switch checked={theme === "dark"} onChange={(v) => setTheme(v ? "dark" : "light")} label={s.theme} />
+        </div>
+      </Card>
+
+      <Card className="mt-3">
+        <div className="flex items-center gap-2.5 mb-3">
+          <span className="w-8 h-8 rounded-[10px] bg-primary-soft text-primary flex items-center justify-center"><Building2 size={17} /></span>
+          <span className="font-extrabold">{s.agenciesActions}</span>
+        </div>
         <div className="space-y-2.5">
-          <Button full size="sm" onClick={onCreate}><Plus size={15} /> {s.createAgency}</Button>
-          <Button variant="ghost" full size="sm" onClick={onJoin}><KeyRound size={15} /> {s.joinByCode}</Button>
+          <Button full onClick={onCreate}><Plus size={16} /> {s.createAgency}</Button>
+          <Button variant="ghost" full onClick={onJoin}><KeyRound size={16} /> {s.joinByCode}</Button>
         </div>
       </Card>
     </div>
