@@ -38,6 +38,8 @@ const STR: Record<string, Record<string, string>> = {
     saved: "Сохранено.", theme: "Тема", themeLight: "Светлая", themeDark: "Тёмная",
     language: "Язык", save: "Сохранить", myProfile: "Мой профиль",
     editProfile: "Личные данные", agenciesActions: "Агентства",
+    addAgencyTitle: "Добавить агентство",
+    fillAllRequired: "Заполните имя, фамилию и номер телефона.",
   },
   uz: {
     chooseLang: "Tilni tanlang", next: "Keyingi",
@@ -60,6 +62,8 @@ const STR: Record<string, Record<string, string>> = {
     saved: "Saqlandi.", theme: "Mavzu", themeLight: "Yorugʻ", themeDark: "Tungi",
     language: "Til", save: "Saqlash", myProfile: "Mening profilim",
     editProfile: "Shaxsiy maʼlumotlar", agenciesActions: "Agentliklar",
+    addAgencyTitle: "Agentlik qoʻshish",
+    fillAllRequired: "Ism, familiya va telefon raqamini toʻldiring.",
   },
   en: {
     chooseLang: "Choose language", next: "Next",
@@ -82,6 +86,8 @@ const STR: Record<string, Record<string, string>> = {
     saved: "Saved.", theme: "Theme", themeLight: "Light", themeDark: "Dark",
     language: "Language", save: "Save", myProfile: "My profile",
     editProfile: "Personal details", agenciesActions: "Agencies",
+    addAgencyTitle: "Add agency",
+    fillAllRequired: "Fill in name, surname and phone number.",
   },
 };
 
@@ -332,6 +338,8 @@ function HomeTab({ s, user, memberships, onEnter, onCreate, onJoin }: {
 }) {
   const heroName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.full_name || "—";
   const has = (memberships?.length || 0) > 0;
+  // Выбор действия по кнопке «Добавить»: создать агентство ИЛИ вступить по коду.
+  const [showChoice, setShowChoice] = useState(false);
   return (
     <div className="max-w-[560px] mx-auto px-3.5 pt-3.5 pb-4 animate-fade-up">
       <div className="rounded-xl3 px-5 py-5 text-white overflow-hidden" style={{ background: "var(--grad-hero)", boxShadow: "0 16px 40px rgba(52,31,163,.30)" }}>
@@ -353,7 +361,7 @@ function HomeTab({ s, user, memberships, onEnter, onCreate, onJoin }: {
           <>
             <div className="flex items-center justify-between mt-1 mx-0.5 mb-2.5">
               <span className="text-[14px] font-extrabold">{s.myAgencies}</span>
-              <Button variant="soft" size="sm" onClick={onCreate}><Plus size={15} /> {s.add}</Button>
+              <Button variant="soft" size="sm" onClick={() => { haptic(); setShowChoice(true); }}><Plus size={15} /> {s.add}</Button>
             </div>
             <div className="space-y-2.5">
               {memberships!.map((m) => {
@@ -386,6 +394,32 @@ function HomeTab({ s, user, memberships, onEnter, onCreate, onJoin }: {
           </Card>
         )}
       </div>
+
+      {/* Выбор действия по «Добавить»: создать агентство или вступить по коду.
+          Нижняя «шторка» — тап по затемнению закрывает. */}
+      {showChoice && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: "color-mix(in srgb, var(--bg) 68%, transparent)" }}
+          onClick={() => setShowChoice(false)}
+        >
+          <div
+            className="w-full max-w-[560px] bg-card border-t border-line rounded-t-xl3 px-4 pt-3 pb-[calc(18px+env(safe-area-inset-bottom,0px))] animate-fade-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 rounded-full bg-line mx-auto mb-3.5" />
+            <div className="text-[15px] font-extrabold text-center mb-3.5">{s.addAgencyTitle}</div>
+            <div className="space-y-2.5">
+              <Button full onClick={() => { setShowChoice(false); onCreate(); }}>
+                <Plus size={16} /> {s.createAgency}
+              </Button>
+              <Button variant="ghost" full onClick={() => { setShowChoice(false); onJoin(); }}>
+                <KeyRound size={16} /> {s.joinByCode}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -444,12 +478,17 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
   const [phone, setPhone] = useState(user?.phone || "");
   const [busy, setBusy] = useState(false);
 
+  // Все поля обязательны: имя, фамилия и номер. Нельзя сохранить профиль,
+  // стерев уже введённые данные (симметрично обязательному онбордингу).
+  const complete = !!(first.trim() && last.trim() && phone.trim());
+
   async function shareContact() {
     const p = await requestContact();
     if (p) setPhone(p);
   }
   async function save() {
     if (busy) return;
+    if (!complete) { toast(s.fillAllRequired, "err"); return; }
     setBusy(true);
     const r = await api<UserProfile>("/api/v1/auth/me", { method: "PATCH", body: { first_name: first.trim(), last_name: last.trim() } });
     let updated = r.ok && r.data ? r.data : null;
@@ -489,7 +528,10 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
               <Button variant="soft" size="sm" onClick={shareContact}>📲</Button>
             </div>
           </Field>
-          <Button full className="mt-4" disabled={busy} onClick={save}>{busy ? "…" : s.save}</Button>
+          <Button full className="mt-4" disabled={busy || !complete} onClick={save}>{busy ? "…" : s.save}</Button>
+          {!complete && (
+            <p className="text-[12px] text-muted text-center mt-2">{s.fillAllRequired}</p>
+          )}
         </Card>
       </div>
     </div>
