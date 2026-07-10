@@ -59,8 +59,9 @@ def test_demotes_other_superadmins(db):
     a = user_repo.get_by_telegram_id(db, 111)
     b = user_repo.get_by_telegram_id(db, 222)
     assert a.role == "superadmin" and a.is_active is True
-    # Прежний суперадмин 222 теряет права и деактивируется.
-    assert b.role == "agent" and b.is_active is False
+    # Прежний суперадмин 222 теряет права и деактивируется. Демотим в 'user'
+    # (личный аккаунт без агентства), а не в 'agent' — у агента agency_id обязателен.
+    assert b.role == "user" and b.is_active is False
 
 
 def test_keeps_multiple_listed_superadmins(db):
@@ -85,4 +86,4 @@ def test_demotes_only_those_not_listed(db):
     assert user_repo.get_by_telegram_id(db, 111).role == "superadmin"
     assert user_repo.get_by_telegram_id(db, 222).role == "superadmin"
     c = user_repo.get_by_telegram_id(db, 333)
-    assert c.role == "agent" and c.is_active is False
+    assert c.role == "user" and c.is_active is False
