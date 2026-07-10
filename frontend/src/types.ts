@@ -1,10 +1,17 @@
-export type Role = "superadmin" | "agency_admin" | "agent";
+// "user" — личный аккаунт без агентства (открытая регистрация, 2026-07).
+export type Role = "superadmin" | "agency_admin" | "agent" | "user";
 
 export interface UserProfile {
   id: number;
   telegram_id: number;
   username?: string | null;
   full_name?: string | null;
+  // Личный профиль (юзер-центричная модель, 2026-07).
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  phone_verified?: boolean;
+  language?: string | null;
   role: Role;
   is_owner: boolean;
   agency_id?: number | null;
