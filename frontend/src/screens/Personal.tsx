@@ -119,13 +119,13 @@ function agShort(name: string): string {
 }
 
 // ── Верхнеуровневый вход в личное пространство ────────────────────────────────
-export function PersonalApp() {
+export function PersonalApp({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void }) {
   const { user } = useApp();
   const [onboarded, setOnboarded] = useState(false);
   // Онбординг показываем, пока не заполнено имя (первый вход).
   const needsOnboarding = !!user && !user.first_name && !onboarded;
   if (needsOnboarding) return <Onboarding onDone={() => setOnboarded(true)} />;
-  return <PersonalHub />;
+  return <PersonalHub onEnterAgency={onEnterAgency} />;
 }
 
 // ── Онбординг: язык → профиль + номер ─────────────────────────────────────────
@@ -250,8 +250,8 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 }
 
 // ── Личный хаб ────────────────────────────────────────────────────────────────
-function PersonalHub() {
-  const { user, setAuth, toast } = useApp();
+function PersonalHub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void }) {
+  const { user, toast } = useApp();
   const s = useStr();
   const [memberships, setMemberships] = useState<Membership[] | null>(null);
   const [entering, setEntering] = useState(false);
@@ -264,19 +264,12 @@ function PersonalHub() {
     void load();
   }, [load]);
 
-  const applyAuth = useCallback(
-    (data: AuthResponse) => {
-      setAuth(data.access_token, data.user, data.subscription_active ?? null);
-    },
-    [setAuth]
-  );
-
   async function enter(agencyId: number) {
     if (entering) return;
     setEntering(true);
     const r = await api<AuthResponse>(`/api/v1/agencies/${agencyId}/enter`, { method: "POST" });
     setEntering(false);
-    if (r.ok && r.data) applyAuth(r.data);
+    if (r.ok && r.data) onEnterAgency(r.data);
     else toast(errText(r.data, r.status), "err");
   }
 
@@ -295,7 +288,7 @@ function PersonalHub() {
           method: "POST",
           body: { init_data: getInitData(), name, owner_name: fullName, phone: user.phone },
         });
-    if (r.ok && r.data) applyAuth(r.data);
+    if (r.ok && r.data) onEnterAgency(r.data);
     else toast(errText(r.data, r.status), "err");
   }
 
