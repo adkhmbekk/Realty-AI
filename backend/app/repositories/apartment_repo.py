@@ -438,6 +438,30 @@ def list_agency_objects(
     return items, total
 
 
+def list_by_creator(
+    db: Session, created_by: int, *, limit: int = 100, offset: int = 0,
+) -> Tuple[List[Apartment], int]:
+    """Объекты, СОЗДАННЫЕ конкретным пользователем (по всем его агентствам), не
+    удалённые — для витрины «объекты юзера» у владельца платформы (Фаза 5,
+    2026-07). Новые сверху. Возвращает (список, всего)."""
+    conds = [Apartment.created_by == created_by, Apartment.deleted_at.is_(None)]
+    total = db.execute(
+        select(func.count()).select_from(Apartment).where(*conds)
+    ).scalar_one()
+    items = list(
+        db.execute(
+            select(Apartment)
+            .where(*conds)
+            .order_by(Apartment.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        .scalars()
+        .all()
+    )
+    return items, total
+
+
 def list_archived(
     db: Session, agency_id: int, *, limit: int = 50, offset: int = 0,
     created_from=None, created_to=None,

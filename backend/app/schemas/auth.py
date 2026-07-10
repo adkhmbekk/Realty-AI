@@ -4,7 +4,7 @@
 """
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TelegramAuthRequest(BaseModel):
@@ -20,6 +20,20 @@ class RefreshRequest(BaseModel):
     act_as_agency_id: Optional[int] = None
 
 
+class ProfileUpdate(BaseModel):
+    # Правка личного профиля (имя/фамилия/язык). Все поля необязательны —
+    # обновляем только присланные.
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    language: Optional[str] = None
+
+
+class PhoneUpdate(BaseModel):
+    # Номер приходит из Telegram-контакта (кнопка «Поделиться контактом») —
+    # считаем его подтверждённым. Нормализуется на сервере.
+    phone: str = Field(min_length=3, max_length=32)
+
+
 class UserProfile(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -27,6 +41,13 @@ class UserProfile(BaseModel):
     telegram_id: int
     username: Optional[str] = None
     full_name: Optional[str] = None
+    # Личный профиль (юзер-центричная модель, 2026-07). У acting-объекта этих
+    # полей нет — берутся дефолты (как match_notify ниже).
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    phone_verified: bool = False
+    language: Optional[str] = None
     role: str
     is_owner: bool = False
     agency_id: Optional[int] = None

@@ -60,6 +60,34 @@ export function getInitData(): string {
   }
 }
 
+// Запросить номер телефона у пользователя (нативная кнопка Telegram «Поделиться
+// контактом»). На новых клиентах номер приходит в ответе — тогда возвращаем его;
+// иначе возвращаем null (в UI юзер введёт/подтвердит номер вручную). Вне Telegram
+// — безопасный null.
+export function requestContact(): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      if (typeof tg?.requestContact !== "function") {
+        resolve(null);
+        return;
+      }
+      tg.requestContact((ok: boolean, ev: AnyTg) => {
+        if (!ok) {
+          resolve(null);
+          return;
+        }
+        const phone =
+          ev?.responseUnsafe?.contact?.phone_number ||
+          ev?.response?.contact?.phone_number ||
+          null;
+        resolve(phone ? String(phone) : null);
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 export function getStartParam(): string {
   try {
     return tg?.initDataUnsafe?.start_param || "";

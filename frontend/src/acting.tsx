@@ -13,6 +13,9 @@ export interface ActingActions {
   openAgency: (name: string, phone: string) => Promise<boolean>;
   // Удалить СВОЁ агентство (владелец). Возвращает домашнюю сессию.
   deleteAgency: (id: number) => Promise<boolean>;
+  // Выйти из рабочей оболочки агентства в ЛИЧНОЕ пространство (хаб).
+  // Юзер-центричная модель: токен не меняем, просто показываем личный хаб.
+  exitToPersonal: () => void;
 }
 
 const Ctx = createContext<ActingActions | null>(null);

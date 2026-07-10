@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Briefcase, Building2, Home, Layers, Mail, Plus, Search, Settings as SettingsIcon, User } from "lucide-react";
+import { Briefcase, Building2, Home, Layers, Mail, Plus, Search, Settings as SettingsIcon, User, Users } from "lucide-react";
 import { useApp } from "./store";
 import { NavProvider, PaneActiveContext, Pane, Route, useNav } from "./nav";
 import { ActingProvider, useActing } from "./acting";
@@ -10,6 +10,7 @@ import type { AuthResponse, AgencySettings } from "./types";
 import { Button, Card, Field, Input, Spinner } from "./components/ui";
 import { HomeScreen } from "./screens/Home";
 import { ProfileScreen, SuspendedScreen } from "./screens/Profile";
+import { PersonalApp } from "./screens/Personal";
 // Экраны грузим «лениво» (code-splitting): начальный бандл меньше → быстрее
 // первый показ при открытии. Часто открываемые Home и Profile оставляем в
 // основном бандле (без мелькания загрузчика). Остальное подгружается при первом
@@ -25,6 +26,7 @@ const InvitesScreen = lazy(() => import("./screens/Invites").then((m) => ({ defa
 const AnalyticsScreen = lazy(() => import("./screens/Analytics").then((m) => ({ default: m.AnalyticsScreen })));
 const AgentDetailScreen = lazy(() => import("./screens/AgentDetail").then((m) => ({ default: m.AgentDetailScreen })));
 const AgenciesScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgenciesScreen })));
+const PlatformUsersScreen = lazy(() => import("./screens/PlatformUsers").then((m) => ({ default: m.PlatformUsersScreen })));
 const AgencyCreateScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyCreateScreen })));
 const AgencyManageScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyManageScreen })));
 const AgencyObjectsScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyObjectsScreen })));
@@ -47,7 +49,7 @@ const ClientMatchesScreen = lazy(() => import("./screens/Clients").then((m) => (
 const MatchesScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.MatchesScreen })));
 const SaveRequestScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.SaveRequestScreen })));
 
-type Phase = "loading" | "open" | "join" | "ready" | "suspended" | "reconnect";
+type Phase = "loading" | "open" | "join" | "personal" | "ready" | "suspended" | "reconnect";
 
 // ── Тосты ───────────────────────────────────────────────────────────
 function Toasts() {
@@ -82,6 +84,7 @@ function titleKeyFor(route: Route): string | null {
   switch (route.name) {
     case "home":
     case "agencies":
+    case "platformUsers":
     case "myAgencies":
       return null;
     case "mlsPool":
@@ -159,6 +162,8 @@ function RouteView({ route }: { route: Route }) {
       return <SettingsScreen />;
     case "agencies":
       return <AgenciesScreen />;
+    case "platformUsers":
+      return <PlatformUsersScreen />;
     case "myAgencies":
       return <MyAgenciesScreen />;
     case "mlsPool":
@@ -231,6 +236,7 @@ function BottomTabs() {
 
   if (role === "superadmin") {
     const tabs: { route: Route; icon: JSX.Element; label: string; key: string }[] = [
+      { route: { name: "platformUsers" }, icon: <Users size={22} />, label: t("usersTab"), key: "platformUsers" },
       { route: { name: "agencies" }, icon: <Building2 size={22} />, label: t("agenciesTab"), key: "agencies" },
       { route: { name: "myAgencies" }, icon: <Briefcase size={22} />, label: t("myAgenciesTab"), key: "myAgencies" },
       { route: { name: "mlsPool" }, icon: <Layers size={22} />, label: t("mlsTab"), key: "mlsPool" },
@@ -439,7 +445,7 @@ function Shell() {
           <button
             onClick={async () => {
               await exitToPlatform();
-              nav.resetTo(actingSuper ? { name: "agencies" } : { name: "home" });
+              nav.resetTo(actingSuper ? { name: "platformUsers" } : { name: "home" });
             }}
             className="w-full mb-3 rounded-xl2 px-3.5 py-2.5 text-left text-[13px] font-bold text-white shadow-soft active:scale-[.99] transition"
             style={{ background: "var(--grad)" }}
@@ -688,12 +694,27 @@ export function App() {
   // выкидывало владельца из агентства обратно на платформу.
   const actingAgencyRef = useRef<number | null>(null);
 
-  async function applyAuth(data: AuthResponse) {
+  async function applyAuth(data: AuthResponse, opts?: { enterAgency?: boolean }) {
     setAuth(data.access_token, data.user, data.subscription_active ?? null);
     refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;
     actingAgencyRef.current = data.user.acting_as_agency_id ?? null;
-    await loadSettingsIfNeeded(data.user.role);
-    if ((data.user.role === "agency_admin" || data.user.role === "agent") && data.subscription_active === false) {
+    const u = data.user;
+    // Суперадмин — своя платформенная оболочка (агентства/юзеры).
+    if (u.role === "superadmin") {
+      await loadSettingsIfNeeded(u.role);
+      setPhase("ready");
+      return;
+    }
+    // Юзер-центричная модель: участник/личный аккаунт, пока НЕ «вошёл» в
+    // агентство, видит личное пространство (хаб). Внутри агентства (после
+    // enter/create или acting-контекста) — рабочая оболочка агентства.
+    const inAgency = !!opts?.enterAgency || !!u.acting_as_agency_id;
+    if (!inAgency) {
+      setPhase("personal");
+      return;
+    }
+    await loadSettingsIfNeeded(u.role);
+    if ((u.role === "agency_admin" || u.role === "agent") && data.subscription_active === false) {
       setPhase("suspended");
     } else {
       setPhase("ready");
@@ -708,6 +729,12 @@ export function App() {
   //   • 403            → человек реально не в агентстве → экран вступления;
   //   • обрыв/5xx/иное → НЕ трогаем агентство: тихо повторяем несколько раз,
   //                      потом показываем экран «нет связи, повторить».
+  // Выйти из рабочей оболочки агентства в личное пространство (хаб). Токен
+  // оставляем как есть — хаб работает с любым валидным пропуском (/auth/memberships).
+  function exitToPersonal() {
+    setPhase("personal");
+  }
+
   const bootstrapping = useRef(false);
   async function bootstrapAuth(): Promise<void> {
     // Защита от параллельных запусков (авто-повтор с экрана «нет связи» не должен
@@ -877,6 +904,13 @@ export function App() {
   if (phase === "open") return <OpenInTelegram />;
   if (phase === "reconnect") return <ReconnectScreen onRetry={() => { setPhase("loading"); bootstrapAuth(); }} />;
   if (phase === "join") return <WelcomeScreen prefill={startParam} onAuth={applyAuth} />;
+  if (phase === "personal")
+    return (
+      <>
+        <PersonalApp onEnterAgency={(d) => applyAuth(d, { enterAgency: true })} />
+        <Toasts />
+      </>
+    );
   if (phase === "suspended") {
     return (
       <div className="max-w-[560px] mx-auto px-3.5 pt-5">
@@ -885,10 +919,10 @@ export function App() {
     );
   }
 
-  const initialRoute: Route = user?.role === "superadmin" ? { name: "agencies" } : { name: "home" };
+  const initialRoute: Route = user?.role === "superadmin" ? { name: "platformUsers" } : { name: "home" };
   return (
     <NavProvider initial={initialRoute}>
-      <ActingProvider value={{ enterAgency, exitToPlatform, openAgency, deleteAgency }}>
+      <ActingProvider value={{ enterAgency, exitToPlatform, openAgency, deleteAgency, exitToPersonal }}>
         <Shell />
       </ActingProvider>
       <Toasts />

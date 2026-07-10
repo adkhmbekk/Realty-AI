@@ -14,6 +14,8 @@ from app.db.session import get_db
 from app.schemas.auth import (
     AuthResponse,
     MembershipOut,
+    PhoneUpdate,
+    ProfileUpdate,
     RefreshRequest,
     TelegramAuthRequest,
     UserProfile,
@@ -49,6 +51,32 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
 def me(current_user: User = Depends(get_current_user)):
     """Вернуть профиль текущего пользователя (по присланному пропуску)."""
     return current_user
+
+
+@router.patch("/me", response_model=UserProfile)
+def update_me(
+    body: ProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Обновить личный профиль (имя/фамилия/язык)."""
+    return auth_service.update_profile(
+        db,
+        current_user,
+        first_name=body.first_name,
+        last_name=body.last_name,
+        language=body.language,
+    )
+
+
+@router.post("/me/phone", response_model=UserProfile)
+def set_my_phone(
+    body: PhoneUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Задать/сменить номер телефона (из Telegram-контакта — подтверждён)."""
+    return auth_service.set_phone(db, current_user, body.phone)
 
 
 @router.get("/memberships", response_model=List[MembershipOut])

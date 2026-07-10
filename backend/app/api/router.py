@@ -16,6 +16,7 @@ from app.api.routes import (
     photos,
     settings,
     sheets,
+    superadmin,
     team,
 )
 
@@ -33,3 +34,4 @@ api_router.include_router(sheets.router)
 api_router.include_router(imports.router)
 api_router.include_router(exports.router)
 api_router.include_router(mls.router)
+api_router.include_router(superadmin.router)

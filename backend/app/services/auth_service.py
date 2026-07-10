@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -52,10 +53,33 @@ def login_with_init_data(db: Session, init_data: str, ip: Optional[str] = None) 
 
     # 3. Ищем пользователя в нашей базе.
     user = user_repo.get_by_telegram_id(db, telegram_id)
-    if user is None:
-        raise AppError("not_in_agency", status.HTTP_403_FORBIDDEN)
-    if not user.is_active:
+    if user is not None and not user.is_active:
         raise AppError("access_deactivated", status.HTTP_403_FORBIDDEN)
+    if user is None:
+        # Открытая регистрация (2026-07): незнакомец получает ЛИЧНЫЙ аккаунт
+        # (role='user', без агентства) и попадает в личное пространство, откуда
+        # сам создаёт агентство или вступает по коду. Подпись здесь НЕ «гасим»
+        # (как прежде для «незнакомца») — чтобы последующий redeem с той же
+        # подписью не посчитался повтором; она погасится при redeem/след. входе.
+        first = tg_user.get("first_name")
+        last = tg_user.get("last_name")
+        full = " ".join(p for p in [first, last] if p) or None
+        user = user_repo.create(
+            db,
+            telegram_id=telegram_id,
+            role="user",
+            agency_id=None,
+            username=tg_user.get("username"),
+            full_name=full,
+        )
+        user.first_name = first
+        user.last_name = last
+        lang = (tg_user.get("language_code") or "ru").split("-")[0]
+        user.language = lang if lang in ("ru", "uz", "en") else "ru"
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user)
+        return build_auth_response(db, user)
 
     # Пользователь есть и активен — выдаём сессию, поэтому теперь «гасим» повтор.
     if security.remember_replay(data["init_data_hash"], data["replay_expires_at"]):
@@ -195,8 +219,10 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
     # У суперадмина (владельца платформы) подписки нет — оставляем None,
     # чтобы фронтенд не показывал ему строку про подписку.
     subscription_active = None
-    if user.role != "superadmin":
-        agency = agency_repo.get_by_id(db, user.agency_id) if user.agency_id else None
+    # Личный аккаунт без агентства (role='user') — подписка неприменима (None),
+    # как и у суперадмина; фронтенд покажет личное пространство, не экран подписки.
+    if user.role != "superadmin" and getattr(user, "agency_id", None) is not None:
+        agency = agency_repo.get_by_id(db, user.agency_id)
         subscription_active = agency_is_active(agency)
 
     token = security.create_access_token(
@@ -217,6 +243,67 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
         "subscription_active": subscription_active,
         "user": user,
     }
+
+
+def update_profile(
+    db: Session,
+    user,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None,
+    language: Optional[str] = None,
+) -> "object":
+    """
+    Обновить личный профиль (имя/фамилия/язык). Берём НАСТОЯЩУЮ строку из БД
+    (user мог быть acting-объектом суперадмина). full_name держим в синхроне
+    (first + last) — его использует существующий код отображения.
+    """
+    real = user_repo.get_by_id(db, user.id)
+    if real is None:
+        raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+    if first_name is not None:
+        real.first_name = first_name.strip() or None
+    if last_name is not None:
+        real.last_name = last_name.strip() or None
+    if language is not None and language in ("ru", "uz", "en"):
+        real.language = language
+    fn = " ".join(p for p in [real.first_name, real.last_name] if p) or None
+    if fn:
+        real.full_name = fn
+    db.commit()
+    db.refresh(real)
+    return real
+
+
+def _normalize_phone(raw: str) -> str:
+    """Единый вид номера: '+' + только цифры. Так '+998 90 …' и '998 90 …'
+    приводятся к одному виду и уникальность работает надёжно."""
+    digits = "".join(c for c in (raw or "") if c.isdigit())
+    return ("+" + digits) if digits else ""
+
+
+def set_phone(db: Session, user, phone: str) -> "object":
+    """
+    Задать/сменить номер телефона личного аккаунта. Номер приходит из
+    Telegram-контакта → считаем подтверждённым (phone_verified=True). Номер
+    уникален: если уже привязан к ДРУГОМУ аккаунту — phone_taken.
+    """
+    real = user_repo.get_by_id(db, user.id)
+    if real is None:
+        raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+    normalized = _normalize_phone(phone)
+    existing = user_repo.get_by_phone(db, normalized)
+    if existing is not None and existing.id != real.id:
+        raise AppError("phone_taken", status.HTTP_409_CONFLICT)
+    real.phone = normalized
+    real.phone_verified = True
+    try:
+        db.commit()
+    except IntegrityError:
+        # Гонка: номер занят между проверкой и commit (уникальный индекс).
+        db.rollback()
+        raise AppError("phone_taken", status.HTTP_409_CONFLICT)
+    db.refresh(real)
+    return real
 
 
 def list_my_memberships(db: Session, user) -> list:
