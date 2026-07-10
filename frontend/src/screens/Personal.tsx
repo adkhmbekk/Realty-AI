@@ -223,6 +223,21 @@ function Onboarding({ onDone }: { onDone: () => void }) {
   );
 }
 
+// Панель вкладки внутри хаба-шаблона. Ключевое: НЕ размонтируем неактивные
+// вкладки (display:none вместо удаления из дерева) — так сохраняется и введённый
+// текст, и позиция прокрутки. Каждая панель листается сама по себе (absolute
+// inset-0 + overflow-y-auto), поэтому длинный список агентств доступен целиком.
+function TabPane({ active, children }: { active: boolean; children: React.ReactNode }) {
+  return (
+    <div
+      className={"absolute inset-0 overflow-y-auto overflow-x-hidden " + (active ? "" : "hidden")}
+      aria-hidden={!active}
+    >
+      {children}
+    </div>
+  );
+}
+
 // ── Хаб с нижней панелью (Главная / Настройки / Профиль) ──────────────────────
 function Hub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void }) {
   const s = useStr();
@@ -284,10 +299,16 @@ function Hub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void })
           <Spinner /><div className="text-muted text-sm">{s.entering}</div>
         </div>
       )}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        {tab === "home" && <HomeTab s={s} user={user} memberships={memberships} onEnter={enter} onCreate={createAgency} onJoin={joinByCode} />}
-        {tab === "settings" && <SettingsTab s={s} onCreate={createAgency} onJoin={joinByCode} />}
-        {tab === "profile" && <ProfileTab s={s} />}
+      <div className="flex-1 min-h-0 relative">
+        <TabPane active={tab === "home"}>
+          <HomeTab s={s} user={user} memberships={memberships} onEnter={enter} onCreate={createAgency} onJoin={joinByCode} />
+        </TabPane>
+        <TabPane active={tab === "settings"}>
+          <SettingsTab s={s} onCreate={createAgency} onJoin={joinByCode} />
+        </TabPane>
+        <TabPane active={tab === "profile"}>
+          <ProfileTab s={s} />
+        </TabPane>
       </div>
       <nav className="shrink-0 z-40 glass border-t border-line px-3 pt-2 pb-[calc(8px+env(safe-area-inset-bottom,0px))]">
         <div className="max-w-[560px] mx-auto flex items-end justify-around">
