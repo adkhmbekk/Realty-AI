@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import (
     get_current_user,
+    get_current_user_optional,
     require_agency_member,
     require_superadmin,
 )
@@ -47,14 +48,19 @@ router = APIRouter(prefix="/agencies", tags=["agencies"])
     response_model=AuthResponse,
     dependencies=[Depends(rate_limit(10, 60, "agency_register"))],
 )
-def register_agency(body: AgencyRegister, db: Session = Depends(get_db)):
+def register_agency(
+    body: AgencyRegister,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """
-    Самостоятельная регистрация агентства (публичный вход): человек создаёт своё
-    агентство и сразу становится его главным админом. Личность подтверждается
-    подписью Telegram (init_data), пропуск отдаётся в ответе.
+    Самостоятельная регистрация агентства: человек создаёт своё агентство и сразу
+    становится его главным админом. Личность подтверждается пропуском (JWT), если
+    он есть (обычный случай — юзер уже вошёл), иначе — подписью Telegram (init_data).
     """
     return agency_service.register_agency(
-        db, body.init_data, body.name, owner_name=body.owner_name, phone=body.phone
+        db, body.init_data, body.name, owner_name=body.owner_name,
+        phone=body.phone, current_user=current_user,
     )
 
 

@@ -260,16 +260,23 @@ def create_personal_agency(db: Session, name: str, owner: User) -> Agency:
 
 def register_agency(
     db: Session,
-    init_data: str,
+    init_data: Optional[str],
     name: str,
     owner_name: Optional[str] = None,
     phone: Optional[str] = None,
+    current_user: Optional[User] = None,
 ) -> dict:
     """
     САМОСТОЯТЕЛЬНАЯ регистрация агентства (2026-07): человек открывает бот без
     агентства и создаёт своё — сразу становится главным админом (agency_admin,
     is_owner) и получает членство-владельца. Возвращает готовую сессию
     (build_auth_response). Заменяет создание агентства суперадмином.
+
+    Личность (F-01, 2026-07): если передан current_user (эндпоинт получил валидный
+    JWT), доверяем ему — initData повторно НЕ проверяем и НЕ «гасим». Это чинит
+    баг, когда вход уже «сжёг» тот же initData сессии, и регистрация падала с
+    init_data_replayed. Запасной путь по initData (current_user=None) оставлен для
+    прямых вызовов сервиса (тесты / безтокенный сценарий).
     """
     from app.config import settings
     from app.core import security
@@ -291,22 +298,32 @@ def register_agency(
     if not clean_phone:
         raise AppError("phone_required", status.HTTP_400_BAD_REQUEST)
 
-    # Подпись Telegram. anti_replay=False: «гасим» повтор только когда реально
-    # регистрируем (ниже) — так вход-403 перед этим не «сжигает» тот же init_data.
-    try:
-        data = security.validate_init_data(
-            init_data,
-            settings.bot_token,
-            settings.init_data_max_age_seconds,
-            anti_replay=False,
-        )
-    except security.InitDataError as exc:
-        raise AppError(exc.key, status.HTTP_401_UNAUTHORIZED) from exc
+    # Личность. Путь JWT (current_user задан эндпоинтом) — доверяем пропуску,
+    # initData не трогаем. Иначе — запасной путь по подписи Telegram.
+    replay_data = None
+    if current_user is not None:
+        existing = user_repo.get_by_id(db, current_user.id)
+        if existing is None or not existing.is_active:
+            raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
+        telegram_id = existing.telegram_id
+        tg_username = existing.username
+    else:
+        # anti_replay=False: «гасим» повтор только когда реально регистрируем (ниже).
+        try:
+            data = security.validate_init_data(
+                init_data or "",
+                settings.bot_token,
+                settings.init_data_max_age_seconds,
+                anti_replay=False,
+            )
+        except security.InitDataError as exc:
+            raise AppError(exc.key, status.HTTP_401_UNAUTHORIZED) from exc
+        tg_user = data["user"]
+        telegram_id = int(tg_user["id"])
+        tg_username = tg_user.get("username")
+        replay_data = data
+        existing = user_repo.get_by_telegram_id(db, telegram_id)
 
-    tg_user = data["user"]
-    telegram_id = int(tg_user["id"])
-
-    existing = user_repo.get_by_telegram_id(db, telegram_id)
     if existing is not None:
         if existing.role == "superadmin":
             raise AppError("superadmin_cannot_register", status.HTTP_400_BAD_REQUEST)
@@ -314,9 +331,10 @@ def register_agency(
             # Уже есть домашнее агентство — доп. агентства открываются иначе (Волна 4).
             raise AppError("already_in_agency", status.HTTP_409_CONFLICT)
 
-    # Регистрируем — теперь можно «погасить» повтор initData.
-    if security.remember_replay(data["init_data_hash"], data["replay_expires_at"]):
-        raise AppError("init_data_replayed", status.HTTP_401_UNAUTHORIZED)
+    # initData-путь: теперь можно «погасить» повтор. JWT-путь этого не делает.
+    if replay_data is not None:
+        if security.remember_replay(replay_data["init_data_hash"], replay_data["replay_expires_at"]):
+            raise AppError("init_data_replayed", status.HTTP_401_UNAUTHORIZED)
 
     # 1. Агентство (сразу активно; тариф 'start' по умолчанию).
     agency = agency_repo.create(
@@ -329,7 +347,7 @@ def register_agency(
     seeding_service.seed_agency_defaults(db, agency.id)
 
     # 2. Пользователь = главный админ (владелец) нового агентства.
-    tg_username = tg_user.get("username")
+    # tg_username уже вычислен выше (из JWT-пользователя или из initData).
     display_name = clean_owner
     if existing is not None:
         user = existing

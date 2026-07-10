@@ -8,6 +8,7 @@
 Привязка происходит только через приглашение (будет на следующем этапе) или
 если это суперадмин платформы.
 """
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -281,16 +282,25 @@ def _normalize_phone(raw: str) -> str:
     return ("+" + digits) if digits else ""
 
 
+# Телефон — «якорь» аккаунта (будущий вход с сайта/приложения), поэтому он должен
+# быть корректным. E.164: '+' и 9–15 цифр (короче — заведомо не номер, длиннее —
+# невалидно). Пустой/мусорный номер отклоняем, чтобы не засорять уникальный якорь.
+_PHONE_RE = re.compile(r"^\+\d{9,15}$")
+
+
 def set_phone(db: Session, user, phone: str) -> "object":
     """
     Задать/сменить номер телефона личного аккаунта. Номер приходит из
     Telegram-контакта → считаем подтверждённым (phone_verified=True). Номер
-    уникален: если уже привязан к ДРУГОМУ аккаунту — phone_taken.
+    уникален: если уже привязан к ДРУГОМУ аккаунту — phone_taken. Формат
+    проверяем (E.164): иначе — phone_invalid.
     """
     real = user_repo.get_by_id(db, user.id)
     if real is None:
         raise AppError("user_not_found_or_inactive", status.HTTP_401_UNAUTHORIZED)
     normalized = _normalize_phone(phone)
+    if not _PHONE_RE.match(normalized):
+        raise AppError("phone_invalid", status.HTTP_400_BAD_REQUEST)
     existing = user_repo.get_by_phone(db, normalized)
     if existing is not None and existing.id != real.id:
         raise AppError("phone_taken", status.HTTP_409_CONFLICT)

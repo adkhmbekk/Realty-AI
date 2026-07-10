@@ -76,6 +76,9 @@ services:
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
       # Контакт поддержки (ссылка на Telegram владельца) для кнопки «Поддержка».
       SUPPORT_URL: ${SUPPORT_URL:-}
+      # Публичный HTTPS-адрес приложения (для абсолютных ссылок на фото при
+      # «поделиться»). Переопределяется через .env; дефолт — постоянный домен туннеля.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://pagan-crawling-retiring.ngrok-free.dev}
       # Документация (/docs) по умолчанию выключена. Включить локально: true.
       ENABLE_DOCS: ${ENABLE_DOCS:-false}
       # Папка секретов — отдельный том, НЕ совпадающий с папкой фото и НЕ
