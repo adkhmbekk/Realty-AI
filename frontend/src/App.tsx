@@ -83,10 +83,12 @@ function Toasts() {
 function titleKeyFor(route: Route): string | null {
   switch (route.name) {
     case "home":
-    case "agencies":
-    case "platformUsers":
     case "myAgencies":
       return null;
+    case "agencies":
+      return "financesTab";
+    case "platformUsers":
+      return "usersTab";
     case "mlsPool":
       return "mlsPoolTitle";
     case "mlsBrowse":
@@ -235,11 +237,11 @@ function BottomTabs() {
   const activeTab = nav.activeTab;
 
   if (role === "superadmin") {
+    // Суперадмин работает как юзер (личный хаб), но видит больше: нижняя панель —
+    // Главная / Настройки / Профиль. «Главная» = хаб (Финансы, Мои агентства,
+    // Пользователи, Общая база) — экран myAgencies.
     const tabs: { route: Route; icon: JSX.Element; label: string; key: string }[] = [
-      { route: { name: "platformUsers" }, icon: <Users size={22} />, label: t("usersTab"), key: "platformUsers" },
-      { route: { name: "agencies" }, icon: <Building2 size={22} />, label: t("agenciesTab"), key: "agencies" },
-      { route: { name: "myAgencies" }, icon: <Briefcase size={22} />, label: t("myAgenciesTab"), key: "myAgencies" },
-      { route: { name: "mlsPool" }, icon: <Layers size={22} />, label: t("mlsTab"), key: "mlsPool" },
+      { route: { name: "myAgencies" }, icon: <Home size={22} />, label: t("home"), key: "myAgencies" },
       { route: { name: "settings" }, icon: <SettingsIcon size={22} />, label: t("settings"), key: "settings" },
       { route: { name: "profile" }, icon: <User size={22} />, label: t("profile"), key: "profile" },
     ];
@@ -445,7 +447,7 @@ function Shell() {
           <button
             onClick={async () => {
               await exitToPlatform();
-              nav.resetTo(actingSuper ? { name: "platformUsers" } : { name: "home" });
+              nav.resetTo(actingSuper ? { name: "myAgencies" } : { name: "home" });
             }}
             className="w-full mb-3 rounded-xl2 px-3.5 py-2.5 text-left text-[13px] font-bold text-white shadow-soft active:scale-[.99] transition"
             style={{ background: "var(--grad)" }}
@@ -919,7 +921,7 @@ export function App() {
     );
   }
 
-  const initialRoute: Route = user?.role === "superadmin" ? { name: "platformUsers" } : { name: "home" };
+  const initialRoute: Route = user?.role === "superadmin" ? { name: "myAgencies" } : { name: "home" };
   return (
     <NavProvider initial={initialRoute}>
       <ActingProvider value={{ enterAgency, exitToPlatform, openAgency, deleteAgency, exitToPersonal }}>

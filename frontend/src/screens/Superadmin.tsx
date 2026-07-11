@@ -1,7 +1,7 @@
-import { confirmDialog, openTelegramLink } from "../telegram";
+import { confirmDialog, openTelegramLink, haptic } from "../telegram";
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Briefcase, Building2, Copy, Link as LinkIcon, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Briefcase, Building2, ChevronRight, Copy, Layers, Link as LinkIcon, Plus, RefreshCw, Send, Trash2, Users, Wallet } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { useActing } from "../acting";
@@ -537,8 +537,11 @@ export function AgenciesScreen() {
 // Здесь владелец создаёт СВОИ агентства (где он сам — главный админ) и «входит»
 // в них, получая обычный интерфейс агентства. Создание — через простой prompt,
 // чтобы не плодить отдельный экран (нужно только название).
+// Личный хаб суперадмина (Задача 2): суперадмин работает как юзер, но видит
+// больше. Главная = Финансы (первым), Мои агентства (Realty AI + личные),
+// Пользователи, Общая база. Нижняя панель — Главная/Настройки/Профиль.
 export function MyAgenciesScreen() {
-  const { t, toast } = useApp();
+  const { t, toast, user } = useApp();
   const nav = useNav();
   const { enterAgency } = useActing();
   const [list, setList] = useState<AgencyOut[] | null>(null);
@@ -578,46 +581,75 @@ export function MyAgenciesScreen() {
     if (ok) nav.resetTo({ name: "home" });
   }
 
+  const hubName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.full_name || "Realty AI";
+
+  const NavRow = ({ icon, chip, label, sub, onClick }: { icon: JSX.Element; chip: string; label: string; sub?: string; onClick: () => void }) => (
+    <button
+      onClick={() => { haptic(); onClick(); }}
+      className="w-full flex items-center gap-3 rounded-xl2 bg-card border border-line shadow-soft p-3.5 active:scale-[.99] transition"
+    >
+      <span className={"w-10 h-10 rounded-xl flex items-center justify-center shrink-0 " + chip}>{icon}</span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block font-extrabold">{label}</span>
+        {sub && <span className="block text-[12px] text-muted">{sub}</span>}
+      </span>
+      <ChevronRight size={18} className="text-muted shrink-0" />
+    </button>
+  );
+
   return (
     <div>
-      <Button full disabled={busy} onClick={create}>
-        <Plus size={18} /> {t("createPersonalAgency")}
-      </Button>
-      <div className="mt-3">
-        {err ? (
-          <Empty>{err}</Empty>
-        ) : !list ? (
-          <ListSkeleton />
-        ) : !list.length ? (
-          <Empty icon={<Briefcase size={24} />}>{t("noPersonalAgencies")}</Empty>
-        ) : (
-          list.map((a) => (
-            <div
+      {/* Шапка хаба */}
+      <div className="rounded-xl3 px-5 py-5 text-white overflow-hidden mb-3" style={{ background: "var(--grad-hero)", boxShadow: "0 16px 40px rgba(52,31,163,.30)" }}>
+        <div className="text-[13px] opacity-85">Realty <span className="opacity-100 font-extrabold">AI</span> · {t("superadminHubSub")}</div>
+        <div className="text-[20px] font-extrabold leading-tight truncate mt-0.5">{hubName}</div>
+      </div>
+
+      {/* Финансы — первым */}
+      <NavRow
+        icon={<Wallet size={18} />}
+        chip="bg-amber-500/12 text-amber-600 dark:text-amber-400"
+        label={t("financesTab")}
+        sub={t("financesSub")}
+        onClick={() => nav.push({ name: "agencies" })}
+      />
+
+      {/* Мои агентства */}
+      <div className="flex items-center justify-between mt-4 mx-0.5 mb-2">
+        <span className="text-[14px] font-extrabold">{t("myAgenciesTitle")}</span>
+        <Button variant="soft" size="sm" disabled={busy} onClick={create}><Plus size={15} /> {t("createAgencyShort")}</Button>
+      </div>
+      {err ? (
+        <Empty>{err}</Empty>
+      ) : !list ? (
+        <ListSkeleton />
+      ) : !list.length ? (
+        <Empty icon={<Briefcase size={24} />}>{t("noPersonalAgencies")}</Empty>
+      ) : (
+        <div className="space-y-2.5">
+          {list.map((a) => (
+            <button
               key={a.id}
-              className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4"
+              onClick={() => enter(a.id)}
+              className="w-full flex items-center gap-3 p-3.5 rounded-xl2 bg-card border border-line shadow-soft text-left active:scale-[.985] transition"
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-extrabold inline-flex items-center gap-2 min-w-0">
-                  <span className="truncate">{a.name}</span>
-                  {a.is_shared && (
-                    <span className="shrink-0 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-primary-soft text-primary">
-                      {t("sharedAgencyBadge")}
-                    </span>
-                  )}
-                </span>
-                <Button size="sm" onClick={() => enter(a.id)}>
-                  {t("enterAgency")}
-                </Button>
-              </div>
-              {a.project_name && (
-                <div className="text-[13px] text-muted mt-1">
-                  {t("projectName")}: {a.project_name}
-                </div>
-              )}
-              <div className="text-[13px] text-muted">ID {a.id}</div>
-            </div>
-          ))
-        )}
+              <span className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0"><Building2 size={18} /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-extrabold truncate">{a.project_name || a.name}</span>
+                {a.is_shared && (
+                  <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-primary-soft text-primary">{t("sharedAgencyBadge")}</span>
+                )}
+              </span>
+              <ChevronRight size={18} className="text-muted shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Пользователи + Общая база */}
+      <div className="space-y-2.5 mt-4">
+        <NavRow icon={<Users size={18} />} chip="bg-primary-soft text-primary" label={t("usersTab")} onClick={() => nav.push({ name: "platformUsers" })} />
+        <NavRow icon={<Layers size={18} />} chip="bg-sky-500/12 text-sky-600 dark:text-sky-400" label={t("mlsTab")} onClick={() => nav.push({ name: "mlsPool" })} />
       </div>
     </div>
   );

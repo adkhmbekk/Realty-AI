@@ -6,7 +6,10 @@ import { api, errText } from "../api";
 import { Card, Row, Hint, Button, Field, Input, Spinner } from "../components/ui";
 import { openTelegramLink, haptic } from "../telegram";
 import { initials } from "../utils";
-import type { Membership, AgencySettings } from "../types";
+import type { Membership, AgencySettings, AgencyOut } from "../types";
+
+// Нормализованный элемент свитчера (общий для участника и суперадмина).
+type SwitchItem = { agency_id: number; name: string; roleLabel: string | null; is_current: boolean };
 
 function agShort(name: string): string {
   return (name || "").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "—";
@@ -17,19 +20,41 @@ function agShort(name: string): string {
 // кнопкой возврата в личное пространство. Заменяет карточку «Мои агентства».
 function AgencySwitcher() {
   const { t, L, user, settings } = useApp();
-  const { enterAgency, exitToPersonal } = useActing();
+  const { enterAgency, exitToPersonal, exitToPlatform } = useActing();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<Membership[] | null>(null);
+  const [items, setItems] = useState<SwitchItem[] | null>(null);
+  // Суперадмин внутри агентства (acting) переключается между своими агентствами
+  // (Realty AI + личные) через /agencies/mine, а «возврат» — на платформу (в его
+  // хаб). Обычный участник — через членства и в личное пространство.
+  const isSuper = user?.real_role === "superadmin";
 
   useEffect(() => {
-    if (open && items === null) {
-      api<Membership[]>("/api/v1/auth/memberships").then((r) =>
-        setItems(r.ok && Array.isArray(r.data) ? r.data : [])
-      );
+    if (!open || items !== null) return;
+    if (isSuper) {
+      api<AgencyOut[]>("/api/v1/agencies/mine").then((r) => {
+        const arr = r.ok && Array.isArray(r.data) ? r.data : [];
+        setItems(arr.map((a) => ({
+          agency_id: a.id,
+          name: a.project_name || a.name,
+          roleLabel: a.is_shared ? t("sharedAgencyBadge") : null,
+          is_current: a.id === user?.acting_as_agency_id,
+        })));
+      });
+    } else {
+      api<Membership[]>("/api/v1/auth/memberships").then((r) => {
+        const arr = r.ok && Array.isArray(r.data) ? r.data : [];
+        setItems(arr.map((m) => ({
+          agency_id: m.agency_id,
+          name: m.project_name || m.agency_name,
+          roleLabel: L.roleLabel(m.role, m.is_owner),
+          is_current: m.is_current,
+        })));
+      });
     }
-  }, [open, items]);
+  }, [open, items, isSuper, user, t, L]);
 
-  const currentName = settings?.project_name || settings?.name || user?.full_name || "—";
+  const goBack = () => { setOpen(false); haptic(); if (isSuper) exitToPlatform(); else exitToPersonal(); };
+  const currentName = settings?.project_name || settings?.name || user?.acting_as_agency_name || user?.full_name || "—";
 
   return (
     <>
@@ -73,11 +98,11 @@ function AgencySwitcher() {
                       }
                     >
                       <span className="w-9 h-9 rounded-lg bg-[var(--soft)] text-primary flex items-center justify-center font-extrabold shrink-0">
-                        {agShort(m.project_name || m.agency_name)}
+                        {agShort(m.name)}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block font-bold truncate">{m.project_name || m.agency_name}</span>
-                        <span className="block text-[12px] text-muted">{L.roleLabel(m.role, m.is_owner)}</span>
+                        <span className="block font-bold truncate">{m.name}</span>
+                        {m.roleLabel && <span className="block text-[12px] text-muted">{m.roleLabel}</span>}
                       </span>
                       {cur ? <Check size={18} className="text-primary shrink-0" /> : <ChevronRight size={16} className="text-muted shrink-0" />}
                     </button>
@@ -85,7 +110,7 @@ function AgencySwitcher() {
                 })
               )}
             </div>
-            <Button variant="ghost" full className="mt-3.5" onClick={() => { setOpen(false); haptic(); exitToPersonal(); }}>
+            <Button variant="ghost" full className="mt-3.5" onClick={goBack}>
               🏠 {t("exitToPersonalHub")}
             </Button>
           </div>
