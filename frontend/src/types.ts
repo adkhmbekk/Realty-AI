@@ -131,15 +131,45 @@ export interface AgentActivity {
   name?: string | null;
   total: number;
   sold: number;
+  rented: number;
+}
+
+export interface DealStatusCounts {
+  active: number;
+  deposit: number;
+  sold: number;
+  rented: number;
+  total: number;
+}
+
+export interface RevenueByCurrency {
+  currency: string;
+  commission: number;
+  amount: number;
+  count: number;
+}
+
+export interface AnalyticsCrm {
+  clients: number;
+  in_search: number;
+  deals_active: number;
+  deals_won: number;
 }
 
 export interface ApartmentAnalytics {
   active: number;
   deposit: number;
   sold: number;
+  rented: number;
   total: number;
   added_this_month: number;
   sold_this_month: number;
+  rented_this_month: number;
+  by_deal: { sale: DealStatusCounts; rent: DealStatusCounts };
+  revenue: RevenueByCurrency[];
+  sources: Record<string, number>;
+  shared_mls: number;
+  crm: AnalyticsCrm;
   agents: AgentActivity[];
 }
 
@@ -147,6 +177,7 @@ export interface TimeseriesPoint {
   label: string;
   added: number;
   sold: number;
+  rented: number;
 }
 
 export interface Timeseries {

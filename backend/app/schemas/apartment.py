@@ -11,7 +11,7 @@
 - ApartmentEventOut — запись журнала действий.
 """
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -235,21 +235,60 @@ class ApartmentEventOut(BaseModel):
 
 
 class AgentActivityOut(BaseModel):
-    # Активность одного сотрудника: сколько объектов добавил и сколько продано.
+    # Активность одного сотрудника: добавил / продал / сдал (аренда).
     user_id: Optional[int] = None
     name: Optional[str] = None
     total: int
     sold: int
+    rented: int = 0
+
+
+class DealStatusCounts(BaseModel):
+    # Разбивка статусов внутри одного типа сделки (продажа/аренда).
+    active: int = 0
+    deposit: int = 0
+    sold: int = 0
+    rented: int = 0
+    total: int = 0
+
+
+class RevenueByCurrencyOut(BaseModel):
+    # Деньги по закрытым сделкам в одной валюте.
+    currency: str
+    commission: float = 0
+    amount: float = 0
+    count: int = 0
+
+
+class AnalyticsCrmOut(BaseModel):
+    # Сводка по CRM (клиенты и сделки).
+    clients: int = 0
+    in_search: int = 0
+    deals_active: int = 0
+    deals_won: int = 0
 
 
 class ApartmentAnalyticsOut(BaseModel):
-    # Аналитика для руководителя агентства.
+    # Аналитика для руководителя агентства (обновлено 2026-07: аренда, деньги,
+    # источники, общая база, CRM — чтобы новые данные не «облетали»).
     active: int
     deposit: int
     sold: int
+    rented: int = 0
     total: int
     added_this_month: int
     sold_this_month: int
+    rented_this_month: int = 0
+    # Разбивка по типу сделки: {"sale": {...}, "rent": {...}}.
+    by_deal: Dict[str, DealStatusCounts] = {}
+    # Деньги по закрытым сделкам, по валютам.
+    revenue: List[RevenueByCurrencyOut] = []
+    # Способ добавления объектов: {"manual": n, "link": n, "bulk": n}.
+    sources: Dict[str, int] = {}
+    # Сколько объектов отдано в общую базу (MLS).
+    shared_mls: int = 0
+    # Сводка CRM.
+    crm: AnalyticsCrmOut = AnalyticsCrmOut()
     agents: List[AgentActivityOut]
 
 
@@ -264,6 +303,7 @@ class TimeseriesPointOut(BaseModel):
     label: str
     added: int
     sold: int
+    rented: int = 0
 
 
 class TimeseriesOut(BaseModel):

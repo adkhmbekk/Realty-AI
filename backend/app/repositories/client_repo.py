@@ -506,3 +506,44 @@ def digest_match_counts(db: Session, since: datetime) -> Dict[int, int]:
         .group_by(Client.created_by)
     )
     return {oid: int(n) for oid, n in db.execute(stmt)}
+
+
+def deal_revenue_by_currency(db: Session, agency_id: int) -> List[dict]:
+    """
+    Деньги по ЗАКРЫТЫМ сделкам (stage='sold') агентства, сгруппированные по
+    валюте комиссии: сумма комиссии, сумма цены сделок и их количество.
+    Для блока «Деньги» в аналитике (2026-07). Валюта NULL → 'USD'.
+    """
+    cur = func.coalesce(Deal.commission_currency, Deal.currency, "USD")
+    rows = db.execute(
+        select(
+            cur,
+            func.sum(func.coalesce(Deal.commission, 0)),
+            func.sum(func.coalesce(Deal.price, 0)),
+            func.count(),
+        )
+        .where(Deal.agency_id == agency_id, Deal.stage == "sold")
+        .group_by(cur)
+    ).all()
+    return [
+        {
+            "currency": row[0] or "USD",
+            "commission": float(row[1] or 0),
+            "amount": float(row[2] or 0),
+            "count": int(row[3]),
+        }
+        for row in rows
+    ]
+
+
+def count_deals_by_state(db: Session, agency_id: int) -> Tuple[int, int]:
+    """Число сделок агентства: (в работе, закрыто). В работе = не sold/cancelled."""
+    rows = db.execute(
+        select(Deal.stage, func.count())
+        .where(Deal.agency_id == agency_id)
+        .group_by(Deal.stage)
+    ).all()
+    by_stage = {st: int(n) for st, n in rows}
+    won = by_stage.get("sold", 0)
+    active = sum(n for st, n in by_stage.items() if st not in ("sold", "cancelled"))
+    return active, won
