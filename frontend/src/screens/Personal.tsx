@@ -41,6 +41,7 @@ const STR: Record<string, Record<string, string>> = {
     editProfile: "Личные данные", agenciesActions: "Агентства",
     addAgencyTitle: "Добавить агентство",
     fillAllRequired: "Заполните имя, фамилию и номер телефона.",
+    edit: "Редактировать", cancel: "Отмена", notFilled: "не заполнено",
   },
   uz: {
     chooseLang: "Tilni tanlang", next: "Keyingi",
@@ -65,6 +66,7 @@ const STR: Record<string, Record<string, string>> = {
     editProfile: "Shaxsiy maʼlumotlar", agenciesActions: "Agentliklar",
     addAgencyTitle: "Agentlik qoʻshish",
     fillAllRequired: "Ism, familiya va telefon raqamini toʻldiring.",
+    edit: "Tahrirlash", cancel: "Bekor qilish", notFilled: "toʻldirilmagan",
   },
   en: {
     chooseLang: "Choose language", next: "Next",
@@ -89,6 +91,7 @@ const STR: Record<string, Record<string, string>> = {
     editProfile: "Personal details", agenciesActions: "Agencies",
     addAgencyTitle: "Add agency",
     fillAllRequired: "Fill in name, surname and phone number.",
+    edit: "Edit", cancel: "Cancel", notFilled: "not filled",
   },
 };
 
@@ -489,20 +492,49 @@ function SettingsTab({ s, onCreate, onJoin }: { s: Record<string, string>; onCre
 }
 
 // ── Вкладка «Профиль» ─────────────────────────────────────────────────────────
+// Показ данных (только чтение) + кнопка «Редактировать». Форма ввода открывается
+// по кнопке — так поля не выглядят «пустыми полями ввода», а именно данными.
+// Если профиль неполный (нет имени/фамилии/номера) — сразу открываем форму.
 function ProfileTab({ s }: { s: Record<string, string> }) {
   const { user, setUser, toast } = useApp();
+  const filledOk = !!(user?.first_name?.trim() && user?.last_name?.trim() && user?.phone?.trim());
+  const [editing, setEditing] = useState(!filledOk);
   const [first, setFirst] = useState(user?.first_name || "");
   const [last, setLast] = useState(user?.last_name || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [busy, setBusy] = useState(false);
 
+  // Когда меняется user (после сохранения / возврата из агентства) и мы НЕ в
+  // режиме правки — подтягиваем актуальные значения в поля.
+  useEffect(() => {
+    if (!editing) {
+      setFirst(user?.first_name || "");
+      setLast(user?.last_name || "");
+      setPhone(user?.phone || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.first_name, user?.last_name, user?.phone]);
+
   // Все поля обязательны: имя, фамилия и номер. Нельзя сохранить профиль,
   // стерев уже введённые данные (симметрично обязательному онбордингу).
   const complete = !!(first.trim() && last.trim() && phone.trim());
+  const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.full_name || "—";
 
   async function shareContact() {
     const p = await requestContact();
     if (p) setPhone(p);
+  }
+  function startEdit() {
+    setFirst(user?.first_name || "");
+    setLast(user?.last_name || "");
+    setPhone(user?.phone || "");
+    setEditing(true);
+  }
+  function cancelEdit() {
+    setFirst(user?.first_name || "");
+    setLast(user?.last_name || "");
+    setPhone(user?.phone || "");
+    setEditing(false);
   }
   async function save() {
     if (busy) return;
@@ -519,8 +551,18 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
     }
     setUser(updated);
     setBusy(false);
+    setEditing(false);
     toast(s.saved, "ok");
   }
+
+  const DataRow = ({ label, value }: { label: string; value?: string | null }) => (
+    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-line last:border-0">
+      <span className="text-[13px] text-muted shrink-0">{label}</span>
+      <span className={"text-[14px] font-bold text-right truncate " + (value ? "" : "text-muted font-normal italic")}>
+        {value || s.notFilled}
+      </span>
+    </div>
+  );
 
   return (
     <div className="max-w-[560px] mx-auto px-3.5 pt-3.5 pb-4 animate-fade-up">
@@ -530,7 +572,7 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
             {initials(user?.first_name || user?.full_name, user?.last_name)}
           </div>
           <div className="min-w-0">
-            <div className="text-[20px] font-extrabold leading-tight truncate">{[user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.full_name || "—"}</div>
+            <div className="text-[20px] font-extrabold leading-tight truncate">{fullName}</div>
             <div className="text-[13px] opacity-85">{s.myProfile}</div>
           </div>
         </div>
@@ -538,17 +580,31 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
       <div className="pt-4">
         <Card>
           <div className="text-[12px] font-bold text-muted mb-2">{s.editProfile}</div>
-          <Field label={s.firstName}><Input value={first} onChange={(e) => setFirst(e.target.value)} /></Field>
-          <Field label={s.lastName}><Input value={last} onChange={(e) => setLast(e.target.value)} /></Field>
-          <Field label={s.phone}>
-            <div className="flex items-center gap-2.5">
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={s.noPhone} />
-              <Button variant="soft" size="sm" onClick={shareContact}>📲</Button>
-            </div>
-          </Field>
-          <Button full className="mt-4" disabled={busy || !complete} onClick={save}>{busy ? "…" : s.save}</Button>
-          {!complete && (
-            <p className="text-[12px] text-muted text-center mt-2">{s.fillAllRequired}</p>
+          {editing ? (
+            <>
+              <Field label={s.firstName}><Input value={first} onChange={(e) => setFirst(e.target.value)} /></Field>
+              <Field label={s.lastName}><Input value={last} onChange={(e) => setLast(e.target.value)} /></Field>
+              <Field label={s.phone}>
+                <div className="flex items-center gap-2.5">
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={s.noPhone} />
+                  <Button variant="soft" size="sm" onClick={shareContact}>📲</Button>
+                </div>
+              </Field>
+              {!complete && (
+                <p className="text-[12px] text-muted mt-1">{s.fillAllRequired}</p>
+              )}
+              <div className={"grid gap-2 mt-4 " + (filledOk ? "grid-cols-2" : "grid-cols-1")}>
+                {filledOk && <Button variant="ghost" disabled={busy} onClick={cancelEdit}>{s.cancel}</Button>}
+                <Button disabled={busy || !complete} onClick={save}>{busy ? "…" : s.save}</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <DataRow label={s.firstName} value={user?.first_name} />
+              <DataRow label={s.lastName} value={user?.last_name} />
+              <DataRow label={s.phone} value={user?.phone} />
+              <Button variant="soft" full className="mt-4" onClick={startEdit}>{s.edit}</Button>
+            </>
           )}
         </Card>
       </div>

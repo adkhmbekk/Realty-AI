@@ -92,6 +92,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setAuth = useCallback(
     (tk: string, u: UserProfile, sub: boolean | null) => {
+      // ВАЖНО: обновляем tokenRef СИНХРОННО, а не только через ре-рендер.
+      // Иначе первый запрос сразу после входа/«входа в агентство» (например
+      // GET /agency/settings в applyAuth) уходит со СТАРЫМ пропуском: React ещё
+      // не перерисовал StoreProvider, а api() читает tokenRef прямо сейчас.
+      // Для суперадмина это давало 403 (старый пропуск — роль superadmin), из-за
+      // чего настройки агентства не грузились и карточка агентства пропадала.
+      tokenRef.current = tk;
       setToken(tk);
       setUserState(u);
       setSubActive(sub);

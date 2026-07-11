@@ -108,7 +108,6 @@ function AgencyCard() {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [ownerName, setOwnerName] = useState("");
   const [saving, setSaving] = useState(false);
   if (!settings) return null;
   const canEdit = !!user?.is_owner;
@@ -117,7 +116,6 @@ function AgencyCard() {
   function open() {
     setName(settings!.name || "");
     setPhone(settings!.contact_phone || "");
-    setOwnerName(settings!.owner_name || "");
     setEditing(true);
   }
   async function save() {
@@ -128,7 +126,7 @@ function AgencyCard() {
     setSaving(true);
     const r = await api<AgencySettings>("/api/v1/agency/settings", {
       method: "PATCH",
-      body: { name: name.trim(), contact_phone: phone.trim(), owner_name: ownerName.trim() },
+      body: { name: name.trim(), contact_phone: phone.trim() },
     });
     setSaving(false);
     if (r.ok && r.data) {
@@ -149,10 +147,6 @@ function AgencyCard() {
             <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </Field>
           <Hint>{t("contactPhoneHint")}</Hint>
-          <Field label={t("ownerNameLbl")}>
-            <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-          </Field>
-          {settings.contact_username && <Hint>{t("ownerTgLbl")}: {settings.contact_username}</Hint>}
           <div className="grid grid-cols-2 gap-2 mt-4">
             <Button variant="ghost" disabled={saving} onClick={() => setEditing(false)}>{t("cancel")}</Button>
             <Button disabled={saving} onClick={save}>{t("saveChanges")}</Button>
@@ -167,7 +161,7 @@ function AgencyCard() {
             <div className="text-[11px] text-muted">{t("agencyLbl")}</div>
             <div className="text-[15px] font-extrabold truncate">{agencyName}</div>
             <div className="text-[12.5px] text-muted truncate">
-              {settings.contact_phone || t("notSet")}{settings.owner_name ? " · " + settings.owner_name : ""}
+              {settings.contact_phone || t("notSet")}
             </div>
           </div>
           {canEdit && (

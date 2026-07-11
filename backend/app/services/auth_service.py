@@ -214,6 +214,15 @@ def build_auth_response(db: Session, user, act_as_agency_id: Optional[int] = Non
                 "acting_as_agency_id": acting_agency.id,
                 "acting_as_agency_name": acting_agency.name,
                 "real_role": acting_real_role,
+                # Личный профиль НЕ теряем при входе в агентство (acting): иначе
+                # после «открыть/войти» в личном кабинете обнулялись имя/фамилия/
+                # номер (они не входили в acting-ответ). Берём из реальной строки.
+                "first_name": getattr(user, "first_name", None),
+                "last_name": getattr(user, "last_name", None),
+                "phone": getattr(user, "phone", None),
+                "phone_verified": getattr(user, "phone_verified", False),
+                "language": getattr(user, "language", None),
+                "match_notify": getattr(user, "match_notify", None),
             },
         }
 

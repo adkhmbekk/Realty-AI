@@ -47,6 +47,14 @@ class ActingUser:
     real_role: str = "superadmin"
     acting_as_agency_id: Optional[int] = None
     acting_as_agency_name: Optional[str] = None
+    # Личный профиль реального пользователя — чтобы /auth/me в acting-контексте
+    # НЕ терял имя/фамилию/номер (иначе личный кабинет показывал пустые поля).
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    phone_verified: bool = False
+    language: Optional[str] = None
+    match_notify: Optional[str] = None
 
 
 def get_current_user(
@@ -92,6 +100,12 @@ def get_current_user(
                     acting_as_agency_id=agency.id,
                     acting_as_agency_name=agency.name,
                     real_role="superadmin",
+                    first_name=getattr(user, "first_name", None),
+                    last_name=getattr(user, "last_name", None),
+                    phone=getattr(user, "phone", None),
+                    phone_verified=getattr(user, "phone_verified", False),
+                    language=getattr(user, "language", None),
+                    match_notify=getattr(user, "match_notify", None),
                 )
         # Путь Б: обычный участник — в другое своё агентство (по членству).
         # Роль и «владелец» берутся из членства именно в ТОМ агентстве.
@@ -111,6 +125,12 @@ def get_current_user(
                         acting_as_agency_id=agency.id,
                         acting_as_agency_name=agency.name,
                         real_role=user.role,
+                        first_name=getattr(user, "first_name", None),
+                        last_name=getattr(user, "last_name", None),
+                        phone=getattr(user, "phone", None),
+                        phone_verified=getattr(user, "phone_verified", False),
+                        language=getattr(user, "language", None),
+                        match_notify=getattr(user, "match_notify", None),
                     )
     return user
 
@@ -135,6 +155,22 @@ def require_superadmin(user: User = Depends(get_current_user)) -> User:
     if user.role != "superadmin":
         raise AppError("forbidden_superadmin_only", status.HTTP_403_FORBIDDEN)
     return user
+
+
+def require_platform_owner(user: User = Depends(get_current_user)) -> User:
+    """
+    Владелец платформы — ВКЛЮЧАЯ acting-контекст (когда суперадмин работает
+    ВНУТРИ одного из своих агентств, и его эффективная роль — agency_admin).
+
+    Нужно для операций владельца, которые доступны и «изнутри агентства» —
+    прежде всего список своих агентств для ПЕРЕКЛЮЧАТЕЛЯ (/agencies/mine): без
+    этого лист переключения у суперадмина внутри агентства получал 403 и был
+    пустым. Настоящая личность (id/telegram_id) у acting-объекта — реального
+    владельца, поэтому доступ не расширяется на чужие данные.
+    """
+    if user.role == "superadmin" or getattr(user, "real_role", None) == "superadmin":
+        return user
+    raise AppError("forbidden_superadmin_only", status.HTTP_403_FORBIDDEN)
 
 
 def _ensure_subscription_active(db: Session, user: User) -> None:

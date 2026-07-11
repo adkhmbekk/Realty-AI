@@ -71,6 +71,44 @@ def test_enter_builds_acting_session(db):
     assert payload["role"] == "agency_admin"
 
 
+def test_acting_response_keeps_personal_profile(db):
+    """Личный профиль (имя/фамилия/номер) НЕ теряется при входе в агентство:
+    иначе после acting личный кабинет показывал пустые поля."""
+    owner = _superadmin(db)
+    owner.first_name = "Иван"
+    owner.last_name = "Петров"
+    owner.phone = "+998901112233"
+    owner.phone_verified = True
+    db.commit()
+    agency = agency_service.create_personal_agency(db, "Личное", owner)
+
+    resp = auth_service.build_auth_response(db, owner, act_as_agency_id=agency.id)
+    user = resp["user"]
+    assert user["role"] == "agency_admin"  # роль в агентстве
+    # но личные поля на месте:
+    assert user["first_name"] == "Иван"
+    assert user["last_name"] == "Петров"
+    assert user["phone"] == "+998901112233"
+    assert user["phone_verified"] is True
+
+
+def test_require_platform_owner_allows_acting_superadmin(db):
+    """Владелец платформы виден как таковой и ИЗНУТРИ агентства (acting) — это
+    питает переключатель агентств (/agencies/mine) в профиле суперадмина."""
+    # Прямой суперадмин — проходит.
+    assert dependencies.require_platform_owner(SimpleNamespace(role="superadmin")).role == "superadmin"
+    # Acting-объект (роль agency_admin, но real_role superadmin) — тоже проходит.
+    acting = dependencies.ActingUser(
+        id=1, telegram_id=1, username=None, full_name=None, agency_id=9,
+        role="agency_admin", real_role="superadmin",
+    )
+    assert dependencies.require_platform_owner(acting) is acting
+    # Обычный сотрудник — отклоняется.
+    with pytest.raises(AppError) as exc:
+        dependencies.require_platform_owner(SimpleNamespace(role="agent", real_role=None))
+    assert exc.value.status_code == 403
+
+
 def test_cannot_act_in_foreign_agency(db):
     owner = _superadmin(db)
     # Обычное клиентское агентство (owner_telegram_id = NULL).

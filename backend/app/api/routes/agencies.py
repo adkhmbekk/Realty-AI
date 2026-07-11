@@ -11,6 +11,7 @@ from app.core.dependencies import (
     get_current_user,
     get_current_user_optional,
     require_agency_member,
+    require_platform_owner,
     require_superadmin,
 )
 from app.core.errors import AppError
@@ -139,9 +140,11 @@ def agencies_usage(
 @router.get("/mine", response_model=List[AgencyOut])
 def my_agencies(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superadmin),
+    current_user: User = Depends(require_platform_owner),
 ):
-    """Список ЛИЧНЫХ агентств текущего владельца платформы."""
+    """Список ЛИЧНЫХ агентств текущего владельца платформы (общие «Realty AI» +
+    его личные). Доступно и ИЗНУТРИ агентства (acting) — это питает переключатель
+    агентств в профиле суперадмина."""
     agencies = agency_service.list_personal_agencies(db, current_user.telegram_id)
     agency_service.attach_admins(db, agencies)
     return agencies
