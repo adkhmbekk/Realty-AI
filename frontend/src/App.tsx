@@ -239,11 +239,30 @@ function RouteView({ route }: { route: Route }) {
 }
 
 // ── Нижняя навигация + плавающая кнопка ─────────────────────────────
+// Открыта ли экранная клавиатура (visualViewport заметно ниже окна). Нужно, чтобы
+// прятать нижнюю панель — иначе она «всплывает» и ложится поверх клавиатуры.
+function useKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => setOpen(window.innerHeight - vv.height > 160);
+    vv.addEventListener("resize", onResize);
+    onResize();
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
+  return open;
+}
+
 function BottomTabs() {
   const { t, user } = useApp();
   const nav = useNav();
+  const kb = useKeyboardOpen();
   const role = user?.role;
-  const activeTab = nav.activeTab;
+  // Подсветка таба — по ТЕКУЩЕМУ маршруту (а не по «последнему выбранному»):
+  // иначе при переходе в «Добавить объект» горела бы вкладка, откуда пришли.
+  const curName = nav.current?.name;
+  if (kb) return null;
 
   if (role === "superadmin") {
     // Суперадмин работает как юзер (личный хаб), но видит больше: нижняя панель —
@@ -258,7 +277,7 @@ function BottomTabs() {
       <nav className="shrink-0 z-40 glass border-t border-line px-6 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2">
         <div className="max-w-[560px] mx-auto flex justify-around">
           {tabs.map((tb) => (
-            <TabButton key={tb.key} active={activeTab === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
+            <TabButton key={tb.key} active={curName === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
           ))}
         </div>
       </nav>
@@ -277,7 +296,7 @@ function BottomTabs() {
     <nav className="shrink-0 z-40 glass border-t border-line px-3 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2">
       <div className="max-w-[560px] mx-auto flex items-end justify-between">
         {left.map((tb, i) => (
-          <TabButton key={i} active={activeTab === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
+          <TabButton key={i} active={curName === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
         ))}
         <button
           onClick={() => nav.pushTransient({ name: "addObject" })}
@@ -288,7 +307,7 @@ function BottomTabs() {
           <Plus size={26} />
         </button>
         {right.map((tb, i) => (
-          <TabButton key={i} active={activeTab === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
+          <TabButton key={i} active={curName === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
         ))}
       </div>
     </nav>

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { User, LifeBuoy, Building2, Pencil, ChevronRight, ChevronDown, Check } from "lucide-react";
 import { useApp } from "../store";
 import { useActing } from "../acting";
+import { useNav } from "../nav";
 import { api, errText } from "../api";
 import { Card, Row, Hint, Button, Field, Input, Spinner } from "../components/ui";
 import { openTelegramLink, haptic } from "../telegram";
@@ -55,7 +56,7 @@ function SwitchSheet({ onClose }: { onClose: () => void }) {
   // поверх всего экрана.
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center"
+      className="fixed inset-0 z-[100] flex items-end justify-center"
       style={{ background: "color-mix(in srgb, var(--bg) 68%, transparent)" }}
       onClick={onClose}
     >
@@ -187,6 +188,7 @@ function AgencyCard() {
 export function ProfileScreen() {
   const { t, L, user, settings } = useApp();
   const { exitToPersonal, exitToPlatform } = useActing();
+  const nav = useNav();
   if (!user) return null;
   const displayName = user.full_name || (user.username ? "@" + user.username : t("notSet"));
   const supportUrl = settings?.support_url || null;
@@ -237,7 +239,22 @@ export function ProfileScreen() {
       {/* В личный кабинет: возврат из агентства (участник — в личное пространство,
           суперадмин — в его хаб). */}
       {inAgency && (
-        <Button variant="ghost" full className="mt-3" onClick={() => { haptic(); isSuper ? exitToPlatform() : exitToPersonal(); }}>
+        <Button
+          variant="ghost"
+          full
+          className="mt-3"
+          onClick={async () => {
+            haptic();
+            if (isSuper) {
+              // Суперадмин: выходим на платформу и попадаем на ГЛАВНУЮ хаба.
+              await exitToPlatform();
+              nav.resetTo({ name: "myAgencies" });
+            } else {
+              // Участник: в личное пространство (хаб открывается на «Главной»).
+              exitToPersonal();
+            }
+          }}
+        >
           🏠 {t("toPersonalCabinet")}
         </Button>
       )}

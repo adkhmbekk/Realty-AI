@@ -570,13 +570,13 @@ export function MyAgenciesScreen() {
 
       <div className="space-y-2.5">
         {/* Финансы — первым */}
-        <NavRow icon={<Wallet size={18} />} chip="bg-amber-500/12 text-amber-600 dark:text-amber-400" label={t("financesTab")} sub={t("financesSub")} onClick={() => nav.push({ name: "agencies" })} />
+        <NavRow icon={<Wallet size={18} />} chip="bg-amber-500/15 text-amber-600 dark:text-amber-400" label={t("financesTab")} sub={t("financesSub")} onClick={() => nav.push({ name: "agencies" })} />
         {/* Мои агентства — кнопка → страница со списком */}
-        <NavRow icon={<Building2 size={18} />} chip="bg-primary-soft text-primary" label={t("myAgenciesTitle")} onClick={() => nav.push({ name: "personalAgencies" })} />
+        <NavRow icon={<Building2 size={18} />} chip="bg-indigo-500/15 text-indigo-600 dark:text-indigo-400" label={t("myAgenciesTitle")} onClick={() => nav.push({ name: "personalAgencies" })} />
         {/* Пользователи */}
-        <NavRow icon={<Users size={18} />} chip="bg-indigo-500/12 text-indigo-600 dark:text-indigo-400" label={t("usersTab")} onClick={() => nav.push({ name: "platformUsers" })} />
+        <NavRow icon={<Users size={18} />} chip="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" label={t("usersTab")} onClick={() => nav.push({ name: "platformUsers" })} />
         {/* Общая база MLS */}
-        <NavRow icon={<Layers size={18} />} chip="bg-sky-500/12 text-sky-600 dark:text-sky-400" label={t("mlsTab")} onClick={() => nav.push({ name: "mlsPool" })} />
+        <NavRow icon={<Layers size={18} />} chip="bg-sky-500/15 text-sky-600 dark:text-sky-400" label={t("mlsTab")} onClick={() => nav.push({ name: "mlsPool" })} />
       </div>
     </div>
   );
@@ -671,7 +671,7 @@ export function PersonalAgenciesScreen() {
       {/* Нижний лист: создать / вступить (портал в body, чтобы всплывал поверх). */}
       {choice && createPortal(
         <div
-          className="fixed inset-0 z-[60] flex items-end justify-center"
+          className="fixed inset-0 z-[100] flex items-end justify-center"
           style={{ background: "color-mix(in srgb, var(--bg) 68%, transparent)" }}
           onClick={() => setChoice(false)}
         >

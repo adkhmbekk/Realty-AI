@@ -97,6 +97,20 @@ function useStr() {
   return STR[lang] || STR.ru;
 }
 
+// Открыта ли клавиатура (прячем нижнюю панель, чтобы не «всплывала» на клавиатуру).
+function useKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => setOpen(window.innerHeight - vv.height > 160);
+    vv.addEventListener("resize", onResize);
+    onResize();
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
+  return open;
+}
+
 function initials(a?: string | null, b?: string | null): string {
   // Берём по одной букве; indexing пустой строки даёт undefined (в квадратике
   // вылезало «undefined», когда фамилия пуста) — поэтому падаем на "".
@@ -252,6 +266,7 @@ function TabPane({ active, children }: { active: boolean; children: React.ReactN
 // ── Хаб с нижней панелью (Главная / Настройки / Профиль) ──────────────────────
 function Hub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void }) {
   const s = useStr();
+  const kb = useKeyboardOpen();
   const [tab, setTab] = useState<"home" | "settings" | "profile">("home");
   const [memberships, setMemberships] = useState<Membership[] | null>(null);
   const [entering, setEntering] = useState(false);
@@ -321,13 +336,15 @@ function Hub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void })
           <ProfileTab s={s} />
         </TabPane>
       </div>
-      <nav className="shrink-0 z-40 glass border-t border-line px-3 pt-2 pb-[calc(8px+env(safe-area-inset-bottom,0px))]">
-        <div className="max-w-[560px] mx-auto flex items-end justify-around">
-          {tabBtn("home", <HomeIcon size={22} />, s.home)}
-          {tabBtn("settings", <SettingsIcon size={22} />, s.settings)}
-          {tabBtn("profile", <UserIcon size={22} />, s.profile)}
-        </div>
-      </nav>
+      {!kb && (
+        <nav className="shrink-0 z-40 glass border-t border-line px-3 pt-2 pb-[calc(8px+env(safe-area-inset-bottom,0px))]">
+          <div className="max-w-[560px] mx-auto flex items-end justify-around">
+            {tabBtn("home", <HomeIcon size={22} />, s.home)}
+            {tabBtn("settings", <SettingsIcon size={22} />, s.settings)}
+            {tabBtn("profile", <UserIcon size={22} />, s.profile)}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
