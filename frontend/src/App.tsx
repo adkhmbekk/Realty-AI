@@ -10,7 +10,7 @@ import type { AuthResponse, AgencySettings } from "./types";
 import { Button, Card, Field, Input, Spinner } from "./components/ui";
 import { HomeScreen } from "./screens/Home";
 import { ProfileScreen, SuspendedScreen } from "./screens/Profile";
-import { PersonalApp } from "./screens/Personal";
+import { PersonalApp, PersonalSettingsScreen, PersonalProfileScreen } from "./screens/Personal";
 // Экраны грузим «лениво» (code-splitting): начальный бандл меньше → быстрее
 // первый показ при открытии. Часто открываемые Home и Profile оставляем в
 // основном бандле (без мелькания загрузчика). Остальное подгружается при первом
@@ -34,6 +34,7 @@ const AgencyObjectDetailScreen = lazy(() => import("./screens/Apartments").then(
 const MlsObjectDetailScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.MlsObjectDetailScreen })));
 const MlsPoolScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.MlsPoolScreen })));
 const MyAgenciesScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.MyAgenciesScreen })));
+const PersonalAgenciesScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.PersonalAgenciesScreen })));
 const AddObjectScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.AddObjectScreen })));
 const ArchiveScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.ArchiveScreen })));
 const DatabaseScreen = lazy(() => import("./screens/Apartments").then((m) => ({ default: m.DatabaseScreen })));
@@ -89,6 +90,8 @@ function titleKeyFor(route: Route): string | null {
       return "financesTab";
     case "platformUsers":
       return "usersTab";
+    case "personalAgencies":
+      return "myAgenciesTitle";
     case "mlsPool":
       return "mlsPoolTitle";
     case "mlsBrowse":
@@ -155,19 +158,25 @@ function titleKeyFor(route: Route): string | null {
 }
 
 function RouteView({ route }: { route: Route }) {
+  const { user } = useApp();
+  // Суперадмин — тоже юзер: его личные Настройки/Профиль идентичны юзерским.
+  // (Внутри агентства он acting=agency_admin → показываем агентские экраны.)
+  const pureSuper = user?.role === "superadmin";
   switch (route.name) {
     case "home":
       return <HomeScreen />;
     case "profile":
-      return <ProfileScreen />;
+      return pureSuper ? <PersonalProfileScreen /> : <ProfileScreen />;
     case "settings":
-      return <SettingsScreen />;
+      return pureSuper ? <PersonalSettingsScreen /> : <SettingsScreen />;
     case "agencies":
       return <AgenciesScreen />;
     case "platformUsers":
       return <PlatformUsersScreen />;
     case "myAgencies":
       return <MyAgenciesScreen />;
+    case "personalAgencies":
+      return <PersonalAgenciesScreen />;
     case "mlsPool":
       return <MlsPoolScreen />;
     case "mlsBrowse":
@@ -352,12 +361,7 @@ function TabButton({ active, icon, label, onClick }: { active: boolean; icon: JS
 // ── Оболочка (после входа) ──────────────────────────────────────────
 function Shell() {
   const { t, user } = useApp();
-  const { exitToPlatform } = useActing();
   const nav = useNav();
-  // «Вы в другом своём агентстве»: показываем плашку для любого переключения
-  // (и суперадмин в личном/общем, и участник в доп. агентстве).
-  const acting = !!user?.acting_as_agency_id;
-  const actingSuper = user?.real_role === "superadmin";
   const depth = nav.stack.length;
   const route = nav.current;
   const tkey = titleKeyFor(route);
@@ -440,24 +444,10 @@ function Shell() {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      {/* Верхняя область (баннер + шапка) — фиксирована, не участвует в скролле страниц */}
+      {/* Верхняя область (шапка) — фиксирована, не участвует в скролле страниц.
+          Баннер acting «вы в агентстве… выйти на платформу» убран: возврат теперь
+          через свитчер/кнопку «В личный кабинет» в профиле. */}
       <div className="shrink-0 w-full max-w-[560px] mx-auto px-3.5 pt-3.5">
-        {/* Баннер acting-режима: владелец платформы внутри своего агентства */}
-        {acting && (
-          <button
-            onClick={async () => {
-              await exitToPlatform();
-              nav.resetTo(actingSuper ? { name: "myAgencies" } : { name: "home" });
-            }}
-            className="w-full mb-3 rounded-xl2 px-3.5 py-2.5 text-left text-[13px] font-bold text-white shadow-soft active:scale-[.99] transition"
-            style={{ background: "var(--grad)" }}
-          >
-            {t("actingBanner").replace("{name}", user?.acting_as_agency_name || "")}
-            <span className="block text-[12px] font-semibold opacity-90 underline">
-              {actingSuper ? t("exitToPlatform") : t("exitToHome")}
-            </span>
-          </button>
-        )}
         {/* Шапка */}
         <header className="flex items-center gap-3 min-h-[40px] mb-2">
           {showBack ? (

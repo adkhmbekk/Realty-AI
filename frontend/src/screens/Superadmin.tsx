@@ -1,7 +1,8 @@
 import { confirmDialog, openTelegramLink, haptic } from "../telegram";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
-import { Briefcase, Building2, ChevronRight, Copy, Layers, Link as LinkIcon, Plus, RefreshCw, Send, Trash2, Users, Wallet } from "lucide-react";
+import { Briefcase, Building2, ChevronRight, Copy, KeyRound, Layers, Link as LinkIcon, Plus, RefreshCw, Send, Trash2, Users, Wallet } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { useActing } from "../acting";
@@ -537,50 +538,12 @@ export function AgenciesScreen() {
 // Здесь владелец создаёт СВОИ агентства (где он сам — главный админ) и «входит»
 // в них, получая обычный интерфейс агентства. Создание — через простой prompt,
 // чтобы не плодить отдельный экран (нужно только название).
-// Личный хаб суперадмина (Задача 2): суперадмин работает как юзер, но видит
-// больше. Главная = Финансы (первым), Мои агентства (Realty AI + личные),
-// Пользователи, Общая база. Нижняя панель — Главная/Настройки/Профиль.
+// Личный хаб суперадмина: он тоже юзер, но видит больше. Главная — кнопки:
+// Финансы, Мои агентства (→ отдельная страница), Пользователи, Общая база.
+// Настройки/Профиль хаба идентичны пользовательским (см. Personal.tsx обёртки).
 export function MyAgenciesScreen() {
-  const { t, toast, user } = useApp();
+  const { t, user } = useApp();
   const nav = useNav();
-  const { enterAgency } = useActing();
-  const [list, setList] = useState<AgencyOut[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function load() {
-    const r = await api<AgencyOut[]>("/api/v1/agencies/mine");
-    if (r.ok && Array.isArray(r.data)) {
-      setList(r.data);
-      setErr(null);
-    } else setErr(`${t("notFound")} (${r.status})`);
-  }
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function create() {
-    const v = window.prompt(t("personalAgencyNamePrompt"), "");
-    if (v === null) return;
-    if (!v.trim()) {
-      toast(t("emptyName"), "warn");
-      return;
-    }
-    setBusy(true);
-    const r = await api("/api/v1/agencies/mine", { method: "POST", body: { name: v.trim() } });
-    setBusy(false);
-    if (r.ok) {
-      toast(t("agencyCreated"), "ok");
-      load();
-    } else toast(errText(r.data, r.status), "err");
-  }
-
-  async function enter(id: number) {
-    const ok = await enterAgency(id);
-    if (ok) nav.resetTo({ name: "home" });
-  }
-
   const hubName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.full_name || "Realty AI";
 
   const NavRow = ({ icon, chip, label, sub, onClick }: { icon: JSX.Element; chip: string; label: string; sub?: string; onClick: () => void }) => (
@@ -605,19 +568,78 @@ export function MyAgenciesScreen() {
         <div className="text-[20px] font-extrabold leading-tight truncate mt-0.5">{hubName}</div>
       </div>
 
-      {/* Финансы — первым */}
-      <NavRow
-        icon={<Wallet size={18} />}
-        chip="bg-amber-500/12 text-amber-600 dark:text-amber-400"
-        label={t("financesTab")}
-        sub={t("financesSub")}
-        onClick={() => nav.push({ name: "agencies" })}
-      />
+      <div className="space-y-2.5">
+        {/* Финансы — первым */}
+        <NavRow icon={<Wallet size={18} />} chip="bg-amber-500/12 text-amber-600 dark:text-amber-400" label={t("financesTab")} sub={t("financesSub")} onClick={() => nav.push({ name: "agencies" })} />
+        {/* Мои агентства — кнопка → страница со списком */}
+        <NavRow icon={<Building2 size={18} />} chip="bg-primary-soft text-primary" label={t("myAgenciesTitle")} onClick={() => nav.push({ name: "personalAgencies" })} />
+        {/* Пользователи */}
+        <NavRow icon={<Users size={18} />} chip="bg-indigo-500/12 text-indigo-600 dark:text-indigo-400" label={t("usersTab")} onClick={() => nav.push({ name: "platformUsers" })} />
+        {/* Общая база MLS */}
+        <NavRow icon={<Layers size={18} />} chip="bg-sky-500/12 text-sky-600 dark:text-sky-400" label={t("mlsTab")} onClick={() => nav.push({ name: "mlsPool" })} />
+      </div>
+    </div>
+  );
+}
 
-      {/* Мои агентства */}
-      <div className="flex items-center justify-between mt-4 mx-0.5 mb-2">
+// Страница «Мои агентства» суперадмина: список (Realty AI + личные) + кнопка
+// «Добавить» справа → нижний лист «Создать агентство / Вступить по коду»
+// (то же самое, что у юзеров). Тап по агентству — вход (acting).
+export function PersonalAgenciesScreen() {
+  const { t, toast } = useApp();
+  const nav = useNav();
+  const { enterAgency } = useActing();
+  const [list, setList] = useState<AgencyOut[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [choice, setChoice] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const r = await api<AgencyOut[]>("/api/v1/agencies/mine");
+    if (r.ok && Array.isArray(r.data)) {
+      setList(r.data);
+      setErr(null);
+    } else setErr(`${t("notFound")} (${r.status})`);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function create() {
+    setChoice(false);
+    const v = window.prompt(t("personalAgencyNamePrompt"), "");
+    if (v === null || !v.trim()) return;
+    setBusy(true);
+    const r = await api("/api/v1/agencies/mine", { method: "POST", body: { name: v.trim() } });
+    setBusy(false);
+    if (r.ok) {
+      toast(t("agencyCreated"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  async function join() {
+    setChoice(false);
+    const code = window.prompt(t("codePrompt"), "")?.trim();
+    if (!code) return;
+    const r = await api("/api/v1/invites/redeem", { method: "POST", body: { code } });
+    if (r.ok) {
+      toast(t("joined"), "ok");
+      load();
+    } else toast(errText(r.data, r.status), "err");
+  }
+  async function enter(id: number) {
+    const ok = await enterAgency(id);
+    if (ok) nav.resetTo({ name: "home" });
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mx-0.5 mb-2.5">
         <span className="text-[14px] font-extrabold">{t("myAgenciesTitle")}</span>
-        <Button variant="soft" size="sm" disabled={busy} onClick={create}><Plus size={15} /> {t("createAgencyShort")}</Button>
+        <Button variant="soft" size="sm" disabled={busy} onClick={() => { haptic(); setChoice(true); }}>
+          <Plus size={15} /> {t("createAgencyShort")}
+        </Button>
       </div>
       {err ? (
         <Empty>{err}</Empty>
@@ -646,11 +668,27 @@ export function MyAgenciesScreen() {
         </div>
       )}
 
-      {/* Пользователи + Общая база */}
-      <div className="space-y-2.5 mt-4">
-        <NavRow icon={<Users size={18} />} chip="bg-primary-soft text-primary" label={t("usersTab")} onClick={() => nav.push({ name: "platformUsers" })} />
-        <NavRow icon={<Layers size={18} />} chip="bg-sky-500/12 text-sky-600 dark:text-sky-400" label={t("mlsTab")} onClick={() => nav.push({ name: "mlsPool" })} />
-      </div>
+      {/* Нижний лист: создать / вступить (портал в body, чтобы всплывал поверх). */}
+      {choice && createPortal(
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center"
+          style={{ background: "color-mix(in srgb, var(--bg) 68%, transparent)" }}
+          onClick={() => setChoice(false)}
+        >
+          <div
+            className="w-full max-w-[560px] bg-card border-t border-line rounded-t-xl3 px-4 pt-3 pb-[calc(18px+env(safe-area-inset-bottom,0px))] animate-fade-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 rounded-full bg-line mx-auto mb-3.5" />
+            <div className="text-[15px] font-extrabold text-center mb-3">{t("addAgencyTitle")}</div>
+            <div className="space-y-2.5">
+              <Button full onClick={create}><Plus size={16} /> {t("createAgency")}</Button>
+              <Button variant="ghost" full onClick={join}><KeyRound size={16} /> {t("joinByCode")}</Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

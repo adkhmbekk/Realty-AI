@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Home as HomeIcon, Settings as SettingsIcon, User as UserIcon, Plus, KeyRound, ChevronRight, Building2, Languages, Moon } from "lucide-react";
 import { useApp } from "../store";
+import { useNav } from "../nav";
 import { api, errText } from "../api";
 import { getInitData, requestContact, haptic } from "../telegram";
 import { Button, Card, Field, Input, Spinner, Segmented, Switch } from "../components/ui";
@@ -536,4 +537,20 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
       </div>
     </div>
   );
+}
+
+// ── Обёртки для суперадмина (его хаб внутри Shell) ────────────────────────────
+// Суперадмин — тоже юзер: его Настройки и Профиль ИДЕНТИЧНЫ пользовательским.
+// Переиспользуем те же SettingsTab/ProfileTab, чтобы интерфейс совпадал 1-в-1.
+export function PersonalSettingsScreen() {
+  const s = useStr();
+  const nav = useNav();
+  // Действия с агентствами в настройках ведут на страницу «Мои агентства».
+  const go = () => nav.push({ name: "personalAgencies" });
+  return <SettingsTab s={s} onCreate={go} onJoin={go} />;
+}
+
+export function PersonalProfileScreen() {
+  const s = useStr();
+  return <ProfileTab s={s} />;
 }

@@ -9,6 +9,7 @@ export type Route =
   | { name: "agencies" }
   | { name: "platformUsers" }
   | { name: "myAgencies" }
+  | { name: "personalAgencies" }
   | { name: "mlsPool" }
   | { name: "mlsBrowse" }
   | { name: "toolSheets" }
