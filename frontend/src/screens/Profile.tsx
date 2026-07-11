@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { User, LifeBuoy, Building2, Pencil, ChevronRight, ChevronDown, Check } from "lucide-react";
 import { useApp } from "../store";
 import { useActing } from "../acting";
@@ -49,9 +50,12 @@ function SwitchSheet({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
+  // Портал в body: иначе fixed-лист привязывается к трансформированному
+  // контейнеру агентства (Shell) и «висит» обрезанным внизу, а не всплывает
+  // поверх всего экрана.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-[60] flex items-end justify-center"
       style={{ background: "color-mix(in srgb, var(--bg) 68%, transparent)" }}
       onClick={onClose}
     >
@@ -91,7 +95,8 @@ function SwitchSheet({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -104,7 +109,6 @@ function AgencyCard() {
   const [phone, setPhone] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [saving, setSaving] = useState(false);
-  const [switchOpen, setSwitchOpen] = useState(false);
   if (!settings) return null;
   const canEdit = !!user?.is_owner;
   const agencyName = settings.project_name || settings.name || "—";
@@ -169,22 +173,13 @@ function AgencyCard() {
             <button
               onClick={open}
               title={t("editAgency")}
-              className="w-9 h-9 shrink-0 rounded-xl bg-[var(--soft)] text-muted flex items-center justify-center active:scale-90"
+              className="w-9 h-9 shrink-0 rounded-xl bg-primary-soft text-primary flex items-center justify-center active:scale-90"
             >
-              <Pencil size={15} />
+              <Pencil size={16} />
             </button>
           )}
-          {/* Красивая стрелка справа: тап → нижний лист переключения агентств. */}
-          <button
-            onClick={() => { haptic(); setSwitchOpen(true); }}
-            title={t("switchAgency")}
-            className="w-10 h-10 shrink-0 rounded-xl bg-primary-soft text-primary flex items-center justify-center active:scale-90"
-          >
-            <ChevronDown size={20} />
-          </button>
         </div>
       )}
-      {switchOpen && <SwitchSheet onClose={() => setSwitchOpen(false)} />}
     </Card>
   );
 }
@@ -196,12 +191,13 @@ export function ProfileScreen() {
   const displayName = user.full_name || (user.username ? "@" + user.username : t("notSet"));
   const supportUrl = settings?.support_url || null;
   const isSuper = user.real_role === "superadmin";
-  // «В личный кабинет» показываем внутри агентства (обычный участник или
-  // суперадмин в acting). У «чистого» суперадмина (в его хабе) — не нужно.
+  // «В личный кабинет» и свитчер показываем внутри агентства (обычный участник
+  // или суперадмин в acting). У «чистого» суперадмина (в его хабе) — не нужно.
   const inAgency = user.role !== "superadmin";
+  const [switchOpen, setSwitchOpen] = useState(false);
   return (
     <div>
-      {/* Личная шапка с аватаром-инициалами */}
+      {/* Личная шапка с аватаром-инициалами + стрелка переключения агентства */}
       <div
         className="flex items-center gap-3.5 rounded-xl3 p-4 mb-3 text-white overflow-hidden"
         style={{ background: "var(--grad-hero)", boxShadow: "0 16px 40px rgba(52,31,163,.36)" }}
@@ -209,11 +205,21 @@ export function ProfileScreen() {
         <div className="w-14 h-14 shrink-0 rounded-2xl bg-white/20 border border-white/40 flex items-center justify-center text-xl font-extrabold backdrop-blur">
           {initials(user.full_name || user.username) || <User size={24} />}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-[20px] font-extrabold leading-tight truncate">{displayName}</div>
           <div className="text-[13px] opacity-90 mt-0.5">{L.roleLabel(user.role, user.is_owner)}</div>
         </div>
+        {inAgency && (
+          <button
+            onClick={() => { haptic(); setSwitchOpen(true); }}
+            title={t("switchAgency")}
+            className="w-10 h-10 shrink-0 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center active:scale-90"
+          >
+            <ChevronDown size={20} />
+          </button>
+        )}
       </div>
+      {switchOpen && <SwitchSheet onClose={() => setSwitchOpen(false)} />}
       <AgencyCard />
       {/* Поддержка: связаться с нами (открывает чат в Telegram). */}
       {supportUrl && (
