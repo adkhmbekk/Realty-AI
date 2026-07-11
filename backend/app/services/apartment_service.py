@@ -29,6 +29,7 @@ from app.repositories import (
     agency_repo,
     apartment_event_repo,
     apartment_repo,
+    client_repo,
     user_repo,
 )
 from app.schemas.apartment import ApartmentCreate, ApartmentUpdate
@@ -549,23 +550,49 @@ def list_events(db: Session, agency_id: int, apartment_id: int) -> list:
 
 def get_analytics(db: Session, agency_id: int) -> dict:
     """
-    Аналитика для руководителя агентства: счётчики по статусам, добавлено и
-    продано за текущий месяц, активность по сотрудникам (всего/продано).
+    Аналитика для руководителя агентства (обновлено 2026-07, чтобы новые данные
+    не «облетали»):
+      - счётчики по статусам ВСЕГО и в разбивке продажа/аренда (вкл. «сдано»);
+      - добавлено/продано/сдано за текущий месяц;
+      - деньги по закрытым сделкам (комиссия/сумма по валютам);
+      - способ добавления объектов (вручную/по ссылке/из канала);
+      - сколько отдано в общую базу (MLS);
+      - сводка CRM (клиенты/в поиске/сделки);
+      - активность сотрудников (добавил/продал/сдал).
     """
-    counts = apartment_repo.count_by_status(db, agency_id)
-    active = counts.get(STATUS_ACTIVE, 0)
-    deposit = counts.get(STATUS_DEPOSIT, 0)
-    sold = counts.get(STATUS_SOLD, 0)
-    rented = counts.get(STATUS_RENTED, 0)
+    # Счётчики по (deal_type, status) — одним запросом (без удалённых).
+    ds = apartment_repo.count_by_deal_status(db, agency_id)
+
+    def _sum(deal_type: Optional[str] = None, status: Optional[str] = None) -> int:
+        return sum(
+            n for (dt, st), n in ds.items()
+            if (deal_type is None or dt == deal_type)
+            and (status is None or st == status)
+        )
+
+    active = _sum(status=STATUS_ACTIVE)
+    deposit = _sum(status=STATUS_DEPOSIT)
+    sold = _sum(status=STATUS_SOLD)
+    rented = _sum(status=STATUS_RENTED)
     total = active + deposit + sold + rented
+
+    def _deal_block(dt: str) -> dict:
+        a = _sum(dt, STATUS_ACTIVE)
+        d = _sum(dt, STATUS_DEPOSIT)
+        s = _sum(dt, STATUS_SOLD)
+        r = _sum(dt, STATUS_RENTED)
+        return {"active": a, "deposit": d, "sold": s, "rented": r, "total": a + d + s + r}
+
+    by_deal = {"sale": _deal_block("sale"), "rent": _deal_block("rent")}
 
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     added_this_month = apartment_repo.count_created_since(db, agency_id, month_start)
-    sold_this_month = apartment_repo.count_sold_since(db, agency_id, month_start)
+    sold_this_month = apartment_repo.count_status_since(db, agency_id, month_start, STATUS_SOLD)
+    rented_this_month = apartment_repo.count_status_since(db, agency_id, month_start, STATUS_RENTED)
 
     creator_rows = apartment_repo.stats_by_creator(db, agency_id)
-    ids = {cid for cid, _, _ in creator_rows if cid is not None}
+    ids = {cid for cid, _, _, _ in creator_rows if cid is not None}
     names = {}
     if ids:
         for u in user_repo.get_by_ids(db, ids):
@@ -576,18 +603,39 @@ def get_analytics(db: Session, agency_id: int) -> dict:
             "name": names.get(cid) if cid is not None else None,
             "total": tot,
             "sold": sold_c,
+            "rented": rented_c,
         }
-        for cid, tot, sold_c in creator_rows
+        for cid, tot, sold_c, rented_c in creator_rows
     ]
     agents.sort(key=lambda a: a["total"], reverse=True)
+
+    # Способ добавления: NULL (старые объекты) → 'other'.
+    raw_sources = apartment_repo.sources_breakdown(db, agency_id)
+    sources: dict = {}
+    for key, n in raw_sources.items():
+        sources[key or "other"] = sources.get(key or "other", 0) + n
+
+    deals_active, deals_won = client_repo.count_deals_by_state(db, agency_id)
 
     return {
         "active": active,
         "deposit": deposit,
         "sold": sold,
+        "rented": rented,
         "total": total,
         "added_this_month": added_this_month,
         "sold_this_month": sold_this_month,
+        "rented_this_month": rented_this_month,
+        "by_deal": by_deal,
+        "revenue": client_repo.deal_revenue_by_currency(db, agency_id),
+        "sources": sources,
+        "shared_mls": apartment_repo.count_shared(db, agency_id),
+        "crm": {
+            "clients": client_repo.count_clients(db, agency_id),
+            "in_search": client_repo.count_clients_in_search(db, agency_id),
+            "deals_active": deals_active,
+            "deals_won": deals_won,
+        },
         "agents": agents,
     }
 
@@ -691,12 +739,15 @@ def get_timeseries(db: Session, agency_id: int, period: str) -> dict:
     since = datetime(
         starts[0].year, starts[0].month, starts[0].day, tzinfo=timezone.utc
     )
-    created_map, sold_map = apartment_repo.timeseries_counts(db, agency_id, since, granularity)
+    created_map, sold_map, rented_map = apartment_repo.timeseries_counts(
+        db, agency_id, since, granularity
+    )
     buckets = [
         {
             "label": _bucket_label(granularity, d),
             "added": created_map.get(d, 0),
             "sold": sold_map.get(d, 0),
+            "rented": rented_map.get(d, 0),
         }
         for d in starts
     ]

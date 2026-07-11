@@ -349,7 +349,7 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
             emp_comm.setdefault(aid, {})[cur or "?"] = float(ssum)
 
     # По сотрудникам: сколько добавил + когда заходил.
-    added_by = {cid: tot for cid, tot, _sold in apartment_repo.stats_by_creator(db, agency_id)}
+    added_by = {cid: tot for cid, tot, _sold, _rented in apartment_repo.stats_by_creator(db, agency_id)}
     users = db.execute(
         select(User).where(User.agency_id == agency_id, User.is_active.is_(True))
     ).scalars().all()

@@ -544,17 +544,72 @@ def count_sold_since(db: Session, agency_id: int, since: datetime) -> int:
     ).scalar_one()
 
 
-def stats_by_creator(db: Session, agency_id: int) -> List[Tuple[Optional[int], int, int]]:
+def stats_by_creator(
+    db: Session, agency_id: int
+) -> List[Tuple[Optional[int], int, int, int]]:
     """
-    Активность по сотрудникам: для каждого создателя — (created_by, всего, продано).
+    Активность по сотрудникам: (created_by, всего, продано, сдано).
+    «Сдано» (rented) добавлено вместе с арендой в аналитику (2026-07).
     """
     sold_expr = func.sum(case((Apartment.status == "sold", 1), else_=0))
+    rented_expr = func.sum(case((Apartment.status == "rented", 1), else_=0))
     rows = db.execute(
-        select(Apartment.created_by, func.count(), sold_expr)
-        .where(Apartment.agency_id == agency_id)
+        select(Apartment.created_by, func.count(), sold_expr, rented_expr)
+        .where(Apartment.agency_id == agency_id, Apartment.deleted_at.is_(None))
         .group_by(Apartment.created_by)
     ).all()
-    return [(row[0], int(row[1]), int(row[2] or 0)) for row in rows]
+    return [(row[0], int(row[1]), int(row[2] or 0), int(row[3] or 0)) for row in rows]
+
+
+def count_by_deal_status(db: Session, agency_id: int) -> dict:
+    """Счётчики по паре (deal_type, status), кроме удалённых. Для разбивки
+    аналитики продажа/аренда одним запросом. Ключ: (deal_type, status)."""
+    rows = db.execute(
+        select(Apartment.deal_type, Apartment.status, func.count())
+        .where(Apartment.agency_id == agency_id, Apartment.deleted_at.is_(None))
+        .group_by(Apartment.deal_type, Apartment.status)
+    ).all()
+    return {(row[0], row[1]): int(row[2]) for row in rows}
+
+
+def count_status_since(
+    db: Session, agency_id: int, since: datetime, status: str
+) -> int:
+    """Сколько объектов перешло в указанный status с момента since (по archived_at).
+    Для «продано/сдано за месяц»."""
+    return db.execute(
+        select(func.count())
+        .select_from(Apartment)
+        .where(
+            Apartment.agency_id == agency_id,
+            Apartment.status == status,
+            Apartment.archived_at >= since,
+        )
+    ).scalar_one()
+
+
+def count_shared(db: Session, agency_id: int) -> int:
+    """Сколько объектов агентства отдано в общую базу (shared_mls=True, не удалён)."""
+    return db.execute(
+        select(func.count())
+        .select_from(Apartment)
+        .where(
+            Apartment.agency_id == agency_id,
+            Apartment.deleted_at.is_(None),
+            Apartment.shared_mls.is_(True),
+        )
+    ).scalar_one()
+
+
+def sources_breakdown(db: Session, agency_id: int) -> dict:
+    """Счётчики по способу добавления (added_via), кроме удалённых.
+    Значения: manual / link / bulk (у старых объектов added_via=NULL)."""
+    rows = db.execute(
+        select(Apartment.added_via, func.count())
+        .where(Apartment.agency_id == agency_id, Apartment.deleted_at.is_(None))
+        .group_by(Apartment.added_via)
+    ).all()
+    return {row[0]: int(row[1]) for row in rows}
 
 
 def timeseries_counts(db: Session, agency_id: int, since: datetime, granularity: str):
@@ -580,6 +635,17 @@ def timeseries_counts(db: Session, agency_id: int, since: datetime, granularity:
         .group_by(sold_bucket)
     ).all()
 
+    rented_bucket = func.date_trunc(granularity, Apartment.archived_at)
+    rented_rows = db.execute(
+        select(rented_bucket, func.count())
+        .where(
+            Apartment.agency_id == agency_id,
+            Apartment.status == "rented",
+            Apartment.archived_at >= since,
+        )
+        .group_by(rented_bucket)
+    ).all()
+
     def _keyize(rows) -> dict:
         out = {}
         for bucket, count in rows:
@@ -589,7 +655,7 @@ def timeseries_counts(db: Session, agency_id: int, since: datetime, granularity:
             out[key] = int(count)
         return out
 
-    return _keyize(created_rows), _keyize(sold_rows)
+    return _keyize(created_rows), _keyize(sold_rows), _keyize(rented_rows)
 
 
 def find_similar(
