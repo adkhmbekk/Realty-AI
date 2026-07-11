@@ -92,6 +92,24 @@ def test_acting_response_keeps_personal_profile(db):
     assert user["phone_verified"] is True
 
 
+def test_enter_shared_agency_is_acting(db):
+    """Переключение суперадмина в ОБЩЕЕ агентство («Realty AI», is_shared) даёт
+    acting-сессию (role=agency_admin, acting_as set) — а не обычную суперадминскую.
+    Это и есть «реальное переключение» из листа выбора агентств."""
+    owner = _superadmin(db)
+    shared = Agency(name="Realty AI", status="active", timezone="Asia/Tashkent",
+                    default_currency="USD", is_shared=True)
+    db.add(shared)
+    db.commit()
+
+    resp = auth_service.build_auth_response(db, owner, act_as_agency_id=shared.id)
+    user = resp["user"]
+    assert user["role"] == "agency_admin"
+    assert user["is_owner"] is True
+    assert user["acting_as_agency_id"] == shared.id
+    assert user["real_role"] == "superadmin"
+
+
 def test_require_platform_owner_allows_acting_superadmin(db):
     """Владелец платформы виден как таковой и ИЗНУТРИ агентства (acting) — это
     питает переключатель агентств (/agencies/mine) в профиле суперадмина."""

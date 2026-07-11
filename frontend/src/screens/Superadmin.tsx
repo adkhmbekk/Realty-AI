@@ -7,7 +7,7 @@ import { useApp } from "../store";
 import { useNav } from "../nav";
 import { useActing } from "../acting";
 import { api, errText } from "../api";
-import { ApartmentCard } from "./Apartments";
+import { ApartmentCard, MlsFilterBar, EMPTY_MLS_FILTERS, type MlsFilters } from "./Apartments";
 import { Badge, Button, Card, Empty, Field, Hint, Input, ListSkeleton, Row, Spinner } from "../components/ui";
 import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, Apartment, ApartmentList, MlsPoolItem, MlsPoolResponse, PaymentsSummary } from "../types";
 import { copyText, fmtAmount, fmtDate } from "../utils";
@@ -956,12 +956,8 @@ export function MlsPoolScreen() {
   const { t } = useApp();
   const nav = useNav();
   const [agencies, setAgencies] = useState<AgencyOut[]>([]);
-  const [agencyId, setAgencyId] = useState<string>("");
-  const [dealType, setDealType] = useState<"" | "sale" | "rent">("");
-  // Статус объекта: "" = любой (по умолчанию показываем ВСЕ, а не только active —
-  // раньше эндпоинт молча фильтровал active, и «фильтр не работал»: проданные/
-  // сданные не показывались, а статус выбрать было негде).
-  const [status, setStatus] = useState<string>("");
+  // Единый фильтр (как у обычных агентств): агентство / тип сделки / статус.
+  const [filters, setFilters] = useState<MlsFilters>(EMPTY_MLS_FILTERS);
   const [q, setQ] = useState("");
   const [items, setItems] = useState<MlsPoolItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -975,11 +971,11 @@ export function MlsPoolScreen() {
     const p = new URLSearchParams();
     p.set("limit", String(PAGE));
     p.set("offset", String(offset));
-    if (agencyId) p.set("agency_id", agencyId);
-    if (dealType) p.set("deal_type", dealType);
+    if (filters.agencyId) p.set("agency_id", filters.agencyId);
+    if (filters.dealType) p.set("deal_type", filters.dealType);
     // Пустой статус шлём явно: сервер по умолчанию берёт "active", а нам нужно
     // «любой». Пустая строка на бэке = без фильтра по статусу.
-    p.set("status", status);
+    p.set("status", filters.status);
     if (q.trim()) p.set("q", q.trim());
     const r = await api<MlsPoolResponse>("/api/v1/mls/pool?" + p.toString());
     setLoading(false);
@@ -999,76 +995,24 @@ export function MlsPoolScreen() {
     });
   }, []);
 
-  // Смена агентства/типа сделки/статуса — перезагрузка с начала (поиск по тексту — по кнопке).
+  // Перезагрузка с начала при смене фильтров и (с задержкой) при вводе текста.
   useEffect(() => {
-    load(true);
+    const id = window.setTimeout(() => load(true), q ? 300 : 0);
+    return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agencyId, dealType, status]);
-
-  const pill = (active: boolean) =>
-    "min-h-[44px] px-3.5 py-2 rounded-full text-[13px] font-bold transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] " +
-    (active ? "bg-primary text-white shadow-glow" : "bg-[var(--soft)] text-muted");
+  }, [filters, q]);
 
   return (
     <div>
       <Hint>{t("mlsPoolHint")}</Hint>
 
-      <div className="flex gap-2 mt-3">
-        <button type="button" className={pill(dealType === "")} onClick={() => setDealType("")}>
-          {t("dealAll")}
-        </button>
-        <button type="button" className={pill(dealType === "sale")} onClick={() => setDealType("sale")}>
-          {t("dealSale")}
-        </button>
-        <button type="button" className={pill(dealType === "rent")} onClick={() => setDealType("rent")}>
-          {t("dealRent")}
-        </button>
-      </div>
-
-      {/* Статус — независимо от типа сделки; «Все» доступно всегда. */}
-      <div className="flex flex-wrap gap-2 mt-2">
-        <button type="button" className={pill(status === "")} onClick={() => setStatus("")}>
-          {t("dealAll")}
-        </button>
-        <button type="button" className={pill(status === "active")} onClick={() => setStatus("active")}>
-          {t("statusActive")}
-        </button>
-        <button type="button" className={pill(status === "deposit")} onClick={() => setStatus("deposit")}>
-          {t("statusDeposit")}
-        </button>
-        <button type="button" className={pill(status === "sold")} onClick={() => setStatus("sold")}>
-          {t("statusSold")}
-        </button>
-        <button type="button" className={pill(status === "rented")} onClick={() => setStatus("rented")}>
-          {t("statusRented")}
-        </button>
-      </div>
-
-      <select
-        value={agencyId}
-        onChange={(e) => setAgencyId(e.target.value)}
-        aria-label={t("mlsAllAgencies")}
-        className="w-full mt-2 min-h-[44px] rounded-xl border border-line bg-card px-3 py-2.5 text-[14px]"
-      >
-        <option value="">{t("mlsAllAgencies")}</option>
-        {agencies.map((a) => (
-          <option key={a.id} value={String(a.id)}>
-            {a.name}
-          </option>
-        ))}
-      </select>
-
-      <div className="flex gap-2 mt-2">
-        <Input
-          placeholder={t("mlsSearchPlaceholder")}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") load(true);
-          }}
-        />
-        <Button onClick={() => load(true)}>{t("filterBtn")}</Button>
-      </div>
+      <MlsFilterBar
+        q={q}
+        setQ={setQ}
+        filters={filters}
+        setFilters={setFilters}
+        agencies={agencies.map((a) => ({ id: a.id, name: a.name }))}
+      />
 
       <div className="text-[13px] text-muted mt-3">
         {t("mlsTotal")}: <b>{total}</b>

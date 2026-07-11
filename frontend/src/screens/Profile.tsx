@@ -23,7 +23,9 @@ function agShort(name: string): string {
 function SwitchSheet({ onClose }: { onClose: () => void }) {
   const { t, L, user } = useApp();
   const { enterAgency } = useActing();
+  const nav = useNav();
   const [items, setItems] = useState<SwitchItem[] | null>(null);
+  const [switching, setSwitching] = useState(false);
   const isSuper = user?.real_role === "superadmin";
 
   useEffect(() => {
@@ -75,8 +77,18 @@ function SwitchSheet({ onClose }: { onClose: () => void }) {
               return (
                 <button
                   key={m.agency_id}
-                  disabled={cur}
-                  onClick={() => { onClose(); enterAgency(m.agency_id); }}
+                  disabled={cur || switching}
+                  onClick={async () => {
+                    // Реальное переключение: входим в агентство и приземляемся на
+                    // его ГЛАВНУЮ (как при входе из хаба). Без resetTo мы оставались
+                    // на экране профиля — и переключение выглядело как «ничего не
+                    // произошло / вернуло в кабинет».
+                    setSwitching(true);
+                    const ok = await enterAgency(m.agency_id);
+                    onClose();
+                    if (ok) nav.resetTo({ name: "home" });
+                    else setSwitching(false);
+                  }}
                   className={
                     "w-full flex items-center gap-3 p-3 rounded-xl border text-left transition " +
                     (cur ? "bg-primary-soft border-primary/40" : "bg-card border-line active:scale-[.99]")
