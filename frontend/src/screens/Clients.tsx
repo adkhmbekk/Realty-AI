@@ -385,16 +385,24 @@ export function ClientsScreen() {
       load();
     } else toast(errText(r.data, r.status), "err");
   }
+  // Переключение вкладки «активные/архив» — МГНОВЕННО (без debounce): раньше
+  // общий таймер на 300 мс c поиском давал ощутимый лаг при смене вкладки. Список
+  // сразу гасим (спиннер), чтобы не мигал старый (не тот) набор. Этот эффект даёт
+  // и первичную загрузку при монтировании.
   useEffect(() => {
+    setClients(null);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  // Поиск с небольшой задержкой.
+  }, [archived]);
+  // Поиск — с небольшой задержкой (debounce ввода). Пропускаем первый прогон
+  // (монтирование уже загружено эффектом выше), чтобы не грузить дважды.
+  const firstQ = React.useRef(true);
   useEffect(() => {
+    if (firstQ.current) { firstQ.current = false; return; }
     const id = window.setTimeout(load, 300);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, archived]);
+  }, [q]);
   // Умное обновление списка клиентов при возврате, если данные менялись.
   useRevisit(load);
 

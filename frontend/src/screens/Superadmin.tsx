@@ -9,35 +9,8 @@ import { useActing } from "../acting";
 import { api, errText } from "../api";
 import { ApartmentCard } from "./Apartments";
 import { Badge, Button, Card, Empty, Field, Hint, Input, ListSkeleton, Row, Spinner } from "../components/ui";
-import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, AgencyUsage, Apartment, ApartmentList, MlsPoolItem, MlsPoolResponse, PaymentsSummary } from "../types";
+import type { Activation, AgencyActivity, AgencyDraftOut, AgencyOut, AgencyPayment, Apartment, ApartmentList, MlsPoolItem, MlsPoolResponse, PaymentsSummary } from "../types";
 import { copyText, fmtAmount, fmtDate } from "../utils";
-
-// ── Наблюдение за агентствами: «светофор» + относительное время ──────
-function engagementMeta(eng: string): { dot: string; labelKey: string } {
-  switch (eng) {
-    case "active":
-      return { dot: "bg-emerald-500", labelKey: "engActive" };
-    case "quiet":
-      return { dot: "bg-amber-500", labelKey: "engQuiet" };
-    case "asleep":
-      return { dot: "bg-rose-500", labelKey: "engAsleep" };
-    default:
-      return { dot: "bg-slate-400", labelKey: "engNew" };
-  }
-}
-
-function fmtAgo(iso: string | null | undefined, t: (k: string) => string): string {
-  if (!iso) return "—";
-  const ts = new Date(iso).getTime();
-  if (Number.isNaN(ts)) return "—";
-  const min = Math.floor((Date.now() - ts) / 60000);
-  if (min < 60) return t("agoJustNow");
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h} ${t("agoHours")}`;
-  const d = Math.floor(h / 24);
-  if (d === 1) return t("agoYesterday");
-  return `${d} ${t("agoDays")}`;
-}
 
 // Маленький блок «число + подпись» (для Сегодня/Вчера/Позавчера).
 function fmtMoneyMap(m?: Record<string, number>): string {
@@ -342,33 +315,6 @@ function ActivationCard({
   );
 }
 
-// Свод использования по всем агентствам (вовлечённость + объекты).
-function UsageSummary({ usage }: { usage: AgencyUsage[] }) {
-  const { t } = useApp();
-  const by = (e: string) => usage.filter((u) => u.engagement === e).length;
-  const objects = usage.reduce((s, u) => s + u.objects_total, 0);
-  const today = usage.reduce((s, u) => s + u.added_today, 0);
-  const week = usage.reduce((s, u) => s + u.added_7d, 0);
-  const dot = (c: string, k: string, n: number) => (
-    <span className="inline-flex items-center gap-1">
-      <span className={`w-2 h-2 rounded-full ${c}`} /> {t(k)} {n}
-    </span>
-  );
-  return (
-    <Card className="mt-3">
-      <div className="font-extrabold mb-1.5">{t("usageTitle")}</div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px]">
-        {dot("bg-emerald-500", "engActive", by("active"))}
-        {dot("bg-amber-500", "engQuiet", by("quiet"))}
-        {dot("bg-rose-500", "engAsleep", by("asleep"))}
-        {dot("bg-slate-400", "engNew", by("new"))}
-      </div>
-      <div className="text-[12.5px] text-muted mt-1.5">
-        {t("actObjects")}: {objects} · {t("actAddedDay")} +{today} · {t("actWeek")} +{week}
-      </div>
-    </Card>
-  );
-}
 
 // Свод по платежам всех агентств (общий итог + статистика).
 function RevenuePanel() {
@@ -448,88 +394,16 @@ function PaymentHistory({ id, refresh }: { id: number; refresh: number }) {
   );
 }
 
+// Финансы платформы: ТОЛЬКО деньги (свод по доходу/платежам). Агентства сюда
+// больше не входят — они теперь внутри своих пользователей (вкладка «Пользователи»
+// → юзер → его агентства). Управление/активность агентства открывается оттуда.
 export function AgenciesScreen() {
-  const { t, lang, toast } = useApp();
-  const nav = useNav();
-  const [list, setList] = useState<AgencyOut[] | null>(null);
-  const [usage, setUsage] = useState<Record<number, AgencyUsage>>({});
-  const [err, setErr] = useState<string | null>(null);
-
-  async function load() {
-    const r = await api<AgencyOut[]>("/api/v1/agencies");
-    if (r.ok && Array.isArray(r.data)) {
-      setList(r.data);
-      setErr(null);
-    } else setErr(`${t("notFound")} (${r.status})`);
-    const u = await api<AgencyUsage[]>("/api/v1/agencies/usage");
-    if (u.ok && Array.isArray(u.data)) {
-      setUsage(Object.fromEntries(u.data.map((x) => [x.agency_id, x])));
-    }
-  }
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const usageList = Object.values(usage);
-
+  const { t } = useApp();
   return (
     <div>
-      {/* Агентства создаются САМОСТОЯТЕЛЬНО (саморегистрация при входе в бот),
-          суперадмин их больше не создаёт — здесь только наблюдение и управление. */}
-      {usageList.length > 0 && <UsageSummary usage={usageList} />}
+      <div className="text-xl font-extrabold tracking-tight mx-0.5 mb-1">{t("financesTab")}</div>
+      <p className="text-[13px] text-muted mx-0.5 mb-1">{t("financesSub")}</p>
       <RevenuePanel />
-      <div className="mt-3">
-        {err ? (
-          <Empty>{err}</Empty>
-        ) : !list ? (
-          <ListSkeleton />
-        ) : !list.length ? (
-          <Empty icon={<Building2 size={24} />}>{t("noAgencies")}</Empty>
-        ) : (
-          list.map((a) => {
-            const adminTxt = a.admin_name
-              ? a.admin_name + (a.admin_telegram_id ? ` (ID ${a.admin_telegram_id})` : "")
-              : t("notAssigned");
-            const u = usage[a.id];
-            const meta = u ? engagementMeta(u.engagement) : null;
-            return (
-              <button
-                key={a.id}
-                onClick={() => nav.push({ name: "agencyManage", id: a.id })}
-                className="w-full text-left mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-4 transition active:scale-[.99] hover:shadow-lg2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-extrabold">{a.name}</span>
-                  {statusBadge(a, t)}
-                </div>
-                {u && meta && (
-                  <div className="text-[13px] mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="inline-flex items-center gap-1.5 font-bold">
-                      <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
-                      {t(meta.labelKey)}
-                    </span>
-                    <span className="text-muted">· {u.objects_total} {t("actObjects").toLowerCase()}</span>
-                    <span className="text-muted">· {t("actAddedDay")} +{u.added_today}</span>
-                    {u.last_activity_at && <span className="text-muted">· {fmtAgo(u.last_activity_at, t)}</span>}
-                  </div>
-                )}
-                {a.project_name && (
-                  <div className="text-[13px] text-muted mt-1">
-                    {t("projectName")}: {a.project_name}
-                  </div>
-                )}
-                <div className="text-[13px] text-muted">
-                  ID {a.id} · {t("subUntil")}: {fmtDate(a.subscription_expires_at, lang)}
-                </div>
-                <div className="text-[13px] text-muted">
-                  {t("admin")}: {adminTxt}
-                </div>
-              </button>
-            );
-          })
-        )}
-      </div>
     </div>
   );
 }
@@ -1084,6 +958,10 @@ export function MlsPoolScreen() {
   const [agencies, setAgencies] = useState<AgencyOut[]>([]);
   const [agencyId, setAgencyId] = useState<string>("");
   const [dealType, setDealType] = useState<"" | "sale" | "rent">("");
+  // Статус объекта: "" = любой (по умолчанию показываем ВСЕ, а не только active —
+  // раньше эндпоинт молча фильтровал active, и «фильтр не работал»: проданные/
+  // сданные не показывались, а статус выбрать было негде).
+  const [status, setStatus] = useState<string>("");
   const [q, setQ] = useState("");
   const [items, setItems] = useState<MlsPoolItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -1099,6 +977,9 @@ export function MlsPoolScreen() {
     p.set("offset", String(offset));
     if (agencyId) p.set("agency_id", agencyId);
     if (dealType) p.set("deal_type", dealType);
+    // Пустой статус шлём явно: сервер по умолчанию берёт "active", а нам нужно
+    // «любой». Пустая строка на бэке = без фильтра по статусу.
+    p.set("status", status);
     if (q.trim()) p.set("q", q.trim());
     const r = await api<MlsPoolResponse>("/api/v1/mls/pool?" + p.toString());
     setLoading(false);
@@ -1118,11 +999,11 @@ export function MlsPoolScreen() {
     });
   }, []);
 
-  // Смена агентства/типа сделки — перезагрузка с начала (поиск по тексту — по кнопке).
+  // Смена агентства/типа сделки/статуса — перезагрузка с начала (поиск по тексту — по кнопке).
   useEffect(() => {
     load(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agencyId, dealType]);
+  }, [agencyId, dealType, status]);
 
   const pill = (active: boolean) =>
     "min-h-[44px] px-3.5 py-2 rounded-full text-[13px] font-bold transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] " +
@@ -1141,6 +1022,25 @@ export function MlsPoolScreen() {
         </button>
         <button type="button" className={pill(dealType === "rent")} onClick={() => setDealType("rent")}>
           {t("dealRent")}
+        </button>
+      </div>
+
+      {/* Статус — независимо от типа сделки; «Все» доступно всегда. */}
+      <div className="flex flex-wrap gap-2 mt-2">
+        <button type="button" className={pill(status === "")} onClick={() => setStatus("")}>
+          {t("dealAll")}
+        </button>
+        <button type="button" className={pill(status === "active")} onClick={() => setStatus("active")}>
+          {t("statusActive")}
+        </button>
+        <button type="button" className={pill(status === "deposit")} onClick={() => setStatus("deposit")}>
+          {t("statusDeposit")}
+        </button>
+        <button type="button" className={pill(status === "sold")} onClick={() => setStatus("sold")}>
+          {t("statusSold")}
+        </button>
+        <button type="button" className={pill(status === "rented")} onClick={() => setStatus("rented")}>
+          {t("statusRented")}
         </button>
       </div>
 
@@ -1184,17 +1084,12 @@ export function MlsPoolScreen() {
         ) : (
           <>
             {items.map((it) => (
-              <div key={it.apartment.id}>
-                <div className="flex items-center gap-1.5 mt-2.5 mx-0.5 text-[11.5px] font-bold">
-                  <span className="px-1.5 py-0.5 rounded-full bg-primary-soft text-primary">
-                    {it.agency_name || `ID ${it.agency_id}`}
-                  </span>
-                </div>
-                <ApartmentCard
-                  o={it.apartment}
-                  onOpen={() => nav.push({ name: "agencyObjectDetail", obj: it.apartment, agencyId: it.agency_id })}
-                />
-              </div>
+              <ApartmentCard
+                key={it.apartment.id}
+                o={it.apartment}
+                agencyName={it.agency_name || `ID ${it.agency_id}`}
+                onOpen={() => nav.push({ name: "agencyObjectDetail", obj: it.apartment, agencyId: it.agency_id })}
+              />
             ))}
             {items.length < total && (
               <Button full variant="ghost" className="mt-3" disabled={loading} onClick={() => load(false)}>

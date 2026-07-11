@@ -632,7 +632,7 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
 }
 
 // ── Карточка в списке ───────────────────────────────────────────────
-export function ApartmentCard({ o, onOpen }: { o: Apartment; onOpen?: (() => void) | false }) {
+export function ApartmentCard({ o, onOpen, agencyName }: { o: Apartment; onOpen?: (() => void) | false; agencyName?: string | null }) {
   const { t, L } = useApp();
   const nav = useNav();
   // onOpen: не задан → открываем карточку объекта (по умолчанию); false → карточка
@@ -678,6 +678,15 @@ export function ApartmentCard({ o, onOpen }: { o: Apartment; onOpen?: (() => voi
           )}
         </div>
         <div className="min-w-0 flex-1">
+          {/* Имя агентства-владельца (общая база у суперадмина): встроено В карточку
+              строкой сверху, а не отдельным бейджем над ней — чтобы объекты шли
+              ровным списком. */}
+          {agencyName && (
+            <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+              <span className="text-[11.5px] font-extrabold text-primary truncate">{agencyName}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2">
             <span className="font-extrabold flex items-center gap-1.5 min-w-0">
               <span className="shrink-0">№{o.display_id}</span>
@@ -829,7 +838,12 @@ export function MlsBrowseScreen() {
     });
   }
 
-  const statusOpts = (MLS_DEAL_STATUSES[draft.dealType] || []).map((k) => ({
+  // Когда тип сделки = «Все» (пусто), статусы брать НЕ из карты по типу (там нет
+  // ключа "" → раньше список статусов был пуст и выбрать статус было нельзя), а
+  // объединением всех возможных статусов.
+  const ALL_MLS_STATUSES = ["active", "deposit", "sold", "rented"];
+  const statusKeys = MLS_DEAL_STATUSES[draft.dealType] || ALL_MLS_STATUSES;
+  const statusOpts = statusKeys.map((k) => ({
     value: k,
     label: L.statusLabel(k, draft.dealType),
   }));
