@@ -15,7 +15,7 @@ from fastapi import status
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.repositories import agency_membership_repo, agency_repo, apartment_repo, user_repo
+from app.repositories import agency_membership_repo, apartment_repo, user_repo
 
 
 def _user_summary(u) -> dict:
