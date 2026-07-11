@@ -1,112 +1,97 @@
 import { useEffect, useState } from "react";
-import { User, LifeBuoy, Building2, Pencil, Plus, ChevronRight, Trash2 } from "lucide-react";
+import { User, LifeBuoy, Building2, Pencil, ChevronRight, ChevronDown, Check } from "lucide-react";
 import { useApp } from "../store";
 import { useActing } from "../acting";
 import { api, errText } from "../api";
-import { Card, Row, Hint, Button, Field, Input } from "../components/ui";
-import { openTelegramLink, haptic, confirmDialog } from "../telegram";
-import { fmtDate, daysLeft, initials } from "../utils";
+import { Card, Row, Hint, Button, Field, Input, Spinner } from "../components/ui";
+import { openTelegramLink, haptic } from "../telegram";
+import { initials } from "../utils";
 import type { Membership, AgencySettings } from "../types";
 
-// «Мои агентства»: переключатель между агентствами/должностями человека +
-// возможность открыть ещё одно своё агентство. Пусто (не показывается) для
-// суперадмина и для тех, у кого одно домашнее агентство без доп. членств.
-function MyAgenciesCard() {
-  const { t, L, toast } = useApp();
-  const { enterAgency, openAgency, deleteAgency } = useActing();
+function agShort(name: string): string {
+  return (name || "").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "—";
+}
+
+// Свитчер агентств (по идее из симуляции): сверху — текущее агентство + ▾,
+// тап открывает нижний лист со списком «мои агентства» (галочка на текущем) и
+// кнопкой возврата в личное пространство. Заменяет карточку «Мои агентства».
+function AgencySwitcher() {
+  const { t, L, user, settings } = useApp();
+  const { enterAgency, exitToPersonal } = useActing();
+  const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Membership[] | null>(null);
-  const [opening, setOpening] = useState(false);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api<Membership[]>("/api/v1/auth/memberships").then((r) =>
-      setItems(r.ok && Array.isArray(r.data) ? r.data : [])
-    );
-  }, []);
+    if (open && items === null) {
+      api<Membership[]>("/api/v1/auth/memberships").then((r) =>
+        setItems(r.ok && Array.isArray(r.data) ? r.data : [])
+      );
+    }
+  }, [open, items]);
 
-  async function create() {
-    if (!name.trim()) { toast(t("regNameRequired"), "err"); return; }
-    if (!phone.trim()) { toast(t("regPhoneRequired"), "err"); return; }
-    setBusy(true);
-    await openAgency(name.trim(), phone.trim());
-    setBusy(false);
-    // При успехе приложение уже переключилось в новое агентство (applyAuth).
-  }
-
-  async function remove(id: number) {
-    if (await confirmDialog(t("delAgencyQ"))) deleteAgency(id);
-  }
-
-  // Показываем, только если человек — участник (у суперадмина членств нет).
-  if (!items || items.length === 0) return null;
+  const currentName = settings?.project_name || settings?.name || user?.full_name || "—";
 
   return (
-    <Card className="mt-3">
-      <div className="flex items-center gap-2.5 mb-2.5">
-        <Building2 size={18} className="text-primary" />
-        <span className="font-extrabold">{t("myAgenciesTitle")}</span>
-      </div>
-      <div className="space-y-2">
-        {items.map((m) => (
+    <>
+      <button
+        onClick={() => { haptic(); setOpen(true); }}
+        className="w-full flex items-center gap-3 rounded-xl2 bg-card border border-line shadow-soft p-3 mb-3 active:scale-[.99] transition"
+      >
+        <span className="w-10 h-10 rounded-xl bg-primary-soft text-primary flex items-center justify-center font-extrabold shrink-0">
+          {agShort(currentName)}
+        </span>
+        <span className="min-w-0 flex-1 text-left font-extrabold truncate">{currentName}</span>
+        <ChevronDown size={20} className="text-muted shrink-0" />
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: "color-mix(in srgb, var(--bg) 68%, transparent)" }}
+          onClick={() => setOpen(false)}
+        >
           <div
-            key={m.agency_id}
-            className={
-              "rounded-xl border flex items-center " +
-              (m.is_current ? "bg-primary-soft border-primary/40" : "bg-card border-line")
-            }
+            className="w-full max-w-[560px] bg-card border-t border-line rounded-t-xl3 px-4 pt-3 pb-[calc(18px+env(safe-area-inset-bottom,0px))] animate-fade-up"
+            onClick={(e) => e.stopPropagation()}
           >
-            <button
-              disabled={m.is_current}
-              onClick={() => { haptic(); enterAgency(m.agency_id); }}
-              className="flex-1 min-w-0 text-left p-3 flex items-center gap-3 transition active:scale-[.99] disabled:active:scale-100"
-            >
-              <span className="w-9 h-9 rounded-lg bg-[var(--soft)] text-primary flex items-center justify-center shrink-0">
-                <Building2 size={16} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="font-bold truncate">{m.project_name || m.agency_name}</div>
-                <div className="text-[12px] text-muted truncate">
-                  {L.roleLabel(m.role, m.is_owner)}{m.is_current ? " · " + t("currentAgency") : ""}
-                </div>
-              </div>
-              {!m.is_current && <ChevronRight size={16} className="text-muted shrink-0" />}
-            </button>
-            {m.is_owner && items.length > 1 && (
-              <button
-                onClick={() => remove(m.agency_id)}
-                className="w-11 h-11 shrink-0 flex items-center justify-center text-rose-500 active:scale-90"
-                aria-label={t("delAgency")}
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-      {opening ? (
-        <div className="mt-3">
-          <Field label={t("regName")}>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("regNamePh")} />
-          </Field>
-          <Field label={t("regPhone")}>
-            <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("regPhonePh")} />
-          </Field>
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <Button variant="ghost" onClick={() => setOpening(false)}>{t("cancel")}</Button>
-            <Button disabled={busy} onClick={create}>{t("regSubmit")}</Button>
+            <div className="w-10 h-1 rounded-full bg-line mx-auto mb-3.5" />
+            <div className="text-[15px] font-extrabold text-center mb-3">{t("switchAgency")}</div>
+            <div className="space-y-2 max-h-[46vh] overflow-y-auto">
+              {items === null ? (
+                <div className="py-6 flex justify-center"><Spinner /></div>
+              ) : (
+                items.map((m) => {
+                  const cur = m.is_current;
+                  return (
+                    <button
+                      key={m.agency_id}
+                      disabled={cur}
+                      onClick={() => { setOpen(false); enterAgency(m.agency_id); }}
+                      className={
+                        "w-full flex items-center gap-3 p-3 rounded-xl border text-left transition " +
+                        (cur ? "bg-primary-soft border-primary/40" : "bg-card border-line active:scale-[.99]")
+                      }
+                    >
+                      <span className="w-9 h-9 rounded-lg bg-[var(--soft)] text-primary flex items-center justify-center font-extrabold shrink-0">
+                        {agShort(m.project_name || m.agency_name)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-bold truncate">{m.project_name || m.agency_name}</span>
+                        <span className="block text-[12px] text-muted">{L.roleLabel(m.role, m.is_owner)}</span>
+                      </span>
+                      {cur ? <Check size={18} className="text-primary shrink-0" /> : <ChevronRight size={16} className="text-muted shrink-0" />}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <Button variant="ghost" full className="mt-3.5" onClick={() => { setOpen(false); haptic(); exitToPersonal(); }}>
+              🏠 {t("exitToPersonalHub")}
+            </Button>
           </div>
         </div>
-      ) : (
-        <button
-          onClick={() => setOpening(true)}
-          className="w-full mt-3 text-[13px] font-bold text-primary inline-flex items-center justify-center gap-1 active:scale-95"
-        >
-          <Plus size={15} /> {t("openAnotherAgency")}
-        </button>
       )}
-    </Card>
+    </>
   );
 }
 
@@ -195,13 +180,17 @@ function AgencyCard() {
 }
 
 export function ProfileScreen() {
-  const { t, L, lang, user, settings } = useApp();
-  const { exitToPersonal } = useActing();
+  const { t, L, user, settings } = useApp();
   if (!user) return null;
   const displayName = user.full_name || (user.username ? "@" + user.username : t("notSet"));
   const supportUrl = settings?.support_url || null;
   return (
     <div>
+      {/* Свитчер агентств (сверху): переключиться на другое агентство или выйти в
+          личное пространство. Заменяет карточку «Мои агентства». Внутри агентства
+          суперадмин работает как agency_admin (acting) — свитчер ему тоже нужен;
+          прячем только «чистого» суперадмина (его хаб — отдельный экран). */}
+      {user.role !== "superadmin" && <AgencySwitcher />}
       {/* Личная шапка с аватаром-инициалами */}
       <div
         className="flex items-center gap-3.5 rounded-xl3 p-4 mb-3 text-white overflow-hidden"
@@ -219,14 +208,7 @@ export function ProfileScreen() {
         <Row label={t("username")} value={user.username ? "@" + user.username : t("notSet")} />
         <Row label={t("tgId")} value={user.telegram_id} />
       </Card>
-      <MyAgenciesCard />
       <AgencyCard />
-      {user.is_owner && settings?.subscription_expires_at && (
-        <Card className="mt-3">
-          <Row label={t("subUntil")} value={fmtDate(settings.subscription_expires_at, lang, settings.timezone)} />
-          <Row label={t("daysLeft")} value={daysLeft(settings.subscription_expires_at)} />
-        </Card>
-      )}
       {/* Поддержка: связаться с нами (открывает чат в Telegram). */}
       {supportUrl && (
         <Card className="mt-3">
@@ -239,13 +221,6 @@ export function ProfileScreen() {
             {t("contactSupport")}
           </Button>
         </Card>
-      )}
-      {/* Выйти в личное пространство (юзер-центричная модель): вернуться к списку
-          своих агентств. Для суперадмина не показываем — у него нет личного хаба. */}
-      {user.role !== "superadmin" && (
-        <Button variant="ghost" full className="mt-3" onClick={() => { haptic(); exitToPersonal(); }}>
-          {t("exitToPersonalHub")}
-        </Button>
       )}
       {/* Версия сборки — чтобы было видно, что приложение обновилось до свежей. */}
       <div className="text-center text-[11px] text-muted mt-5">
