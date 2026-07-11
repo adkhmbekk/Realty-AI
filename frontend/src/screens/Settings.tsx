@@ -563,13 +563,10 @@ function WatchCard() {
                     <Trash2 size={16} />
                   </button>
                 </div>
-                <div className="mt-2.5 flex items-center justify-between gap-3">
-                  <span className="min-w-0">
-                    <span className="block text-[13px] font-bold">{t("tgWatchAddToBase")}</span>
-                    <span className="block text-[11.5px] text-muted leading-snug">{t("tgWatchAddToBaseSub")}</span>
-                  </span>
-                  <Switch checked={w.enabled} onChange={(v) => patchWatch(w, { enabled: v })} label={t("tgWatchAddToBase")} />
-                </div>
+                {/* Переключатель «добавлять в свою базу» убран: канал всегда
+                    активен и по умолчанию кладёт объекты в вашу базу. Если
+                    включить «общую базу» ниже — объекты попадают ТОЛЬКО в общую
+                    (в вашей базе они скрыты, см. exclude_shared в бэкенде). */}
                 <div className="mt-2.5 flex items-center justify-between gap-3">
                   <span className="min-w-0">
                     <span className="block text-[13px] font-bold">{t("tgShareMls")}</span>
