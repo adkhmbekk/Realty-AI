@@ -15,18 +15,25 @@ def get_by_id(db: Session, user_id: int) -> Optional[User]:
 
 
 def get_by_telegram_id(db: Session, telegram_id: int) -> Optional[User]:
+    """Активный пользователь по telegram_id. АРХИВНЫХ НЕ возвращаем: их аккаунт
+    «удалён», а Telegram освобождён — поэтому вход по нему должен завести НОВЫЙ
+    чистый аккаунт (login создаёт его, не найдя активного)."""
     return db.execute(
-        select(User).where(User.telegram_id == telegram_id)
+        select(User).where(
+            User.telegram_id == telegram_id, User.archived_at.is_(None)
+        )
     ).scalar_one_or_none()
 
 
 def list_all(
-    db: Session, *, q: Optional[str] = None, limit: int = 50, offset: int = 0
+    db: Session, *, q: Optional[str] = None, archived: bool = False,
+    limit: int = 50, offset: int = 0,
 ) -> Tuple[List[User], int]:
-    """Все пользователи прошки (КРОМЕ суперадминов) — для витрины «юзеры» у
-    владельца платформы (юзер-центричная модель, 2026-07). Новые сверху; фильтр q
-    по имени/username/телефону. Возвращает (список, всего)."""
+    """Пользователи прошки (КРОМЕ суперадминов) — для витрины «юзеры» у владельца
+    платформы. archived=False — активные, True — архив (удалённые). Новые сверху;
+    фильтр q по имени/username/телефону. Возвращает (список, всего)."""
     conds = [User.role != "superadmin"]
+    conds.append(User.archived_at.isnot(None) if archived else User.archived_at.is_(None))
     if q and q.strip():
         like = f"%{q.strip()}%"
         conds.append(
@@ -56,9 +63,10 @@ def list_all(
 
 
 def get_by_phone(db: Session, phone: str) -> Optional[User]:
-    """Пользователь по номеру телефона (номер уникален; юзер-центричная модель)."""
+    """Активный пользователь по номеру телефона (номер уникален среди активных;
+    архивные не учитываем — их номер освобождён)."""
     return db.execute(
-        select(User).where(User.phone == phone)
+        select(User).where(User.phone == phone, User.archived_at.is_(None))
     ).scalar_one_or_none()
 
 

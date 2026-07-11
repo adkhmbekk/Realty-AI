@@ -103,6 +103,26 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Faqat agentlik xodimlari uchun ruxsat.",
         "en": "Agency members only.",
     },
+    "agency_suspended": {
+        "ru": "Агентство временно недоступно (владелец в архиве). Обратитесь к владельцу платформы.",
+        "uz": "Agentlik vaqtincha mavjud emas (egasi arxivda). Platforma egasiga murojaat qiling.",
+        "en": "The agency is temporarily unavailable (owner archived). Contact the platform owner.",
+    },
+    "archive_target_invalid": {
+        "ru": "Выберите активного пользователя, которому передать данные.",
+        "uz": "Maʼlumotlarni oʻtkazish uchun faol foydalanuvchini tanlang.",
+        "en": "Choose an active user to transfer the data to.",
+    },
+    "user_not_archived": {
+        "ru": "Этот пользователь не в архиве.",
+        "uz": "Bu foydalanuvchi arxivda emas.",
+        "en": "This user is not in the archive.",
+    },
+    "cannot_archive_superadmin": {
+        "ru": "Владельца платформы удалить нельзя.",
+        "uz": "Platforma egasini oʻchirib boʻlmaydi.",
+        "en": "The platform owner cannot be deleted.",
+    },
     "forbidden_admin_only": {
         "ru": "Доступ только для администратора агентства.",
         "uz": "Faqat agentlik administratori uchun ruxsat.",

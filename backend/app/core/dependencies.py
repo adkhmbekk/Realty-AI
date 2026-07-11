@@ -199,6 +199,14 @@ def _ensure_subscription_active(db: Session, user: User) -> None:
         raise AppError("subscription_suspended", status.HTTP_403_FORBIDDEN)
 
 
+def _ensure_agency_not_archived(db: Session, user: User) -> None:
+    """Заблокировать доступ, если агентство пользователя заморожено (archived_at)
+    вместе с архивацией владельца. Данные сохранены — доступ приостановлен."""
+    agency = agency_repo.get_by_id(db, user.agency_id)
+    if agency is not None and getattr(agency, "archived_at", None) is not None:
+        raise AppError("agency_suspended", status.HTTP_403_FORBIDDEN)
+
+
 def require_agency_member(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> User:
@@ -212,6 +220,7 @@ def require_agency_member(
     """
     if user.role not in ("agency_admin", "agent") or user.agency_id is None:
         raise AppError("forbidden_member_only", status.HTTP_403_FORBIDDEN)
+    _ensure_agency_not_archived(db, user)
     _ensure_subscription_active(db, user)
     return user
 
@@ -222,6 +231,7 @@ def require_agency_admin(
     """Пропускает только администратора агентства с активной подпиской."""
     if user.role != "agency_admin" or user.agency_id is None:
         raise AppError("forbidden_admin_only", status.HTTP_403_FORBIDDEN)
+    _ensure_agency_not_archived(db, user)
     _ensure_subscription_active(db, user)
     return user
 
@@ -238,5 +248,6 @@ def require_agency_owner(
     """
     if user.role != "agency_admin" or user.agency_id is None or not user.is_owner:
         raise AppError("forbidden_owner_only", status.HTTP_403_FORBIDDEN)
+    _ensure_agency_not_archived(db, user)
     _ensure_subscription_active(db, user)
     return user

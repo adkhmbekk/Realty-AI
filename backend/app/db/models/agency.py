@@ -97,6 +97,14 @@ class Agency(Base):
     last_display_number: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0")
     )
+    # Заморожено вместе с архивацией владельца (опция «заморозить агентства»).
+    # NULL — обычное живое агентство. Если задан — агентство «в архиве»: сотрудники
+    # теряют к нему доступ (не видят в своём хабе, агентские API отвечают отказом),
+    # пока владельца не восстановят (тогда archived_at снимается и владение
+    # переходит выбранному юзеру).
+    archived_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

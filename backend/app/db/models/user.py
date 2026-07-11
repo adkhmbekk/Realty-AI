@@ -88,3 +88,12 @@ class User(Base):
     last_seen_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Архивация (удаление владельцем платформы). NULL — активный аккаунт. Если
+    # задан — аккаунт «удалён»: в приложение по нему не войти, а его Telegram/номер
+    # ОСВОБОЖДАЮТСЯ (частичные уникальные индексы «WHERE archived_at IS NULL»),
+    # поэтому при следующем входе человек заводит НОВЫЙ чистый аккаунт. Данные
+    # архивного юзера хранятся, пока их не восстановят (перенос владельческих
+    # агентств другому юзеру) или не удалят навсегда.
+    archived_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )

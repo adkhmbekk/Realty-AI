@@ -26,6 +26,8 @@ class PlatformUserOut(BaseModel):
     is_active: bool = True
     last_seen_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    # Когда удалён (в архиве). NULL — активный.
+    archived_at: Optional[datetime] = None
     # Во скольких агентствах состоит (для списка).
     agencies_count: int = 0
 
@@ -43,6 +45,18 @@ class PlatformUserAgency(BaseModel):
     agency_name: str
     role: str
     is_owner: bool = False
+    # Заморожено вместе с архивацией владельца.
+    is_frozen: bool = False
+
+
+class ArchiveUserRequest(BaseModel):
+    # Заморозить ли агентства, где юзер — владелец (агенты потеряют доступ).
+    freeze_agencies: bool = False
+
+
+class RestoreUserRequest(BaseModel):
+    # Активный юзер, которому передать владельческие агентства архивного.
+    target_user_id: int
 
 
 class PlatformUserDetail(BaseModel):

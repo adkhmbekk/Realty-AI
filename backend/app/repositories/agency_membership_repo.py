@@ -24,12 +24,21 @@ def get(db: Session, user_id: int, agency_id: int) -> Optional[AgencyMembership]
     ).scalar_one_or_none()
 
 
-def list_for_user(db: Session, user_id: int) -> List[Tuple[AgencyMembership, Agency]]:
-    """Все членства пользователя вместе с агентством (для списка/переключателя)."""
+def list_for_user(
+    db: Session, user_id: int, *, include_archived: bool = False
+) -> List[Tuple[AgencyMembership, Agency]]:
+    """Все членства пользователя вместе с агентством (для списка/переключателя).
+
+    По умолчанию замороженные (archived_at) агентства НЕ включаем — сотрудник не
+    должен видеть их в своём хабе, пока владельца не восстановят. Витрина владельца
+    платформы (карточка архивного юзера) вызывает с include_archived=True."""
+    conds = [AgencyMembership.user_id == user_id]
+    if not include_archived:
+        conds.append(Agency.archived_at.is_(None))
     rows = db.execute(
         select(AgencyMembership, Agency)
         .join(Agency, AgencyMembership.agency_id == Agency.id)
-        .where(AgencyMembership.user_id == user_id)
+        .where(*conds)
         .order_by(AgencyMembership.created_at, AgencyMembership.id)
     ).all()
     return [(m, a) for m, a in rows]

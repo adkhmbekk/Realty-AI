@@ -182,6 +182,9 @@ def enter_agency(
     agency = agency_repo.get_by_id(db, agency_id)
     if agency is None:
         raise AppError("agency_not_found", status.HTTP_404_NOT_FOUND)
+    # Замороженное (в архиве вместе с владельцем) агентство — войти нельзя.
+    if getattr(agency, "archived_at", None) is not None:
+        raise AppError("agency_suspended", status.HTTP_403_FORBIDDEN)
 
     if real_user.role == "superadmin":
         allowed = (
