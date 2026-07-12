@@ -885,7 +885,19 @@ export function App() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ init_data: fresh }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          // Сессия/членство недействительны ОКОНЧАТЕЛЬНО (не временный сбой сети
+          // или 5xx): выводим пользователя из «мёртвой» рабочей оболочки на нужный
+          // экран, а не оставляем на бесконечных ошибках (CR-4). 403 = аккаунт
+          // отключён/исключён → экран вступления; 401 = вход не принят → заново.
+          if (res.status === 401 || res.status === 403) {
+            clearAuth();
+            refreshTokenRef.current = null;
+            actingAgencyRef.current = null;
+            setPhase(res.status === 403 ? "join" : "open");
+          }
+          return null;
+        }
         const data: AuthResponse = await res.json();
         setAuth(data.access_token, data.user, data.subscription_active ?? null);
         refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;

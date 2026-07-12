@@ -641,15 +641,19 @@ def sync_agency(db: Session, agency_id: int) -> dict:
             apartment_service.set_status(db, agency_id, aid, status_to, actor_id=None)
             pulled += 1
 
-    # 2. Новые строки → создаём объекты.
+    # 2. Новые строки → создаём объекты. Запоминаем их id: если запись ID обратно
+    # в таблицу (шаг 4) сорвётся, откатим создание — иначе следующий цикл прочитает
+    # те же строки (всё ещё без ID) и создаст ДУБЛИ (HI-2, аудит 2026-07-11).
+    created_ids: List[int] = []
     for vals in new_rows:
         body = {f: v for f, v in _update_payload(vals).items() if v not in (None, _INVALID)}
         if not body:
             continue
         try:
-            apartment_service.create_apartment(
+            apt = apartment_service.create_apartment(
                 db, agency_id, created_by=None, payload=ApartmentCreate(**body)
             )
+            created_ids.append(apt.id)
             created += 1
         except AppError:
             continue
@@ -703,7 +707,22 @@ def sync_agency(db: Session, agency_id: int) -> dict:
             d.value for d in dictionary_service.list_dictionaries(db, agency_id, category="district")
         ]
         cols = _columns(districts)
-        _write_values(token, row.spreadsheet_id, _build_values(db, agency_id, cols))
+        try:
+            _write_values(token, row.spreadsheet_id, _build_values(db, agency_id, cols))
+        except Exception:
+            # Не удалось записать ID новых строк обратно в таблицу. Если оставить
+            # только что созданные объекты, следующий цикл прочитает те же строки
+            # (всё ещё без ID) и создаст ДУБЛИ. Откатываем создание — объекты
+            # появятся заново на следующем УСПЕШНОМ цикле, уже с записью ID (HI-2).
+            for aid in created_ids:
+                try:
+                    apartment_service.purge_apartment(db, agency_id, aid)
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "Sheets: не удалось откатить созданный объект %s (агентство %s).",
+                        aid, agency_id,
+                    )
+            raise
 
     row.snapshot = _snapshot_now(db, agency_id)
     row.last_sync_at = datetime.now(timezone.utc)

@@ -469,20 +469,9 @@ def delete_own_agency(db: Session, user: User, agency_id: int) -> dict:
     name = agency.name
 
     # Переселяем всех, чьё ДОМАШНЕЕ агентство = удаляемое, в другое их членство
-    # (или удаляем, если больше некуда) — иначе они остались бы «без дома».
-    for u in user_repo.get_by_agency(db, agency_id):
-        others = [
-            mm
-            for mm, _a in agency_membership_repo.list_for_user(db, u.id)
-            if mm.agency_id != agency_id and mm.is_active
-        ]
-        if others:
-            u.agency_id = others[0].agency_id
-            u.role = others[0].role
-            u.is_owner = others[0].is_owner
-        else:
-            db.delete(u)
-    db.flush()
+    # (или делаем личным аккаунтом, если больше некуда) — общая точка с суперадмин-
+    # путём удаления, чтобы аккаунты сотрудников не сносились (см. _relocate_agency_members).
+    _relocate_agency_members(db, agency_id)
 
     # Фото (файлы+строки), затем само агентство со всеми данными (членства к нему
     # уходят каскадом по внешнему ключу).
@@ -656,6 +645,40 @@ def rename_agency(
     return agency
 
 
+def _relocate_agency_members(db: Session, agency_id: int) -> None:
+    """
+    Перед удалением агентства увести из него всех сотрудников, чьё ДОМАШНЕЕ
+    агентство — удаляемое, чтобы удаление НЕ снесло их аккаунты (а с ними — их
+    членства в ДРУГИХ агентствах по каскаду, т.е. чужие данные).
+
+    Для каждого: если есть другое активное членство — переселяем туда (домашние
+    agency_id/role/is_owner берём из него); иначе делаем личным аккаунтом
+    (agency_id=NULL, role='user', is_owner=False), НЕ удаляя. Членство сотрудника
+    в удаляемом агентстве уйдёт каскадом вместе с самим агентством.
+
+    Единая точка для обоих путей удаления (delete_agency суперадмина и
+    delete_own_agency владельца) — раньше они разошлись, и путь суперадмина/purge
+    жёстко удалял сотрудников (критбаг аудита 2026-07-11).
+    """
+    from app.repositories import agency_membership_repo
+
+    for u in user_repo.get_by_agency(db, agency_id):
+        others = [
+            mm
+            for mm, _a in agency_membership_repo.list_for_user(db, u.id)
+            if mm.agency_id != agency_id and mm.is_active
+        ]
+        if others:
+            u.agency_id = others[0].agency_id
+            u.role = others[0].role
+            u.is_owner = others[0].is_owner
+        else:
+            u.agency_id = None
+            u.role = "user"
+            u.is_owner = False
+    db.flush()
+
+
 def delete_agency(db: Session, agency_id: int, actor: Optional[User] = None) -> None:
     """
     Удалить агентство со всеми его данными (объекты, фото, команда, приглашения,
@@ -663,6 +686,9 @@ def delete_agency(db: Session, agency_id: int, actor: Optional[User] = None) -> 
     """
     agency = _get_agency_or_404(db, agency_id)
     name = agency.name
+    # 0. Уводим сотрудников из агентства, чтобы удаление не снесло их аккаунты и
+    # их данные в других агентствах (см. _relocate_agency_members).
+    _relocate_agency_members(db, agency_id)
     # 1. Сначала удаляем фотографии (строки + файлы с диска) — иначе они держат
     # объекты ссылкой и удаление падало бы с ошибкой целостности.
     photo_service.purge_agency(db, agency.id)

@@ -123,3 +123,31 @@ def test_purge_deletes_owned_keeps_membered(db):
     assert user_repo.get_by_id(db, owner.id) is None
     assert agency_repo.get_by_id(db, owned.id) is None       # владельческое — удалено
     assert agency_repo.get_by_id(db, other.id) is not None   # где был агентом — осталось
+
+
+def test_purge_owner_does_not_delete_coworkers_or_their_other_agencies(db):
+    """Регрессия критбага (аудит 2026-07-11): purge владельца НЕ должен сносить
+    аккаунты сотрудников его агентства и их членства/агентства в ДРУГИХ тенантах."""
+    owner = _user(db, 710, role="agency_admin")
+    owned = _agency(db, "OwnedWithStaff")
+    _own(db, owner, owned)
+
+    # Сотрудник: домашнее агентство = owned (агент), плюс СВОЁ агентство other.
+    coworker = _user(db, 711, role="agent", agency_id=owned.id)
+    _own(db, coworker, owned, is_owner=False, role="agent")
+    other = _agency(db, "CoworkerOwn")
+    _own(db, coworker, other, is_owner=True, role="agency_admin")
+
+    platform_service.archive_user(db, owner.id)
+    platform_service.purge_user(db, owner.id)
+
+    # Владелец и его агентство удалены (как и раньше).
+    assert user_repo.get_by_id(db, owner.id) is None
+    assert agency_repo.get_by_id(db, owned.id) is None
+
+    # А вот сотрудник — ЖИВ, переселён в своё другое агентство, и оно цело.
+    cw = user_repo.get_by_id(db, coworker.id)
+    assert cw is not None
+    assert cw.agency_id == other.id
+    assert agency_repo.get_by_id(db, other.id) is not None
+    assert agency_membership_repo.get(db, coworker.id, other.id) is not None

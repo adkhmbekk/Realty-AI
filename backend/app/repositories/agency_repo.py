@@ -15,7 +15,6 @@ from app.db.models.apartment_photo import ApartmentPhoto
 from app.db.models.dictionary import Dictionary
 from app.db.models.invite import Invite
 from app.db.models.subscription_payment import SubscriptionPayment
-from app.db.models.user import User
 
 
 def get_by_id(db: Session, agency_id: int) -> Optional[Agency]:
@@ -147,5 +146,9 @@ def delete_with_data(db: Session, agency: Agency) -> None:
     db.execute(
         sa_delete(SubscriptionPayment).where(SubscriptionPayment.agency_id == agency_id)
     )
-    db.execute(sa_delete(User).where(User.agency_id == agency_id))
+    # СОТРУДНИКОВ здесь НЕ удаляем — это стирало бы их аккаунты и членства в ДРУГИХ
+    # агентствах по каскаду (утечка данных между тенантами). Вызывающий заранее
+    # переселяет/отвязывает их (agency_service._relocate_agency_members); FK
+    # users.agency_id (SET NULL) отвяжет любую пропущенную строку. Членства в этом
+    # агентстве уходят каскадом вместе с агентством.
     db.delete(agency)

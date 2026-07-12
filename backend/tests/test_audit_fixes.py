@@ -97,6 +97,39 @@ def test_remove_member_requires_owner(db):
         member_service.remove_member(db, a.id, admin, agent.id)
 
 
+def test_transfer_ownership_syncs_membership(db):
+    """HI-1 (аудит 2026-07-11): передача владения должна обновлять agency_memberships
+    (источник правды), иначе владельческие операции платформы читают устаревшего владельца."""
+    from app.repositories import agency_membership_repo
+
+    a = _agency(db)
+    owner = user_repo.create(db, telegram_id=1, role="agency_admin", agency_id=a.id, is_owner=True)
+    agent = user_repo.create(db, telegram_id=2, role="agent", agency_id=a.id)
+    agency_membership_repo.create(db, user_id=owner.id, agency_id=a.id, role="agency_admin", is_owner=True)
+    agency_membership_repo.create(db, user_id=agent.id, agency_id=a.id, role="agent", is_owner=False)
+    db.commit()
+
+    member_service.transfer_ownership(db, a.id, owner, agent.id)
+
+    # Членства отражают нового владельца, а не старого.
+    assert agency_membership_repo.get(db, agent.id, a.id).is_owner is True
+    assert agency_membership_repo.get(db, owner.id, a.id).is_owner is False
+
+
+def test_remove_member_drops_membership(db):
+    """HI-1: исключение сотрудника убирает и строку членства (не только User.agency_id)."""
+    from app.repositories import agency_membership_repo
+
+    a = _agency(db)
+    owner = user_repo.create(db, telegram_id=1, role="agency_admin", agency_id=a.id, is_owner=True)
+    agent = user_repo.create(db, telegram_id=2, role="agent", agency_id=a.id)
+    agency_membership_repo.create(db, user_id=agent.id, agency_id=a.id, role="agent", is_owner=False)
+    db.commit()
+
+    member_service.remove_member(db, a.id, owner, agent.id)
+    assert agency_membership_repo.get(db, agent.id, a.id) is None
+
+
 # ── 1.4 refresh-токен ────────────────────────────────────────────────────
 def test_refresh_token_roundtrip():
     refresh = security.create_refresh_token({"user_id": 42})

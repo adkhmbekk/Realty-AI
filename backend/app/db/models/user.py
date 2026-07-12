@@ -52,9 +52,15 @@ class User(Base):
         String, nullable=False, default="ru", server_default=text("'ru'")
     )
     # NULL только у суперадмина. У остальных — id их агентства.
+    # ondelete=SET NULL (а НЕ CASCADE): при удалении агентства сотрудника НЕ сносим
+    # вместе с аккаунтом — он лишь «отвязывается» (agency_id=NULL). Иначе удаление
+    # одного агентства каскадно стирало бы аккаунты сотрудников и их членства в
+    # ДРУГИХ агентствах (утечка данных между тенантами). Перед удалением сервис
+    # переселяет/отвязывает сотрудников явно (см. agency_service._relocate_agency_members),
+    # а SET NULL — это подстраховка на случай пропущенной строки.
     agency_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
-        ForeignKey("agencies.id", ondelete="CASCADE"),
+        ForeignKey("agencies.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )

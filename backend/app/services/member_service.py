@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.db.models.user import User
-from app.repositories import audit_repo, user_repo
+from app.repositories import agency_membership_repo, audit_repo, user_repo
 from app.schemas.team import MemberUpdate
 
 # Роли, которые сотруднику можно назначить внутри агентства.
@@ -90,6 +90,11 @@ def update_member(
             raise AppError("cannot_change_own_role", status.HTTP_400_BAD_REQUEST)
         if new_role != member.role:
             member.role = new_role
+            # Синхронизируем источник правды (agency_memberships) — иначе переключатель
+            # агентств и владельческие операции платформы читают устаревшую роль.
+            m = agency_membership_repo.get(db, member.id, agency_id)
+            if m is not None:
+                m.role = new_role
             _audit(db, current_user, "member_role_changed", member, note=new_role)
 
     if payload.is_active is not None and payload.is_active != member.is_active:
@@ -132,6 +137,12 @@ def remove_member(
         raise AppError("cannot_change_owner", status.HTTP_403_FORBIDDEN)
 
     _audit(db, current_user, "member_removed", member)
+    # Убираем членство в ЭТОМ агентстве из источника правды (agency_memberships),
+    # иначе исключённый остался бы «владельцем/участником» для владельческих операций
+    # платформы (purge/restore читают членства) и для переключателя агентств.
+    m = agency_membership_repo.get(db, member.id, agency_id)
+    if m is not None:
+        db.delete(m)
     member.agency_id = None
     member.role = "agent"
     member.is_owner = False
@@ -187,6 +198,21 @@ def transfer_ownership(
     member.is_active = True
     member.is_owner = True
     current_user.is_owner = False
+
+    # Синхронизируем источник правды (agency_memberships): владельцем становится
+    # новый сотрудник, со старого флаг снимаем. Иначе _owned_agencies (purge/restore
+    # владельца платформы) считали бы владельцем НЕ того — и удалили/перенесли бы
+    # чужое агентство (критбаг аудита 2026-07-11).
+    new_m = agency_membership_repo.get_or_create(
+        db, user_id=member.id, agency_id=agency_id,
+        role="agency_admin", is_owner=True, is_active=True,
+    )
+    new_m.role = "agency_admin"
+    new_m.is_owner = True
+    new_m.is_active = True
+    old_m = agency_membership_repo.get(db, current_user.id, agency_id)
+    if old_m is not None:
+        old_m.is_owner = False
 
     _audit(db, current_user, "owner_transferred", member)
 
