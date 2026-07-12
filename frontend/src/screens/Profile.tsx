@@ -6,7 +6,7 @@ import { useActing } from "../acting";
 import { useNav } from "../nav";
 import { api, errText } from "../api";
 import { Card, Row, Hint, Button, Field, Input, Spinner } from "../components/ui";
-import { openTelegramLink, haptic } from "../telegram";
+import { openTelegramLink, haptic, confirmDialog } from "../telegram";
 import { initials } from "../utils";
 import type { Membership, AgencySettings, AgencyOut } from "../types";
 
@@ -117,6 +117,7 @@ function SwitchSheet({ onClose }: { onClose: () => void }) {
 // Владелец может отредактировать (карандаш справа сверху) — название/телефон/владелец.
 function AgencyCard() {
   const { t, user, settings, setSettings, toast } = useApp();
+  const { deleteAgency } = useActing();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -148,6 +149,19 @@ function AgencyCard() {
     } else toast(errText(r.data, r.status), "err");
   }
 
+  // Удаление агентства — только для настоящего владельца (у acting-суперадмина нет
+  // членства, delete_own_agency ему не подходит; он управляет агентствами в хабе).
+  const canDelete = canEdit && user?.real_role !== "superadmin";
+  async function onDelete() {
+    if (user?.agency_id == null) return;
+    // Двойное подтверждение + предупреждение о безвозвратной потере всех данных.
+    if (!(await confirmDialog(t("deleteAgencyConfirm1").replace("{name}", agencyName)))) return;
+    if (!(await confirmDialog(t("deleteAgencyConfirm2")))) return;
+    setSaving(true);
+    await deleteAgency(user.agency_id); // успех → applyAuth уводит с экрана; ошибка → toast внутри
+    setSaving(false);
+  }
+
   return (
     <Card className="mt-3">
       {editing ? (
@@ -163,6 +177,13 @@ function AgencyCard() {
             <Button variant="ghost" disabled={saving} onClick={() => setEditing(false)}>{t("cancel")}</Button>
             <Button disabled={saving} onClick={save}>{t("saveChanges")}</Button>
           </div>
+          {canDelete && (
+            <div className="mt-4 pt-3 border-t border-line">
+              <Button full variant="danger" disabled={saving} onClick={onDelete}>
+                {t("deleteAgencyBtn")}
+              </Button>
+            </div>
+          )}
         </>
       ) : (
         <div className="flex items-center gap-3">
