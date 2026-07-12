@@ -49,7 +49,9 @@ class WatchedChannel(Base):
         Boolean, nullable=False, default=False, server_default=text("false")
     )
     # Кто включил слежение (для created_by новых объектов).
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     last_checked_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

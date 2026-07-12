@@ -33,8 +33,12 @@ class Client(Base):
     priority: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Источник: откуда пришёл клиент (Instagram, OLX, рекомендация…). Свободный текст.
     source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    # Агент-владелец клиента. Личные клиенты: агент видит только своих.
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    # Агент-владелец клиента. Личные клиенты: агент видит только своих. FK с
+    # ondelete=SET NULL: при удалении агента клиент не «повисает» на несуществующем
+    # id (иначе он становился невидим всем и требовал ручного переназначения).
+    created_by: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     # active / archived
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="active", server_default=text("'active'")

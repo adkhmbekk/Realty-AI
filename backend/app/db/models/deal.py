@@ -62,12 +62,20 @@ class Deal(Base):
     currency: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     commission: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
     commission_currency: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    # Ответственный агент (для комиссии по сотрудникам, #23).
-    agent_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    # Ответственный агент (для комиссии по сотрудникам, #23). FK с ondelete=SET NULL:
+    # при удалении пользователя ссылка обнуляется, а не «повисает» на несуществующем
+    # id (иначе атрибуция комиссии уходила бы на «призрака»).
+    agent_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     # Чьё агентство выставило объект (#20). Внутри агентства = agency_id.
-    seller_agency_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    seller_agency_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("agencies.id", ondelete="SET NULL"), nullable=True
+    )
     note: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

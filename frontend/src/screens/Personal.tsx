@@ -125,13 +125,25 @@ function agShort(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
 }
 function onboardKey(u?: UserProfile | null): string {
-  return "pa_onboarded_" + (u?.telegram_id ?? "x");
+  // Привязка к id АККАУНТА (а не telegram_id): после удаления/архивации юзера его
+  // Telegram освобождается и при следующем входе заводится НОВЫЙ аккаунт с ДРУГИМ
+  // id, но тем же telegram_id. Если ключ по telegram_id — флаг «уже онбординил»
+  // от старого аккаунта подхватывался, онбординг пропускался и новый профиль
+  // оставался пустым. По id аккаунта такого нет — человек проходит онбординг заново.
+  return "pa_onboarded_" + (u?.id ?? "x");
 }
 
 // ── Верхнеуровневый вход ──────────────────────────────────────────────────────
 export function PersonalApp({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void }) {
   const { user } = useApp();
-  const [onboarded, setOnboarded] = useState(() => !!localStorage.getItem(onboardKey(user)));
+  // «Онбординг пройден», если есть флаг ДЛЯ ЭТОГО аккаунта ИЛИ профиль реально
+  // заполнен (имя + телефон). Опора на реальные данные — подстраховка: новый
+  // (после архивации) аккаунт с пустым профилем не проскочит онбординг, даже если
+  // в браузере остался чужой флаг.
+  const profileFilled = !!(user?.first_name?.trim() && user?.phone?.trim());
+  const [onboarded, setOnboarded] = useState(
+    () => !!localStorage.getItem(onboardKey(user)) || profileFilled
+  );
 
   // Онбординг — только у НОВЫХ юзеров (role='user' = личный аккаунт, ещё не в
   // агентстве). Существующие (agency_admin/agent) сразу видят личный кабинет.

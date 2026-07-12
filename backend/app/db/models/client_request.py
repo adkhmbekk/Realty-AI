@@ -68,7 +68,9 @@ class ClientRequest(Base):
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="active", server_default=text("'active'")
     )
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
