@@ -27,6 +27,7 @@ const AnalyticsScreen = lazy(() => import("./screens/Analytics").then((m) => ({ 
 const AgentDetailScreen = lazy(() => import("./screens/AgentDetail").then((m) => ({ default: m.AgentDetailScreen })));
 const AgenciesScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgenciesScreen })));
 const PlatformUsersScreen = lazy(() => import("./screens/PlatformUsers").then((m) => ({ default: m.PlatformUsersScreen })));
+const PlatformUserDetailScreen = lazy(() => import("./screens/PlatformUsers").then((m) => ({ default: m.PlatformUserDetailScreen })));
 const AgencyCreateScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyCreateScreen })));
 const AgencyManageScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyManageScreen })));
 const AgencyObjectsScreen = lazy(() => import("./screens/Superadmin").then((m) => ({ default: m.AgencyObjectsScreen })));
@@ -89,6 +90,8 @@ function titleKeyFor(route: Route): string | null {
     case "agencies":
       return "financesTab";
     case "platformUsers":
+      return "usersTab";
+    case "platformUserDetail":
       return "usersTab";
     case "personalAgencies":
       return "myAgenciesTitle";
@@ -173,6 +176,8 @@ function RouteView({ route }: { route: Route }) {
       return <AgenciesScreen />;
     case "platformUsers":
       return <PlatformUsersScreen />;
+    case "platformUserDetail":
+      return <PlatformUserDetailScreen id={route.id} />;
     case "myAgencies":
       return <MyAgenciesScreen />;
     case "personalAgencies":

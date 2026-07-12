@@ -14,7 +14,7 @@ import { api, errText } from "../api";
 import { Button, Card, Input, Spinner } from "../components/ui";
 import { confirmDialog, haptic } from "../telegram";
 import { fmtDate } from "../utils";
-import type { Apartment } from "../types";
+import { useRevisit } from "../refresh";
 
 interface PUser {
   id: number;
@@ -46,8 +46,6 @@ interface PUserAgency {
 interface PUserDetail {
   user: PUser;
   agencies: PUserAgency[];
-  objects: Apartment[];
-  objects_total: number;
 }
 
 const STR: Record<string, Record<string, string>> = {
@@ -255,16 +253,10 @@ function TargetPicker({ s, excludeId, onPick, onClose }: {
 
 export function PlatformUsersScreen() {
   const s = useStr();
-  const { lang, toast } = useApp();
   const nav = useNav();
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [q, setQ] = useState("");
   const [list, setList] = useState<PUser[] | null>(null);
-  const [detail, setDetail] = useState<PUserDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [freezeOpen, setFreezeOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
 
   const load = useCallback(async (query: string, archived: boolean) => {
     setList(null);
@@ -280,201 +272,9 @@ export function PlatformUsersScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  async function openUser(id: number) {
-    setLoadingDetail(true);
-    const r = await api<PUserDetail>(`/api/v1/superadmin/users/${id}`);
-    setLoadingDetail(false);
-    if (r.ok && r.data) setDetail(r.data);
-  }
-
-  // Архивация (удаление). freeze — заморозить ли владельческие агентства.
-  async function archive(freeze: boolean) {
-    if (!detail || busy) return;
-    setFreezeOpen(false);
-    setBusy(true);
-    const r = await api(`/api/v1/superadmin/users/${detail.user.id}/archive`,
-      { method: "POST", body: { freeze_agencies: freeze } });
-    setBusy(false);
-    if (r.ok) { haptic(); toast(s.archivedOk, "ok"); setDetail(null); void load("", tab === "archived"); }
-    else toast(errText(r.data, r.status), "err");
-  }
-  async function onDelete() {
-    if (!detail) return;
-    if (!(await confirmDialog(s.confirmDelete))) return;
-    // Если есть владельческие агентства — спрашиваем, заморозить или оставить.
-    if (detail.agencies.some((a) => a.is_owner)) setFreezeOpen(true);
-    else void archive(false);
-  }
-
-  // Восстановление: передать владельческие агентства выбранному юзеру.
-  async function restoreTo(target: PUser) {
-    if (!detail || busy) return;
-    setPickerOpen(false);
-    if (!(await confirmDialog(s.confirmRestoreTo.replace("{name}", displayName(target))))) return;
-    setBusy(true);
-    const r = await api(`/api/v1/superadmin/users/${detail.user.id}/restore`,
-      { method: "POST", body: { target_user_id: target.id } });
-    setBusy(false);
-    if (r.ok) { haptic(); toast(s.restoredOk, "ok"); setDetail(null); void load("", true); }
-    else toast(errText(r.data, r.status), "err");
-  }
-  // Удалить навсегда.
-  async function purge() {
-    if (!detail || busy) return;
-    if (!(await confirmDialog(s.confirmPurge))) return;
-    setBusy(true);
-    const r = await api(`/api/v1/superadmin/users/${detail.user.id}`, { method: "DELETE" });
-    setBusy(false);
-    if (r.ok) { haptic(); toast(s.purgedOk, "ok"); setDetail(null); void load("", true); }
-    else toast(errText(r.data, r.status), "err");
-  }
-
-  // ── Карточка юзера ──────────────────────────────────────────────────────
-  if (detail) {
-    const u = detail.user;
-    const online = isOnline(u.last_seen_at);
-    const isArchived = !!u.archived_at;
-    return (
-      <div className="space-y-3.5">
-        <button
-          onClick={() => setDetail(null)}
-          className="text-primary font-bold text-sm flex items-center gap-1"
-        >
-          ‹ {s.back}
-        </button>
-        <Card>
-          <div className="flex items-center gap-2">
-            <div className="text-lg font-extrabold">{displayName(u)}</div>
-            {!isArchived && online && (
-              <span className="inline-flex items-center gap-1 text-[12px] font-bold text-emerald-600 dark:text-emerald-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" /> {s.online}
-              </span>
-            )}
-          </div>
-          {u.phone && <div className="text-muted text-sm mt-0.5">{u.phone}</div>}
-        </Card>
-
-        {isArchived ? (
-          <div className="rounded-[14px] px-3.5 py-3 text-[13px] leading-relaxed bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-            {s.archivedNote}
-          </div>
-        ) : (
-          <Card>
-            <div className="text-[12px] font-bold text-muted mb-1.5">{s.activity}</div>
-            {!online && u.last_seen_at && (
-              <div className="flex items-center justify-between py-1.5 border-b border-line">
-                <span className="text-[13px] text-muted">{s.lastSeen}</span>
-                <span className="text-[13px] font-bold">{fmtDate(u.last_seen_at, lang)}</span>
-              </div>
-            )}
-            {u.created_at && (
-              <div className="flex items-center justify-between py-1.5 border-b border-line">
-                <span className="text-[13px] text-muted">{s.memberSince}</span>
-                <span className="text-[13px] font-bold">{fmtDate(u.created_at, lang)}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between py-1.5 border-b border-line">
-              <span className="text-[13px] text-muted">{s.objects}</span>
-              <span className="text-[13px] font-bold">{detail.objects_total}</span>
-            </div>
-            <div className="flex items-center justify-between py-1.5">
-              <span className="text-[13px] text-muted">{s.agencies}</span>
-              <span className="text-[13px] font-bold">{detail.agencies.length}</span>
-            </div>
-          </Card>
-        )}
-
-        {/* Агентства — кликабельны (активность + объекты без номеров). У архивного
-            помечаем владельца и заморозку. */}
-        <div className="text-[14px] font-extrabold mt-1 mx-0.5">{s.agencies}</div>
-        {detail.agencies.length === 0 ? (
-          <div className="text-muted text-sm text-center py-4">{s.noAgencies}</div>
-        ) : (
-          <div className="space-y-2">
-            {detail.agencies.map((a) => (
-              <button
-                key={a.agency_id}
-                onClick={() => nav.push({ name: "agencyManage", id: a.agency_id })}
-                className="w-full flex items-center gap-2 p-3 rounded-xl2 bg-card border border-line shadow-soft text-left active:scale-[.99] transition"
-              >
-                <span className="font-bold truncate">{a.agency_name}</span>
-                {a.is_frozen && (
-                  <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500/15 text-sky-600 dark:text-sky-400">
-                    <Snowflake size={11} /> {s.frozenBadge}
-                  </span>
-                )}
-                <span className="ml-auto shrink-0">{roleBadge(a.role, a.is_owner, s)}</span>
-                <ChevronRight size={16} className="text-muted shrink-0" />
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="text-[14px] font-extrabold mt-2 mx-0.5">
-          {s.objects} · {detail.objects_total}
-        </div>
-        {detail.objects.length === 0 ? (
-          <div className="text-muted text-sm text-center py-6">{s.noObjects}</div>
-        ) : (
-          <div className="space-y-2">
-            {detail.objects.map((o) => (
-              <div
-                key={o.id}
-                className="flex items-center gap-3 p-3 rounded-xl2 bg-card border border-line shadow-soft"
-              >
-                <span className="w-10 h-10 rounded-lg bg-primary-soft text-primary flex items-center justify-center font-extrabold shrink-0">
-                  🏠
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-bold truncate">
-                    №{o.display_id} {o.district ? "· " + o.district : ""}
-                  </span>
-                  <span className="block text-muted text-[13px]">
-                    {o.price ? `${o.price} ${o.currency}` : o.status}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Действия: активный — «Удалить»; архивный — «Вернуть» + «Удалить навсегда». */}
-        <div className="pt-1 space-y-2">
-          {isArchived ? (
-            <>
-              <Button full disabled={busy} onClick={() => setPickerOpen(true)}>
-                <RotateCcw size={16} /> {s.restore}
-              </Button>
-              <Button full variant="danger" disabled={busy} onClick={purge}>
-                <Trash2 size={16} /> {s.deleteForever}
-              </Button>
-            </>
-          ) : (
-            <Button full variant="danger" disabled={busy} onClick={onDelete}>
-              <Trash2 size={16} /> {s.delete}
-            </Button>
-          )}
-        </div>
-
-        {/* Лист выбора: заморозить агентства или оставить работать. */}
-        {freezeOpen && (
-          <Sheet title={s.freezeTitle} onClose={() => setFreezeOpen(false)}>
-            <div className="space-y-2.5">
-              <Button full variant="danger" disabled={busy} onClick={() => archive(true)}>
-                <Snowflake size={16} /> {s.freezeYes}
-              </Button>
-              <Button full variant="ghost" disabled={busy} onClick={() => archive(false)}>
-                <Play size={16} /> {s.freezeNo}
-              </Button>
-            </div>
-          </Sheet>
-        )}
-        {pickerOpen && (
-          <TargetPicker s={s} excludeId={u.id} onPick={restoreTo} onClose={() => setPickerOpen(false)} />
-        )}
-      </div>
-    );
-  }
+  // Вернулись из карточки юзера после удаления/восстановления/заморозки → тихо
+  // обновляем список (мутации в карточке бампают версию данных, см. refresh.ts).
+  useRevisit(() => void load(q, tab === "archived"));
 
   // ── Список юзеров ───────────────────────────────────────────────────────
   const tabBtn = (id: "active" | "archived", label: string) => (
@@ -489,14 +289,6 @@ export function PlatformUsersScreen() {
   );
   return (
     <div className="space-y-3">
-      {loadingDetail && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)" }}
-        >
-          <Spinner />
-        </div>
-      )}
       <div className="text-xl font-extrabold tracking-tight mx-0.5">{s.users}</div>
       <div className="flex gap-2">
         {tabBtn("active", s.tabActive)}
@@ -521,7 +313,7 @@ export function PlatformUsersScreen() {
           {list.map((u) => (
             <button
               key={u.id}
-              onClick={() => void openUser(u.id)}
+              onClick={() => nav.push({ name: "platformUserDetail", id: u.id })}
               className="w-full flex items-center gap-3 p-3.5 rounded-xl2 bg-card border border-line shadow-soft text-left active:scale-[.985] transition"
             >
               <span className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center font-extrabold shrink-0">
@@ -537,6 +329,174 @@ export function PlatformUsersScreen() {
             </button>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Карточка юзера (отдельный МАРШРУТ, чтобы «Назад» возвращал в список, а не
+// на Главную) ─────────────────────────────────────────────────────────────────
+export function PlatformUserDetailScreen({ id }: { id: number }) {
+  const s = useStr();
+  const { lang, toast } = useApp();
+  const nav = useNav();
+  const [detail, setDetail] = useState<PUserDetail | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [freezeOpen, setFreezeOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const r = await api<PUserDetail>(`/api/v1/superadmin/users/${id}`);
+      if (alive) setDetail(r.ok && r.data ? r.data : null);
+    })();
+    return () => { alive = false; };
+  }, [id]);
+
+  // Архивация (удаление). freeze — заморозить ли владельческие агентства.
+  async function archive(freeze: boolean) {
+    if (!detail || busy) return;
+    setFreezeOpen(false);
+    setBusy(true);
+    const r = await api(`/api/v1/superadmin/users/${detail.user.id}/archive`,
+      { method: "POST", body: { freeze_agencies: freeze } });
+    setBusy(false);
+    if (r.ok) { haptic(); toast(s.archivedOk, "ok"); nav.pop(); }
+    else toast(errText(r.data, r.status), "err");
+  }
+  async function onDelete() {
+    if (!detail) return;
+    if (!(await confirmDialog(s.confirmDelete))) return;
+    // Есть владельческие агентства — спрашиваем, заморозить или оставить.
+    if (detail.agencies.some((a) => a.is_owner)) setFreezeOpen(true);
+    else void archive(false);
+  }
+  // Восстановление: передать владельческие агентства выбранному юзеру.
+  async function restoreTo(target: PUser) {
+    if (!detail || busy) return;
+    setPickerOpen(false);
+    if (!(await confirmDialog(s.confirmRestoreTo.replace("{name}", displayName(target))))) return;
+    setBusy(true);
+    const r = await api(`/api/v1/superadmin/users/${detail.user.id}/restore`,
+      { method: "POST", body: { target_user_id: target.id } });
+    setBusy(false);
+    if (r.ok) { haptic(); toast(s.restoredOk, "ok"); nav.pop(); }
+    else toast(errText(r.data, r.status), "err");
+  }
+  // Удалить навсегда.
+  async function purge() {
+    if (!detail || busy) return;
+    if (!(await confirmDialog(s.confirmPurge))) return;
+    setBusy(true);
+    const r = await api(`/api/v1/superadmin/users/${detail.user.id}`, { method: "DELETE" });
+    setBusy(false);
+    if (r.ok) { haptic(); toast(s.purgedOk, "ok"); nav.pop(); }
+    else toast(errText(r.data, r.status), "err");
+  }
+
+  if (!detail) return <div className="pt-10"><Spinner /></div>;
+
+  const u = detail.user;
+  const online = isOnline(u.last_seen_at);
+  const isArchived = !!u.archived_at;
+  return (
+    <div className="space-y-3.5">
+      <Card>
+        <div className="flex items-center gap-2">
+          <div className="text-lg font-extrabold">{displayName(u)}</div>
+          {!isArchived && online && (
+            <span className="inline-flex items-center gap-1 text-[12px] font-bold text-emerald-600 dark:text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" /> {s.online}
+            </span>
+          )}
+        </div>
+        {u.phone && <div className="text-muted text-sm mt-0.5">{u.phone}</div>}
+      </Card>
+
+      {isArchived ? (
+        <div className="rounded-[14px] px-3.5 py-3 text-[13px] leading-relaxed bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+          {s.archivedNote}
+        </div>
+      ) : (
+        <Card>
+          <div className="text-[12px] font-bold text-muted mb-1.5">{s.activity}</div>
+          {!online && u.last_seen_at && (
+            <div className="flex items-center justify-between py-1.5 border-b border-line">
+              <span className="text-[13px] text-muted">{s.lastSeen}</span>
+              <span className="text-[13px] font-bold">{fmtDate(u.last_seen_at, lang)}</span>
+            </div>
+          )}
+          {u.created_at && (
+            <div className="flex items-center justify-between py-1.5 border-b border-line">
+              <span className="text-[13px] text-muted">{s.memberSince}</span>
+              <span className="text-[13px] font-bold">{fmtDate(u.created_at, lang)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between py-1.5">
+            <span className="text-[13px] text-muted">{s.agencies}</span>
+            <span className="text-[13px] font-bold">{detail.agencies.length}</span>
+          </div>
+        </Card>
+      )}
+
+      {/* Агентства — кликабельны: внутри видно активность и данные агентства. */}
+      <div className="text-[14px] font-extrabold mt-1 mx-0.5">{s.agencies}</div>
+      {detail.agencies.length === 0 ? (
+        <div className="text-muted text-sm text-center py-4">{s.noAgencies}</div>
+      ) : (
+        <div className="space-y-2">
+          {detail.agencies.map((a) => (
+            <button
+              key={a.agency_id}
+              onClick={() => nav.push({ name: "agencyManage", id: a.agency_id })}
+              className="w-full flex items-center gap-2 p-3 rounded-xl2 bg-card border border-line shadow-soft text-left active:scale-[.99] transition"
+            >
+              <span className="font-bold truncate">{a.agency_name}</span>
+              {a.is_frozen && (
+                <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                  <Snowflake size={11} /> {s.frozenBadge}
+                </span>
+              )}
+              <span className="ml-auto shrink-0">{roleBadge(a.role, a.is_owner, s)}</span>
+              <ChevronRight size={16} className="text-muted shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Действия: активный — «Удалить»; архивный — «Вернуть» + «Удалить навсегда». */}
+      <div className="pt-1 space-y-2">
+        {isArchived ? (
+          <>
+            <Button full disabled={busy} onClick={() => setPickerOpen(true)}>
+              <RotateCcw size={16} /> {s.restore}
+            </Button>
+            <Button full variant="danger" disabled={busy} onClick={purge}>
+              <Trash2 size={16} /> {s.deleteForever}
+            </Button>
+          </>
+        ) : (
+          <Button full variant="danger" disabled={busy} onClick={onDelete}>
+            <Trash2 size={16} /> {s.delete}
+          </Button>
+        )}
+      </div>
+
+      {freezeOpen && (
+        <Sheet title={s.freezeTitle} onClose={() => setFreezeOpen(false)}>
+          <div className="space-y-2.5">
+            <Button full variant="danger" disabled={busy} onClick={() => archive(true)}>
+              <Snowflake size={16} /> {s.freezeYes}
+            </Button>
+            <Button full variant="ghost" disabled={busy} onClick={() => archive(false)}>
+              <Play size={16} /> {s.freezeNo}
+            </Button>
+          </div>
+        </Sheet>
+      )}
+      {pickerOpen && (
+        <TargetPicker s={s} excludeId={u.id} onPick={restoreTo} onClose={() => setPickerOpen(false)} />
       )}
     </div>
   );
