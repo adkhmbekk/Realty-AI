@@ -27,6 +27,7 @@ interface PUser {
   phone?: string | null;
   is_active: boolean;
   last_seen_at?: string | null;
+  last_active_at?: string | null;
   created_at?: string | null;
   archived_at?: string | null;
   agencies_count: number;
@@ -76,12 +77,17 @@ const STR: Record<string, Record<string, string>> = {
     activity: "Активность",
     online: "В сети",
     recentSeen: "был(а) только что",
+    neverSeen: "ни разу не заходил(а)",
     lastSeen: "Был(а)",
     memberSince: "В приложении с",
     tier_active: "Активные",
     tier_quiet: "Притихли",
     tier_asleep: "Спят",
     tier_never: "Не заходят",
+    range_active: "до 3 дн",
+    range_quiet: "3–10 дн",
+    range_asleep: "10–30 дн",
+    range_never: "30 дн+",
     noAgencies: "Пока не состоит в агентствах.",
     tabActive: "Активные", tabArchived: "Архив",
     delete: "Удалить", deleteForever: "Удалить навсегда", restore: "Вернуть",
@@ -112,12 +118,17 @@ const STR: Record<string, Record<string, string>> = {
     activity: "Faollik",
     online: "Onlayn",
     recentSeen: "hozirgina onlayn edi",
+    neverSeen: "hech qachon kirmagan",
     lastSeen: "Oxirgi faollik",
     memberSince: "Ilovada",
     tier_active: "Faol",
     tier_quiet: "Jim",
     tier_asleep: "Uxlayapti",
     tier_never: "Kirmaydi",
+    range_active: "3 kungacha",
+    range_quiet: "3–10 kun",
+    range_asleep: "10–30 kun",
+    range_never: "30 kun+",
     noAgencies: "Hozircha agentlikda emas.",
     tabActive: "Faol", tabArchived: "Arxiv",
     delete: "Oʻchirish", deleteForever: "Butunlay oʻchirish", restore: "Qaytarish",
@@ -148,12 +159,17 @@ const STR: Record<string, Record<string, string>> = {
     activity: "Activity",
     online: "Online",
     recentSeen: "was just online",
+    neverSeen: "never signed in",
     lastSeen: "Last seen",
     memberSince: "Member since",
     tier_active: "Active",
     tier_quiet: "Quiet",
     tier_asleep: "Asleep",
     tier_never: "Inactive",
+    range_active: "<3d",
+    range_quiet: "3–10d",
+    range_asleep: "10–30d",
+    range_never: "30d+",
     noAgencies: "Not in any agency yet.",
     tabActive: "Active", tabArchived: "Archive",
     delete: "Delete", deleteForever: "Delete forever", restore: "Restore",
@@ -207,13 +223,13 @@ const TIERS: Tier[] = ["active", "quiet", "asleep", "never"];
 const TIER_DOT: Record<Tier, string> = {
   active: "bg-emerald-500",
   quiet: "bg-amber-500",
-  asleep: "bg-orange-500",
+  asleep: "bg-violet-500",
   never: "bg-rose-500",
 };
 const TIER_TEXT: Record<Tier, string> = {
   active: "text-emerald-600 dark:text-emerald-400",
   quiet: "text-amber-600 dark:text-amber-400",
-  asleep: "text-orange-600 dark:text-orange-400",
+  asleep: "text-violet-600 dark:text-violet-400",
   never: "text-rose-600 dark:text-rose-400",
 };
 
@@ -239,14 +255,15 @@ function PresenceLine({ u, s, lang }: { u: PUser; s: Record<string, string>; lan
   if (u.presence === "recent") {
     return <span className="text-[12.5px] text-muted">{s.recentSeen}</span>;
   }
-  if (u.last_seen_at) {
+  if (u.last_active_at) {
     return (
       <span className="text-[12.5px] text-muted">
-        {s.lastSeen}: {fmtDate(u.last_seen_at, lang)}
+        {s.lastSeen}: {fmtDate(u.last_active_at, lang)}
       </span>
     );
   }
-  return null;
+  // Ни разу не заходил (нет ни heartbeat, ни логина) — показываем явно, а не пусто.
+  return <span className="text-[12.5px] text-muted">{s.neverSeen}</span>;
 }
 
 // Нижний лист (портал в body, чтобы всплывал поверх Shell).
@@ -409,6 +426,9 @@ export function PlatformUsersScreen() {
               <span className="text-[10.5px] font-semibold text-muted leading-tight text-center">
                 {s["tier_" + t]}
               </span>
+              <span className="text-[9px] text-muted/70 leading-none text-center">
+                {s["range_" + t]}
+              </span>
             </button>
           ))}
         </div>
@@ -553,11 +573,15 @@ export function PlatformUserDetailScreen({ id }: { id: number }) {
       ) : (
         <Card>
           <div className="text-[12px] font-bold text-muted mb-1.5">{s.activity}</div>
-          {!online && (u.presence === "recent" || u.last_seen_at) && (
+          {!online && (
             <div className="flex items-center justify-between py-1.5 border-b border-line">
               <span className="text-[13px] text-muted">{s.lastSeen}</span>
               <span className="text-[13px] font-bold">
-                {u.presence === "recent" ? s.recentSeen : fmtDate(u.last_seen_at!, lang)}
+                {u.presence === "recent"
+                  ? s.recentSeen
+                  : u.last_active_at
+                    ? fmtDate(u.last_active_at, lang)
+                    : s.neverSeen}
               </span>
             </div>
           )}

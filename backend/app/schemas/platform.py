@@ -25,6 +25,9 @@ class PlatformUserOut(BaseModel):
     phone: Optional[str] = None
     is_active: bool = True
     last_seen_at: Optional[datetime] = None
+    # Последняя активность = last_seen_at, а если его нет — last_login_at (кто
+    # заходил ещё до heartbeat). Для показа времени последнего захода у ВСЕХ.
+    last_active_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     # Когда удалён (в архиве). NULL — активный.
     archived_at: Optional[datetime] = None

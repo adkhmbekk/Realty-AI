@@ -111,6 +111,10 @@ def test_engagement_tiers_and_login_fallback(db):
     assert by_id[old.id] == "never"
     assert by_id[nev.id] == "never"
     assert by_id[fbk.id] == "active"
+    # last_active_at = last_seen_at, а без него — last_login_at (для показа времени).
+    by_active = {i["id"]: i["last_active_at"] for i in items["items"]}
+    assert by_active[fbk.id] is not None       # взято из last_login_at
+    assert by_active[nev.id] is None            # ни разу — нечего показывать
     # Агрегатная сводка по ВСЕМ активным юзерам.
     assert items["stats"] == {"active": 2, "quiet": 1, "asleep": 1, "never": 2}
 
