@@ -84,6 +84,21 @@ def get_by_phone(db: Session, phone: str) -> Optional[User]:
     ).scalar_one_or_none()
 
 
+def get_by_google_sub(db: Session, google_sub: str) -> Optional[User]:
+    """Активный пользователь по Google 'sub' (native-вход). Архивные не учитываем
+    (их идентичность освобождена — следующий вход заведёт новый аккаунт)."""
+    return db.execute(
+        select(User).where(User.google_sub == google_sub, User.archived_at.is_(None))
+    ).scalar_one_or_none()
+
+
+def get_by_apple_sub(db: Session, apple_sub: str) -> Optional[User]:
+    """Активный пользователь по Apple 'sub' (native-вход). Архивные не учитываем."""
+    return db.execute(
+        select(User).where(User.apple_sub == apple_sub, User.archived_at.is_(None))
+    ).scalar_one_or_none()
+
+
 def get_by_agency(db: Session, agency_id: int) -> List[User]:
     """Все сотрудники агентства (для управления командой)."""
     return list(
@@ -130,13 +145,18 @@ def get_by_ids(db: Session, ids) -> List[User]:
 
 def create(
     db: Session,
-    telegram_id: int,
-    role: str,
+    telegram_id: Optional[int] = None,
+    role: str = "user",
     agency_id: Optional[int] = None,
     username: Optional[str] = None,
     full_name: Optional[str] = None,
     is_owner: bool = False,
+    google_sub: Optional[str] = None,
+    apple_sub: Optional[str] = None,
+    email: Optional[str] = None,
 ) -> User:
+    # telegram_id=None — для native-пользователей (вход Google/Apple): их
+    # идентичность в google_sub/apple_sub.
     user = User(
         telegram_id=telegram_id,
         role=role,
@@ -145,6 +165,9 @@ def create(
         full_name=full_name,
         is_active=True,
         is_owner=is_owner,
+        google_sub=google_sub,
+        apple_sub=apple_sub,
+        email=email,
     )
     db.add(user)
     db.flush()  # чтобы получить сгенерированный id

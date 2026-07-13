@@ -116,6 +116,97 @@ def login_with_init_data(db: Session, init_data: str, ip: Optional[str] = None) 
     return build_auth_response(db, user)
 
 
+def login_with_google(
+    db: Session,
+    google_sub: str,
+    email: Optional[str] = None,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None,
+) -> dict:
+    """
+    Вход через Google (нативное приложение, вне Telegram). Получает УЖЕ
+    проверенные claims (подпись ID-token проверяет роут через oauth_verify).
+
+    Первый вход по этому google_sub → создаётся ЛИЧНЫЙ аккаунт (role='user', без
+    агентства, telegram_id=None) — так же, как открытая регистрация из Telegram.
+    Повторный вход возвращает того же пользователя. Связывание с Telegram-
+    аккаунтом того же человека по email здесь НЕ делаем (риск угона) — это
+    отдельный этап (телефон-якорь).
+    """
+    user = user_repo.get_by_google_sub(db, google_sub)
+    if user is not None and not user.is_active:
+        raise AppError("access_deactivated", status.HTTP_403_FORBIDDEN)
+
+    if user is None:
+        full = " ".join(p for p in [first_name, last_name] if p) or None
+        user = user_repo.create(
+            db,
+            telegram_id=None,
+            role="user",
+            agency_id=None,
+            google_sub=google_sub,
+            email=email,
+            full_name=full,
+        )
+        user.first_name = first_name
+        user.last_name = last_name
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user)
+        return build_auth_response(db, user)
+
+    # Существующий native-аккаунт — обновляем время входа и (если ещё не знали)
+    # email, выдаём сессию.
+    if email and not user.email:
+        user.email = email
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+    return build_auth_response(db, user)
+
+
+def login_with_apple(
+    db: Session,
+    apple_sub: str,
+    email: Optional[str] = None,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None,
+) -> dict:
+    """
+    Вход через Apple (нативное приложение). Аналог login_with_google по apple_sub.
+    Apple отдаёт имя пользователя ТОЛЬКО при самом первом входе (в теле запроса
+    авторизации, не в токене) — поэтому first/last сюда приходят опционально.
+    """
+    user = user_repo.get_by_apple_sub(db, apple_sub)
+    if user is not None and not user.is_active:
+        raise AppError("access_deactivated", status.HTTP_403_FORBIDDEN)
+
+    if user is None:
+        full = " ".join(p for p in [first_name, last_name] if p) or None
+        user = user_repo.create(
+            db,
+            telegram_id=None,
+            role="user",
+            agency_id=None,
+            apple_sub=apple_sub,
+            email=email,
+            full_name=full,
+        )
+        user.first_name = first_name
+        user.last_name = last_name
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user)
+        return build_auth_response(db, user)
+
+    if email and not user.email:
+        user.email = email
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+    return build_auth_response(db, user)
+
+
 def refresh_session(
     db: Session, refresh_token: str, act_as_agency_id: Optional[int] = None
 ) -> dict:

@@ -12,6 +12,21 @@ class TelegramAuthRequest(BaseModel):
     init_data: str
 
 
+class GoogleAuthRequest(BaseModel):
+    # ID-token, полученный нативным приложением от Google Sign-In. Подпись и aud
+    # проверяет сервер (oauth_verify) — содержимому до проверки не доверяем.
+    id_token: str
+
+
+class AppleAuthRequest(BaseModel):
+    # identity-token от Sign in with Apple.
+    identity_token: str
+    # Apple отдаёт имя пользователя ТОЛЬКО при первом входе — приложение может
+    # переслать его здесь (в токене имени нет). Необязательно.
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+
 class RefreshRequest(BaseModel):
     # Долгоживущий refresh-пропуск, выданный при входе.
     refresh_token: str
@@ -38,7 +53,10 @@ class UserProfile(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    telegram_id: int
+    # У native-пользователей (вход Google/Apple) telegram_id нет → Optional.
+    telegram_id: Optional[int] = None
+    # Email от OAuth-провайдера (native-вход). У Telegram-юзеров обычно пусто.
+    email: Optional[str] = None
     username: Optional[str] = None
     full_name: Optional[str] = None
     # Личный профиль (юзер-центричная модель, 2026-07). У acting-объекта этих
