@@ -119,6 +119,25 @@ def test_engagement_tiers_and_login_fallback(db):
     assert items["stats"] == {"active": 2, "quiet": 1, "asleep": 1, "never": 2}
 
 
+def test_stale_seen_fresh_login_uses_max_not_coalesce(db):
+    # Баг: last_seen_at (heartbeat) устарел, но last_login_at свежий (зашёл в
+    # агентство/профиль недавно). Активность должна считаться по МАКСИМУМУ, а не по
+    # last_seen — иначе в списке «был давно», хотя человек заходил пару часов назад.
+    a = _agency(db)
+    u = user_repo.create(db, telegram_id=251, role="agent", agency_id=a.id, full_name="Свежий")
+    u.last_seen_at = _ago(days=20)     # устаревший heartbeat
+    u.last_login_at = _ago(hours=2)    # но заходил 2 часа назад
+    db.commit()
+
+    item = next(i for i in platform_service.list_platform_users(db)["items"] if i["id"] == u.id)
+    assert item["engagement"] == "active"           # по свежему логину, не «спят»
+    la = item["last_active_at"]                      # показываем свежее время (~2ч), не 20 дней
+    assert la is not None and (datetime.now(timezone.utc) - la).total_seconds() < 3 * 3600
+    # Серверный фильтр по тиру тоже по максимуму.
+    r = platform_service.list_platform_users(db, engagement="active")
+    assert u.id in [i["id"] for i in r["items"]]
+
+
 def test_stats_count_all_users_not_page(db):
     a = _agency(db)
     for tg in (221, 222, 223):

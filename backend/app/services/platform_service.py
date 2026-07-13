@@ -31,7 +31,7 @@ def _user_summary(u, now: Optional[datetime] = None) -> dict:
         "phone": u.phone,
         "is_active": u.is_active,
         "last_seen_at": u.last_seen_at,
-        "last_active_at": u.last_seen_at or u.last_login_at,
+        "last_active_at": user_presence.latest(u.last_seen_at, u.last_login_at),
         "created_at": u.created_at,
         "archived_at": u.archived_at,
         "agencies_count": 0,
