@@ -383,18 +383,13 @@ function TabButton({ active, icon, label, onClick }: { active: boolean; icon: JS
 }
 
 // ── Оболочка (после входа) ──────────────────────────────────────────
-function Shell() {
-  const { t, user } = useApp();
-  const nav = useNav();
-  const depth = nav.stack.length;
-  const route = nav.current;
-  const tkey = titleKeyFor(route);
-  const showBack = depth > 1;
-
-  // «В сети»: пока приложение открыто и видимо, периодически шлём heartbeat —
-  // так владелец агентства видит статус сотрудника «в сети» и точное время
-  // активности. Пинг раз в минуту + сразу при возврате во вкладку.
+// Heartbeat присутствия: пока приложение открыто и видимо — пинг раз в минуту
+// (+ сразу и при возврате во вкладку). enabled=false — молчим (неавторизованные
+// фазы). ВАЖНО: работает и в личном пространстве, и внутри агентства — иначе
+// профиль-визиты не видны в списке юзеров, а человек не показывается «в сети».
+function useHeartbeat(enabled: boolean) {
   useEffect(() => {
+    if (!enabled) return;
     const ping = () => {
       if (document.visibilityState === "visible") {
         api("/api/v1/auth/heartbeat", { method: "POST" });
@@ -407,7 +402,16 @@ function Shell() {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", ping);
     };
-  }, []);
+  }, [enabled]);
+}
+
+function Shell() {
+  const { t, user } = useApp();
+  const nav = useNav();
+  const depth = nav.stack.length;
+  const route = nav.current;
+  const tkey = titleKeyFor(route);
+  const showBack = depth > 1;
 
   // Кнопка «Назад» Telegram.
   useEffect(() => {
@@ -692,6 +696,11 @@ export function App() {
   const { setAuth, setSettings, user, subscriptionActive, clearAuth, toast, t } = useApp();
   const [phase, setPhase] = useState<Phase>("loading");
   const [startParam, setStartParam] = useState("");
+
+  // Heartbeat присутствия во ВСЕХ авторизованных фазах — и в личном пространстве
+  // (personal), и внутри агентства (ready). Раньше он жил только в Shell (ready) →
+  // профиль-визиты не отмечались как активность, человек не был «в сети» в профиле.
+  useHeartbeat(phase === "personal" || phase === "ready");
 
   async function loadSettingsIfNeeded(role: string) {
     if (role === "agency_admin" || role === "agent") {
