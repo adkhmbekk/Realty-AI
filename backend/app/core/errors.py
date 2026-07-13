@@ -388,6 +388,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Telegram orqali kirish sozlanmagan (bot tokeni berilmagan).",
         "en": "Telegram login is not configured (bot token is not set).",
     },
+    "oauth_not_configured": {
+        "ru": "Вход через Google/Apple не настроен на сервере.",
+        "uz": "Google/Apple orqali kirish serverda sozlanmagan.",
+        "en": "Google/Apple sign-in is not configured on the server.",
+    },
     "not_in_agency": {
         "ru": "Вы не привязаны ни к одному агентству. Обратитесь к администратору.",
         "uz": "Siz hech bir agentlikka biriktirilmagansiz. Administratorga murojaat qiling.",

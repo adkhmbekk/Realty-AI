@@ -138,6 +138,21 @@ class Settings(BaseSettings):
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
 
+    # ─── Вход из нативного приложения (Google/Apple, 2026-07) ────────────
+    # OAuth client_id нативного приложения — это ожидаемый `aud` в ID-token'е.
+    # Токен принимаем, только если его aud совпал с одним из НАШИХ id (иначе это
+    # токен для чужого приложения). У платформ Android/iOS/Web — разные client_id.
+    google_ios_client_id: Optional[str] = None
+    google_android_client_id: Optional[str] = None
+    google_web_client_id: Optional[str] = None
+    # Apple: aud нативного токена — bundle id приложения; веб-входа — service id.
+    apple_bundle_id: Optional[str] = None
+    apple_service_id: Optional[str] = None
+    # Разрешённые Origin'ы для CORS (нативный webview + возможный веб-клиент),
+    # через запятую. Telegram Mini App живёт на одном origin с бэком и CORS не
+    # требует, поэтому по умолчанию пусто (ничего лишнего не открываем).
+    cors_origins: str = ""
+
     # ─── Шифрование секретов в БД ────────────────────────────────────────
     # Ключ Fernet для шифрования секретов в базе (Google refresh-токены),
     # см. app/core/crypto.py. Хранится в .env на сервере — вне базы и бэкапов.
@@ -154,6 +169,8 @@ class Settings(BaseSettings):
     @field_validator(
         "bot_token", "jwt_secret", "bot_username", "gemini_api_key",
         "openrouter_api_key", "google_client_id", "google_client_secret",
+        "google_ios_client_id", "google_android_client_id", "google_web_client_id",
+        "apple_bundle_id", "apple_service_id",
         "app_encryption_key", mode="before",
     )
     @classmethod
@@ -176,6 +193,25 @@ class Settings(BaseSettings):
     def is_prod(self) -> bool:
         """Прод-режим (жёсткие проверки безопасности). Включается ENV=prod."""
         return (self.env or "").strip().lower() in ("prod", "production")
+
+    def google_audiences(self) -> list[str]:
+        """Наши Google client_id (ожидаемые `aud`). Пусто → вход через Google не
+        сконфигурирован (роут ответит 503)."""
+        return [
+            c for c in (
+                self.google_ios_client_id,
+                self.google_android_client_id,
+                self.google_web_client_id,
+            ) if c
+        ]
+
+    def apple_audiences(self) -> list[str]:
+        """Наши Apple client_id (bundle id / service id) — ожидаемые `aud`."""
+        return [c for c in (self.apple_bundle_id, self.apple_service_id) if c]
+
+    def cors_origin_list(self) -> list[str]:
+        """Разрешённые Origin'ы из CORS_ORIGINS (через запятую)."""
+        return [o.strip() for o in (self.cors_origins or "").split(",") if o.strip()]
 
     def superadmin_ids(self) -> set[int]:
         """Все Telegram ID владельцев платформы (из обоих источников настроек)."""

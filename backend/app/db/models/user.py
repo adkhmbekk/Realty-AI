@@ -29,10 +29,22 @@ class User(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    # Идентификатор пользователя в Telegram — наш главный способ узнать человека.
-    telegram_id: Mapped[int] = mapped_column(
-        BigInteger, unique=True, nullable=False, index=True
+    # Идентификатор пользователя в Telegram — способ узнать человека, ВОШЕДШЕГО из
+    # Telegram Mini App. У пользователей нативного приложения (вход через Google/
+    # Apple, 2026-07) его НЕТ — их личность определяется по google_sub/apple_sub
+    # ниже. Поэтому nullable=True. Уникальность сохраняем (много NULL допустимо и
+    # в Postgres, и в SQLite).
+    telegram_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, unique=True, nullable=True, index=True
     )
+    # ── Внешние идентичности вне Telegram (нативное приложение, 2026-07) ──────
+    # Стабильные идентификаторы аккаунта у OAuth-провайдера (Google 'sub' / Apple
+    # 'sub'). Уникальны, необязательны. Связывание Telegram- и native-аккаунтов
+    # одного человека делаем ПОЗЖЕ по телефону-якорю (не по email — риск угона).
+    google_sub: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
+    apple_sub: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
+    # Email от OAuth-провайдера (справочно; НЕ ключ связывания аккаунтов).
+    email: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     username: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # ── Личный профиль (2026-07, юзер-центричная модель) ──────────────────

@@ -18,6 +18,7 @@ import os
 
 from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -190,6 +191,25 @@ app.include_router(api_router)
 
 # Определение языка запроса по заголовку X-Lang (для локализации ошибок).
 app.add_middleware(LanguageMiddleware)
+
+# CORS для нативного приложения (Android/iOS через Capacitor). Telegram Mini App
+# живёт на одном origin с бэком и CORS не требует — поэтому по умолчанию
+# разрешаем только origin'ы Capacitor-webview (+ заданные в CORS_ORIGINS веб-
+# клиенты). Никогда не используем "*": вход по токену в заголовке Authorization,
+# а открытый origin с credentials — дыра. Каждый origin перечислен явно.
+_cors_origins = list(
+    dict.fromkeys(
+        ["capacitor://localhost", "https://localhost", "http://localhost"]
+        + settings.cors_origin_list()
+    )
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Lang"],
+)
 
 
 @app.exception_handler(RequestValidationError)
