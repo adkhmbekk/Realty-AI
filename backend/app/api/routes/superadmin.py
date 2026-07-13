@@ -28,14 +28,16 @@ router = APIRouter(prefix="/superadmin", tags=["superadmin"])
 def platform_users(
     q: Optional[str] = None,
     archived: bool = False,
+    engagement: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_superadmin),
 ):
-    """Список юзеров прошки (кроме суперадминов). archived=true — вкладка «Архив»."""
+    """Список юзеров прошки (кроме суперадминов). archived=true — вкладка «Архив».
+    engagement=active|quiet|asleep|never — фильтр по тиру вовлечённости."""
     return platform_service.list_platform_users(
-        db, q=q, archived=archived, limit=limit, offset=offset
+        db, q=q, archived=archived, engagement=engagement, limit=limit, offset=offset
     )
 
 

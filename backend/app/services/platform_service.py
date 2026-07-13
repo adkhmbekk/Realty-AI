@@ -16,9 +16,11 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.repositories import agency_membership_repo, apartment_repo, user_repo
+from app.services import user_presence
 
 
-def _user_summary(u) -> dict:
+def _user_summary(u, now: Optional[datetime] = None) -> dict:
+    now = now or datetime.now(timezone.utc)
     return {
         "id": u.id,
         "telegram_id": u.telegram_id,
@@ -32,21 +34,46 @@ def _user_summary(u) -> dict:
         "created_at": u.created_at,
         "archived_at": u.archived_at,
         "agencies_count": 0,
+        "presence": user_presence.presence(u.last_seen_at, now),
+        "engagement": user_presence.engagement(u.last_seen_at, u.last_login_at, now),
     }
+
+
+def _engagement_stats(db: Session, now: datetime) -> dict:
+    """Сводка по тирам вовлечённости по ВСЕМ активным юзерам (не по странице)."""
+    stats = {tier: 0 for tier in user_presence.ENGAGEMENT_TIERS}
+    for last_seen_at, last_login_at in user_repo.presence_signals_active(db):
+        stats[user_presence.engagement(last_seen_at, last_login_at, now)] += 1
+    return stats
 
 
 def list_platform_users(
     db: Session, *, q: Optional[str] = None, archived: bool = False,
-    limit: int = 50, offset: int = 0,
+    engagement: Optional[str] = None, limit: int = 50, offset: int = 0,
 ) -> dict:
-    users, total = user_repo.list_all(db, q=q, archived=archived, limit=limit, offset=offset)
+    now = datetime.now(timezone.utc)
+    # Серверный фильтр по тиру (консистентен с пагинацией и агрегатом). В архиве
+    # тир нерелевантен — фильтр игнорируем.
+    extra = None
+    if engagement and not archived:
+        cond = user_presence.engagement_condition(engagement, now)
+        if cond is not None:
+            extra = [cond]
+    users, total = user_repo.list_all(
+        db, q=q, archived=archived, extra=extra, limit=limit, offset=offset
+    )
     counts = agency_membership_repo.counts_for_users(db, [u.id for u in users])
     items = []
     for u in users:
-        d = _user_summary(u)
+        d = _user_summary(u, now)
         d["agencies_count"] = counts.get(u.id, 0)
         items.append(d)
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    # Плашка-сводка — только для активной вкладки (в архиве присутствие/тир не нужны).
+    stats = None if archived else _engagement_stats(db, now)
+    return {
+        "items": items, "total": total, "limit": limit, "offset": offset,
+        "stats": stats,
+    }
 
 
 def get_platform_user(db: Session, user_id: int) -> dict:

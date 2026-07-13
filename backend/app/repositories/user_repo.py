@@ -27,13 +27,16 @@ def get_by_telegram_id(db: Session, telegram_id: int) -> Optional[User]:
 
 def list_all(
     db: Session, *, q: Optional[str] = None, archived: bool = False,
-    limit: int = 50, offset: int = 0,
+    extra=None, limit: int = 50, offset: int = 0,
 ) -> Tuple[List[User], int]:
     """Пользователи прошки (КРОМЕ суперадминов) — для витрины «юзеры» у владельца
     платформы. archived=False — активные, True — архив (удалённые). Новые сверху;
-    фильтр q по имени/username/телефону. Возвращает (список, всего)."""
+    фильтр q по имени/username/телефону. extra — доп. SQL-условия (напр. фильтр по
+    тиру вовлечённости, который строит сервис). Возвращает (список, всего)."""
     conds = [User.role != "superadmin"]
     conds.append(User.archived_at.isnot(None) if archived else User.archived_at.is_(None))
+    if extra:
+        conds.extend(extra)
     if q and q.strip():
         like = f"%{q.strip()}%"
         conds.append(
@@ -60,6 +63,17 @@ def list_all(
         .all()
     )
     return items, total
+
+
+def presence_signals_active(db: Session):
+    """(last_seen_at, last_login_at) всех АКТИВНЫХ юзеров прошки (кроме суперадминов).
+    Лёгкая выборка для агрегатной сводки по тирам вовлечённости — считаем в Python
+    тем же engagement(), что и per-row, чтобы сводка и бейджи не разъезжались."""
+    return db.execute(
+        select(User.last_seen_at, User.last_login_at).where(
+            User.role != "superadmin", User.archived_at.is_(None)
+        )
+    ).all()
 
 
 def get_by_phone(db: Session, phone: str) -> Optional[User]:

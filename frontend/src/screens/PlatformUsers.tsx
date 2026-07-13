@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, Trash2, RotateCcw, Snowflake, Play, Search as SearchIcon } from "lucide-react";
 import { useApp } from "../store";
+import type { Lang } from "../i18n";
 import { useNav } from "../nav";
 import { api, errText } from "../api";
 import { Button, Card, Input, Spinner } from "../components/ui";
@@ -29,12 +30,24 @@ interface PUser {
   created_at?: string | null;
   archived_at?: string | null;
   agencies_count: number;
+  // Присутствие «прямо сейчас»: online / recent / offline (с бэка).
+  presence?: string;
+  // Вовлечённость «в целом»: active / quiet / asleep / never (с бэка).
+  engagement?: string;
+}
+type Tier = "active" | "quiet" | "asleep" | "never";
+interface PUserStats {
+  active: number;
+  quiet: number;
+  asleep: number;
+  never: number;
 }
 interface PUserList {
   items: PUser[];
   total: number;
   limit: number;
   offset: number;
+  stats?: PUserStats | null;
 }
 interface PUserAgency {
   agency_id: number;
@@ -62,8 +75,13 @@ const STR: Record<string, Record<string, string>> = {
     back: "Назад",
     activity: "Активность",
     online: "В сети",
+    recentSeen: "был(а) только что",
     lastSeen: "Был(а)",
     memberSince: "В приложении с",
+    tier_active: "Активные",
+    tier_quiet: "Притихли",
+    tier_asleep: "Спят",
+    tier_never: "Не заходят",
     noAgencies: "Пока не состоит в агентствах.",
     tabActive: "Активные", tabArchived: "Архив",
     delete: "Удалить", deleteForever: "Удалить навсегда", restore: "Вернуть",
@@ -93,8 +111,13 @@ const STR: Record<string, Record<string, string>> = {
     back: "Orqaga",
     activity: "Faollik",
     online: "Onlayn",
+    recentSeen: "hozirgina onlayn edi",
     lastSeen: "Oxirgi faollik",
     memberSince: "Ilovada",
+    tier_active: "Faol",
+    tier_quiet: "Jim",
+    tier_asleep: "Uxlayapti",
+    tier_never: "Kirmaydi",
     noAgencies: "Hozircha agentlikda emas.",
     tabActive: "Faol", tabArchived: "Arxiv",
     delete: "Oʻchirish", deleteForever: "Butunlay oʻchirish", restore: "Qaytarish",
@@ -124,8 +147,13 @@ const STR: Record<string, Record<string, string>> = {
     back: "Back",
     activity: "Activity",
     online: "Online",
+    recentSeen: "was just online",
     lastSeen: "Last seen",
     memberSince: "Member since",
+    tier_active: "Active",
+    tier_quiet: "Quiet",
+    tier_asleep: "Asleep",
+    tier_never: "Inactive",
     noAgencies: "Not in any agency yet.",
     tabActive: "Active", tabArchived: "Archive",
     delete: "Delete", deleteForever: "Delete forever", restore: "Restore",
@@ -173,11 +201,52 @@ function roleBadge(role: string, isOwner: boolean, s: Record<string, string>) {
   );
 }
 
-// Онлайн, если «был(а)» менее 5 минут назад (совпадает с heartbeat-логикой).
-function isOnline(lastSeen?: string | null): boolean {
-  if (!lastSeen) return false;
-  const ts = new Date(lastSeen).getTime();
-  return !Number.isNaN(ts) && Date.now() - ts < 5 * 60 * 1000;
+// Цвет «светофора» тира вовлечённости (совпадает с плашкой-сводкой). Порядок —
+// от активных к «не заходят».
+const TIERS: Tier[] = ["active", "quiet", "asleep", "never"];
+const TIER_DOT: Record<Tier, string> = {
+  active: "bg-emerald-500",
+  quiet: "bg-amber-500",
+  asleep: "bg-orange-500",
+  never: "bg-rose-500",
+};
+const TIER_TEXT: Record<Tier, string> = {
+  active: "text-emerald-600 dark:text-emerald-400",
+  quiet: "text-amber-600 dark:text-amber-400",
+  asleep: "text-orange-600 dark:text-orange-400",
+  never: "text-rose-600 dark:text-rose-400",
+};
+
+function tierOf(u: PUser): Tier {
+  return (TIERS.includes(u.engagement as Tier) ? u.engagement : "never") as Tier;
+}
+
+// Цветная точка тира (в углу карточки).
+function TierDot({ tier }: { tier: Tier }) {
+  return <span className={"w-2.5 h-2.5 rounded-full shrink-0 " + TIER_DOT[tier]} />;
+}
+
+// Строка присутствия под именем: «● В сети» / «был(а) только что» / «Был(а): …».
+// Для архивных не показывается (вызывающий код это решает).
+function PresenceLine({ u, s, lang }: { u: PUser; s: Record<string, string>; lang: Lang }) {
+  if (u.presence === "online") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-emerald-600 dark:text-emerald-400">
+        <span className="w-2 h-2 rounded-full bg-emerald-500" /> {s.online}
+      </span>
+    );
+  }
+  if (u.presence === "recent") {
+    return <span className="text-[12.5px] text-muted">{s.recentSeen}</span>;
+  }
+  if (u.last_seen_at) {
+    return (
+      <span className="text-[12.5px] text-muted">
+        {s.lastSeen}: {fmtDate(u.last_seen_at, lang)}
+      </span>
+    );
+  }
+  return null;
 }
 
 // Нижний лист (портал в body, чтобы всплывал поверх Shell).
@@ -253,28 +322,43 @@ function TargetPicker({ s, excludeId, onPick, onClose }: {
 
 export function PlatformUsersScreen() {
   const s = useStr();
+  const { lang } = useApp();
   const nav = useNav();
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<Tier | null>(null);
   const [list, setList] = useState<PUser[] | null>(null);
+  const [stats, setStats] = useState<PUserStats | null>(null);
 
-  const load = useCallback(async (query: string, archived: boolean) => {
+  const load = useCallback(async (query: string, archived: boolean, tier: Tier | null) => {
     setList(null);
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
     if (archived) params.set("archived", "true");
+    if (tier && !archived) params.set("engagement", tier);
     const r = await api<PUserList>("/api/v1/superadmin/users?" + params.toString());
     setList(r.ok && r.data ? r.data.items : []);
+    setStats(r.ok && r.data ? r.data.stats ?? null : null);
   }, []);
 
   useEffect(() => {
-    void load("", tab === "archived");
+    // Смена вкладки сбрасывает фильтр по тиру (в архиве он неактуален).
+    setFilter(null);
+    void load(q, tab === "archived", null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   // Вернулись из карточки юзера после удаления/восстановления/заморозки → тихо
   // обновляем список (мутации в карточке бампают версию данных, см. refresh.ts).
-  useRevisit(() => void load(q, tab === "archived"));
+  useRevisit(() => void load(q, tab === "archived", filter));
+
+  // Клик по плашке тира — включить/выключить фильтр (серверный, с пагинацией).
+  const toggleFilter = (t: Tier) => {
+    haptic();
+    const next = filter === t ? null : t;
+    setFilter(next);
+    void load(q, false, next);
+  };
 
   // ── Список юзеров ───────────────────────────────────────────────────────
   const tabBtn = (id: "active" | "archived", label: string) => (
@@ -298,10 +382,37 @@ export function PlatformUsersScreen() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") void load(q, tab === "archived");
+          if (e.key === "Enter") void load(q, tab === "archived", filter);
         }}
         placeholder={s.search}
       />
+      {/* Плашка-сводка по тирам вовлечённости (только активная вкладка). Клик по
+          числу — включает/выключает серверный фильтр списка по этому тиру. */}
+      {tab === "active" && stats && (
+        <div className="grid grid-cols-4 gap-2">
+          {TIERS.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => toggleFilter(t)}
+              className={
+                "flex flex-col items-center gap-1 py-2.5 rounded-xl2 border transition active:scale-95 " +
+                (filter === t ? "border-primary bg-primary-soft" : "border-line bg-card")
+              }
+            >
+              <span className="flex items-center gap-1.5">
+                <span className={"w-2 h-2 rounded-full " + TIER_DOT[t]} />
+                <span className={"text-[16px] font-extrabold tabular-nums " + TIER_TEXT[t]}>
+                  {stats[t]}
+                </span>
+              </span>
+              <span className="text-[10.5px] font-semibold text-muted leading-tight text-center">
+                {s["tier_" + t]}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       {list === null ? (
         <Spinner />
       ) : list.length === 0 ? (
@@ -314,18 +425,34 @@ export function PlatformUsersScreen() {
             <button
               key={u.id}
               onClick={() => nav.push({ name: "platformUserDetail", id: u.id })}
-              className="w-full flex items-center gap-3 p-3.5 rounded-xl2 bg-card border border-line shadow-soft text-left active:scale-[.985] transition"
+              className="w-full flex items-stretch gap-3 p-3.5 rounded-xl2 bg-card border border-line shadow-soft text-left active:scale-[.985] transition"
             >
               <span className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center font-extrabold shrink-0">
                 {(displayName(u)[0] || "?").toUpperCase()}
               </span>
-              <span className="min-w-0">
-                <span className="block font-extrabold truncate">{displayName(u)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="font-extrabold truncate">{displayName(u)}</span>
+                </span>
                 <span className="block text-muted text-[13px]">
                   {[u.phone, `${u.agencies_count} ${s.inAgencies}`].filter(Boolean).join(" · ")}
                 </span>
+                {/* Присутствие — только у активных (у архивных статус нерелевантен). */}
+                {tab === "active" && (
+                  <span className="block mt-0.5">
+                    <PresenceLine u={u} s={s} lang={lang} />
+                  </span>
+                )}
               </span>
-              <span className="ml-auto text-muted text-xl">›</span>
+              {/* Правый борт: точка тира сверху, шеврон снизу (у архивных — только шеврон). */}
+              {tab === "active" ? (
+                <span className="flex flex-col items-end justify-between shrink-0 py-0.5">
+                  <TierDot tier={tierOf(u)} />
+                  <ChevronRight size={16} className="text-muted" />
+                </span>
+              ) : (
+                <span className="ml-auto self-center text-muted text-xl">›</span>
+              )}
             </button>
           ))}
         </div>
@@ -398,18 +525,23 @@ export function PlatformUserDetailScreen({ id }: { id: number }) {
   if (!detail) return <div className="pt-10"><Spinner /></div>;
 
   const u = detail.user;
-  const online = isOnline(u.last_seen_at);
+  const online = u.presence === "online";
+  const tier = tierOf(u);
   const isArchived = !!u.archived_at;
   return (
     <div className="space-y-3.5">
       <Card>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="text-lg font-extrabold">{displayName(u)}</div>
-          {!isArchived && online && (
+          {!isArchived && (online ? (
             <span className="inline-flex items-center gap-1 text-[12px] font-bold text-emerald-600 dark:text-emerald-400">
               <span className="w-2 h-2 rounded-full bg-emerald-500" /> {s.online}
             </span>
-          )}
+          ) : (
+            <span className={"inline-flex items-center gap-1 text-[12px] font-bold " + TIER_TEXT[tier]}>
+              <span className={"w-2 h-2 rounded-full " + TIER_DOT[tier]} /> {s["tier_" + tier]}
+            </span>
+          ))}
         </div>
         {u.phone && <div className="text-muted text-sm mt-0.5">{u.phone}</div>}
       </Card>
@@ -421,10 +553,12 @@ export function PlatformUserDetailScreen({ id }: { id: number }) {
       ) : (
         <Card>
           <div className="text-[12px] font-bold text-muted mb-1.5">{s.activity}</div>
-          {!online && u.last_seen_at && (
+          {!online && (u.presence === "recent" || u.last_seen_at) && (
             <div className="flex items-center justify-between py-1.5 border-b border-line">
               <span className="text-[13px] text-muted">{s.lastSeen}</span>
-              <span className="text-[13px] font-bold">{fmtDate(u.last_seen_at, lang)}</span>
+              <span className="text-[13px] font-bold">
+                {u.presence === "recent" ? s.recentSeen : fmtDate(u.last_seen_at!, lang)}
+              </span>
             </div>
           )}
           {u.created_at && (

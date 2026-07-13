@@ -30,6 +30,18 @@ class PlatformUserOut(BaseModel):
     archived_at: Optional[datetime] = None
     # Во скольких агентствах состоит (для списка).
     agencies_count: int = 0
+    # Присутствие «прямо сейчас»: online / recent («был только что») / offline.
+    presence: str = "offline"
+    # Вовлечённость «в целом»: active / quiet / asleep / never.
+    engagement: str = "never"
+
+
+class PlatformUserStats(BaseModel):
+    # Сводка по тирам вовлечённости — по ВСЕМ активным юзерам (не по странице).
+    active: int = 0
+    quiet: int = 0
+    asleep: int = 0
+    never: int = 0
 
 
 class PlatformUserList(BaseModel):
@@ -37,6 +49,8 @@ class PlatformUserList(BaseModel):
     total: int
     limit: int
     offset: int
+    # Плашка-сводка сверху списка. Только для активной вкладки (в архиве — None).
+    stats: Optional[PlatformUserStats] = None
 
 
 class PlatformUserAgency(BaseModel):
