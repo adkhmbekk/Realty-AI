@@ -153,6 +153,16 @@ class Settings(BaseSettings):
     # требует, поэтому по умолчанию пусто (ничего лишнего не открываем).
     cors_origins: str = ""
 
+    # ─── Вход через Telegram-бота (нативное приложение, 2026-07) ─────────
+    # ОТДЕЛЬНЫЙ бот только для входа в нативку (@realtyloginbot). Прод-бот
+    # (bot_token) при этом не трогается — полная изоляция. Пусто → вход через
+    # Telegram-бота не сконфигурирован (роут /auth/telegram/start ответит 503).
+    login_bot_token: Optional[str] = None
+    login_bot_username: Optional[str] = None
+    # Секрет для проверки, что запрос на webhook пришёл именно от Telegram
+    # (заголовок X-Telegram-Bot-Api-Secret-Token, задаётся при setWebhook).
+    telegram_webhook_secret: Optional[str] = None
+
     # ─── Шифрование секретов в БД ────────────────────────────────────────
     # Ключ Fernet для шифрования секретов в базе (Google refresh-токены),
     # см. app/core/crypto.py. Хранится в .env на сервере — вне базы и бэкапов.
@@ -171,6 +181,7 @@ class Settings(BaseSettings):
         "openrouter_api_key", "google_client_id", "google_client_secret",
         "google_ios_client_id", "google_android_client_id", "google_web_client_id",
         "apple_bundle_id", "apple_service_id",
+        "login_bot_token", "login_bot_username", "telegram_webhook_secret",
         "app_encryption_key", mode="before",
     )
     @classmethod
