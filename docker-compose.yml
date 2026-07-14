@@ -58,6 +58,11 @@ services:
       SUPERADMIN_TELEGRAM_IDS: ${SUPERADMIN_TELEGRAM_IDS:-}
       JWT_SECRET: ${JWT_SECRET:-}
       BOT_USERNAME: ${BOT_USERNAME:-}
+      # Вход через ОТДЕЛЬНЫЙ Telegram-бот входа (@realtyloginbot, нативка). Прод-бот
+      # (BOT_TOKEN) не трогается. Webhook секрет — проверка подлинности апдейтов.
+      LOGIN_BOT_TOKEN: ${LOGIN_BOT_TOKEN:-}
+      LOGIN_BOT_USERNAME: ${LOGIN_BOT_USERNAME:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       SUBSCRIPTION_WARN_DAYS: ${SUBSCRIPTION_WARN_DAYS:-3}
       ERROR_ALERTS_ENABLED: ${ERROR_ALERTS_ENABLED:-true}
       # Импорт объявления по ссылке (AI-разбор через Google Gemini). Без ключа
