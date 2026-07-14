@@ -12,6 +12,7 @@ from app.core.errors import AppError
 from app.db.models.agency import Agency
 from app.db.models.apartment import Apartment
 from app.repositories import agency_membership_repo, user_repo
+from app.schemas.platform import PlatformUserList
 from app.services import platform_service
 
 
@@ -38,6 +39,21 @@ def test_list_platform_users_excludes_superadmin(db):
     ids = [i["id"] for i in r["items"]]
     assert u.id in ids
     assert su.id not in ids
+
+
+def test_native_user_null_telegram_serializes(db):
+    # Регресс: нативный юзер (вход Google/Apple) имеет telegram_id=None. Список
+    # юзеров должен проходить валидацию ОТВЕТНОЙ схемы (как в FastAPI), а не падать
+    # ResponseValidationError → 500.
+    a = _agency(db)
+    u = user_repo.create(
+        db, telegram_id=None, role="agent", agency_id=a.id,
+        google_sub="g-1", full_name="Натив",
+    )
+    db.commit()
+    data = platform_service.list_platform_users(db)
+    PlatformUserList.model_validate(data)  # не должно бросать
+    assert any(i["id"] == u.id and i["telegram_id"] is None for i in data["items"])
 
 
 def test_user_detail_exposes_objects_not_clients(db):

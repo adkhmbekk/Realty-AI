@@ -11,7 +11,9 @@ class MemberOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    telegram_id: int
+    # None у нативных юзеров (вход Google/Apple без Telegram) — иначе сериализация
+    # члена команды падает валидацией ответа.
+    telegram_id: Optional[int] = None
     username: Optional[str] = None
     full_name: Optional[str] = None
     role: str

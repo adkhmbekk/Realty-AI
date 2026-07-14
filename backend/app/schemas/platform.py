@@ -17,7 +17,9 @@ class PlatformUserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    telegram_id: int
+    # None у нативных юзеров (вход Google/Apple без Telegram) — иначе валидация
+    # ответа падает (ResponseValidationError), и весь список юзеров = 500.
+    telegram_id: Optional[int] = None
     username: Optional[str] = None
     full_name: Optional[str] = None
     first_name: Optional[str] = None
