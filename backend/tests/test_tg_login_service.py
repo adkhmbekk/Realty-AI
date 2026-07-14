@@ -19,10 +19,13 @@ def _config(monkeypatch):
 
 def test_start_login_returns_code_and_link(db):
     out = tg_login_service.start_login(db)
-    db.commit()
     assert out["code"] and len(out["code"]) >= 16
     assert out["deep_link"] == f"https://t.me/realtyloginbot?start=login_{out['code']}"
     assert out["expires_in"] == tg_login_service.CODE_TTL_SECONDS
+    # РЕГРЕССИЯ: start_login ДОЛЖЕН сам закоммитить код. Иначе в проде (get_db не
+    # коммитит на выходе, webhook/poll — в другой сессии) код теряется. Проверяем
+    # так: после rollback код обязан остаться — значит commit был.
+    db.rollback()
     assert tg_login_repo.get_by_code(db, out["code"]) is not None
 
 
