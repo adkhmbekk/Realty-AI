@@ -18,10 +18,14 @@ from app.api.routes import (
     sheets,
     superadmin,
     team,
+    telegram_login,
+    telegram_webhook,
 )
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
+api_router.include_router(telegram_login.router)
+api_router.include_router(telegram_webhook.router)
 api_router.include_router(agencies.router)
 api_router.include_router(settings.router)
 api_router.include_router(invites.router)
