@@ -207,6 +207,51 @@ def login_with_apple(
     return build_auth_response(db, user)
 
 
+def login_with_telegram_id(
+    db: Session,
+    telegram_id: int,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None,
+    username: Optional[str] = None,
+) -> dict:
+    """
+    Вход нативного приложения через Telegram-бота (@realtyloginbot). telegram_id
+    УЖЕ аутентифицирован ботом (webhook подтвердил, что кнопку нажал именно этот
+    пользователь) — поэтому здесь без проверки initData.
+
+    По telegram_id находим СУЩЕСТВУЮЩИЙ аккаунт (тот же, что в Telegram Mini App)
+    и выдаём его сессию — так суперадмин входит в нативку под собой. Незнакомый
+    telegram_id → создаётся ЛИЧНЫЙ аккаунт (role='user'), как открытая регистрация
+    из Telegram. Профиль существующего аккаунта НЕ перезаписываем (имя могло быть
+    отредактировано пользователем).
+    """
+    user = user_repo.get_by_telegram_id(db, telegram_id)
+    if user is not None and not user.is_active:
+        raise AppError("access_deactivated", status.HTTP_403_FORBIDDEN)
+
+    if user is None:
+        full = " ".join(p for p in [first_name, last_name] if p) or None
+        user = user_repo.create(
+            db,
+            telegram_id=telegram_id,
+            role="user",
+            agency_id=None,
+            username=username,
+            full_name=full,
+        )
+        user.first_name = first_name
+        user.last_name = last_name
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user)
+        return build_auth_response(db, user)
+
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+    return build_auth_response(db, user)
+
+
 def refresh_session(
     db: Session, refresh_token: str, act_as_agency_id: Optional[int] = None
 ) -> dict:
