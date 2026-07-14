@@ -19,6 +19,7 @@ from app.db.models.invite import Invite
 from app.db.models.request_match import RequestMatch
 from app.db.models.subscription_payment import SubscriptionPayment
 from app.db.models.task import Task
+from app.db.models.tg_login_code import TgLoginCode
 from app.db.models.user import User
 from app.db.models.watched_channel import WatchedChannel
 
@@ -40,6 +41,7 @@ __all__ = [
     "RequestMatch",
     "SubscriptionPayment",
     "Task",
+    "TgLoginCode",
     "DuplicateDismissal",
     "WatchedChannel",
 ]
