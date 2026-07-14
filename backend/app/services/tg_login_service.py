@@ -60,6 +60,10 @@ def start_login(db: Session) -> dict:
     code = secrets.token_hex(16)  # 128 бит → перебор невозможен
     expires_at = _now() + timedelta(seconds=CODE_TTL_SECONDS)
     tg_login_repo.create(db, code=code, expires_at=expires_at)
+    # ВАЖНО: коммитим сразу — код должен пережить закрытие сессии этого запроса,
+    # иначе webhook/poll (уже в ДРУГОЙ сессии) его не найдут (get_db не коммитит
+    # на выходе → без commit строка откатывается).
+    db.commit()
     deep_link = f"https://t.me/{settings.login_bot_username}?start=login_{code}"
     return {"code": code, "deep_link": deep_link, "expires_in": CODE_TTL_SECONDS}
 
