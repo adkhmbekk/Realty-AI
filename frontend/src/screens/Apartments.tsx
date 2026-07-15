@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
-import { api, buildQuery, errText } from "../api";
+import { api, apiUrl, buildQuery, errText } from "../api";
 import { useRevisit } from "../refresh";
 import {
   Button,
@@ -473,7 +473,7 @@ function Lightbox({
         <X size={20} />
       </button>
       <img
-        src={urls[index]}
+        src={apiUrl(urls[index])}
         alt=""
         className="max-w-[94vw] max-h-[82vh] object-contain rounded-lg"
         onClick={(e) => e.stopPropagation()}
@@ -591,7 +591,7 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
               )}
             >
               <button type="button" className="block w-full h-full active:scale-95 transition" onClick={() => setViewer(i)}>
-                <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                <img src={apiUrl(p.url)} alt="" loading="lazy" className="w-full h-full object-cover" />
               </button>
               <button
                 onClick={() => del(p.id)}
@@ -672,7 +672,7 @@ export function ApartmentCard({ o, onOpen, agencyName }: { o: Apartment; onOpen?
       <div className="flex items-stretch gap-3">
         <div className="w-[88px] shrink-0 self-stretch rounded-[14px] bg-primary-soft text-primary flex items-center justify-center overflow-hidden">
           {o.photo_url ? (
-            <img src={o.photo_url} alt="" loading="lazy" className="w-full h-full object-cover" />
+            <img src={apiUrl(o.photo_url)} alt="" loading="lazy" className="w-full h-full object-cover" />
           ) : (
             <HomeIcon size={26} className="opacity-70" />
           )}
@@ -1825,7 +1825,7 @@ export function DuplicatesScreen() {
         <div key={o.id} className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5">
           <div className="flex gap-3">
             {o.photo_url && (
-              <img src={o.photo_url} alt="" loading="lazy" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+              <img src={apiUrl(o.photo_url)} alt="" loading="lazy" className="w-16 h-16 rounded-lg object-cover shrink-0" />
             )}
             <div className="min-w-0 flex-1">
               <div className="font-extrabold truncate">{o.name || "№ " + o.display_id}</div>
@@ -2056,7 +2056,7 @@ function ReadonlyObjectCard({ o, photosUrl }: { o: Apartment; photosUrl: string 
                 i === 0 && photos.length > 1 && "col-span-2 row-span-2"
               )}
             >
-              <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+              <img src={apiUrl(p.url)} alt="" loading="lazy" className="w-full h-full object-cover" />
             </button>
           ))}
         </div>
