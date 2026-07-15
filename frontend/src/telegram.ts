@@ -60,6 +60,13 @@ export function getInitData(): string {
   }
 }
 
+// Работаем ли МЫ вне Telegram (нативное приложение Capacitor / обычный браузер).
+// Признак — отсутствие initData: внутри Telegram Mini App он всегда есть, а вход
+// по нему и завязан. Вне Telegram вход идёт через Google/Apple (session.ts).
+export function isNativeApp(): boolean {
+  return !getInitData();
+}
+
 // Запросить номер телефона у пользователя (нативная кнопка Telegram «Поделиться
 // контактом»). На новых клиентах номер приходит в ответе — тогда возвращаем его;
 // иначе возвращаем null (в UI юзер введёт/подтвердит номер вручную). Вне Telegram

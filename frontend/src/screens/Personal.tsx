@@ -11,7 +11,7 @@ import { Home as HomeIcon, Settings as SettingsIcon, User as UserIcon, Plus, Key
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { api, errText } from "../api";
-import { getInitData, requestContact, haptic } from "../telegram";
+import { getInitData, requestContact, haptic, isNativeApp } from "../telegram";
 import { Button, Card, Field, Input, Spinner, Segmented, Switch } from "../components/ui";
 import type { AuthResponse, Membership, UserProfile } from "../types";
 import type { Lang } from "../i18n";
@@ -245,7 +245,11 @@ function Onboarding({ onDone }: { onDone: () => void }) {
         <Field label={s.firstName}><Input value={first} onChange={(e) => setFirst(e.target.value)} placeholder="Азиз" /></Field>
         <Field label={s.lastName}><Input value={last} onChange={(e) => setLast(e.target.value)} placeholder="Каримов" /></Field>
         <Field label={s.phone}>
-          {shared ? (
+          {isNativeApp() ? (
+            // Нативное приложение: обычный ввод номера (Telegram-контакта тут нет).
+            // Подтверждение SMS — отдельным этапом.
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="+998 90 123 45 67" />
+          ) : shared ? (
             <div className="flex items-center gap-2.5">
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
               <Button variant="soft" size="sm" onClick={shareContact}>{s.change}</Button>
@@ -599,7 +603,7 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
               <Field label={s.phone}>
                 <div className="flex items-center gap-2.5">
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={s.noPhone} />
-                  <Button variant="soft" size="sm" onClick={shareContact}>📲</Button>
+                  {!isNativeApp() && <Button variant="soft" size="sm" onClick={shareContact}>📲</Button>}
                 </div>
               </Field>
               {!complete && (
