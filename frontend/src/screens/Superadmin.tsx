@@ -170,7 +170,7 @@ function AgencyActivityPanel({ id }: { id: number }) {
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">{t("online")}</span>
                   ) : (
                     <span className="text-muted">
-                      {t("lastSeen")}: {(e.last_seen_at || e.last_login_at) ? fmtDate(e.last_seen_at || e.last_login_at, lang) : t("neverIn")}
+                      {t("lastSeen")}: {(e.last_active_at || e.last_seen_at || e.last_login_at) ? fmtDate(e.last_active_at || e.last_seen_at || e.last_login_at, lang) : t("neverIn")}
                     </span>
                   )}
                 </span>
@@ -1004,8 +1004,6 @@ export function MlsPoolScreen() {
 
   return (
     <div>
-      <Hint>{t("mlsPoolHint")}</Hint>
-
       <MlsFilterBar
         q={q}
         setQ={setQ}
