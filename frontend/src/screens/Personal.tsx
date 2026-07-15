@@ -7,7 +7,7 @@
 // Онбординг показываем ОДИН РАЗ (флаг в localStorage) — existing-юзеры (у кого
 // имя уже заполнено бэкфиллом) тоже проходят его при первом входе в новую версию.
 import React, { useCallback, useEffect, useState } from "react";
-import { Home as HomeIcon, Settings as SettingsIcon, User as UserIcon, Plus, KeyRound, ChevronRight, Building2, Languages, Moon } from "lucide-react";
+import { Home as HomeIcon, Settings as SettingsIcon, User as UserIcon, Plus, KeyRound, ChevronRight, Building2, Languages, Moon, Share2 } from "lucide-react";
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { api, errText } from "../api";
@@ -251,7 +251,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
               <Button variant="soft" size="sm" onClick={shareContact}>{s.change}</Button>
             </div>
           ) : (
-            <Button variant="ghost" full onClick={shareContact}>📲 {s.sharePhone}</Button>
+            <Button variant="ghost" full onClick={shareContact}><Share2 size={16} /> {s.sharePhone}</Button>
           )}
         </Field>
         <p className="text-muted text-[13px] mt-2 leading-relaxed">{s.phoneHint}</p>
@@ -340,6 +340,18 @@ function Hub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void })
           <Spinner /><div className="text-muted text-sm">{s.entering}</div>
         </div>
       )}
+      {/* Брендовая шапка — как в интерфейсе агентства (App.tsx Shell): логотип +
+          «Realty AI» слева сверху, чтобы личный кабинет не выглядел незавершённым. */}
+      <div className="shrink-0 w-full max-w-[560px] mx-auto px-3.5 pt-3.5">
+        <header className="flex items-center gap-2.5 min-h-[40px] mb-2">
+          <span className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow shrink-0" style={{ background: "var(--grad)" }}>
+            <Building2 size={18} />
+          </span>
+          <span className="text-[18px] font-extrabold tracking-tight">
+            Realty <span className="text-primary">AI</span>
+          </span>
+        </header>
+      </div>
       <div className="flex-1 min-h-0 relative">
         <TabPane active={tab === "home"}>
           <HomeTab s={s} user={user} memberships={memberships} onEnter={enter} onCreate={createAgency} onJoin={joinByCode} />
@@ -417,7 +429,7 @@ function HomeTab({ s, user, memberships, onEnter, onCreate, onJoin }: {
           </>
         ) : (
           <Card className="text-center py-8 px-4">
-            <div className="mx-auto mb-3 w-16 h-16 rounded-2xl bg-primary-soft text-primary flex items-center justify-center text-3xl">🏢</div>
+            <div className="mx-auto mb-3 w-16 h-16 rounded-2xl bg-primary-soft text-primary flex items-center justify-center"><Building2 size={30} /></div>
             <div className="text-[16px] font-extrabold">{s.noAgenciesTitle}</div>
             <p className="text-[13px] text-muted mt-1.5 leading-relaxed max-w-[300px] mx-auto">{s.noAgenciesSub}</p>
             <div className="space-y-2.5 mt-5">
@@ -599,7 +611,7 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
               <Field label={s.phone}>
                 <div className="flex items-center gap-2.5">
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={s.noPhone} />
-                  <Button variant="soft" size="sm" onClick={shareContact}>📲</Button>
+                  <Button variant="soft" size="sm" onClick={shareContact} aria-label={s.sharePhone}><Share2 size={16} /></Button>
                 </div>
               </Field>
               {!complete && (

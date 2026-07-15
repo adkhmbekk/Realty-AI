@@ -591,14 +591,16 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
               )}
             >
               <button type="button" className="block w-full h-full active:scale-95 transition" onClick={() => setViewer(i)}>
-                <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                <img src={p.url} alt={t("photos")} loading="lazy" className="w-full h-full object-cover" />
               </button>
               <button
                 onClick={() => del(p.id)}
-                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90"
+                className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center active:scale-90"
                 aria-label={t("del")}
               >
-                <X size={15} />
+                <span className="w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
+                  <X size={15} />
+                </span>
               </button>
             </div>
           ))}
@@ -672,7 +674,7 @@ export function ApartmentCard({ o, onOpen, agencyName }: { o: Apartment; onOpen?
       <div className="flex items-stretch gap-3">
         <div className="w-[88px] shrink-0 self-stretch rounded-[14px] bg-primary-soft text-primary flex items-center justify-center overflow-hidden">
           {o.photo_url ? (
-            <img src={o.photo_url} alt="" loading="lazy" className="w-full h-full object-cover" />
+            <img src={o.photo_url} alt={o.name || "№" + o.display_id} loading="lazy" className="w-full h-full object-cover" />
           ) : (
             <HomeIcon size={26} className="opacity-70" />
           )}
@@ -699,7 +701,7 @@ export function ApartmentCard({ o, onOpen, agencyName }: { o: Apartment; onOpen?
           <div className="text-[13px] text-muted">
             {fmtPrice(o.price, o.currency) ? (
               <>
-                {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency)}{L.priceSuffix(o.deal_type, o.rent_period)}</span>
+                {t("f_price")}: <span className="font-extrabold text-primary tabular-nums">{fmtPrice(o.price, o.currency)}{L.priceSuffix(o.deal_type, o.rent_period)}</span>
               </>
             ) : (
               <span className="text-muted">{t("priceNotSet")}</span>
@@ -1141,9 +1143,12 @@ function PendingPhotos({
               <button
                 type="button"
                 onClick={() => setImgUrls?.(imgUrls.filter((_, idx) => idx !== i))}
-                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90"
+                className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center active:scale-90"
+                aria-label={t("del")}
               >
-                <X size={15} />
+                <span className="w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
+                  <X size={15} />
+                </span>
               </button>
             </div>
           ))}
@@ -1153,9 +1158,12 @@ function PendingPhotos({
               <button
                 type="button"
                 onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
-                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90"
+                className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center active:scale-90"
+                aria-label={t("del")}
               >
-                <X size={15} />
+                <span className="w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
+                  <X size={15} />
+                </span>
               </button>
             </div>
           ))}
@@ -1165,9 +1173,12 @@ function PendingPhotos({
               <button
                 type="button"
                 onClick={() => setTgUrls(tgUrls.filter((_, idx) => idx !== i))}
-                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90"
+                className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center active:scale-90"
+                aria-label={t("del")}
               >
-                <X size={15} />
+                <span className="w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
+                  <X size={15} />
+                </span>
               </button>
             </div>
           ))}
@@ -1817,7 +1828,10 @@ export function DuplicatesScreen() {
           {t("group")} {pos + 1} / {groups.length}
         </span>
         {(g.label || g.phone) && (
-          <span className="text-[12.5px] text-muted truncate">{g.label || "📞 " + g.phone}</span>
+          <span className="text-[12.5px] text-muted truncate inline-flex items-center gap-1 min-w-0">
+            {!g.label && <Phone size={12} className="shrink-0" />}
+            <span className="truncate">{g.label || g.phone}</span>
+          </span>
         )}
       </div>
       <Hint>{t("duplicatesHint")}</Hint>
@@ -1825,7 +1839,7 @@ export function DuplicatesScreen() {
         <div key={o.id} className="mt-2.5 rounded-xl2 bg-card border border-line shadow-soft p-3.5">
           <div className="flex gap-3">
             {o.photo_url && (
-              <img src={o.photo_url} alt="" loading="lazy" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+              <img src={o.photo_url} alt={o.name || "№" + o.display_id} loading="lazy" className="w-16 h-16 rounded-lg object-cover shrink-0" />
             )}
             <div className="min-w-0 flex-1">
               <div className="font-extrabold truncate">{o.name || "№ " + o.display_id}</div>
@@ -1834,7 +1848,7 @@ export function DuplicatesScreen() {
                   .filter(Boolean)
                   .join(" · ")}
               </div>
-              <div className="text-[12px] text-muted">
+              <div className="text-[12px] text-muted tabular-nums">
                 {fmtPrice(o.price, o.currency)}
                 {o.area != null ? ` · ${o.area} м²` : ""}
                 {o.land_area != null ? ` · ${o.land_area} ${t("f_land_area").toLowerCase()}` : ""}
@@ -1896,7 +1910,7 @@ function ArchiveCard({ o }: { o: Apartment }) {
       <div className="text-[13px] text-muted">
         {fmtPrice(o.price, o.currency) ? (
               <>
-                {t("f_price")}: <span className="font-extrabold text-primary">{fmtPrice(o.price, o.currency)}</span>
+                {t("f_price")}: <span className="font-extrabold text-primary tabular-nums">{fmtPrice(o.price, o.currency)}</span>
               </>
             ) : (
               <span className="text-muted">{t("priceNotSet")}</span>
@@ -2056,7 +2070,7 @@ function ReadonlyObjectCard({ o, photosUrl }: { o: Apartment; photosUrl: string 
                 i === 0 && photos.length > 1 && "col-span-2 row-span-2"
               )}
             >
-              <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+              <img src={p.url} alt={t("photos")} loading="lazy" className="w-full h-full object-cover" />
             </button>
           ))}
         </div>

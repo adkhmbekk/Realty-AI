@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { User, LifeBuoy, Building2, Pencil, ChevronRight, ChevronDown, Check } from "lucide-react";
+import { User, LifeBuoy, Building2, Pencil, ChevronRight, ChevronDown, Check, Home } from "lucide-react";
 import { useApp } from "../store";
 import { useActing } from "../acting";
 import { useNav } from "../nav";
@@ -282,7 +282,7 @@ export function ProfileScreen() {
             }
           }}
         >
-          🏠 {t("toPersonalCabinet")}
+          <Home size={17} /> {t("toPersonalCabinet")}
         </Button>
       )}
       {/* Версия сборки — чтобы было видно, что приложение обновилось до свежей. */}
