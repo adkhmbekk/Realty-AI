@@ -14,6 +14,7 @@
 конкретном агентстве.
 """
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -61,4 +62,10 @@ class AgencyMembership(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+    # Присутствие юзера ИМЕННО В ЭТОМ агентстве: обновляется при входе в агентство
+    # и heartbeat'ами, пока юзер внутри него. По нему карточка юзера показывает
+    # статус (онлайн/был только что/точное время) отдельно для каждого агентства.
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )

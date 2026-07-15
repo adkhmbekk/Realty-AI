@@ -84,6 +84,7 @@ def get_platform_user(db: Session, user_id: int) -> dict:
     if u is None or u.role == "superadmin":
         raise AppError("user_not_found_or_inactive", status.HTTP_404_NOT_FOUND)
 
+    now = datetime.now(timezone.utc)
     memberships = agency_membership_repo.list_for_user(db, u.id, include_archived=True)
     agencies = [
         {
@@ -92,6 +93,9 @@ def get_platform_user(db: Session, user_id: int) -> dict:
             "role": m.role,
             "is_owner": m.is_owner,
             "is_frozen": a.archived_at is not None,
+            # Присутствие ИМЕННО в этом агентстве (по membership.last_seen_at).
+            "presence": user_presence.presence(m.last_seen_at, now),
+            "last_active_at": m.last_seen_at,
         }
         for m, a in memberships
     ]

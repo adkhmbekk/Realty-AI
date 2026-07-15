@@ -24,6 +24,16 @@ def get(db: Session, user_id: int, agency_id: int) -> Optional[AgencyMembership]
     ).scalar_one_or_none()
 
 
+def touch_last_seen(db: Session, user_id: int, agency_id: int, now) -> None:
+    """Отметить присутствие юзера ИМЕННО в этом агентстве (вход/heartbeat внутри).
+    Тихо игнорирует, если членства нет (напр. суперадмин acting — он не член)."""
+    m = get(db, user_id, agency_id)
+    if m is None:
+        return
+    m.last_seen_at = now
+    db.commit()
+
+
 def list_for_user(
     db: Session, user_id: int, *, include_archived: bool = False
 ) -> List[Tuple[AgencyMembership, Agency]]:

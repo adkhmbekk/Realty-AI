@@ -484,11 +484,17 @@ def list_my_memberships(db: Session, user) -> list:
     ]
 
 
-def touch_last_seen(db: Session, user_id: Optional[int]) -> None:
+def touch_last_seen(
+    db: Session, user_id: Optional[int], agency_id: Optional[int] = None
+) -> None:
     """
     Отметить, что пользователь сейчас в приложении (heartbeat). Обновляет
     users.last_seen_at не чаще раза в ~30 секунд, чтобы не писать в БД на каждый
     пинг. По этому полю панель владельца показывает статус «в сети».
+
+    Если передан agency_id (юзер сейчас ВНУТРИ этого агентства), заодно обновляет
+    присутствие в этом членстве (agency_memberships.last_seen_at) — для per-agency
+    статуса в карточке юзера. В личном кабинете agency_id=None → членства не трогаем.
     """
     if user_id is None:
         return
@@ -501,4 +507,8 @@ def touch_last_seen(db: Session, user_id: Optional[int]) -> None:
         prev = prev.replace(tzinfo=timezone.utc)
     if prev is None or (now - prev).total_seconds() >= 30:
         user.last_seen_at = now
+        if agency_id is not None:
+            m = agency_membership_repo.get(db, user_id, agency_id)
+            if m is not None:
+                m.last_seen_at = now
         db.commit()
