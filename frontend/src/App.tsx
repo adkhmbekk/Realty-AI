@@ -412,8 +412,33 @@ function Shell() {
   const nav = useNav();
   const depth = nav.stack.length;
   const route = nav.current;
-  const tkey = titleKeyFor(route);
   const showBack = depth > 1;
+  // Актуальный nav для слушателя нативного «Назад» (регистрируем один раз).
+  const navRef = useRef(nav);
+  navRef.current = nav;
+
+  // Нативная кнопка/жест «Назад» (Android APK): Capacitor шлёт событие backButton
+  // при системном свайпе-назад/кнопке. Привязываем к nav.pop(), иначе система
+  // закрывает приложение вместо возврата на шаг. На вебе/в Telegram не вешаем.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let handle: { remove: () => void } | null = null;
+    let cancelled = false;
+    import("@capacitor/app").then(({ App: CapApp }) => {
+      CapApp.addListener("backButton", () => {
+        const n = navRef.current;
+        if (n.stack.length > 1) n.pop();
+        else CapApp.exitApp();
+      }).then((h) => {
+        if (cancelled) h.remove();
+        else handle = h;
+      });
+    });
+    return () => {
+      cancelled = true;
+      handle?.remove();
+    };
+  }, []);
 
   // Кнопка «Назад» Telegram.
   useEffect(() => {
@@ -480,19 +505,16 @@ function Shell() {
       <div className="shrink-0 w-full max-w-[560px] mx-auto px-3.5 pt-3.5">
         {/* Шапка */}
         <header className="flex items-center gap-2.5 min-h-[40px] mb-2">
-          {/* Логотип-бейдж — на КАЖДОМ экране (левый верхний угол), чтобы ни одно окно
-              не выглядело «неполноценным». Рядом: на главных экранах — «Realty AI»,
-              на вложенных — заголовок страницы (контекст «где я» не теряется). */}
+          {/* Бренд (логотип + «Realty AI») — в левом верхнем углу на КАЖДОМ экране,
+              включая вложенные (Финансы, Пользователи, карточка пользователя и т.д.),
+              как в интерфейсе главного админа. Заголовок страницы в шапке не
+              показываем: контекст даёт содержимое экрана и нижняя навигация. */}
           <span className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow shrink-0" style={{ background: "var(--grad)" }}>
             <Building2 size={18} />
           </span>
-          {showBack ? (
-            <span className="text-[19px] font-extrabold tracking-tight truncate">{tkey ? t(tkey) : ""}</span>
-          ) : (
-            <span className="text-[18px] font-extrabold tracking-tight">
-              Realty <span className="text-primary">AI</span>
-            </span>
-          )}
+          <span className="text-[18px] font-extrabold tracking-tight">
+            Realty <span className="text-primary">AI</span>
+          </span>
         </header>
       </div>
 

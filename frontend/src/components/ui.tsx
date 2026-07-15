@@ -67,9 +67,9 @@ export function Button({
 }
 
 // ── Field / Input / Select / Textarea ───────────────────────────────
-export function Label({ children }: { children: React.ReactNode }) {
+export function Label({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
   return (
-    <label className="block text-[12px] font-bold text-muted mb-1.5 mt-3.5">{children}</label>
+    <label htmlFor={htmlFor} className="block text-[12px] font-bold text-muted mb-1.5 mt-3.5">{children}</label>
   );
 }
 
@@ -89,10 +89,20 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 }
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  // Связываем подпись с полем через id/htmlFor — для скринридеров и тапа по подписи.
+  // Работает для типового случая одного дочернего инпута; при нескольких детях
+  // (напр. поле телефона с кнопкой) подпись остаётся видимой, но без явной связки.
+  const autoId = React.useId();
+  const only =
+    React.Children.count(children) === 1 ? (React.Children.only(children) as React.ReactNode) : null;
+  const linked = React.isValidElement(only);
+  const fieldId = linked ? ((only as React.ReactElement<{ id?: string }>).props.id ?? autoId) : undefined;
   return (
     <div>
-      <Label>{label}</Label>
-      {children}
+      <Label htmlFor={fieldId}>{label}</Label>
+      {linked
+        ? React.cloneElement(only as React.ReactElement<{ id?: string }>, { id: fieldId })
+        : children}
     </div>
   );
 }
