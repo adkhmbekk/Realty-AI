@@ -396,7 +396,7 @@ function useHeartbeat(enabled: boolean) {
       }
     };
     ping();
-    const id = window.setInterval(ping, 60000);
+    const id = window.setInterval(ping, 30000);
     document.addEventListener("visibilitychange", ping);
     return () => {
       window.clearInterval(id);

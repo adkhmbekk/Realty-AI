@@ -499,6 +499,7 @@ export interface EmployeeActivity {
   name?: string | null;
   last_login_at?: string | null;
   last_seen_at?: string | null;
+  last_active_at?: string | null;
   online?: boolean;
   added: number;
   deals_won?: number;

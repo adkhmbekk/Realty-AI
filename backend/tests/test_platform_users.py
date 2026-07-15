@@ -91,9 +91,9 @@ def test_presence_online_recent_offline(db):
     on = user_repo.create(db, telegram_id=201, role="agent", agency_id=a.id, full_name="Онлайн")
     rec = user_repo.create(db, telegram_id=202, role="agent", agency_id=a.id, full_name="Рек")
     off = user_repo.create(db, telegram_id=203, role="agent", agency_id=a.id, full_name="Офлайн")
-    on.last_seen_at = _ago(seconds=30)      # ≤3 мин → online
-    rec.last_seen_at = _ago(seconds=210)    # 3–4 мин → recent
-    off.last_seen_at = _ago(hours=1)        # давно → offline
+    on.last_seen_at = _ago(seconds=30)      # ≤75с → online
+    rec.last_seen_at = _ago(seconds=100)    # 75–135с → recent («был только что»)
+    off.last_seen_at = _ago(seconds=200)    # >135с → offline (показываем точное время)
     db.commit()
 
     by_id = {i["id"]: i["presence"] for i in platform_service.list_platform_users(db)["items"]}

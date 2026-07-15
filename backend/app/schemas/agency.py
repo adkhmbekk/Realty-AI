@@ -227,6 +227,9 @@ class EmployeeActivityOut(BaseModel):
     last_login_at: Optional[datetime] = None
     # Присутствие «в сети»: время последнего heartbeat + флаг онлайн.
     last_seen_at: Optional[datetime] = None
+    # Последняя активность = МАКСИМУМ(last_seen_at, last_login_at) — единый показатель
+    # «когда был», согласованный с платформенной карточкой юзера.
+    last_active_at: Optional[datetime] = None
     online: bool = False
     added: int = 0
     # Сделки/комиссия сотрудника (Волна 7). commission — по валютам {USD: ...}.
