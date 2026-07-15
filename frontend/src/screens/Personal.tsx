@@ -344,6 +344,20 @@ function Hub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void })
           <Spinner /><div className="text-muted text-sm">{s.entering}</div>
         </div>
       )}
+      {/* Брендовая шапка — как в интерфейсе агентства (App.tsx Shell), чтобы личный
+          кабинет не выглядел «неполноценным». Логотип + «Realty AI», фиксирована. */}
+      <div className="shrink-0 w-full max-w-[560px] mx-auto px-3.5 pt-3.5">
+        <header className="flex items-center gap-3 min-h-[40px] mb-2">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
+              <Building2 size={18} />
+            </span>
+            <span className="text-[18px] font-extrabold tracking-tight">
+              Realty <span className="text-primary">AI</span>
+            </span>
+          </div>
+        </header>
+      </div>
       <div className="flex-1 min-h-0 relative">
         <TabPane active={tab === "home"}>
           <HomeTab s={s} user={user} memberships={memberships} onEnter={enter} onCreate={createAgency} onJoin={joinByCode} />
