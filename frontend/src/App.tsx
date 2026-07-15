@@ -479,18 +479,19 @@ function Shell() {
           через свитчер/кнопку «В личный кабинет» в профиле. */}
       <div className="shrink-0 w-full max-w-[560px] mx-auto px-3.5 pt-3.5">
         {/* Шапка */}
-        <header className="flex items-center gap-3 min-h-[40px] mb-2">
+        <header className="flex items-center gap-2.5 min-h-[40px] mb-2">
+          {/* Логотип-бейдж — на КАЖДОМ экране (левый верхний угол), чтобы ни одно окно
+              не выглядело «неполноценным». Рядом: на главных экранах — «Realty AI»,
+              на вложенных — заголовок страницы (контекст «где я» не теряется). */}
+          <span className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow shrink-0" style={{ background: "var(--grad)" }}>
+            <Building2 size={18} />
+          </span>
           {showBack ? (
-            <span className="text-[19px] font-extrabold tracking-tight">{tkey ? t(tkey) : ""}</span>
+            <span className="text-[19px] font-extrabold tracking-tight truncate">{tkey ? t(tkey) : ""}</span>
           ) : (
-            <div className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
-                <Building2 size={18} />
-              </span>
-              <span className="text-[18px] font-extrabold tracking-tight">
-                Realty <span className="text-primary">AI</span>
-              </span>
-            </div>
+            <span className="text-[18px] font-extrabold tracking-tight">
+              Realty <span className="text-primary">AI</span>
+            </span>
           )}
         </header>
       </div>
