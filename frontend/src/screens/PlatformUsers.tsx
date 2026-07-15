@@ -67,7 +67,7 @@ interface PUserDetail {
 
 const STR: Record<string, Record<string, string>> = {
   ru: {
-    users: "Юзеры",
+    users: "Пользователи",
     search: "Поиск по имени / номеру",
     empty: "Юзеры не найдены.",
     agencies: "Агентства",
