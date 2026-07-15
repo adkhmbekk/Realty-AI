@@ -175,3 +175,55 @@ def test_archived_tab_has_no_stats(db):
     r = platform_service.list_platform_users(db, archived=True)
     assert r["stats"] is None
     assert [i["id"] for i in r["items"]] == [u.id]
+
+
+# ── Присутствие ПО КОНКРЕТНОМУ агентству (per-agency, 2026-07) ────────────────
+def test_per_agency_presence_in_user_detail(db):
+    a = _agency(db, name="Агентство")
+    u = user_repo.create(db, telegram_id=301, role="agency_admin", agency_id=a.id, full_name="Юзер")
+    m = agency_membership_repo.create(
+        db, user_id=u.id, agency_id=a.id, role="agency_admin", is_owner=True
+    )
+    db.commit()
+
+    # Ещё не заходил в агентство → offline, времени нет.
+    ag = platform_service.get_platform_user(db, u.id)["agencies"][0]
+    assert ag["presence"] == "offline"
+    assert ag["last_active_at"] is None
+
+    # Свежее присутствие именно в этом агентстве → online.
+    m.last_seen_at = _ago(seconds=20)
+    db.commit()
+    ag = platform_service.get_platform_user(db, u.id)["agencies"][0]
+    assert ag["presence"] == "online"
+    assert ag["last_active_at"] is not None
+
+    # Давно (>135с) → offline (покажем точное время).
+    m.last_seen_at = _ago(seconds=200)
+    db.commit()
+    assert platform_service.get_platform_user(db, u.id)["agencies"][0]["presence"] == "offline"
+
+
+def test_heartbeat_touches_membership_when_agency_given(db):
+    from app.services import auth_service
+
+    a = _agency(db)
+    u = user_repo.create(db, telegram_id=302, role="agency_admin", agency_id=a.id)
+    m = agency_membership_repo.create(
+        db, user_id=u.id, agency_id=a.id, role="agency_admin", is_owner=True
+    )
+    db.commit()
+    assert m.last_seen_at is None
+
+    # heartbeat С agency_id — обновляет и членство.
+    auth_service.touch_last_seen(db, u.id, agency_id=a.id)
+    db.refresh(m)
+    assert m.last_seen_at is not None
+
+    # heartbeat БЕЗ agency_id (личный кабинет) — членство НЕ трогает.
+    prev = m.last_seen_at
+    u.last_seen_at = _ago(seconds=60)  # снять троттлинг (>30с)
+    db.commit()
+    auth_service.touch_last_seen(db, u.id)  # agency_id=None
+    db.refresh(m)
+    assert m.last_seen_at == prev

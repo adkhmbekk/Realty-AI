@@ -64,6 +64,10 @@ class PlatformUserAgency(BaseModel):
     is_owner: bool = False
     # Заморожено вместе с архивацией владельца.
     is_frozen: bool = False
+    # Присутствие юзера ИМЕННО в этом агентстве (из agency_memberships.last_seen_at):
+    # online / recent («был только что») / offline + время последней активности.
+    presence: str = "offline"
+    last_active_at: Optional[datetime] = None
 
 
 class ArchiveUserRequest(BaseModel):

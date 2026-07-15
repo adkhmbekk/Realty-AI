@@ -1,6 +1,7 @@
 """
 Эндпоинты управления агентствами (только суперадмин).
 """
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, status
@@ -196,6 +197,12 @@ def enter_agency(
         allowed = m is not None and m.is_active
     if not allowed:
         raise AppError("agency_not_owned", status.HTTP_403_FORBIDDEN)
+
+    # Отметить присутствие юзера ИМЕННО в этом агентстве (для per-agency статуса
+    # в карточке юзера). Для суперадмина-acting членства нет → тихо пропустится.
+    agency_membership_repo.touch_last_seen(
+        db, real_user.id, agency_id, datetime.now(timezone.utc)
+    )
 
     return auth_service.build_auth_response(
         db, real_user, act_as_agency_id=agency_id

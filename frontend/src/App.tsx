@@ -389,12 +389,14 @@ function TabButton({ active, icon, label, onClick }: { active: boolean; icon: JS
 // (+ сразу и при возврате во вкладку). enabled=false — молчим (неавторизованные
 // фазы). ВАЖНО: работает и в личном пространстве, и внутри агентства — иначе
 // профиль-визиты не видны в списке юзеров, а человек не показывается «в сети».
-function useHeartbeat(enabled: boolean) {
+function useHeartbeat(enabled: boolean, agencyId: number | null) {
   useEffect(() => {
     if (!enabled) return;
     const ping = () => {
       if (document.visibilityState === "visible") {
-        api("/api/v1/auth/heartbeat", { method: "POST" });
+        // agencyId — агентство, ВНУТРИ которого юзер сейчас (для per-agency статуса);
+        // null в личном кабинете. Смена агентства сразу шлёт пинг (мгновенный онлайн).
+        api("/api/v1/auth/heartbeat", { method: "POST", body: { agency_id: agencyId } });
       }
     };
     ping();
@@ -404,7 +406,7 @@ function useHeartbeat(enabled: boolean) {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", ping);
     };
-  }, [enabled]);
+  }, [enabled, agencyId]);
 }
 
 function Shell() {
@@ -806,7 +808,9 @@ export function App() {
   // Heartbeat присутствия во ВСЕХ авторизованных фазах — и в личном пространстве
   // (personal), и внутри агентства (ready). Раньше он жил только в Shell (ready) →
   // профиль-визиты не отмечались как активность.
-  useHeartbeat(phase === "personal" || phase === "ready");
+  // В агентстве (ready) шлём его id → отмечаем присутствие именно в нём; в личном
+  // кабинете (personal) — null (членства не трогаем).
+  useHeartbeat(phase === "personal" || phase === "ready", phase === "ready" ? (user?.agency_id ?? null) : null);
 
   async function loadSettingsIfNeeded(role: string) {
     if (role === "agency_admin" || role === "agent") {

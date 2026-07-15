@@ -2,7 +2,7 @@
 Эндпоинты входа и профиля.
 Роуты не содержат бизнес-логику — они вызывают сервисы.
 """
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
@@ -22,6 +22,7 @@ from app.schemas.auth import (
     AppleAuthRequest,
     AuthResponse,
     GoogleAuthRequest,
+    HeartbeatRequest,
     MembershipOut,
     PhoneUpdate,
     ProfileUpdate,
@@ -151,8 +152,11 @@ def my_memberships(
     dependencies=[Depends(rate_limit(60, 60, "auth_heartbeat"))],
 )
 def heartbeat(
+    payload: Optional[HeartbeatRequest] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Отметить присутствие пользователя «в сети» (периодический пинг из приложения)."""
-    auth_service.touch_last_seen(db, current_user.id)
+    """Отметить присутствие пользователя «в сети» (периодический пинг из приложения).
+    Тело необязательно; если передан agency_id — юзер внутри этого агентства."""
+    agency_id = payload.agency_id if payload else None
+    auth_service.touch_last_seen(db, current_user.id, agency_id)

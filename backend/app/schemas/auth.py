@@ -35,6 +35,12 @@ class RefreshRequest(BaseModel):
     act_as_agency_id: Optional[int] = None
 
 
+class HeartbeatRequest(BaseModel):
+    # Агентство, ВНУТРИ которого юзер сейчас находится (phase 'ready'); в личном
+    # кабинете — None. По нему отмечаем присутствие в конкретном членстве.
+    agency_id: Optional[int] = None
+
+
 class ProfileUpdate(BaseModel):
     # Правка личного профиля (имя/фамилия/язык). Все поля необязательны —
     # обновляем только присланные.

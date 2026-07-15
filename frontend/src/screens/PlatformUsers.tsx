@@ -56,6 +56,9 @@ interface PUserAgency {
   role: string;
   is_owner: boolean;
   is_frozen?: boolean;
+  // Присутствие юзера именно в этом агентстве.
+  presence?: string;
+  last_active_at?: string | null;
 }
 interface PUserDetail {
   user: PUser;
@@ -244,21 +247,23 @@ function TierDot({ tier }: { tier: Tier }) {
 
 // Строка присутствия под именем: «● В сети» / «был(а) только что» / «Был(а): …».
 // Для архивных не показывается (вызывающий код это решает).
-function PresenceLine({ u, s, lang }: { u: PUser; s: Record<string, string>; lang: Lang }) {
-  if (u.presence === "online") {
+function PresenceLine({ presence, last_active_at, s, lang }: {
+  presence?: string; last_active_at?: string | null; s: Record<string, string>; lang: Lang;
+}) {
+  if (presence === "online") {
     return (
       <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-emerald-600 dark:text-emerald-400">
         <span className="w-2 h-2 rounded-full bg-emerald-500" /> {s.online}
       </span>
     );
   }
-  if (u.presence === "recent") {
+  if (presence === "recent") {
     return <span className="text-[12.5px] text-muted">{s.recentSeen}</span>;
   }
-  if (u.last_active_at) {
+  if (last_active_at) {
     return (
       <span className="text-[12.5px] text-muted">
-        {s.lastSeen}: {fmtDate(u.last_active_at, lang)}
+        {s.lastSeen}: {fmtDate(last_active_at, lang)}
       </span>
     );
   }
@@ -460,7 +465,7 @@ export function PlatformUsersScreen() {
                 {/* Присутствие — только у активных (у архивных статус нерелевантен). */}
                 {tab === "active" && (
                   <span className="block mt-0.5">
-                    <PresenceLine u={u} s={s} lang={lang} />
+                    <PresenceLine presence={u.presence} last_active_at={u.last_active_at} s={s} lang={lang} />
                   </span>
                 )}
               </span>
@@ -610,13 +615,21 @@ export function PlatformUserDetailScreen({ id }: { id: number }) {
               onClick={() => nav.push({ name: "agencyManage", id: a.agency_id })}
               className="w-full flex items-center gap-2 p-3 rounded-xl2 bg-card border border-line shadow-soft text-left active:scale-[.99] transition"
             >
-              <span className="font-bold truncate">{a.agency_name}</span>
-              {a.is_frozen && (
-                <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500/15 text-sky-600 dark:text-sky-400">
-                  <Snowflake size={11} /> {s.frozenBadge}
-                </span>
-              )}
-              <span className="ml-auto shrink-0">{roleBadge(a.role, a.is_owner, s)}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-bold truncate">{a.agency_name}</span>
+                  {a.is_frozen && (
+                    <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                      <Snowflake size={11} /> {s.frozenBadge}
+                    </span>
+                  )}
+                </div>
+                {/* Статус юзера ИМЕННО в этом агентстве. */}
+                <div className="mt-0.5">
+                  <PresenceLine presence={a.presence} last_active_at={a.last_active_at} s={s} lang={lang} />
+                </div>
+              </div>
+              <span className="shrink-0">{roleBadge(a.role, a.is_owner, s)}</span>
               <ChevronRight size={16} className="text-muted shrink-0" />
             </button>
           ))}
