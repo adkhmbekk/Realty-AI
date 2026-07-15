@@ -10,11 +10,15 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_agency_member, require_superadmin
+from app.core.dependencies import (
+    get_current_user,
+    require_agency_member,
+    require_superadmin,
+)
 from app.core.ratelimit import rate_limit
 from app.db.models.user import User
 from app.db.session import get_db
-from app.schemas.apartment import ApartmentStatsOut
+from app.schemas.apartment import ApartmentStatsOut, SharePrepareOut
 from app.schemas.mls import MlsAgencyOut, MlsPoolOut
 from app.services import mls_service
 
@@ -135,6 +139,22 @@ def mls_take_for_client(
     """«Беру для клиента»: уведомить агентство-владельца объекта из общей базы, что
     его объект берут для клиента — с контактом берущего агентства (связь риелторов)."""
     return mls_service.take_for_client(db, current_user.agency_id, current_user, object_id)
+
+
+@router.post(
+    "/objects/{object_id}/share-prepare",
+    response_model=SharePrepareOut,
+    dependencies=[Depends(rate_limit(30, 60, "mls_share"))],
+)
+def mls_prepare_share(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Подготовить прямое Telegram-сообщение для шеринга объекта из общей базы
+    (контакт агентства-владельца; номер собственника/адрес скрыты). Доступно
+    любому авторизованному — объект уже опубликован в общей базе."""
+    return mls_service.prepare_pool_share(db, object_id, current_user)
 
 
 @router.get("/stats", response_model=ApartmentStatsOut)

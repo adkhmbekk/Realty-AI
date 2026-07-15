@@ -2151,9 +2151,40 @@ export function AgencyContactCard({ name, phone }: { name?: string | null; phone
 // было связаться), ниже — read-only карточка (фото + характеристики), БЕЗ номера
 // собственника (сервер уже вычистил контакты у чужих объектов).
 export function MlsObjectDetailScreen({ item }: { item: MlsPoolItem }) {
+  const { t, L, toast } = useApp();
+  const [busy, setBusy] = useState(false);
+
+  async function shareObject() {
+    // В Telegram — прямой шеринг (нативный выбор чата); вне Telegram (нативное
+    // приложение) — копируем текст карточки. Контакт — агентства-владельца, номер
+    // собственника/адрес НЕ уходят (бэкенд строит карточку с mask_owner).
+    if (canShareMessage()) {
+      setBusy(true);
+      const r = await api<{ prepared_message_id: string }>(
+        `/api/v1/mls/objects/${item.apartment.id}/share-prepare`, { method: "POST" }
+      );
+      if (!r.ok || !r.data) {
+        setBusy(false);
+        toast(errText(r.data, r.status), "err");
+        return;
+      }
+      const sent = await shareMessage(r.data.prepared_message_id);
+      setBusy(false);
+      if (sent) toast(t("shareDone"), "ok");
+    } else {
+      const text = buildShareCard(item.apartment, L, t, item.agency_phone, null);
+      const ok = await copyText(text);
+      toast(ok ? t("copied") : t("copy"), ok ? "ok" : "info");
+    }
+  }
+
   return (
     <div>
       <AgencyContactCard name={item.agency_name} phone={item.agency_phone} />
+      <Button full className="mt-3" disabled={busy} onClick={shareObject}>
+        <Send size={16} /> {t("shareBtn")}
+      </Button>
+      <div className="text-[11.5px] text-muted text-center mt-1.5">{t("shareDirectHint")}</div>
       <div className="mt-3">
         <ReadonlyObjectCard o={item.apartment} photosUrl={`/api/v1/mls/objects/${item.apartment.id}/photos`} />
       </div>

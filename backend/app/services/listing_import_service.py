@@ -641,6 +641,14 @@ def _is_phone(raw: str, digits: str, after: str, lenient: bool) -> bool:
     return False
 
 
+def strip_phones(text: Optional[str]) -> Optional[str]:
+    """Вернуть текст БЕЗ телефонных номеров — жёсткое затирание контактов
+    собственника в свободных полях общей базы (MLS). Та же валидация, что и при
+    импорте (цены/площади за телефон не считаются)."""
+    _, cleaned = _pull_phones(text, lenient=False)
+    return cleaned
+
+
 def _pull_phones(text: Optional[str], lenient: bool = False) -> Tuple[List[str], Optional[str]]:
     """Достать телефоны из текста; вернуть (номера, текст-без-номеров)."""
     if not text:

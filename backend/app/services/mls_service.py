@@ -21,7 +21,15 @@ from app.services import photo_service, telegram_service
 
 
 def _blank_contacts(apt_out: ApartmentOut) -> ApartmentOut:
-    """Скрыть всё, что ведёт напрямую к собственнику/агенту — как при подборе MLS."""
+    """Скрыть всё, что ведёт напрямую к собственнику/агенту — как при подборе MLS.
+
+    ЖЁСТКИЙ ОГРАНИЧИТЕЛЬ: помимо затирания контактных полей, вычищаем телефонные
+    номера из СВОБОДНЫХ текстовых полей (название, описание, мебель/техника) — чтобы
+    номер собственника не утёк в общую базу, если его вписали не туда.
+    """
+    # Ленивый импорт — избегаем циклического при загрузке модулей.
+    from app.services.listing_import_service import strip_phones
+
     apt_out.owner_phone = None
     apt_out.address = None
     apt_out.comment = None
@@ -29,6 +37,9 @@ def _blank_contacts(apt_out: ApartmentOut) -> ApartmentOut:
     apt_out.source_link = None
     apt_out.created_by = None
     apt_out.created_by_name = None
+    apt_out.name = strip_phones(apt_out.name)
+    apt_out.description = strip_phones(apt_out.description)
+    apt_out.furniture_appliances = strip_phones(apt_out.furniture_appliances)
     return apt_out
 
 
@@ -207,6 +218,22 @@ def take_for_client(db: Session, agency_id: int, user, object_id: int) -> dict:
         notified = telegram_service.send_message(owner.telegram_id, text)
 
     return {"notified": notified}
+
+
+def prepare_pool_share(db: Session, object_id: int, user) -> dict:
+    """Подготовить прямое Telegram-сообщение для шеринга объекта из ОБЩЕЙ базы.
+
+    Карточка строится с контактом АГЕНТСТВА-владельца (номер собственника не
+    включается), адрес скрыт, телефоны из свободных полей вычищены (mask_owner).
+    Возвращает prepared_message_id (Telegram.WebApp.shareMessage).
+    """
+    apt = apartment_repo.get_shared_mls(db, object_id)
+    if apt is None:
+        raise AppError("apartment_not_found", http_status.HTTP_404_NOT_FOUND)
+    from app.services import apartment_service
+    return apartment_service.prepare_share(
+        db, apt.agency_id, object_id, user, mask_owner=True
+    )
 
 
 def pool_stats(db: Session) -> ApartmentStatsOut:
