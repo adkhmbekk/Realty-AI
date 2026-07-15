@@ -424,24 +424,37 @@ def _format_price(apartment: Apartment) -> Optional[str]:
     return out
 
 
-def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
+def build_share_card(
+    db: Session, agency_id: int, apartment_id: int, mask_owner: bool = False
+) -> dict:
     """
     Подготовить карточку объекта для отправки третьим лицам.
 
     ВАЖНО: номер собственника (owner_phone) и внутренний комментарий (comment)
     НЕ включаются. Вместо номера собственника подставляется контактный номер
     главного администратора агентства (contact_phone из настроек агентства).
+
+    mask_owner=True (шеринг объекта из ОБЩЕЙ базы другим агентством): дополнительно
+    вычищаем телефоны из свободных полей (название/описание) и НЕ включаем точный
+    адрес — чтобы контакт собственника не утёк тому, кто делится чужим объектом.
     """
     apartment = get_apartment(db, agency_id, apartment_id)
     contact_phone = _agency_contact_phone(db, agency_id)
     contact_username = _agency_contact_username(db, agency_id)
 
+    name = apartment.name
+    description = apartment.description
+    if mask_owner:
+        from app.services.listing_import_service import strip_phones
+        name = strip_phones(name)
+        description = strip_phones(description)
+
     # Собираем текстовое представление карточки (без конфиденциальных полей).
     # Порядок: [наименование, если задано вручную] → описание → остальные данные.
     # У каждой строки — подходящий эмодзи в начале.
     lines = []
-    if apartment.name:
-        lines.append(f"🏠 {apartment.name}")
+    if name:
+        lines.append(f"🏠 {name}")
     lines.append(f"№ {apartment.display_id}")
     # Для аренды явно помечаем тип сделки и период (продажа — по умолчанию).
     if getattr(apartment, "deal_type", "sale") == "rent":
@@ -449,9 +462,9 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
         lines.append(f"🤝 Аренда ({period})")
 
     # Описание — сразу после наименования (или первым, если наименования нет).
-    if apartment.description:
+    if description:
         lines.append("")
-        lines.append(f"📝 {apartment.description}")
+        lines.append(f"📝 {description}")
 
     # Остальные данные по порядку.
     details = []
@@ -459,7 +472,7 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
         details.append(f"🏗 Тип: {apartment.type}")
     if apartment.district:
         details.append(f"📍 Район: {apartment.district}")
-    if apartment.address:
+    if apartment.address and not mask_owner:
         details.append(f"🗺 Адрес: {apartment.address}")
     if apartment.rooms is not None:
         details.append(f"🚪 Комнат: {apartment.rooms}")
@@ -504,9 +517,9 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
         "status": apartment.status,
         "deal_type": apartment.deal_type,
         "rent_period": apartment.rent_period,
-        "name": apartment.name,
+        "name": name,
         "district": apartment.district,
-        "address": apartment.address,
+        "address": None if mask_owner else apartment.address,
         "type": apartment.type,
         "rooms": apartment.rooms,
         "floor": apartment.floor,
@@ -517,7 +530,7 @@ def build_share_card(db: Session, agency_id: int, apartment_id: int) -> dict:
         "furniture_appliances": apartment.furniture_appliances,
         "price": float(apartment.price) if apartment.price is not None else None,
         "currency": apartment.currency,
-        "description": apartment.description,
+        "description": description,
         "photo_url": apartment.photo_url,
         "source_link": apartment.source_link,
         "contact_phone": contact_phone,
@@ -768,18 +781,21 @@ def get_agent_activity(db: Session, agency_id: int, user_id: int) -> list:
     ]
 
 
-def prepare_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
+def prepare_share(
+    db: Session, agency_id: int, apartment_id: int, user, mask_owner: bool = False
+) -> dict:
     """
     Подготовить сообщение для отправки НАПРЯМУЮ в выбранный пользователем чат
     (Telegram.WebApp.shareMessage). Возвращает prepared_message_id.
 
     Из-за ограничений Telegram прямое сообщение содержит одну (обложечную)
     фотографию и полную текстовую карточку в подписи. Если фото нет — уходит
-    только текст.
+    только текст. mask_owner=True — шеринг объекта из общей базы (скрыть адрес,
+    вычистить телефоны из свободных полей).
     """
     if not telegram_service.is_configured():
         raise AppError("share_not_configured", status.HTTP_400_BAD_REQUEST)
-    card = build_share_card(db, agency_id, apartment_id)
+    card = build_share_card(db, agency_id, apartment_id, mask_owner=mask_owner)
     caption = card["share_text"]
     cover = card.get("photo_url")
     result_id = secrets.token_hex(8)

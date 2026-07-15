@@ -81,3 +81,32 @@ def test_mls_pool_excludes_sold(db):
     # По умолчанию витрина показывает активные → проданный не виден.
     assert mls_service.list_pool(db).total == 0
     assert mls_service.list_pool(db, status="active").total == 0
+
+
+def test_mls_pool_scrubs_phone_from_free_text_fields(db):
+    """Жёсткий ограничитель: телефон собственника не утекает через свободные
+    поля (название/описание), даже если его вписали туда, а не в owner_phone."""
+    a, ua = _agency(db, "Alpha", 11)
+    apartment_service.create_apartment(
+        db, a.id, created_by=ua.id,
+        payload=ApartmentCreate(
+            type="Квартира", district="Чиланзар", rooms=2, price=50000, currency="USD",
+            name="Срочно, звоните 998901234567",
+            description="Хороший ремонт, центр. Тел: +998 90 111 22 33",
+            owner_phone="+998900000009",
+            shared_mls=True,
+        ),
+    )
+    ap = mls_service.list_pool(db).items[0].apartment
+
+    def digits(s):
+        return "".join(c for c in (s or "") if c.isdigit())
+
+    # Ни один номер не просочился через свободные поля.
+    assert "998901234567" not in digits(ap.name)
+    assert "998901112233" not in digits(ap.description)
+    # Осмысленный текст сохранён.
+    assert ap.name and "Срочно" in ap.name
+    assert ap.description and "ремонт" in ap.description
+    # owner_phone по-прежнему полностью скрыт.
+    assert ap.owner_phone is None
