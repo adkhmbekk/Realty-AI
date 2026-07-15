@@ -690,128 +690,26 @@ export function AgencyManageScreen({ id }: { id: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  async function sub(action: string, days?: number, expiresAt?: string, amount?: number, currency?: string) {
-    const body: Record<string, unknown> = { action };
-    if (days != null) body.days = days;
-    if (expiresAt) body.expires_at = expiresAt;
-    if (amount != null) body.amount = amount;
-    if (currency) body.currency = currency;
-    const r = await api("/api/v1/agencies/" + id + "/subscription", { method: "POST", body });
-    if (r.ok) {
-      toast(t("subUpdated"), "ok");
-      setPayKey((k) => k + 1);
-      load();
-    } else toast(errText(r.data, r.status), "err");
-  }
-
   if (loading) return <Spinner />;
   if (!a) return <Empty>{t("notFound")}</Empty>;
-  const frozen = a.status === "frozen";
   const adminTxt = a.admin_name
     ? a.admin_name + (a.admin_telegram_id ? ` (ID ${a.admin_telegram_id})` : "")
     : t("notAssigned");
-
-  function extend() {
-    const v = window.prompt(t("extendPrompt"), "30");
-    if (v === null) return;
-    const d = parseInt(v.trim(), 10);
-    if (Number.isNaN(d) || d <= 0) {
-      toast(t("badDate"), "warn");
-      return;
-    }
-    const av = window.prompt(t("amountPrompt"), "0");
-    if (av === null) return;
-    const amount = parseFloat((av || "").trim().replace(",", "."));
-    if (Number.isNaN(amount) || amount < 0) {
-      toast(t("badAmount"), "warn");
-      return;
-    }
-    let currency = "";
-    if (amount > 0) {
-      const cv = window.prompt(t("currencyPrompt"), "USD");
-      if (cv === null) return;
-      currency = (cv || "").trim().toUpperCase();
-      if (!currency) {
-        toast(t("badCurrency"), "warn");
-        return;
-      }
-    }
-    sub("extend", d, undefined, amount, currency || undefined);
-  }
-  function changeDate() {
-    const v = window.prompt(t("setDatePrompt"), "");
-    if (v === null) return;
-    const s = v.trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-      toast(t("badDate"), "warn");
-      return;
-    }
-    sub("set", undefined, s + "T23:59:59Z");
-  }
-  async function rename() {
-    const v = window.prompt(t("newName"), a!.name);
-    if (v === null) return;
-    if (!v.trim()) {
-      toast(t("emptyName"), "warn");
-      return;
-    }
-    const r = await api("/api/v1/agencies/" + id, { method: "PATCH", body: { name: v.trim() } });
-    if (r.ok) {
-      toast(t("renamed"), "ok");
-      load();
-    } else toast(errText(r.data, r.status), "err");
-  }
-  async function changePhone() {
-    const v = window.prompt(t("setPhonePrompt"), a!.client_phone || "");
-    if (v === null) return;
-    // Пустая строка очищает номер (бэкенд приводит к NULL).
-    const r = await api("/api/v1/agencies/" + id, { method: "PATCH", body: { client_phone: v.trim() } });
-    if (r.ok) {
-      toast(t("saved"), "ok");
-      load();
-    } else toast(errText(r.data, r.status), "err");
-  }
-  async function changeAdmin() {
-    const idStr = window.prompt(t("promptAdminId"), "");
-    if (idStr === null) return;
-    const tgId = parseInt(idStr.trim(), 10);
-    if (Number.isNaN(tgId)) {
-      toast(t("badId"), "warn");
-      return;
-    }
-    const username = window.prompt(t("promptAdminUser"), "");
-    if (username === null) return;
-    const body: Record<string, unknown> = { admin_telegram_id: tgId };
-    const u = username.trim();
-    if (u) body.admin_username = u;
-    const r = await api("/api/v1/agencies/" + id + "/admin", { method: "POST", body });
-    if (r.ok) {
-      toast(t("adminAssigned"), "ok");
-      load();
-    } else toast(errText(r.data, r.status), "err");
-  }
-  async function del() {
-    if (!(await confirmDialog(t("delAgQ1")))) return;
-    if (!(await confirmDialog(t("delAgQ2")))) return;
-    const r = await api("/api/v1/agencies/" + id, { method: "DELETE" });
-    if (r.ok) {
-      toast(t("agDeleted"), "ok");
-      nav.pop();
-    } else toast(errText(r.data, r.status), "err");
-  }
 
   const pending = a.status === "pending";
   return (
     <div>
       <Card>
         <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-[16px] font-extrabold">{a.name}</span>
+          <span className="text-[16px] font-extrabold min-w-0 truncate">
+            {a.name}
+            {/* ID — еле заметно, прямо в первой строке рядом с названием (без отдельного поля). */}
+            <span className="ml-1.5 text-[11px] font-semibold text-muted/50 align-middle">#{a.id}</span>
+          </span>
           {statusBadge(a, t)}
         </div>
         {a.project_name && <Row label={t("projectName")} value={a.project_name} />}
-        <Row label="ID" value={a.id} />
         {!pending && <Row label={t("activatedAt")} value={fmtDate(a.activated_at || a.created_at, lang)} />}
-        {!pending && <Row label={t("subUntil")} value={fmtDate(a.subscription_expires_at, lang)} />}
         {!pending && <Row label={t("admin")} value={adminTxt} />}
         <Row label={t("agencyPhone")} value={a.client_phone || t("notSet")} />
       </Card>
@@ -829,43 +727,9 @@ export function AgencyManageScreen({ id }: { id: number }) {
               </Button>
             </Card>
           )}
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button full size="sm" variant="ghost" onClick={rename}>
-              {t("rename")}
-            </Button>
-            <Button full size="sm" variant="ghost" onClick={changePhone}>
-              {t("changePhone")}
-            </Button>
-            <Button full size="sm" variant="danger" onClick={del}>
-              {t("deleteAgency")}
-            </Button>
-          </div>
         </>
       ) : (
         <>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button full size="sm" variant="ghost" onClick={extend}>
-              {t("extendBtn")}
-            </Button>
-            <Button full size="sm" variant="ghost" onClick={changeDate}>
-              {t("changeDateBtn")}
-            </Button>
-            <Button full size="sm" variant="ghost" onClick={rename}>
-              {t("rename")}
-            </Button>
-            <Button full size="sm" variant="ghost" onClick={changeAdmin}>
-              {t("changeAdmin")}
-            </Button>
-            <Button full size="sm" variant="ghost" onClick={changePhone}>
-              {t("changePhone")}
-            </Button>
-            <Button full size="sm" variant={frozen ? "ghost" : "danger"} onClick={() => sub(frozen ? "activate" : "freeze")}>
-              {frozen ? t("activate") : t("freeze")}
-            </Button>
-            <Button full size="sm" variant="danger" onClick={del}>
-              {t("deleteAgency")}
-            </Button>
-          </div>
           <Button full variant="ghost" className="mt-3" onClick={() => nav.push({ name: "agencyObjects", id })}>
             <Building2 size={16} /> {t("agencyObjectsBtn")}
           </Button>
