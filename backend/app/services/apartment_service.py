@@ -680,15 +680,20 @@ def find_similar(
     return items
 
 
-def send_share(db: Session, agency_id: int, apartment_id: int, user) -> dict:
+def send_share(
+    db: Session, agency_id: int, apartment_id: int, user, mask_owner: bool = False
+) -> dict:
     """
     Отправить объект сотруднику в его личный чат с ботом: альбом фотографий с
     подписью (карточка без конфиденциальных полей). Сотрудник затем пересылает
     сообщение клиенту. Если фото нет — отправляем только текст.
+
+    mask_owner=True — шеринг объекта из ОБЩЕЙ базы (контакт агентства-владельца,
+    адрес скрыт, телефоны из свободных полей вычищены).
     """
     if not telegram_service.is_configured():
         raise AppError("share_via_bot_not_configured", status.HTTP_400_BAD_REQUEST)
-    card = build_share_card(db, agency_id, apartment_id)
+    card = build_share_card(db, agency_id, apartment_id, mask_owner=mask_owner)
     caption = card["share_text"]
     blobs = photo_service.read_blobs_for_share(db, agency_id, apartment_id, limit=10)
     if blobs:

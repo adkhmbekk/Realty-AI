@@ -220,6 +220,19 @@ def take_for_client(db: Session, agency_id: int, user, object_id: int) -> dict:
     return {"notified": notified}
 
 
+def send_pool_share(db: Session, object_id: int, user) -> dict:
+    """Отправить объект из ОБЩЕЙ базы альбомом в личный чат пользователя с ботом
+    (он затем пересылает клиенту). Карточка — с контактом агентства-владельца,
+    без номера собственника/адреса (mask_owner)."""
+    apt = apartment_repo.get_shared_mls(db, object_id)
+    if apt is None:
+        raise AppError("apartment_not_found", http_status.HTTP_404_NOT_FOUND)
+    from app.services import apartment_service
+    return apartment_service.send_share(
+        db, apt.agency_id, object_id, user, mask_owner=True
+    )
+
+
 def prepare_pool_share(db: Session, object_id: int, user) -> dict:
     """Подготовить прямое Telegram-сообщение для шеринга объекта из ОБЩЕЙ базы.
 

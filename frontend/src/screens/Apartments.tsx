@@ -595,12 +595,10 @@ function PhotoGallery({ apartmentId, onChange }: { apartmentId: number; onChange
               </button>
               <button
                 onClick={() => del(p.id)}
-                className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center active:scale-90"
+                className="absolute top-1 right-1 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center active:scale-90 shadow"
                 aria-label={t("del")}
               >
-                <span className="w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
-                  <X size={15} />
-                </span>
+                <X size={16} />
               </button>
             </div>
           ))}
@@ -1143,12 +1141,10 @@ function PendingPhotos({
               <button
                 type="button"
                 onClick={() => setImgUrls?.(imgUrls.filter((_, idx) => idx !== i))}
-                className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center active:scale-90"
+                className="absolute top-1 right-1 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center active:scale-90 shadow"
                 aria-label={t("del")}
               >
-                <span className="w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
-                  <X size={15} />
-                </span>
+                <X size={16} />
               </button>
             </div>
           ))}
@@ -1158,12 +1154,10 @@ function PendingPhotos({
               <button
                 type="button"
                 onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
-                className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center active:scale-90"
+                className="absolute top-1 right-1 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center active:scale-90 shadow"
                 aria-label={t("del")}
               >
-                <span className="w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
-                  <X size={15} />
-                </span>
+                <X size={16} />
               </button>
             </div>
           ))}
@@ -1173,12 +1167,10 @@ function PendingPhotos({
               <button
                 type="button"
                 onClick={() => setTgUrls(tgUrls.filter((_, idx) => idx !== i))}
-                className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center active:scale-90"
+                className="absolute top-1 right-1 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center active:scale-90 shadow"
                 aria-label={t("del")}
               >
-                <span className="w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
-                  <X size={15} />
-                </span>
+                <X size={16} />
               </button>
             </div>
           ))}
@@ -2153,40 +2145,70 @@ export function AgencyContactCard({ name, phone }: { name?: string | null; phone
 export function MlsObjectDetailScreen({ item }: { item: MlsPoolItem }) {
   const { t, L, toast } = useApp();
   const [busy, setBusy] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const oid = item.apartment.id;
 
-  async function shareObject() {
-    // В Telegram — прямой шеринг (нативный выбор чата); вне Telegram (нативное
-    // приложение) — копируем текст карточки. Контакт — агентства-владельца, номер
-    // собственника/адрес НЕ уходят (бэкенд строит карточку с mask_owner).
-    if (canShareMessage()) {
-      setBusy(true);
-      const r = await api<{ prepared_message_id: string }>(
-        `/api/v1/mls/objects/${item.apartment.id}/share-prepare`, { method: "POST" }
-      );
-      if (!r.ok || !r.data) {
-        setBusy(false);
-        toast(errText(r.data, r.status), "err");
-        return;
-      }
-      const sent = await shareMessage(r.data.prepared_message_id);
-      setBusy(false);
-      if (sent) toast(t("shareDone"), "ok");
-    } else {
-      const text = buildShareCard(item.apartment, L, t, item.agency_phone, null);
-      const ok = await copyText(text);
-      toast(ok ? t("copied") : t("copy"), ok ? "ok" : "info");
+  // Несколько путей поделиться (как для своей базы). Контакт — агентства-владельца;
+  // номер собственника/адрес НЕ уходят (бэкенд строит карточку с mask_owner).
+  async function shareDirect() {
+    if (!canShareMessage()) {
+      toast(t("shareNeedUpdate"), "warn");
+      return;
     }
+    setBusy(true);
+    const r = await api<{ prepared_message_id: string }>(
+      `/api/v1/mls/objects/${oid}/share-prepare`, { method: "POST" }
+    );
+    if (!r.ok || !r.data) {
+      setBusy(false);
+      toast(errText(r.data, r.status), "err");
+      return;
+    }
+    const sent = await shareMessage(r.data.prepared_message_id);
+    setBusy(false);
+    if (sent) toast(t("shareDone"), "ok");
+  }
+  async function shareAlbum() {
+    setBusy(true);
+    toast(t("shareSending"), "info");
+    const r = await api<{ ok: boolean; photos: number }>(`/api/v1/mls/objects/${oid}/share`, { method: "POST" });
+    setBusy(false);
+    if (r.ok) toast(t("shareAlbumSent"), "ok");
+    else toast(errText(r.data, r.status), "err");
+  }
+  async function copyCard() {
+    const text = buildShareCard(item.apartment, L, t, item.agency_phone, null);
+    const ok = await copyText(text);
+    toast(ok ? t("copied") : t("copy"), ok ? "ok" : "info");
   }
 
   return (
     <div>
       <AgencyContactCard name={item.agency_name} phone={item.agency_phone} />
-      <Button full className="mt-3" disabled={busy} onClick={shareObject}>
-        <Send size={16} /> {t("shareBtn")}
-      </Button>
-      <div className="text-[11.5px] text-muted text-center mt-1.5">{t("shareDirectHint")}</div>
       <div className="mt-3">
-        <ReadonlyObjectCard o={item.apartment} photosUrl={`/api/v1/mls/objects/${item.apartment.id}/photos`} />
+        {!shareOpen ? (
+          <Button full variant="primary" disabled={busy} onClick={() => { haptic(); setShareOpen(true); }}>
+            <Send size={16} /> {t("shareBtn")}
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <Button full variant="primary" disabled={busy} onClick={shareDirect}>
+              <Send size={16} /> {t("shareToClient")}
+            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" className="flex-1" variant="ghost" disabled={busy} onClick={shareAlbum}>
+                <ImageIcon size={15} /> {t("shareAllPhotos")}
+              </Button>
+              <Button size="sm" className="flex-1" variant="ghost" onClick={copyCard}>
+                <Copy size={15} /> {t("shareCard")}
+              </Button>
+            </div>
+          </div>
+        )}
+        <div className="text-[11.5px] text-muted text-center mt-1.5">{t("shareDirectHint")}</div>
+      </div>
+      <div className="mt-3">
+        <ReadonlyObjectCard o={item.apartment} photosUrl={`/api/v1/mls/objects/${oid}/photos`} />
       </div>
     </div>
   );
