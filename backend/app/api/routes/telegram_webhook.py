@@ -7,12 +7,16 @@ setWebhook). Без совпадения секрета — 403 (чужой за
 Telegram Update (принимаем как dict). Всегда быстро отвечаем 200, чтобы Telegram
 не копил повторы.
 """
+import logging
+
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.session import get_db
 from app.services import tg_login_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 
@@ -29,5 +33,11 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     except Exception:  # noqa: BLE001
         return Response(status_code=status.HTTP_200_OK)
     if isinstance(update, dict):
-        tg_login_service.handle_update(db, update)
+        # Контракт с Telegram — всегда 200 (иначе он копит повторы), поэтому сбой
+        # обработки не роняем наружу, а логируем: юзер просто нажмёт кнопку ещё раз
+        # (handle_update идемпотентен по статусам кода).
+        try:
+            tg_login_service.handle_update(db, update)
+        except Exception:  # noqa: BLE001
+            logger.exception("tg login webhook: update processing failed")
     return {"ok": True}

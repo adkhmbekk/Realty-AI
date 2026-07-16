@@ -38,8 +38,10 @@ def test_google_login_creates_personal_account_for_new_user(db):
 
 def test_google_login_is_idempotent(db):
     """Повторный вход тем же google_sub не плодит второй аккаунт и возвращает того же."""
-    auth_service.login_with_google(db, google_sub="google-oauth2|1002")
-    auth_service.login_with_google(db, google_sub="google-oauth2|1002")
+    first = auth_service.login_with_google(db, google_sub="google-oauth2|1002")
+    second = auth_service.login_with_google(db, google_sub="google-oauth2|1002")
+    # Оба входа возвращают ОДИН И ТОТ ЖЕ аккаунт (а не только «без дубля в БД»).
+    assert first["user"].id == second["user"].id
 
     # get_by_google_sub упал бы на дубле (scalar_one_or_none), а google_sub
     # уникален в БД — второй вход не создаёт второй аккаунт.

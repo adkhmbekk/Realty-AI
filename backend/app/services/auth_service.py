@@ -502,13 +502,25 @@ def touch_last_seen(
     if user is None:
         return
     now = datetime.now(timezone.utc)
-    prev = user.last_seen_at
-    if prev is not None and prev.tzinfo is None:
-        prev = prev.replace(tzinfo=timezone.utc)
-    if prev is None or (now - prev).total_seconds() >= 30:
+
+    def _stale(prev) -> bool:
+        if prev is None:
+            return True
+        if prev.tzinfo is None:
+            prev = prev.replace(tzinfo=timezone.utc)
+        return (now - prev).total_seconds() >= 30
+
+    changed = False
+    if _stale(user.last_seen_at):
         user.last_seen_at = now
-        if agency_id is not None:
-            m = agency_membership_repo.get(db, user_id, agency_id)
-            if m is not None:
-                m.last_seen_at = now
+        changed = True
+    # Метка членства троттлится НЕЗАВИСИМО от глобальной: иначе свежий глобальный
+    # heartbeat (из личного кабинета) «глушил» бы обновление присутствия в агентстве
+    # до 30 секунд после входа в него (находка CodeRabbit).
+    if agency_id is not None:
+        m = agency_membership_repo.get(db, user_id, agency_id)
+        if m is not None and _stale(m.last_seen_at):
+            m.last_seen_at = now
+            changed = True
+    if changed:
         db.commit()

@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.db.models.tg_login_code import TgLoginCode
@@ -22,3 +22,20 @@ def get_by_code(db: Session, code: str) -> Optional[TgLoginCode]:
     return db.execute(
         select(TgLoginCode).where(TgLoginCode.code == code)
     ).scalar_one_or_none()
+
+
+def claim_confirmed(db: Session, code: str) -> Optional[TgLoginCode]:
+    """Атомарно «забрать» подтверждённый код (confirmed → consumed).
+
+    Условный UPDATE закрывает гонку двух одновременных poll: сессию выдаёт ТОЛЬКО
+    тот запрос, чей UPDATE реально перевёл строку из confirmed. Коммита здесь нет —
+    вызывающий коммитит вместе с выдачей сессии (провал логина откатит и claim).
+    """
+    res = db.execute(
+        update(TgLoginCode)
+        .where(TgLoginCode.code == code, TgLoginCode.status == "confirmed")
+        .values(status="consumed")
+    )
+    if res.rowcount != 1:
+        return None
+    return get_by_code(db, code)

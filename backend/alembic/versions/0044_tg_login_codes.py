@@ -29,7 +29,7 @@ def upgrade() -> None:
         sa.Column("telegram_id", sa.BigInteger(), nullable=True),
         sa.Column("tg_first_name", sa.String(), nullable=True),
         sa.Column("tg_last_name", sa.String(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("uq_tg_login_codes_code", "tg_login_codes", ["code"], unique=True)

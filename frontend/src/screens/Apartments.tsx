@@ -2156,25 +2156,32 @@ export function MlsObjectDetailScreen({ item }: { item: MlsPoolItem }) {
       return;
     }
     setBusy(true);
-    const r = await api<{ prepared_message_id: string }>(
-      `/api/v1/mls/objects/${oid}/share-prepare`, { method: "POST" }
-    );
-    if (!r.ok || !r.data) {
+    // try/finally: shareMessage может бросить исключение (Telegram) — иначе
+    // кнопка навсегда осталась бы заблокированной (busy).
+    try {
+      const r = await api<{ prepared_message_id: string }>(
+        `/api/v1/mls/objects/${oid}/share-prepare`, { method: "POST" }
+      );
+      if (!r.ok || !r.data) {
+        toast(errText(r.data, r.status), "err");
+        return;
+      }
+      const sent = await shareMessage(r.data.prepared_message_id);
+      if (sent) toast(t("shareDone"), "ok");
+    } finally {
       setBusy(false);
-      toast(errText(r.data, r.status), "err");
-      return;
     }
-    const sent = await shareMessage(r.data.prepared_message_id);
-    setBusy(false);
-    if (sent) toast(t("shareDone"), "ok");
   }
   async function shareAlbum() {
     setBusy(true);
     toast(t("shareSending"), "info");
-    const r = await api<{ ok: boolean; photos: number }>(`/api/v1/mls/objects/${oid}/share`, { method: "POST" });
-    setBusy(false);
-    if (r.ok) toast(t("shareAlbumSent"), "ok");
-    else toast(errText(r.data, r.status), "err");
+    try {
+      const r = await api<{ ok: boolean; photos: number }>(`/api/v1/mls/objects/${oid}/share`, { method: "POST" });
+      if (r.ok) toast(t("shareAlbumSent"), "ok");
+      else toast(errText(r.data, r.status), "err");
+    } finally {
+      setBusy(false);
+    }
   }
   async function copyCard() {
     const text = buildShareCard(item.apartment, L, t, item.agency_phone, null);
@@ -2326,15 +2333,19 @@ export function ObjectDetailScreen({ id }: { id: number }) {
       return;
     }
     setBusy(true);
-    const r = await api<{ prepared_message_id: string }>(`/api/v1/apartments/${id}/share-prepare`, { method: "POST" });
-    if (!r.ok || !r.data) {
+    // try/finally: shareMessage может бросить исключение (Telegram) — иначе
+    // кнопка навсегда осталась бы заблокированной (busy).
+    try {
+      const r = await api<{ prepared_message_id: string }>(`/api/v1/apartments/${id}/share-prepare`, { method: "POST" });
+      if (!r.ok || !r.data) {
+        toast(errText(r.data, r.status), "err");
+        return;
+      }
+      const sent = await shareMessage(r.data.prepared_message_id);
+      if (sent) toast(t("shareDone"), "ok");
+    } finally {
       setBusy(false);
-      toast(errText(r.data, r.status), "err");
-      return;
     }
-    const sent = await shareMessage(r.data.prepared_message_id);
-    setBusy(false);
-    if (sent) toast(t("shareDone"), "ok");
   }
   async function copyCard() {
     const text = buildShareCard(o!, L, t, settings?.contact_phone, settings?.contact_username);

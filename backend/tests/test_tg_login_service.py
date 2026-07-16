@@ -2,6 +2,8 @@
 
 Сеть к Telegram не трогаем: подменяем отправителей сообщений заглушками.
 """
+import re
+
 import pytest
 
 from app.config import settings
@@ -19,7 +21,8 @@ def _config(monkeypatch):
 
 def test_start_login_returns_code_and_link(db):
     out = tg_login_service.start_login(db)
-    assert out["code"] and len(out["code"]) >= 16
+    # Ровно 32 hex-символа (128 бит из token_hex) — а не просто «длинная строка».
+    assert re.fullmatch(r"[0-9a-f]{32}", out["code"])
     assert out["deep_link"] == f"https://t.me/realtyloginbot?start=login_{out['code']}"
     assert out["expires_in"] == tg_login_service.CODE_TTL_SECONDS
     # РЕГРЕССИЯ: start_login ДОЛЖЕН сам закоммитить код. Иначе в проде (get_db не
