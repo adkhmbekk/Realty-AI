@@ -651,7 +651,6 @@ export function AgencyManageScreen({ id }: { id: number }) {
   const [a, setA] = useState<AgencyOut | null>(null);
   const [activation, setActivation] = useState<Activation | null>(null);
   const [loading, setLoading] = useState(true);
-  const [payKey, setPayKey] = useState(0);
 
   async function load() {
     setLoading(true);
@@ -734,7 +733,6 @@ export function AgencyManageScreen({ id }: { id: number }) {
             <Building2 size={16} /> {t("agencyObjectsBtn")}
           </Button>
           <AgencyActivityPanel id={id} />
-          <PaymentHistory id={id} refresh={payKey} />
         </>
       )}
     </div>
@@ -894,7 +892,7 @@ export function MlsPoolScreen() {
                 key={it.apartment.id}
                 o={it.apartment}
                 agencyName={it.agency_name || `ID ${it.agency_id}`}
-                onOpen={() => nav.push({ name: "agencyObjectDetail", obj: it.apartment, agencyId: it.agency_id })}
+                onOpen={() => nav.push({ name: "mlsObjectDetail", item: it })}
               />
             ))}
             {items.length < total && (

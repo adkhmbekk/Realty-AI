@@ -120,10 +120,11 @@ def mls_agencies(
 def mls_object_photos(
     object_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_agency_member),
+    current_user: User = Depends(get_current_user),
 ):
-    """Фото объекта из общей базы (MLS) — для просмотра read-only карточки любым
-    агентством. Телефон/контакты сюда не входят (только изображения)."""
+    """Фото объекта из общей базы (MLS) — read-only карточка. Доступно любому
+    авторизованному (в т.ч. суперадмину, у которого нет своего агентства): объект
+    уже опубликован в общей базе, контактов в фото нет."""
     return mls_service.object_photos(db, object_id)
 
 
@@ -155,6 +156,21 @@ def mls_prepare_share(
     (контакт агентства-владельца; номер собственника/адрес скрыты). Доступно
     любому авторизованному — объект уже опубликован в общей базе."""
     return mls_service.prepare_pool_share(db, object_id, current_user)
+
+
+@router.post(
+    "/objects/{object_id}/share",
+    dependencies=[Depends(rate_limit(30, 60, "mls_share_album"))],
+)
+def mls_send_share(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Отправить объект из общей базы альбомом (все фото) в личный чат пользователя
+    с ботом — оттуда он пересылает клиенту. Контакт агентства-владельца, номер
+    собственника/адрес скрыты."""
+    return mls_service.send_pool_share(db, object_id, current_user)
 
 
 @router.get("/stats", response_model=ApartmentStatsOut)
