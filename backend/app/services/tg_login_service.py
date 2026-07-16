@@ -154,11 +154,15 @@ def poll(db: Session, code: str) -> dict:
     if row is None:
         return {"status": "pending", "auth": None}
     if row.status == "confirmed":
+        # Атомарный claim (confirmed → consumed): при двух одновременных poll
+        # сессию получает только один запрос (находка CodeRabbit).
+        claimed = tg_login_repo.claim_confirmed(db, code)
+        if claimed is None:
+            return {"status": "expired", "auth": None}
         auth = auth_service.login_with_telegram_id(
-            db, telegram_id=row.telegram_id,
-            first_name=row.tg_first_name, last_name=row.tg_last_name,
+            db, telegram_id=claimed.telegram_id,
+            first_name=claimed.tg_first_name, last_name=claimed.tg_last_name,
         )
-        row.status = "consumed"
         db.commit()
         return {"status": "confirmed", "auth": auth}
     if row.status in ("consumed", "cancelled"):

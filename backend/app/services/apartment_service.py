@@ -444,10 +444,13 @@ def build_share_card(
 
     name = apartment.name
     description = apartment.description
+    furniture_appliances = apartment.furniture_appliances
     if mask_owner:
         from app.services.listing_import_service import strip_phones
         name = strip_phones(name)
         description = strip_phones(description)
+        # Обычно это ключ словаря, но если хранится сырой текст — тоже чистим.
+        furniture_appliances = strip_phones(furniture_appliances)
 
     # Собираем текстовое представление карточки (без конфиденциальных полей).
     # Порядок: [наименование, если задано вручную] → описание → остальные данные.
@@ -489,9 +492,9 @@ def build_share_card(
         details.append(f"📐 Площадь: {apartment.area} м²")
     if apartment.condition:
         details.append(f"🔧 Состояние: {apartment.condition}")
-    if apartment.furniture_appliances:
+    if furniture_appliances:
         label = FURNITURE_APPLIANCES_LABELS.get(
-            apartment.furniture_appliances, apartment.furniture_appliances
+            furniture_appliances, furniture_appliances
         )
         details.append(f"🛋 Мебель/техника: {label}")
     price_str = _format_price(apartment)
@@ -527,7 +530,7 @@ def build_share_card(
         "area": float(apartment.area) if apartment.area is not None else None,
         "land_area": float(apartment.land_area) if apartment.land_area is not None else None,
         "condition": apartment.condition,
-        "furniture_appliances": apartment.furniture_appliances,
+        "furniture_appliances": furniture_appliances,
         "price": float(apartment.price) if apartment.price is not None else None,
         "currency": apartment.currency,
         "description": description,
