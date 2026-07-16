@@ -562,41 +562,65 @@ function OpenInTelegram() {
 }
 
 // ── Экран входа в нативном приложении (вне Telegram) ──────────────────
-// Показывается, когда мы вне Telegram и действующей сессии нет: вход через
-// Google/Apple. Сам SDK-шаг (получение токена провайдера) подключается в Фазе 3
-// (Capacitor-плагины); до этого кнопки показывают подсказку через toast.
+// Финальная модель входа: [Войти через Telegram] — основной (в реальный
+// аккаунт, бесплатно) и [Войти по номеру телефона] — SMS-код (для тех, кто без
+// Telegram). Google/Apple убраны из UI (бэкенд-роуты живы для старых юзеров).
+// Пока SMS-шлюз (Eskiz) не сконфигурирован, сервер отвечает локализованным
+// «SMS-вход пока недоступен» — кнопка уже на месте и оживёт сама.
 function NativeLoginScreen({
-  onSignIn,
   onTelegram,
+  onPhoneRequest,
+  onPhoneVerify,
 }: {
-  onSignIn: (p: "google" | "apple") => Promise<string | null>;
   onTelegram: () => Promise<string | null>;
+  onPhoneRequest: (phone: string) => Promise<string | null>;
+  onPhoneVerify: (phone: string, code: string) => Promise<string | null>;
 }) {
-  const [busy, setBusy] = useState<null | "google" | "apple" | "telegram">(null);
+  const [view, setView] = useState<"menu" | "phone" | "code">("menu");
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [phone, setPhone] = useState("+998");
+  const [code, setCode] = useState("");
+
   const goTelegram = async () => {
-    setBusy("telegram");
+    setBusy(true);
     setErr("Открываю Telegram… подтвердите вход в боте.");
     try {
       setErr(await onTelegram());
     } catch (e: any) {
       setErr("сбой обработчика: " + (e?.message || String(e)));
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
-  const go = async (p: "google" | "apple") => {
-    setBusy(p);
-    setErr("запуск…");
+  const requestCode = async () => {
+    setBusy(true);
+    setErr(null);
     try {
-      const m = await onSignIn(p);
+      const m = await onPhoneRequest(phone.trim());
       setErr(m);
-    } catch (e: any) {
-      setErr("сбой обработчика: " + (e?.message || String(e)));
+      if (!m) {
+        setCode("");
+        setView("code");
+      }
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
+  const verify = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      setErr(await onPhoneVerify(phone.trim(), code.trim()));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const back = () => {
+    setErr(null);
+    setView(view === "code" ? "phone" : "menu");
+  };
+
   return (
     <div className="max-w-[560px] mx-auto px-4 pt-16 animate-fade-up">
       <div className="flex flex-col items-center text-center mb-8">
@@ -613,31 +637,58 @@ function NativeLoginScreen({
           {err}
         </div>
       )}
-      <div className="space-y-3">
-        <button
-          onClick={goTelegram}
-          disabled={!!busy}
-          className="w-full py-3 rounded-xl font-bold text-[15px] text-white cursor-pointer active:scale-[.98] transition disabled:opacity-50"
-          style={{ background: "#229ED9" }}
-        >
-          {busy === "telegram" ? "…" : "Войти через Telegram"}
-        </button>
-        <button
-          onClick={() => go("google")}
-          disabled={!!busy}
-          className="w-full py-3 rounded-xl font-bold text-[15px] text-white cursor-pointer active:scale-[.98] transition disabled:opacity-50"
-          style={{ background: "var(--grad)" }}
-        >
-          {busy === "google" ? "…" : "Войти через Google"}
-        </button>
-        <button
-          onClick={() => go("apple")}
-          disabled={!!busy}
-          className="w-full py-3 rounded-xl font-bold text-[15px] cursor-pointer active:scale-[.98] transition disabled:opacity-50 bg-black text-white dark:bg-white dark:text-black"
-        >
-          {busy === "apple" ? "…" : "Войти через Apple"}
-        </button>
-      </div>
+      {view === "menu" && (
+        <div className="space-y-3">
+          <button
+            onClick={goTelegram}
+            disabled={busy}
+            className="w-full py-3 rounded-xl font-bold text-[15px] text-white cursor-pointer active:scale-[.98] transition disabled:opacity-50"
+            style={{ background: "#229ED9" }}
+          >
+            {busy ? "…" : "Войти через Telegram"}
+          </button>
+          <button
+            onClick={() => { setErr(null); setView("phone"); }}
+            disabled={busy}
+            className="w-full py-3 rounded-xl font-bold text-[15px] cursor-pointer active:scale-[.98] transition disabled:opacity-50 bg-[var(--soft)] text-text border border-line"
+          >
+            Войти по номеру телефона
+          </button>
+        </div>
+      )}
+      {view === "phone" && (
+        <div className="space-y-3">
+          <div className="text-[13px] text-muted">Отправим SMS с кодом подтверждения на этот номер.</div>
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="+998 90 123 45 67"
+          />
+          <Button full disabled={busy || phone.trim().length < 7} onClick={requestCode}>
+            {busy ? "…" : "Получить код"}
+          </Button>
+          <Button full variant="ghost" disabled={busy} onClick={back}>Назад</Button>
+        </div>
+      )}
+      {view === "code" && (
+        <div className="space-y-3">
+          <div className="text-[13px] text-muted">Введите код из SMS, отправленного на {phone.trim()}.</div>
+          <Input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            placeholder="••••••"
+          />
+          <Button full disabled={busy || code.trim().length < 4} onClick={verify}>
+            {busy ? "…" : "Войти"}
+          </Button>
+          <Button full variant="ghost" disabled={busy} onClick={back}>Изменить номер</Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -937,6 +988,29 @@ export function App() {
     }
   }
 
+  // Вход по номеру телефона (SMS-код). Ошибки возвращаем строкой — экран входа
+  // показывает их прямо на месте (сервер шлёт локализованный текст, в т.ч.
+  // «SMS-вход пока недоступен», пока Eskiz не сконфигурирован).
+  async function phoneRequestCode(phone: string): Promise<string | null> {
+    const r = await api<{ expires_in: number }>("/api/v1/auth/phone/request", {
+      method: "POST", body: { phone },
+    });
+    if (r.ok) return null;
+    if (r.status === 0) return "сеть: " + getLastFetchError();
+    return errText(r.data, r.status);
+  }
+  async function phoneVerifyCode(phone: string, code: string): Promise<string | null> {
+    const r = await api<AuthResponse>("/api/v1/auth/phone/verify", {
+      method: "POST", body: { phone, code },
+    });
+    if (r.ok && r.data) {
+      await applyAuth(r.data);
+      return null;
+    }
+    if (r.status === 0) return "сеть: " + getLastFetchError();
+    return errText(r.data, r.status);
+  }
+
   const bootstrapping = useRef(false);
   async function bootstrapAuth(): Promise<void> {
     // Защита от параллельных запусков (авто-повтор с экрана «нет связи» не должен
@@ -1153,7 +1227,7 @@ export function App() {
     );
   }
   if (phase === "open") return <OpenInTelegram />;
-  if (phase === "login") return <NativeLoginScreen onSignIn={nativeSignIn} onTelegram={telegramSignIn} />;
+  if (phase === "login") return <NativeLoginScreen onTelegram={telegramSignIn} onPhoneRequest={phoneRequestCode} onPhoneVerify={phoneVerifyCode} />;
   if (phase === "reconnect") return <ReconnectScreen onRetry={() => { setPhase("loading"); bootstrapAuth(); }} />;
   if (phase === "join") return <WelcomeScreen prefill={startParam} onAuth={applyAuth} />;
   if (phase === "personal")
