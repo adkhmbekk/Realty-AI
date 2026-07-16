@@ -86,6 +86,10 @@ services:
       APPLE_BUNDLE_ID: ${APPLE_BUNDLE_ID:-}
       APPLE_SERVICE_ID: ${APPLE_SERVICE_ID:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Вход по SMS (Eskiz.uz). Пусто = вход по номеру отвечает «пока недоступен».
+      ESKIZ_EMAIL: ${ESKIZ_EMAIL:-}
+      ESKIZ_PASSWORD: ${ESKIZ_PASSWORD:-}
+      ESKIZ_FROM: ${ESKIZ_FROM:-4546}
       # Ключ шифрования секретов в БД (Fernet) — Google refresh-токены.
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
       # Контакт поддержки (ссылка на Telegram владельца) для кнопки «Поддержка».

@@ -70,6 +70,36 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Notoʻgʻri telefon raqami. Xalqaro formatda kiriting (9 dan 15 gacha raqam).",
         "en": "Invalid phone number. Enter it in international format (9 to 15 digits).",
     },
+    "sms_not_configured": {
+        "ru": "Вход по SMS пока недоступен. Войдите через Telegram.",
+        "uz": "SMS orqali kirish hozircha mavjud emas. Telegram orqali kiring.",
+        "en": "SMS sign-in is not available yet. Please sign in via Telegram.",
+    },
+    "sms_send_failed": {
+        "ru": "Не удалось отправить SMS. Попробуйте ещё раз через минуту.",
+        "uz": "SMS yuborilmadi. Bir daqiqadan soʻng qayta urinib koʻring.",
+        "en": "Failed to send the SMS. Please try again in a minute.",
+    },
+    "otp_too_soon": {
+        "ru": "Код уже отправлен. Подождите минуту, прежде чем запросить новый.",
+        "uz": "Kod allaqachon yuborilgan. Yangisini soʻrashdan oldin bir daqiqa kuting.",
+        "en": "A code was already sent. Please wait a minute before requesting a new one.",
+    },
+    "otp_invalid": {
+        "ru": "Неверный код. Проверьте SMS и попробуйте снова.",
+        "uz": "Kod notoʻgʻri. SMSni tekshirib, qayta urinib koʻring.",
+        "en": "Invalid code. Check the SMS and try again.",
+    },
+    "otp_expired": {
+        "ru": "Код истёк. Запросите новый.",
+        "uz": "Kod muddati tugadi. Yangisini soʻrang.",
+        "en": "The code has expired. Request a new one.",
+    },
+    "otp_too_many": {
+        "ru": "Слишком много неверных попыток. Запросите новый код.",
+        "uz": "Notoʻgʻri urinishlar juda koʻp. Yangi kod soʻrang.",
+        "en": "Too many incorrect attempts. Request a new code.",
+    },
     "auth_invalid_token": {
         "ru": "Недействительный или истёкший пропуск. Войдите заново.",
         "uz": "Yaroqsiz yoki muddati oʻtgan kirish. Qaytadan kiring.",

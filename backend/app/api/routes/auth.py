@@ -24,13 +24,16 @@ from app.schemas.auth import (
     GoogleAuthRequest,
     HeartbeatRequest,
     MembershipOut,
+    PhoneRequestIn,
+    PhoneRequestOut,
     PhoneUpdate,
+    PhoneVerifyIn,
     ProfileUpdate,
     RefreshRequest,
     TelegramAuthRequest,
     UserProfile,
 )
-from app.services import auth_service
+from app.services import auth_service, phone_login_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -91,6 +94,29 @@ def apple_login(body: AppleAuthRequest, db: Session = Depends(get_db)):
         first_name=body.first_name,
         last_name=body.last_name,
     )
+
+
+@router.post(
+    "/phone/request",
+    response_model=PhoneRequestOut,
+    # Жёстче обычного: каждая попытка = реальное SMS (деньги + бомбинг-риск).
+    dependencies=[Depends(rate_limit(5, 60, "phone_request"))],
+)
+def phone_request(body: PhoneRequestIn, db: Session = Depends(get_db)):
+    """Выслать SMS-код входа на номер (нативное приложение). Пока Eskiz не
+    сконфигурирован — 503 sms_not_configured («SMS-вход пока недоступен»)."""
+    return phone_login_service.request_code(db, body.phone)
+
+
+@router.post(
+    "/phone/verify",
+    response_model=AuthResponse,
+    dependencies=[Depends(rate_limit(10, 60, "phone_verify"))],
+)
+def phone_verify(body: PhoneVerifyIn, db: Session = Depends(get_db)):
+    """Обменять SMS-код на сессию: вход в существующий аккаунт по номеру
+    (номер — «якорь») или создание нового личного аккаунта."""
+    return phone_login_service.verify_code(db, body.phone, body.code)
 
 
 @router.post(

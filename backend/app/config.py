@@ -163,6 +163,15 @@ class Settings(BaseSettings):
     # (заголовок X-Telegram-Bot-Api-Secret-Token, задаётся при setWebhook).
     telegram_webhook_secret: Optional[str] = None
 
+    # ─── SMS-вход по номеру (Eskiz.uz) ───────────────────────────────────
+    # Учётка кабинета notify.eskiz.uz (email+password → bearer-токен). Пока не
+    # заданы — /auth/phone/request отвечает 503 sms_not_configured (кнопка в
+    # приложении честно говорит «SMS-вход пока недоступен»).
+    eskiz_email: Optional[str] = None
+    eskiz_password: Optional[str] = None
+    # Имя отправителя (alpha name); '4546' — дефолт Eskiz для тестов.
+    eskiz_from: str = "4546"
+
     # ─── Шифрование секретов в БД ────────────────────────────────────────
     # Ключ Fernet для шифрования секретов в базе (Google refresh-токены),
     # см. app/core/crypto.py. Хранится в .env на сервере — вне базы и бэкапов.
@@ -182,6 +191,7 @@ class Settings(BaseSettings):
         "google_ios_client_id", "google_android_client_id", "google_web_client_id",
         "apple_bundle_id", "apple_service_id",
         "login_bot_token", "login_bot_username", "telegram_webhook_secret",
+        "eskiz_email", "eskiz_password",
         "app_encryption_key", mode="before",
     )
     @classmethod
