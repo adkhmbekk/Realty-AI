@@ -119,7 +119,8 @@ export async function api<T = any>(
     if (fresh) {
       try {
         res = await doFetch(fresh);
-      } catch {
+      } catch (e: any) {
+        lastFetchError = (e?.message || e?.name || String(e)) + " @ " + apiUrl(path);
         return { ok: false, status: 0, data: null };
       }
     }
@@ -197,7 +198,8 @@ export async function apiUpload<T = any>(
     if (fresh) {
       try {
         res = await doFetch(fresh);
-      } catch {
+      } catch (e: any) {
+        lastFetchError = (e?.message || e?.name || String(e)) + " @ " + apiUrl(path);
         return { ok: false, status: 0, data: null };
       }
     }

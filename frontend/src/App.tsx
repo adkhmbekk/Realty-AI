@@ -960,7 +960,15 @@ export function App() {
             return;
           }
           // refresh не принят (истёк/отозван) — чистим и просим войти заново.
-          if (r.status === 401 || r.status === 403) await clearSession();
+          if (r.status === 401 || r.status === 403) {
+            await clearSession();
+          } else {
+            // Временный сбой (нет сети / сервер лежит, напр. pc1 недоступен):
+            // сессию НЕ трогаем и показываем «нет связи» с ретраем, а не экран
+            // входа — иначе залогиненного юзера зря гоняло бы через Google.
+            setPhase("reconnect");
+            return;
+          }
         }
         setPhase("login");
         return;
