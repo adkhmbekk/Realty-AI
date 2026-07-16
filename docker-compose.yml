@@ -77,6 +77,15 @@ services:
       # Синхронизация с Google Sheets (OAuth-приложение платформы).
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Вход из нативного приложения (Google/Apple). Client_id — ожидаемый aud
+      # в проверяемом ID-token; CORS_ORIGINS — доп. веб-origin'ы (Capacitor уже
+      # разрешён по умолчанию в main.py).
+      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID:-}
+      GOOGLE_ANDROID_CLIENT_ID: ${GOOGLE_ANDROID_CLIENT_ID:-}
+      GOOGLE_IOS_CLIENT_ID: ${GOOGLE_IOS_CLIENT_ID:-}
+      APPLE_BUNDLE_ID: ${APPLE_BUNDLE_ID:-}
+      APPLE_SERVICE_ID: ${APPLE_SERVICE_ID:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
       # Ключ шифрования секретов в БД (Fernet) — Google refresh-токены.
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
       # Контакт поддержки (ссылка на Telegram владельца) для кнопки «Поддержка».
