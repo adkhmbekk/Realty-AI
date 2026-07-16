@@ -35,6 +35,22 @@ class RefreshRequest(BaseModel):
     act_as_agency_id: Optional[int] = None
 
 
+class PhoneRequestIn(BaseModel):
+    # Номер, на который выслать SMS-код (нормализуется на сервере).
+    phone: str = Field(min_length=7, max_length=24)
+
+
+class PhoneRequestOut(BaseModel):
+    # Сколько секунд живёт код (для таймера в приложении).
+    expires_in: int
+
+
+class PhoneVerifyIn(BaseModel):
+    phone: str = Field(min_length=7, max_length=24)
+    # 6-значный код из SMS.
+    code: str = Field(min_length=4, max_length=10)
+
+
 class HeartbeatRequest(BaseModel):
     # Агентство, ВНУТРИ которого юзер сейчас находится (phase 'ready'); в личном
     # кабинете — None. По нему отмечаем присутствие в конкретном членстве.
