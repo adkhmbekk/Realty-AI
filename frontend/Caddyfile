@@ -32,7 +32,18 @@
 		request_body {
 			max_size 25MB
 		}
-		reverse_proxy backend:8000
+		reverse_proxy backend:8000 {
+			# H1 (ревью): доверяем X-Forwarded-For только от внутренних адресов
+			# (туннели ngrok/tailscale в Docker-сети — приватные IP). По ним Caddy
+			# вычисляет НАСТОЯЩИЙ IP клиента ({client_ip}) и кладёт его в заголовок,
+			# который backend читает напрямую. Клиент подделать не может: header_up
+			# ПЕРЕЗАПИСЫВАЕт значение. Без этого rate-limit/аудит шли по одному IP
+			# туннеля на всех (глобальный лимит = дешёвый DoS входа).
+			trusted_proxies private_ranges
+			header_up X-Real-Client {client_ip}
+		}
+		# ВРЕМЕННО (H1-диагностика): эхо вычисленного IP в ответ. Удалить после проверки.
+		header X-Client-Debug {client_ip}
 	}
 
 	# Остальное — статика SPA. Любой путь отдаёт index.html (клиентская навигация).
