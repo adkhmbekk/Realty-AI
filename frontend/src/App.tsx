@@ -1143,6 +1143,7 @@ export function App() {
       // починка «вылетов» каждые 1–2 часа (находка H7).
       const rt = refreshTokenRef.current;
       if (rt) {
+        let refreshStatus = 0; // 0 = сеть не ответила
         try {
           const res = await fetch(apiUrl("/api/v1/auth/refresh"), {
             method: "POST",
@@ -1153,6 +1154,7 @@ export function App() {
               act_as_agency_id: actingAgencyRef.current,
             }),
           });
+          refreshStatus = res.status;
           if (res.ok) {
             const data: AuthResponse = await res.json();
             setAuth(data.access_token, data.user, data.subscription_active ?? null);
@@ -1162,16 +1164,32 @@ export function App() {
             return data.access_token;
           }
         } catch {
-          // упадём в запасной путь ниже
+          refreshStatus = 0; // сетевой сбой
         }
+        // Refresh не удался. На нативе (initData нет) решаем ПО ПРИЧИНЕ (ревью M2):
+        // только 401/403 = пропуск окончательно недействителен → чистим и на вход.
+        // Сеть/5xx = ВРЕМЕННЫЙ сбой (напр. деплой бэка/лёг pc1) → сессию НЕ трогаем,
+        // показываем «нет связи» с авто-ретраем. Раньше любой сбой стирал сессию.
+        if (isNativeApp()) {
+          if (refreshStatus === 401 || refreshStatus === 403) {
+            clearAuth();
+            refreshTokenRef.current = null;
+            actingAgencyRef.current = null;
+            await clearSession();
+            setPhase("login");
+          } else {
+            setPhase("reconnect");
+          }
+          return null;
+        }
+        // Веб/Telegram — падаем в запасной путь по initData ниже.
       }
       // Запасной путь: повторный вход по initData (если refresh-пропуска нет
       // или он больше не действует).
       const fresh = getInitData();
       if (!fresh) {
-        // Нативное приложение: initData нет — восстановить сессию нечем. Значит
-        // она недействительна окончательно: чистим и отправляем на экран входа
-        // Google/Apple, а не оставляем на бесконечных 401.
+        // Нативное приложение без refresh-пропуска: восстановить сессию нечем →
+        // экран входа (Telegram/номер).
         if (isNativeApp()) {
           clearAuth();
           refreshTokenRef.current = null;
