@@ -51,8 +51,6 @@
 			trusted_proxies private_ranges
 			header_up X-Real-Client {client_ip}
 		}
-		# ВРЕМЕННО (H1-диагностика): эхо вычисленного IP в ответ. Удалить после проверки.
-		header X-Client-Debug {client_ip}
 	}
 
 	# Остальное — статика SPA. Любой путь отдаёт index.html (клиентская навигация).
