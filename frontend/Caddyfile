@@ -1,6 +1,15 @@
 # Caddy отдаёт собранное React-приложение из /srv и проксирует API на backend.
 # Страница и её запросы к API живут на одном адресе — без CORS-сложностей.
 
+{
+	# H1 (ревью): плейсхолдер {client_ip} разворачивает X-Forwarded-For, ДОВЕРЯЯ
+	# только внутренним хопам (туннели ngrok/tailscale в Docker-сети — приватные
+	# IP). Задаётся ГЛОБАЛЬНО (в servers), иначе {client_ip} = адрес соединения.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
 :80 {
 	encode gzip
 
