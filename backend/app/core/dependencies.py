@@ -67,6 +67,11 @@ def get_current_user(
     payload = security.decode_access_token(credentials.credentials)
     if payload is None:
         raise AppError("auth_invalid_token", status.HTTP_401_UNAUTHORIZED)
+    # Только ACCESS-пропуск: refresh (30 дней) в Authorization не принимается —
+    # иначе долгоживущий токен работал бы как обычный Bearer и обесценивал
+    # короткий срок жизни access (type-confusion, находка ревью).
+    if payload.get("type") != "access":
+        raise AppError("auth_invalid_token", status.HTTP_401_UNAUTHORIZED)
 
     user_id = payload.get("user_id")
     user = user_repo.get_by_id(db, user_id) if user_id is not None else None
@@ -223,6 +228,23 @@ def require_agency_member(
     _ensure_agency_not_archived(db, user)
     _ensure_subscription_active(db, user)
     return user
+
+
+def require_member_or_superadmin(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> User:
+    """
+    Сотрудник агентства ИЛИ владелец платформы (суперадмин). Для читалок общей
+    базы (MLS): фото/шеринг объектов пула. Личный аккаунт (role='user') без
+    агентства сюда НЕ проходит — данные пула адресованы агентствам и владельцу
+    платформы, а не любому залогиненному (иначе перебор sequential id, ревью M3).
+    """
+    if user.role == "superadmin":
+        return user
+    if user.role in ("agency_admin", "agent") and user.agency_id is not None:
+        _ensure_agency_not_archived(db, user)
+        return user
+    raise AppError("forbidden_member_only", status.HTTP_403_FORBIDDEN)
 
 
 def require_agency_admin(

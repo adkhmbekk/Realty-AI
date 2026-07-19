@@ -369,13 +369,15 @@ def list_mls_pool(
         conds.append(Apartment.currency == currency)
     if q and q.strip():
         like = f"%{q.strip()}%"
-        conds.append(
-            or_(
-                Apartment.district.ilike(like),
-                Apartment.name.ilike(like),
-                Apartment.type.ilike(like),
-            )
-        )
+        # district/type — контролируемый словарь, номер туда не попадёт.
+        text_conds = [Apartment.district.ilike(like), Apartment.type.ilike(like)]
+        # name может по ошибке содержать номер собственника (на выдаче он затёрт).
+        # Поиск по name разрешаем ТОЛЬКО для «не-телефонных» запросов (< 7 цифр в
+        # сумме): иначе по нему можно префиксным перебором подтвердить скрытый
+        # номер (ревью M4). Обычный текст/короткие числа («3 комнаты») не страдают.
+        if sum(c.isdigit() for c in q) < 7:
+            text_conds.append(Apartment.name.ilike(like))
+        conds.append(or_(*text_conds))
 
     total = db.execute(
         select(func.count()).select_from(Apartment).where(*conds)

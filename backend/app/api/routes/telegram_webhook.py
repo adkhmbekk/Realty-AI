@@ -7,6 +7,7 @@ setWebhook). Без совпадения секрета — 403 (чужой за
 Telegram Update (принимаем как dict). Всегда быстро отвечаем 200, чтобы Telegram
 не копил повторы.
 """
+import hmac
 import logging
 
 from fastapi import APIRouter, Depends, Request, Response, status
@@ -26,7 +27,8 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     """Обработать апдейт бота входа (с проверкой секрета Telegram)."""
     secret = settings.telegram_webhook_secret
     got = request.headers.get("x-telegram-bot-api-secret-token")
-    if not secret or got != secret:
+    # Постоянное по времени сравнение секрета (защита от timing-атаки, ревью L1).
+    if not secret or not got or not hmac.compare_digest(got, secret):
         return Response(status_code=status.HTTP_403_FORBIDDEN)
     try:
         update = await request.json()

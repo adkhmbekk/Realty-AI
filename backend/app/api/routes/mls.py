@@ -11,8 +11,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import (
-    get_current_user,
     require_agency_member,
+    require_member_or_superadmin,
     require_superadmin,
 )
 from app.core.ratelimit import rate_limit
@@ -120,7 +120,7 @@ def mls_agencies(
 def mls_object_photos(
     object_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_member_or_superadmin),
 ):
     """Фото объекта из общей базы (MLS) — read-only карточка. Доступно любому
     авторизованному (в т.ч. суперадмину, у которого нет своего агентства): объект
@@ -150,7 +150,7 @@ def mls_take_for_client(
 def mls_prepare_share(
     object_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_member_or_superadmin),
 ):
     """Подготовить прямое Telegram-сообщение для шеринга объекта из общей базы
     (контакт агентства-владельца; номер собственника/адрес скрыты). Доступно
@@ -165,7 +165,7 @@ def mls_prepare_share(
 def mls_send_share(
     object_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_member_or_superadmin),
 ):
     """Отправить объект из общей базы альбомом (все фото) в личный чат пользователя
     с ботом — оттуда он пересылает клиенту. Контакт агентства-владельца, номер
