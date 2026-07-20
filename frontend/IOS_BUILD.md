@@ -75,17 +75,18 @@ npx cap open ios      # откроет ios/App/App.xcodeproj в Xcode
 `CURRENT_PROJECT_VERSION` (build number, сейчас `1`). Для каждой загрузки в App Store
 Connect build number должен расти.
 
-### 4. Иконка приложения (ЕДИНСТВЕННЫЙ недостающий ассет)
-Сейчас в проекте **дефолтная иконка Capacitor** — на Windows не было исходника
-достаточного размера (у Android-иконки максимум 192px, для iOS нужен 1024×1024).
-Когда будет фирменный **1024×1024 PNG** (исходник логотипа Realty AI):
+### 4. Иконка приложения (уже фирменная)
+Иконка **уже собрана** из Android-лаунчера (белый фон + логотип из adaptive-иконки,
+1024×1024 RGB без альфы) → `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png`.
+Исходник — `frontend/resources/icon.png`. Xcode подхватит её автоматически, делать
+ничего не нужно. Если появится дизайнерский логотип в высоком разрешении — заменить
+`resources/icon.png` на него и перегенерить набор:
 ```bash
-# положить его в frontend/resources/icon.png (и опционально resources/splash.png 2732×2732)
 npm i -D @capacitor/assets
-npx capacitor-assets generate --ios   # сгенерит весь набор иконок + splash
+npx capacitor-assets generate --ios   # пересоберёт иконки + splash из resources/
 npx cap sync ios
 ```
-(Эту команду можно выполнить и на Windows заранее — она кросс-платформенная.)
+(Команда кросс-платформенная — можно и на Windows.)
 
 ### 5. Запуск и публикация
 - **Симулятор/устройство:** выбрать схему **App**, ⌘R. Для реального iPhone — устройство
