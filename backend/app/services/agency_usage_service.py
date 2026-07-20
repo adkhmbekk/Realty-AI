@@ -26,6 +26,7 @@ except Exception:  # pragma: no cover
     ZoneInfo = None  # type: ignore
 
 from app.core.errors import AppError
+from app.db.models.agency_membership import AgencyMembership
 from app.db.models.apartment import Apartment
 from app.db.models.apartment_event import ApartmentEvent
 from app.db.models.audit_log import AuditLog
@@ -352,6 +353,21 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
     users = db.execute(
         select(User).where(User.agency_id == agency_id, User.is_active.is_(True))
     ).scalars().all()
+    # Присутствие сотрудника считаем ПО-АГЕНТСКИ: last_seen_at из его членства
+    # ИМЕННО в этом агентстве (agency_memberships.last_seen_at — обновляется
+    # heartbeat'ами, пока юзер внутри этого агентства), а НЕ глобальный
+    # users.last_seen_at. Так «в сети» = активен в ЭТОМ агентстве (а не «в приложении
+    # вообще, может в другом агентстве»), и статус совпадает с карточкой юзера у
+    # владельца платформы (platform_service тоже берёт membership.last_seen_at).
+    # У каждого домашнего члена membership-строка есть (бэкфилл 0035); last_seen_at
+    # заполняется входом/heartbeat'ом (до первого — NULL → «ещё не заходил»).
+    mem_seen: Dict[int, Optional[datetime]] = {
+        uid: seen
+        for uid, seen in db.execute(
+            select(AgencyMembership.user_id, AgencyMembership.last_seen_at)
+            .where(AgencyMembership.agency_id == agency_id)
+        )
+    }
     # Единый источник правды порогов «в сети» — user_presence (тот же порог, что и
     # в карточке юзера у владельца платформы), чтобы экраны не расходились.
     def _is_online(seen) -> bool:
@@ -362,18 +378,19 @@ def activity(db: Session, agency_id: int) -> AgencyActivityOut:
             user_id=u.id,
             name=_display_name(u),
             last_login_at=u.last_login_at,
-            last_seen_at=u.last_seen_at,
-            # Последняя активность = МАКСИМУМ(seen, login) — как в платформенной
-            # карточке; раньше экран агентства брал seen||login (coalesce) и расходился.
-            last_active_at=user_presence.latest(u.last_seen_at, u.last_login_at),
-            online=_is_online(u.last_seen_at),
+            last_seen_at=mem_seen.get(u.id),
+            # Последняя активность в ЭТОМ агентстве = membership.last_seen_at (как в
+            # платформенной карточке). Глобальный вход показываем отдельно —
+            # last_login_at — но онлайн/активность здесь именно per-agency.
+            last_active_at=mem_seen.get(u.id),
+            online=_is_online(mem_seen.get(u.id)),
             added=added_by.get(u.id, 0),
             deals_won=emp_won.get(u.id, 0),
             commission=emp_comm.get(u.id, {}),
         )
         for u in users
     ]
-    online_users = sum(1 for u in users if _is_online(u.last_seen_at))
+    online_users = sum(1 for u in users if _is_online(mem_seen.get(u.id)))
     # Сортировка: нормализуем last_login_at к aware-UTC, иначе при равном
     # «added» сравнение naive vs aware дат бросило бы TypeError.
     _min = datetime.min.replace(tzinfo=timezone.utc)
