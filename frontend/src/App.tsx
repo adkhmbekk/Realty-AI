@@ -10,6 +10,7 @@ import { saveSession, loadSession, clearSession } from "./session";
 import { getProviderToken } from "./nativeAuth";
 import type { AuthResponse, AgencySettings } from "./types";
 import { Button, Card, Field, Input, Spinner } from "./components/ui";
+import { sanitizePhone } from "./utils";
 import { HomeScreen } from "./screens/Home";
 import { ProfileScreen, SuspendedScreen } from "./screens/Profile";
 import { PersonalApp, PersonalSettingsScreen, PersonalProfileScreen } from "./screens/Personal";
@@ -823,7 +824,7 @@ function WelcomeScreen({ prefill, onAuth }: { prefill: string; onAuth: (r: AuthR
             <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder={t("regOwnerPh")} />
           </Field>
           <Field label={t("regPhone")}>
-            <Input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("regPhonePh")} />
+            <Input inputMode="tel" value={phone} onChange={(e) => setPhone(sanitizePhone(e.target.value))} placeholder={t("regPhonePh")} />
           </Field>
           <Button full className="mt-4" disabled={busy} onClick={register}>
             {busy ? t("joinChecking") : t("regSubmit")}
