@@ -10,7 +10,7 @@ import { saveSession, loadSession, clearSession } from "./session";
 import { getProviderToken } from "./nativeAuth";
 import type { AuthResponse, AgencySettings } from "./types";
 import { Button, Card, Field, Input, Spinner } from "./components/ui";
-import { sanitizePhone } from "./utils";
+import { sanitizePhone, onlyDigits } from "./utils";
 import { HomeScreen } from "./screens/Home";
 import { ProfileScreen, SuspendedScreen } from "./screens/Profile";
 import { PersonalApp, PersonalSettingsScreen, PersonalProfileScreen } from "./screens/Personal";
@@ -662,7 +662,7 @@ function NativeLoginScreen({
           <div className="text-[13px] text-muted">Отправим SMS с кодом подтверждения на этот номер.</div>
           <Input
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(sanitizePhone(e.target.value))}
             inputMode="tel"
             autoComplete="tel"
             placeholder="+998 90 123 45 67"
@@ -678,7 +678,7 @@ function NativeLoginScreen({
           <div className="text-[13px] text-muted">Введите код из SMS, отправленного на {phone.trim()}.</div>
           <Input
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => setCode(onlyDigits(e.target.value))}
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={6}
