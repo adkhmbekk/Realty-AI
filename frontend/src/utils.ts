@@ -59,6 +59,20 @@ export function fmtPrice(price?: number | null, currency?: string | null): strin
   return `${str} ${currency || ""}`.trim();
 }
 
+// Телефон: в поле ввода оставляем только ведущий «+» и цифры — буквы, пробелы и
+// прочие символы отбрасываем на лету (бэкенд всё равно нормализует, но так поле
+// не принимает мусор). Пример: "+998 (90) abc-12" → "+99012".
+export function sanitizePhone(raw: string): string {
+  const digits = (raw || "").replace(/\D/g, "");
+  const plus = (raw || "").trimStart().startsWith("+");
+  return (plus ? "+" : "") + digits;
+}
+
+// Только цифры (для SMS-кода и подобных числовых полей).
+export function onlyDigits(raw: string): string {
+  return (raw || "").replace(/\D/g, "");
+}
+
 
 // Примечание: downscaleImage (возвращавший Blob для multipart) удалён как
 // мёртвый код. Для загрузки используется downscaleToDataUrl (data-URL в JSON).
