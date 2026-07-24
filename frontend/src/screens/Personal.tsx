@@ -214,7 +214,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 
   if (step === "lang") {
     return (
-      <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, 0px)" }}>
+      <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, env(safe-area-inset-top, 0px))" }}>
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-10 w-full max-w-[560px] mx-auto animate-fade-up">
           <div className="text-center mb-6">
             <div className="mx-auto mb-4 w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
@@ -238,7 +238,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 
   const shared = !!phone;
   return (
-    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, 0px)" }}>
+    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, env(safe-area-inset-top, 0px))" }}>
       <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-8 w-full max-w-[560px] mx-auto animate-fade-up">
         <h1 className="text-[24px] font-extrabold tracking-tight">{s.getAcquainted}</h1>
         <p className="text-muted text-sm mt-1.5">{s.profileSub}</p>
@@ -338,7 +338,7 @@ function Hub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void })
   );
 
   return (
-    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, 0px)" }}>
+    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, env(safe-area-inset-top, 0px))" }}>
       {entering && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3" style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)" }}>
           <Spinner /><div className="text-muted text-sm">{s.entering}</div>

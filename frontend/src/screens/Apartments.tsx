@@ -2049,7 +2049,7 @@ function ReadonlyObjectCard({ o, photosUrl }: { o: Apartment; photosUrl: string 
   const badgeColor = STATUS_BADGE[o.status] || "gray";
 
   return (
-    <div>
+    <div className="obj-selectable">
       {photos && photos.length > 0 && (
         <div className="grid grid-cols-3 gap-2 mb-3">
           {photos.map((p, i) => (
@@ -2356,7 +2356,7 @@ export function ObjectDetailScreen({ id }: { id: number }) {
   const badgeColor = STATUS_BADGE[o.status] || "gray";
 
   return (
-    <div>
+    <div className="obj-selectable">
       <PhotoGallery apartmentId={id} onChange={() => load(true)} />
       <Card>
         <div className="flex items-center justify-between gap-2 mb-1">

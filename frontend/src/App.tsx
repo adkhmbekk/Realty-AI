@@ -302,7 +302,7 @@ function BottomTabs() {
   ];
   return (
     <nav className="shrink-0 z-40 glass border-t border-line px-3 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2">
-      <div className="max-w-[560px] mx-auto flex items-end justify-between">
+      <div className="max-w-[560px] mx-auto flex items-end justify-around">
         {left.map((tb, i) => (
           <TabButton key={i} active={curName === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
         ))}
@@ -375,7 +375,7 @@ function TabButton({ active, icon, label, onClick }: { active: boolean; icon: JS
         if (!active) haptic();
         onClick();
       }}
-      className={"flex flex-col items-center gap-1 px-2 py-1 min-w-[58px] cursor-pointer transition-colors duration-200 active:scale-95 " + (active ? "text-primary" : "text-muted")}
+      className={"flex flex-col items-center gap-1 px-2 py-1 min-w-[64px] cursor-pointer transition-colors duration-200 active:scale-95 " + (active ? "text-primary" : "text-muted")}
     >
       <span className={"flex items-center justify-center w-11 h-7 rounded-full transition-colors duration-200 " + (active ? "bg-primary-soft" : "")}>
         {icon}
@@ -498,7 +498,7 @@ function Shell() {
   return (
     <div
       className="fixed left-0 right-0 bottom-0 flex flex-col"
-      style={{ top: "var(--tg-top-inset, 0px)" }}
+      style={{ top: "var(--tg-top-inset, env(safe-area-inset-top, 0px))" }}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
