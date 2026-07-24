@@ -4,11 +4,13 @@ import { Briefcase, Building2, Home, Layers, Mail, Plus, Search, Settings as Set
 import { useApp } from "./store";
 import { NavProvider, PaneActiveContext, Pane, Route, useNav } from "./nav";
 import { ActingProvider, useActing } from "./acting";
-import { api, errText, setReauthHandler } from "./api";
-import { tg, tgReady, getInitData, getStartParam, haptic } from "./telegram";
+import { api, apiUrl, errText, extraHeaders, getLastFetchError, setReauthHandler } from "./api";
+import { tg, tgReady, getInitData, getStartParam, haptic, isNativeApp } from "./telegram";
+import { saveSession, loadSession, clearSession } from "./session";
+import { getProviderToken } from "./nativeAuth";
 import type { AuthResponse, AgencySettings } from "./types";
 import { Button, Card, Field, Input, Spinner } from "./components/ui";
-import { sanitizePhone } from "./utils";
+import { sanitizePhone, onlyDigits } from "./utils";
 import { HomeScreen } from "./screens/Home";
 import { ProfileScreen, SuspendedScreen } from "./screens/Profile";
 import { PersonalApp, PersonalSettingsScreen, PersonalProfileScreen } from "./screens/Personal";
@@ -52,7 +54,7 @@ const ClientMatchesScreen = lazy(() => import("./screens/Clients").then((m) => (
 const MatchesScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.MatchesScreen })));
 const SaveRequestScreen = lazy(() => import("./screens/Clients").then((m) => ({ default: m.SaveRequestScreen })));
 
-type Phase = "loading" | "open" | "join" | "personal" | "ready" | "suspended" | "reconnect";
+type Phase = "loading" | "open" | "join" | "personal" | "ready" | "suspended" | "reconnect" | "login";
 
 // ── Тосты ───────────────────────────────────────────────────────────
 function Toasts() {
@@ -300,7 +302,7 @@ function BottomTabs() {
   ];
   return (
     <nav className="shrink-0 z-40 glass border-t border-line px-3 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2">
-      <div className="max-w-[560px] mx-auto flex items-end justify-between">
+      <div className="max-w-[560px] mx-auto flex items-end justify-around">
         {left.map((tb, i) => (
           <TabButton key={i} active={curName === tb.route.name} icon={tb.icon} label={tb.label} onClick={() => nav.switchTab(tb.route)} />
         ))}
@@ -373,7 +375,7 @@ function TabButton({ active, icon, label, onClick }: { active: boolean; icon: JS
         if (!active) haptic();
         onClick();
       }}
-      className={"flex flex-col items-center gap-1 px-2 py-1 min-w-[58px] cursor-pointer transition-colors duration-200 active:scale-95 " + (active ? "text-primary" : "text-muted")}
+      className={"flex flex-col items-center gap-1 px-2 py-1 min-w-[64px] cursor-pointer transition-colors duration-200 active:scale-95 " + (active ? "text-primary" : "text-muted")}
     >
       <span className={"flex items-center justify-center w-11 h-7 rounded-full transition-colors duration-200 " + (active ? "bg-primary-soft" : "")}>
         {icon}
@@ -413,8 +415,33 @@ function Shell() {
   const nav = useNav();
   const depth = nav.stack.length;
   const route = nav.current;
-  const tkey = titleKeyFor(route);
   const showBack = depth > 1;
+  // Актуальный nav для слушателя нативного «Назад» (регистрируем один раз).
+  const navRef = useRef(nav);
+  navRef.current = nav;
+
+  // Нативная кнопка/жест «Назад» (Android APK): Capacitor шлёт событие backButton
+  // при системном свайпе-назад/кнопке. Привязываем к nav.pop(), иначе система
+  // закрывает приложение вместо возврата на шаг. На вебе/в Telegram не вешаем.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let handle: { remove: () => void } | null = null;
+    let cancelled = false;
+    import("@capacitor/app").then(({ App: CapApp }) => {
+      CapApp.addListener("backButton", () => {
+        const n = navRef.current;
+        if (n.stack.length > 1) n.pop();
+        else CapApp.exitApp();
+      }).then((h) => {
+        if (cancelled) h.remove();
+        else handle = h;
+      });
+    });
+    return () => {
+      cancelled = true;
+      handle?.remove();
+    };
+  }, []);
 
   // Кнопка «Назад» Telegram.
   useEffect(() => {
@@ -471,7 +498,7 @@ function Shell() {
   return (
     <div
       className="fixed left-0 right-0 bottom-0 flex flex-col"
-      style={{ top: "var(--tg-top-inset, 0px)" }}
+      style={{ top: "var(--tg-top-inset, env(safe-area-inset-top, 0px))" }}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -482,9 +509,9 @@ function Shell() {
         {/* Шапка */}
         <header className="flex items-center gap-2.5 min-h-[40px] mb-2">
           {/* Бренд (логотип + «Realty AI») — в левом верхнем углу на КАЖДОМ экране,
-              включая вложенные (Финансы, Пользователи, карточка пользователя и т.д.).
-              Заголовок страницы в шапке не показываем: контекст даёт содержимое
-              экрана и нижняя навигация. */}
+              включая вложенные (Финансы, Пользователи, карточка пользователя и т.д.),
+              как в интерфейсе главного админа. Заголовок страницы в шапке не
+              показываем: контекст даёт содержимое экрана и нижняя навигация. */}
           <span className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow shrink-0" style={{ background: "var(--grad)" }}>
             <Building2 size={18} />
           </span>
@@ -512,7 +539,7 @@ function OpenInTelegram() {
   const { t } = useApp();
   const [ok, setOk] = useState<boolean | null>(null);
   useEffect(() => {
-    fetch("/health")
+    fetch(apiUrl("/health"))
       .then((r) => r.json())
       .then((d) => setOk(d.database === "connected"))
       .catch(() => setOk(false));
@@ -531,6 +558,138 @@ function OpenInTelegram() {
         {ok == null ? t("loading") : ok ? t("backendOk") : t("backendErr")}
       </div>
       <p className="text-muted text-sm mt-3 text-center">{t("openInTg")}</p>
+    </div>
+  );
+}
+
+// ── Экран входа в нативном приложении (вне Telegram) ──────────────────
+// Финальная модель входа: [Войти через Telegram] — основной (в реальный
+// аккаунт, бесплатно) и [Войти по номеру телефона] — SMS-код (для тех, кто без
+// Telegram). Google/Apple убраны из UI (бэкенд-роуты живы для старых юзеров).
+// Пока SMS-шлюз (Eskiz) не сконфигурирован, сервер отвечает локализованным
+// «SMS-вход пока недоступен» — кнопка уже на месте и оживёт сама.
+function NativeLoginScreen({
+  onTelegram,
+  onPhoneRequest,
+  onPhoneVerify,
+}: {
+  onTelegram: () => Promise<string | null>;
+  onPhoneRequest: (phone: string) => Promise<string | null>;
+  onPhoneVerify: (phone: string, code: string) => Promise<string | null>;
+}) {
+  const [view, setView] = useState<"menu" | "phone" | "code">("menu");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [phone, setPhone] = useState("+998");
+  const [code, setCode] = useState("");
+
+  const goTelegram = async () => {
+    setBusy(true);
+    setErr("Открываю Telegram… подтвердите вход в боте.");
+    try {
+      setErr(await onTelegram());
+    } catch (e: any) {
+      setErr("сбой обработчика: " + (e?.message || String(e)));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const requestCode = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const m = await onPhoneRequest(phone.trim());
+      setErr(m);
+      if (!m) {
+        setCode("");
+        setView("code");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  const verify = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      setErr(await onPhoneVerify(phone.trim(), code.trim()));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const back = () => {
+    setErr(null);
+    setView(view === "code" ? "phone" : "menu");
+  };
+
+  return (
+    <div className="max-w-[560px] mx-auto px-4 pt-16 animate-fade-up">
+      <div className="flex flex-col items-center text-center mb-8">
+        <span className="w-16 h-16 rounded-[20px] flex items-center justify-center text-white shadow-glow mb-3" style={{ background: "var(--grad)" }}>
+          <Building2 size={30} />
+        </span>
+        <span className="text-[24px] font-extrabold tracking-tight">
+          Realty <span className="text-primary">AI</span>
+        </span>
+        <p className="text-muted text-sm mt-2">CRM + MLS для агентств недвижимости</p>
+      </div>
+      {err && (
+        <div className="mb-3 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 px-3 py-2 text-[13px] font-semibold break-words">
+          {err}
+        </div>
+      )}
+      {view === "menu" && (
+        <div className="space-y-3">
+          <button
+            onClick={goTelegram}
+            disabled={busy}
+            className="w-full py-3 rounded-xl font-bold text-[15px] text-white cursor-pointer active:scale-[.98] transition disabled:opacity-50"
+            style={{ background: "#229ED9" }}
+          >
+            {busy ? "…" : "Войти через Telegram"}
+          </button>
+          <button
+            onClick={() => { setErr(null); setView("phone"); }}
+            disabled={busy}
+            className="w-full py-3 rounded-xl font-bold text-[15px] cursor-pointer active:scale-[.98] transition disabled:opacity-50 bg-[var(--soft)] text-text border border-line"
+          >
+            Войти по номеру телефона
+          </button>
+        </div>
+      )}
+      {view === "phone" && (
+        <div className="space-y-3">
+          <div className="text-[13px] text-muted">Отправим SMS с кодом подтверждения на этот номер.</div>
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(sanitizePhone(e.target.value))}
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="+998 90 123 45 67"
+          />
+          <Button full disabled={busy || phone.trim().length < 7} onClick={requestCode}>
+            {busy ? "…" : "Получить код"}
+          </Button>
+          <Button full variant="ghost" disabled={busy} onClick={back}>Назад</Button>
+        </div>
+      )}
+      {view === "code" && (
+        <div className="space-y-3">
+          <div className="text-[13px] text-muted">Введите код из SMS, отправленного на {phone.trim()}.</div>
+          <Input
+            value={code}
+            onChange={(e) => setCode(onlyDigits(e.target.value))}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            placeholder="••••••"
+          />
+          <Button full disabled={busy || code.trim().length < 4} onClick={verify}>
+            {busy ? "…" : "Войти"}
+          </Button>
+          <Button full variant="ghost" disabled={busy} onClick={back}>Изменить номер</Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -726,6 +885,10 @@ export function App() {
     setAuth(data.access_token, data.user, data.subscription_active ?? null);
     refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;
     actingAgencyRef.current = data.user.acting_as_agency_id ?? null;
+    // Нативное приложение (вне Telegram): сохраняем сессию, чтобы пережить
+    // перезапуск. В Telegram токены живут только в памяти — там повторный вход по
+    // initData бесплатный, персист не нужен (и не путает archived-модель).
+    if (isNativeApp()) void saveSession(data.access_token, refreshTokenRef.current);
     const u = data.user;
     // Суперадмин — своя платформенная оболочка (агентства/юзеры).
     if (u.role === "superadmin") {
@@ -763,6 +926,92 @@ export function App() {
     setPhase("personal");
   }
 
+  // Нативный вход (вне Telegram): берём токен у Google/Apple и меняем его на наш
+  // пропуск через backend. Сам SDK-шаг (getProviderToken) подключается в Фазе 3;
+  // до этого кнопки показывают подсказку.
+  // Возвращает текст ошибки (для показа НА экране входа) либо null при успехе.
+  async function nativeSignIn(provider: "google" | "apple"): Promise<string | null> {
+    try {
+      const tok = await getProviderToken(provider);
+      if (!tok) return "getProviderToken=null (isNativePlatform ложно?)";
+      const path = provider === "google" ? "/api/v1/auth/google" : "/api/v1/auth/apple";
+      const body =
+        provider === "google"
+          ? { id_token: tok.idToken }
+          : { identity_token: tok.idToken, first_name: tok.firstName, last_name: tok.lastName };
+      const r = await api<AuthResponse>(path, { method: "POST", body });
+      if (r.ok && r.data) {
+        await applyAuth(r.data);
+        return null;
+      }
+      if (r.status === 0) return "сеть: " + getLastFetchError();
+      return "сервер: HTTP " + r.status + " " + (errText(r.data, r.status) || "");
+    } catch (e: any) {
+      return "исключение: " + (e?.message || e?.code || JSON.stringify(e) || String(e));
+    }
+  }
+
+  // Вход через Telegram-бота (@realtyloginbot): берём одноразовый код, открываем
+  // бота, опрашиваем подтверждение. На confirmed — та же applyAuth, что у Google
+  // (внутри неё сессия сохраняется на нативной платформе).
+  async function telegramSignIn(): Promise<string | null> {
+    try {
+      const start = await api<{ code: string; deep_link: string; expires_in: number }>(
+        "/api/v1/auth/telegram/start",
+        { method: "POST", body: {} }
+      );
+      if (!start.ok || !start.data) {
+        if (start.status === 0) return "сеть: " + getLastFetchError();
+        return "сервер: HTTP " + start.status + " " + (errText(start.data, start.status) || "");
+      }
+      const { code, deep_link } = start.data;
+      // "_system" → Capacitor откроет ссылку во внешнем приложении Telegram.
+      window.open(deep_link, "_system");
+
+      const deadline = Date.now() + 150000; // ~2.5 мин (TTL кода 5 мин)
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const p = await api<{ status: string; auth?: AuthResponse }>(
+          "/api/v1/auth/telegram/poll",
+          { method: "POST", body: { code } }
+        );
+        if (p.ok && p.data) {
+          if (p.data.status === "confirmed" && p.data.auth) {
+            await applyAuth(p.data.auth);
+            return null;
+          }
+          if (p.data.status === "expired") return "Время вышло, попробуйте войти заново.";
+        }
+      }
+      return "Время вышло, попробуйте войти заново.";
+    } catch (e: any) {
+      return "исключение: " + (e?.message || String(e));
+    }
+  }
+
+  // Вход по номеру телефона (SMS-код). Ошибки возвращаем строкой — экран входа
+  // показывает их прямо на месте (сервер шлёт локализованный текст, в т.ч.
+  // «SMS-вход пока недоступен», пока Eskiz не сконфигурирован).
+  async function phoneRequestCode(phone: string): Promise<string | null> {
+    const r = await api<{ expires_in: number }>("/api/v1/auth/phone/request", {
+      method: "POST", body: { phone },
+    });
+    if (r.ok) return null;
+    if (r.status === 0) return "сеть: " + getLastFetchError();
+    return errText(r.data, r.status);
+  }
+  async function phoneVerifyCode(phone: string, code: string): Promise<string | null> {
+    const r = await api<AuthResponse>("/api/v1/auth/phone/verify", {
+      method: "POST", body: { phone, code },
+    });
+    if (r.ok && r.data) {
+      await applyAuth(r.data);
+      return null;
+    }
+    if (r.status === 0) return "сеть: " + getLastFetchError();
+    return errText(r.data, r.status);
+  }
+
   const bootstrapping = useRef(false);
   async function bootstrapAuth(): Promise<void> {
     // Защита от параллельных запусков (авто-повтор с экрана «нет связи» не должен
@@ -772,7 +1021,31 @@ export function App() {
     try {
       const initData = getInitData();
       if (!initData) {
-        setPhase("open");
+        // Нативное приложение (вне Telegram): восстанавливаем сессию по
+        // сохранённому refresh-пропуску; если его нет/недействителен — экран
+        // входа Google/Apple. Экран «Откройте в Telegram» тут больше не нужен.
+        const sess = await loadSession();
+        if (sess?.refresh) {
+          const r = await api<AuthResponse>("/api/v1/auth/refresh", {
+            method: "POST",
+            body: { refresh_token: sess.refresh },
+          });
+          if (r.ok && r.data) {
+            await applyAuth(r.data);
+            return;
+          }
+          // refresh не принят (истёк/отозван) — чистим и просим войти заново.
+          if (r.status === 401 || r.status === 403) {
+            await clearSession();
+          } else {
+            // Временный сбой (нет сети / сервер лежит, напр. pc1 недоступен):
+            // сессию НЕ трогаем и показываем «нет связи» с ретраем, а не экран
+            // входа — иначе залогиненного юзера зря гоняло бы через Google.
+            setPhase("reconnect");
+            return;
+          }
+        }
+        setPhase("login");
         return;
       }
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -871,35 +1144,66 @@ export function App() {
       // починка «вылетов» каждые 1–2 часа (находка H7).
       const rt = refreshTokenRef.current;
       if (rt) {
+        let refreshStatus = 0; // 0 = сеть не ответила
         try {
-          const res = await fetch("/api/v1/auth/refresh", {
+          const res = await fetch(apiUrl("/api/v1/auth/refresh"), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...extraHeaders() },
             body: JSON.stringify({
               refresh_token: rt,
               // Если владелец сейчас внутри своего агентства — сохраняем контекст.
               act_as_agency_id: actingAgencyRef.current,
             }),
           });
+          refreshStatus = res.status;
           if (res.ok) {
             const data: AuthResponse = await res.json();
             setAuth(data.access_token, data.user, data.subscription_active ?? null);
             refreshTokenRef.current = data.refresh_token ?? refreshTokenRef.current;
             actingAgencyRef.current = data.user.acting_as_agency_id ?? null;
+            if (isNativeApp()) void saveSession(data.access_token, refreshTokenRef.current);
             return data.access_token;
           }
         } catch {
-          // упадём в запасной путь ниже
+          refreshStatus = 0; // сетевой сбой
         }
+        // Refresh не удался. На нативе (initData нет) решаем ПО ПРИЧИНЕ (ревью M2):
+        // только 401/403 = пропуск окончательно недействителен → чистим и на вход.
+        // Сеть/5xx = ВРЕМЕННЫЙ сбой (напр. деплой бэка/лёг pc1) → сессию НЕ трогаем,
+        // показываем «нет связи» с авто-ретраем. Раньше любой сбой стирал сессию.
+        if (isNativeApp()) {
+          if (refreshStatus === 401 || refreshStatus === 403) {
+            clearAuth();
+            refreshTokenRef.current = null;
+            actingAgencyRef.current = null;
+            await clearSession();
+            setPhase("login");
+          } else {
+            setPhase("reconnect");
+          }
+          return null;
+        }
+        // Веб/Telegram — падаем в запасной путь по initData ниже.
       }
       // Запасной путь: повторный вход по initData (если refresh-пропуска нет
       // или он больше не действует).
       const fresh = getInitData();
-      if (!fresh) return null;
+      if (!fresh) {
+        // Нативное приложение без refresh-пропуска: восстановить сессию нечем →
+        // экран входа (Telegram/номер).
+        if (isNativeApp()) {
+          clearAuth();
+          refreshTokenRef.current = null;
+          actingAgencyRef.current = null;
+          await clearSession();
+          setPhase("login");
+        }
+        return null;
+      }
       try {
-        const res = await fetch("/api/v1/auth/telegram", {
+        const res = await fetch(apiUrl("/api/v1/auth/telegram"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...extraHeaders() },
           body: JSON.stringify({ init_data: fresh }),
         });
         if (!res.ok) {
@@ -931,7 +1235,7 @@ export function App() {
 
   // Если владельца разлогинили (передача прав) — вернуться к экрану входа.
   useEffect(() => {
-    if (phase === "ready" && !user) setPhase("open");
+    if (phase === "ready" && !user) setPhase(isNativeApp() ? "login" : "open");
   }, [user, phase]);
 
   if (phase === "loading") {
@@ -942,6 +1246,7 @@ export function App() {
     );
   }
   if (phase === "open") return <OpenInTelegram />;
+  if (phase === "login") return <NativeLoginScreen onTelegram={telegramSignIn} onPhoneRequest={phoneRequestCode} onPhoneVerify={phoneVerifyCode} />;
   if (phase === "reconnect") return <ReconnectScreen onRetry={() => { setPhase("loading"); bootstrapAuth(); }} />;
   if (phase === "join") return <WelcomeScreen prefill={startParam} onAuth={applyAuth} />;
   if (phase === "personal")

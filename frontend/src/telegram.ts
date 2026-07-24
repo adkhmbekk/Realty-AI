@@ -25,14 +25,22 @@ export function tgReady() {
       // Безопасный отступ сверху: в полном экране контент не должен заезжать
       // под шапку Telegram и вырез/часы телефона. Кладём отступ в CSS-переменную
       // --tg-top-inset и обновляем при изменениях (старые клиенты → 0, без вреда).
-      applyTopInset();
-      try {
-        tg.onEvent?.("safeAreaChanged", applyTopInset);
-        tg.onEvent?.("contentSafeAreaChanged", applyTopInset);
-        tg.onEvent?.("fullscreenChanged", applyTopInset);
-        tg.onEvent?.("viewportChanged", applyTopInset);
-      } catch {
-        /* noop */
+      // ТОЛЬКО внутри настоящего Telegram: скрипт telegram-web-app.js грузится
+      // безусловно (index.html), поэтому `tg` — правдивый объект и в нативном
+      // приложении (Capacitor), где реального Telegram нет. Там safeAreaInset
+      // всегда 0 → applyTopInset() перезаписал бы --tg-top-inset в "0px" (не
+      // «не задано»!), из-за чего CSS-фолбэк на env(safe-area-inset-top) ниже
+      // никогда бы не сработал и контент лез бы под чёлку/статус-бар iPhone.
+      if (!isNativeApp()) {
+        applyTopInset();
+        try {
+          tg.onEvent?.("safeAreaChanged", applyTopInset);
+          tg.onEvent?.("contentSafeAreaChanged", applyTopInset);
+          tg.onEvent?.("fullscreenChanged", applyTopInset);
+          tg.onEvent?.("viewportChanged", applyTopInset);
+        } catch {
+          /* noop */
+        }
       }
     }
   } catch {
@@ -58,6 +66,13 @@ export function getInitData(): string {
   } catch {
     return "";
   }
+}
+
+// Работаем ли МЫ вне Telegram (нативное приложение Capacitor / обычный браузер).
+// Признак — отсутствие initData: внутри Telegram Mini App он всегда есть, а вход
+// по нему и завязан. Вне Telegram вход идёт через Google/Apple (session.ts).
+export function isNativeApp(): boolean {
+  return !getInitData();
 }
 
 // Запросить номер телефона у пользователя (нативная кнопка Telegram «Поделиться

@@ -1,6 +1,35 @@
 // Клиент к backend. Токен подставляется из переданного getter'а.
 import { bumpData } from "./refresh";
 
+// Базовый адрес backend. В Telegram Mini App фронт живёт на ОДНОМ origin с бэком
+// (или через dev-прокси Vite), поэтому база пустая — относительные /api/... идут
+// на тот же домен. В нативном приложении (Capacitor) origin webview другой
+// (capacitor://localhost), и адрес backend задаётся при сборке через VITE_API_BASE
+// (например, постоянный Cloudflare-домен). Хвостовой слэш срезаем, чтобы не было
+// «//api». Абсолютные URL (http…) не трогаем.
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
+
+export function apiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  return path.startsWith("/") ? API_BASE + path : path;
+}
+
+// ngrok-free показывает браузерный интерстишл вместо ответа API, если не прислать
+// этот заголовок → нативные fetch'и к ngrok-адресу без него получают пустоту.
+// На не-ngrok адресах заголовок безвреден, но шлём его только когда нужно.
+const IS_NGROK = /ngrok/i.test(API_BASE);
+export function extraHeaders(): Record<string, string> {
+  return IS_NGROK ? { "ngrok-skip-browser-warning": "1" } : {};
+}
+
+// Последняя ошибка fetch (status 0) — для диагностики нативного входа: обычный
+// путь возвращает голый status 0, а реальная причина («Failed to fetch»,
+// cleartext, TLS, CSP…) теряется. Сохраняем её, чтобы показать на экране.
+let lastFetchError = "";
+export function getLastFetchError(): string {
+  return lastFetchError;
+}
+
 export interface ApiResult<T = any> {
   ok: boolean;
   status: number;
@@ -68,9 +97,9 @@ export async function api<T = any>(
 ): Promise<ApiResult<T>> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const doFetch = (token: string | null): Promise<Response> => {
-    const headers: Record<string, string> = { "Content-Type": "application/json", "X-Lang": langGetter() };
+    const headers: Record<string, string> = { "Content-Type": "application/json", "X-Lang": langGetter(), ...extraHeaders() };
     if (token) headers["Authorization"] = "Bearer " + token;
-    return fetchWithTimeout(path, {
+    return fetchWithTimeout(apiUrl(path), {
       method: opts.method || "GET",
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
@@ -80,7 +109,8 @@ export async function api<T = any>(
   let res: Response;
   try {
     res = await doFetch(tokenGetter());
-  } catch {
+  } catch (e: any) {
+    lastFetchError = (e?.message || e?.name || String(e)) + " @ " + apiUrl(path);
     return { ok: false, status: 0, data: null };
   }
   // Пропуск истёк — один раз пробуем тихо перелогиниться и повторить запрос.
@@ -89,7 +119,8 @@ export async function api<T = any>(
     if (fresh) {
       try {
         res = await doFetch(fresh);
-      } catch {
+      } catch (e: any) {
+        lastFetchError = (e?.message || e?.name || String(e)) + " @ " + apiUrl(path);
         return { ok: false, status: 0, data: null };
       }
     }
@@ -151,14 +182,15 @@ export async function apiUpload<T = any>(
 ): Promise<ApiResult<T>> {
   const timeoutMs = opts.timeoutMs ?? 60000;
   const doFetch = (token: string | null): Promise<Response> => {
-    const headers: Record<string, string> = { "X-Lang": langGetter() };
+    const headers: Record<string, string> = { "X-Lang": langGetter(), ...extraHeaders() };
     if (token) headers["Authorization"] = "Bearer " + token;
-    return fetchWithTimeout(path, { method: "POST", headers, body: form }, timeoutMs);
+    return fetchWithTimeout(apiUrl(path), { method: "POST", headers, body: form }, timeoutMs);
   };
   let res: Response;
   try {
     res = await doFetch(tokenGetter());
-  } catch {
+  } catch (e: any) {
+    lastFetchError = (e?.message || e?.name || String(e)) + " @ " + apiUrl(path);
     return { ok: false, status: 0, data: null };
   }
   if (res.status === 401) {
@@ -166,7 +198,8 @@ export async function apiUpload<T = any>(
     if (fresh) {
       try {
         res = await doFetch(fresh);
-      } catch {
+      } catch (e: any) {
+        lastFetchError = (e?.message || e?.name || String(e)) + " @ " + apiUrl(path);
         return { ok: false, status: 0, data: null };
       }
     }

@@ -95,11 +95,32 @@ body {
   touch-action: manipulation;
 }
 
+/* Выделение/копирование текста запрещено по всему приложению (включая
+   долгий тап → системное меню «Копировать» на iOS/Android) — оставлено
+   ТОЛЬКО на карточке объекта через .obj-selectable (см. ObjectDetailScreen
+   и ReadonlyObjectCard в screens/Apartments.tsx): там телефон/адрес/описание
+   реально нужно скопировать. Полей ввода (input/textarea) не касается —
+   user-select на них браузер игнорирует, редактирование работает как обычно. */
+#root {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.obj-selectable,
+.obj-selectable * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* Безопасный отступ сверху в полноэкранном режиме Telegram: контент не должен
    заезжать под шапку Telegram и вырез/часы телефона. Значение задаётся из
-   telegram.ts (--tg-top-inset); вне полного экрана/на старых клиентах = 0. */
+   telegram.ts (--tg-top-inset); вне полного экрана/на старых клиентах = 0.
+   Фолбэк env(safe-area-inset-top) — для нативного приложения (Capacitor):
+   там telegram.ts НЕ трогает --tg-top-inset (см. isNativeApp() guard), так
+   что var() падает во второй аргумент и берёт настоящий safe area устройства. */
 #root {
-  padding-top: var(--tg-top-inset, 0px);
+  padding-top: var(--tg-top-inset, env(safe-area-inset-top, 0px));
 }
 
 /* Сплошная полоса под кнопками Telegram: при прокрутке контент уходит за неё,
@@ -111,7 +132,7 @@ body::after {
   top: 0;
   left: 0;
   right: 0;
-  height: var(--tg-top-inset, 0px);
+  height: var(--tg-top-inset, env(safe-area-inset-top, 0px));
   background: var(--bg);
   z-index: 30;
   pointer-events: none;

@@ -11,7 +11,7 @@ import { Home as HomeIcon, Settings as SettingsIcon, User as UserIcon, Plus, Key
 import { useApp } from "../store";
 import { useNav } from "../nav";
 import { api, errText } from "../api";
-import { getInitData, requestContact, haptic } from "../telegram";
+import { getInitData, requestContact, haptic, isNativeApp } from "../telegram";
 import { Button, Card, Field, Input, Spinner, Segmented, Switch } from "../components/ui";
 import type { AuthResponse, Membership, UserProfile } from "../types";
 import type { Lang } from "../i18n";
@@ -214,7 +214,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 
   if (step === "lang") {
     return (
-      <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, 0px)" }}>
+      <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, env(safe-area-inset-top, 0px))" }}>
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-10 w-full max-w-[560px] mx-auto animate-fade-up">
           <div className="text-center mb-6">
             <div className="mx-auto mb-4 w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
@@ -238,14 +238,18 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 
   const shared = !!phone;
   return (
-    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, 0px)" }}>
+    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, env(safe-area-inset-top, 0px))" }}>
       <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-8 w-full max-w-[560px] mx-auto animate-fade-up">
         <h1 className="text-[24px] font-extrabold tracking-tight">{s.getAcquainted}</h1>
         <p className="text-muted text-sm mt-1.5">{s.profileSub}</p>
         <Field label={s.firstName}><Input value={first} onChange={(e) => setFirst(e.target.value)} placeholder="Азиз" /></Field>
         <Field label={s.lastName}><Input value={last} onChange={(e) => setLast(e.target.value)} placeholder="Каримов" /></Field>
         <Field label={s.phone}>
-          {shared ? (
+          {isNativeApp() ? (
+            // Нативное приложение: обычный ввод номера (Telegram-контакта тут нет).
+            // Подтверждение SMS — отдельным этапом.
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="+998 90 123 45 67" />
+          ) : shared ? (
             <div className="flex items-center gap-2.5">
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
               <Button variant="soft" size="sm" onClick={shareContact}>{s.change}</Button>
@@ -334,22 +338,24 @@ function Hub({ onEnterAgency }: { onEnterAgency: (data: AuthResponse) => void })
   );
 
   return (
-    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, 0px)" }}>
+    <div className="fixed left-0 right-0 bottom-0 flex flex-col" style={{ top: "var(--tg-top-inset, env(safe-area-inset-top, 0px))" }}>
       {entering && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3" style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)" }}>
           <Spinner /><div className="text-muted text-sm">{s.entering}</div>
         </div>
       )}
-      {/* Брендовая шапка — как в интерфейсе агентства (App.tsx Shell): логотип +
-          «Realty AI» слева сверху, чтобы личный кабинет не выглядел незавершённым. */}
+      {/* Брендовая шапка — как в интерфейсе агентства (App.tsx Shell), чтобы личный
+          кабинет не выглядел «неполноценным». Логотип + «Realty AI», фиксирована. */}
       <div className="shrink-0 w-full max-w-[560px] mx-auto px-3.5 pt-3.5">
-        <header className="flex items-center gap-2.5 min-h-[40px] mb-2">
-          <span className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow shrink-0" style={{ background: "var(--grad)" }}>
-            <Building2 size={18} />
-          </span>
-          <span className="text-[18px] font-extrabold tracking-tight">
-            Realty <span className="text-primary">AI</span>
-          </span>
+        <header className="flex items-center gap-3 min-h-[40px] mb-2">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-[10px] flex items-center justify-center text-white shadow-glow" style={{ background: "var(--grad)" }}>
+              <Building2 size={18} />
+            </span>
+            <span className="text-[18px] font-extrabold tracking-tight">
+              Realty <span className="text-primary">AI</span>
+            </span>
+          </div>
         </header>
       </div>
       <div className="flex-1 min-h-0 relative">
@@ -611,7 +617,7 @@ function ProfileTab({ s }: { s: Record<string, string> }) {
               <Field label={s.phone}>
                 <div className="flex items-center gap-2.5">
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={s.noPhone} />
-                  <Button variant="soft" size="sm" onClick={shareContact} aria-label={s.sharePhone}><Share2 size={16} /></Button>
+                  {!isNativeApp() && <Button variant="soft" size="sm" onClick={shareContact} aria-label={s.sharePhone}><Share2 size={16} /></Button>}
                 </div>
               </Field>
               {!complete && (
